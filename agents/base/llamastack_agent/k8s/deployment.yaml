@@ -1,0 +1,66 @@
+# Deployment for LlamaStack Agent
+#
+# Deploy using environment variables:
+# 1. Secret for API_KEY (if required by LlamaStack):
+#    oc create secret generic llamastack-agent-secrets \
+#      --from-literal=api-key='YOUR_API_KEY_HERE'
+#
+#   export BASE_URL="https://your-llamastack-endpoint.com"
+#   export MODEL_ID="Llama3.2-3B-Instruct"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llamastack-agent
+  labels:
+    app: llamastack-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llamastack-agent
+  template:
+    metadata:
+      labels:
+        app: llamastack-agent
+    spec:
+      containers:
+      - name: llamastack-agent
+        image: "${CONTAINER_IMAGE}"
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: PORT
+          value: "8080"
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: llamastack-agent-secrets
+              key: api-key
+        - name: BASE_URL
+          value: "${BASE_URL}"
+        - name: MODEL_ID
+          value: "${MODEL_ID}"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 120
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 30
+          timeoutSeconds: 3
+          failureThreshold: 3

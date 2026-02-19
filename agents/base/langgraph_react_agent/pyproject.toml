@@ -1,0 +1,39 @@
+[tool.poetry]
+name = "langgraph_react_agent_base"
+version = "0.1.0"
+description = "A template for a LangGraph LLM app deployable on RHOAI Cloud as an ai_service. This particular example focues on an AutoX chatbot enhanced with external tools (function calling)."
+authors = ["Your Name <you@example.com>"]
+license = "MIT"
+packages = [
+    { include = "langgraph_react_agent_base", from = "src" }
+]
+
+
+[tool.poetry.dependencies]
+python = ">=3.10,<=3.13"
+langchain-openai = ">=1.0.0"
+openai = ">=1.0.0"
+langgraph = ">=1.0.0"
+langgraph-prebuilt = ">=1.0.0"
+langchain-core = ">=1.0.0"
+pytest = "^8.3.3"
+fastapi = "^0.115.0"
+uvicorn = {extras = ["standard"], version = "^0.32.0"}
+python-dotenv = "^1.0.0"
+
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+
+[tool.poetry.group.eval.dependencies]
+setuptools = "<80.9.0"
+unitxt = "^1.24.0"
+datasets = "3.6.0"
+nltk = "^3.9.1"
+rouge-score = "^0.1.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
