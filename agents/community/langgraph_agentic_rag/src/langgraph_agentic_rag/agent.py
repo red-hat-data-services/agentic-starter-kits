@@ -66,6 +66,7 @@ def get_graph_closure(
 
     class AgentState(TypedDict):
         """State for the RAG agent workflow."""
+
         messages: Annotated[Sequence[BaseMessage], add_messages]
 
     def agent_with_instruction(instruction_prompt: str | None) -> Callable:
@@ -122,12 +123,24 @@ def get_graph_closure(
 
         if not question or not docs:
             # Fallback if we can't find the question or docs
-            return {"messages": [AIMessage(content="I couldn't find the information needed to answer your question.")]}
+            return {
+                "messages": [
+                    AIMessage(
+                        content="I couldn't find the information needed to answer your question."
+                    )
+                ]
+            }
 
         # Create a simple, direct prompt for the LLM
         # Check if docs indicate no relevant information
         if "No relevant information" in docs or not docs.strip():
-            return {"messages": [AIMessage(content="I couldn't find relevant information in the provided documents to answer your question.")]}
+            return {
+                "messages": [
+                    AIMessage(
+                        content="I couldn't find relevant information in the provided documents to answer your question."
+                    )
+                ]
+            }
 
         # Use HumanMessage instead of SystemMessage for better compatibility with smaller models
         rag_prompt_text = f"""Based on the following context, answer the question.
@@ -144,11 +157,23 @@ Answer[start response with 'based on provided documents]:"""
             response = chat.invoke([HumanMessage(content=rag_prompt_text)])
 
             if not response.content or not response.content.strip():
-                return {"messages": [AIMessage(content="I couldn't find relevant information in the provided documents to answer your question.")]}
+                return {
+                    "messages": [
+                        AIMessage(
+                            content="I couldn't find relevant information in the provided documents to answer your question."
+                        )
+                    ]
+                }
 
             return {"messages": [AIMessage(content=response.content.strip())]}
         except Exception:
-            return {"messages": [AIMessage(content="I couldn't find relevant information in the provided documents to answer your question.")]}
+            return {
+                "messages": [
+                    AIMessage(
+                        content="I couldn't find relevant information in the provided documents to answer your question."
+                    )
+                ]
+            }
 
     def get_graph(instruction_prompt: SystemMessage | None = None):
         """Create and compile the RAG workflow graph.

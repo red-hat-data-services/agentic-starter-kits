@@ -8,11 +8,11 @@ class InteractiveChat:
     """Interactive REPL that prompts for user input and calls the AI service for each question."""
 
     def __init__(
-            self,
-            ai_service_invoke: Callable,
-            questions: tuple[str] = None,
-            stream: bool = False,
-            verbose: bool = True,
+        self,
+        ai_service_invoke: Callable,
+        questions: tuple[str] = None,
+        stream: bool = False,
+        verbose: bool = True,
     ) -> None:
         """Set up the chat: invoke callable, optional preset questions, and stream/verbose flags."""
         self.ai_service_invoke = ai_service_invoke
@@ -40,7 +40,9 @@ class InteractiveChat:
     def questions(self, q: tuple) -> None:
         """Set preset questions and refresh the list shown by list_questions."""
         self._questions = q
-        self._questions_prompt = f"\tQuestions:\n{self._ordered_list(self._questions)}\n"
+        self._questions_prompt = (
+            f"\tQuestions:\n{self._ordered_list(self._questions)}\n"
+        )
 
     def _print_message(self, choice: dict) -> None:
         """Print one choice from the AI response (streaming delta or full message) with role headers."""
@@ -51,7 +53,7 @@ class InteractiveChat:
             if current_role != self._last_role:
                 display_names = {
                     "tool_answer": "Answer from tool",
-                    "assistant_answer": "Assistant answer"
+                    "assistant_answer": "Assistant answer",
                 }
                 header_text = display_names.get(current_role, current_role.capitalize())
                 print(f"\n{f' {header_text} '.center(80, '=')}")
@@ -63,7 +65,9 @@ class InteractiveChat:
         else:
             # Non-streaming fallback
             msg = choice.get("message", {})
-            header = f" {msg.get('role', 'Assistant').capitalize()} Message ".center(80, "=")
+            header = f" {msg.get('role', 'Assistant').capitalize()} Message ".center(
+                80, "="
+            )
             print(f"\n{header}\n{msg.get('content', '')}")
 
     def _user_input_loop(self) -> Generator[tuple[str, str], None, None]:

@@ -114,7 +114,7 @@ class FunctionCallingAgent(Workflow):
                     )
                 )
                 continue
-            
+
             # Tool exists - use tool metadata for additional_kwargs
             additional_kwargs = {
                 "tool_call_id": tool_call.tool_id,

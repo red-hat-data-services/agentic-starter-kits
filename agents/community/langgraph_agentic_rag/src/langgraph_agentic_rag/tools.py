@@ -12,7 +12,7 @@ _vector_store_id_cache = None
 
 
 def get_retriever_components(
-        base_url: Optional[str] = None,
+    base_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Get the LlamaStack client and vector store ID for retrieval.
@@ -27,10 +27,7 @@ def get_retriever_components(
 
     # Return cached components if they exist
     if _client_cache is not None and _vector_store_id_cache is not None:
-        return {
-            "client": _client_cache,
-            "vector_store_id": _vector_store_id_cache
-        }
+        return {"client": _client_cache, "vector_store_id": _vector_store_id_cache}
 
     # Get configuration from environment if not provided
     if not base_url:
@@ -45,7 +42,9 @@ def get_retriever_components(
     # Get the vector store ID
     vector_store_list = client.vector_stores.list()
     if len(vector_store_list.data) == 0:
-        raise RuntimeError("No vector store found. Please run load_documents.py first to create and populate the vector store.")
+        raise RuntimeError(
+            "No vector store found. Please run load_documents.py first to create and populate the vector store."
+        )
 
     vector_store_id = vector_store_list.data[0].id
 
@@ -53,15 +52,15 @@ def get_retriever_components(
     _client_cache = client
     _vector_store_id_cache = vector_store_id
 
-    return {
-        "client": client,
-        "vector_store_id": vector_store_id
-    }
+    return {"client": client, "vector_store_id": vector_store_id}
 
 
 class RetrieverInput(BaseModel):
     """Schema for the retriever tool input."""
-    query: str = Field(description="The search query describing what information you need to retrieve.")
+
+    query: str = Field(
+        description="The search query describing what information you need to retrieve."
+    )
 
 
 @tool("retriever", args_schema=RetrieverInput)
@@ -81,7 +80,7 @@ def retriever_tool(query: str) -> str:
     # Handle case where query might be passed as a dict (defensive fix)
     if isinstance(query, dict):
         # Extract the actual query value from the dict
-        query = query.get('value', query.get('query', str(query)))
+        query = query.get("value", query.get("query", str(query)))
 
     # Get retriever components
     components = get_retriever_components()
@@ -95,9 +94,8 @@ def retriever_tool(query: str) -> str:
         query=query,  # Pass the text query directly
         params={
             "max_chunks": 2  # Retrieve only the most relevant document (max_chunks not top_k or K)
-        }
+        },
     )
-
 
     # Format the retrieved documents
     if not response.chunks:
@@ -107,11 +105,15 @@ def retriever_tool(query: str) -> str:
     for i, chunk in enumerate(response.chunks, 1):
         # Skip chunks that are empty or just separators/whitespace
         content = chunk.content.strip()
-        if not content or all(c in '=-_*#' for c in content):
+        if not content or all(c in "=-_*#" for c in content):
             continue
 
         # Extract source from chunk metadata (Pydantic object)
-        source = getattr(chunk.chunk_metadata, 'source', 'unknown') if hasattr(chunk, 'chunk_metadata') else 'unknown'
+        source = (
+            getattr(chunk.chunk_metadata, "source", "unknown")
+            if hasattr(chunk, "chunk_metadata")
+            else "unknown"
+        )
 
         # Format each document with clear separation
         doc_text = f"--- Document {len(formatted_docs) + 1} ---\n"

@@ -15,11 +15,7 @@ from llama_index_workflow_agent_base.workflow import (
 )
 
 
-def ai_stream_service(
-        context,
-        base_url=None,
-        model_id=None
-):
+def ai_stream_service(context, base_url=None, model_id=None):
     """
 
     :param context:
@@ -29,9 +25,7 @@ def ai_stream_service(
     """
     nest_asyncio.apply()  # We inject support for nested event loops
 
-    persistent_loop = (
-        asyncio.new_event_loop()
-    )  # Create a persistent event loop that will be used by generate and generate_stream
+    persistent_loop = asyncio.new_event_loop()  # Create a persistent event loop that will be used by generate and generate_stream
 
     def start_loop(loop: asyncio.AbstractEventLoop) -> None:
         asyncio.set_event_loop(loop)
@@ -73,14 +67,13 @@ def ai_stream_service(
                 }
 
     def get_formatted_message_stream(
-            resp: ChatMessage, is_assistant: bool = False
+        resp: ChatMessage, is_assistant: bool = False
     ) -> list | None:
 
         if isinstance(resp, StartEvent):
             return
 
         elif isinstance(resp, InputEvent):
-
             responses = []
             resp_input = resp.input
             last_assistant_index = None
@@ -90,10 +83,8 @@ def ai_stream_service(
                     last_assistant_index = index
 
             if last_assistant_index is not None:
-                for event_input in resp_input[last_assistant_index + 1:]:
-
+                for event_input in resp_input[last_assistant_index + 1 :]:
                     if event_input.role == "tool":
-
                         tool_call_id = event_input.additional_kwargs["tool_call_id"]
                         if is_assistant:
                             to_queue = {
@@ -219,7 +210,9 @@ def ai_stream_service(
                         # Access finish_reason from ChatCompletion object (not dict)
                         # .raw is a ChatCompletion Pydantic model, so use attribute access
                         try:
-                            finish_reason = ev.result["response"].raw.choices[0].finish_reason
+                            finish_reason = (
+                                ev.result["response"].raw.choices[0].finish_reason
+                            )
                         except (AttributeError, IndexError, KeyError):
                             # Fallback if structure is different
                             finish_reason = None

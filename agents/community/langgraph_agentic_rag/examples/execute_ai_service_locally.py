@@ -26,8 +26,8 @@ vector_store_path = get_env_var("VECTOR_STORE_PATH")
 embedding_model = get_env_var("EMBEDDING_MODEL")
 
 # Ensure base_url ends with /v1 if provided
-if base_url and not base_url.endswith('/v1'):
-    base_url = base_url.rstrip('/') + '/v1'
+if base_url and not base_url.endswith("/v1"):
+    base_url = base_url.rstrip("/") + "/v1"
 
 stream = True
 context = SimpleContext()
@@ -44,14 +44,14 @@ def ai_service_invoke(payload):
     return ai_service_resp_func(context)
 
 
-print("\n" + "="*80)
+print("\n" + "=" * 80)
 print("LangGraph Agentic RAG - Interactive Chat")
-print("="*80)
+print("=" * 80)
 print(f"Model: {model_id}")
 print(f"Base URL: {base_url}")
 print(f"Vector Store: {vector_store_path or 'Using sample data'}")
 print(f"Embedding Model: {embedding_model}")
-print("="*80 + "\n")
+print("=" * 80 + "\n")
 
 chat = InteractiveChat(ai_service_invoke, stream=stream)
 chat.run()

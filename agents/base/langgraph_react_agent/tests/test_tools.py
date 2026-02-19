@@ -4,13 +4,13 @@ import os
 import pytest
 
 # Add parent directory to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.langgraph_react_agent_base.tools import (
     dummy_web_search,
     dummy_math,
     SearchInput,
-    MathInput
+    MathInput,
 )
 
 
@@ -54,12 +54,7 @@ def test_dummy_web_search_invoke_with_string():
 
 def test_dummy_web_search_invoke_different_queries():
     """Test that dummy_web_search works with different query strings."""
-    queries = [
-        "OpenShift",
-        "LangGraph",
-        "artificial intelligence",
-        ""
-    ]
+    queries = ["OpenShift", "LangGraph", "artificial intelligence", ""]
 
     for query in queries:
         result = dummy_web_search.invoke({"query": query})
@@ -90,12 +85,7 @@ def test_dummy_math_invoke_with_string():
 
 def test_dummy_math_invoke_different_queries():
     """Test that dummy_math works with different query strings."""
-    queries = [
-        "5 * 10",
-        "100 / 4",
-        "sqrt(16)",
-        "calculate pi"
-    ]
+    queries = ["5 * 10", "100 / 4", "sqrt(16)", "calculate pi"]
 
     for query in queries:
         result = dummy_math.invoke({"query": query})
@@ -168,10 +158,10 @@ def test_tool_names_are_correct():
 def test_tools_have_args_schema():
     """Test that tools have properly configured args schemas."""
     # Web search should infer schema from docstring (parse_docstring=True)
-    assert hasattr(dummy_web_search, 'args_schema')
+    assert hasattr(dummy_web_search, "args_schema")
 
     # Math tool has explicit args_schema
-    assert hasattr(dummy_math, 'args_schema')
+    assert hasattr(dummy_math, "args_schema")
     assert dummy_math.args_schema == MathInput
 
 

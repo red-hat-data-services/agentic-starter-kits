@@ -13,11 +13,11 @@ RESET = "\033[0m"
 
 class InteractiveChat:
     def __init__(
-            self,
-            ai_service_invoke: Callable,
-            questions: tuple[str] = None,
-            stream: bool = False,
-            verbose: bool = True,
+        self,
+        ai_service_invoke: Callable,
+        questions: tuple[str] = None,
+        stream: bool = False,
+        verbose: bool = True,
     ) -> None:
         self.ai_service_invoke = ai_service_invoke
         self._ordered_list = lambda seq_: "\n".join(
@@ -95,7 +95,7 @@ class InteractiveChat:
         # 3. Handle Normal Text (The AI is talking to you)
         elif content:
             if not self._delta_start:
-                print(f"\n\033[95m🤖 [ASSISTANT]\033[0m ", end="", flush=True)
+                print("\n\033[95m🤖 [ASSISTANT]\033[0m ", end="", flush=True)
                 self._delta_start = True
 
             print(content, flush=True, end="")
@@ -125,7 +125,9 @@ class InteractiveChat:
                             number = int(action)
                             print(f"you chose QUESTION {number}\n")
                             if number > len(self.questions) or number < 0:
-                                print("provided numbers have to match the available numbers")
+                                print(
+                                    "provided numbers have to match the available numbers"
+                                )
                                 continue
                             else:
                                 user_message["content"] = self.questions[number - 1]
@@ -146,7 +148,9 @@ class InteractiveChat:
                             self._delta_start = False
                         else:
                             resp_choices = resp.get("body", resp)["choices"]
-                            choices = resp_choices if self.verbose else resp_choices[-1:]
+                            choices = (
+                                resp_choices if self.verbose else resp_choices[-1:]
+                            )
                             for c in choices:
                                 self._print_message(c)
 

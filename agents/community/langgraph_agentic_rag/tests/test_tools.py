@@ -5,12 +5,12 @@ from unittest.mock import Mock, patch
 import pytest
 
 # Add parent directory to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.langgraph_agentic_rag.tools import (
     retriever_tool,
     get_retriever_components,
-    RetrieverInput
+    RetrieverInput,
 )
 
 
@@ -27,7 +27,7 @@ def test_retriever_input_schema():
     assert schema.query == "test query"
 
 
-@patch('src.langgraph_agentic_rag.tools.get_retriever_components')
+@patch("src.langgraph_agentic_rag.tools.get_retriever_components")
 def test_retriever_tool_invoke_with_string_query(mock_get_components):
     """Test that the retriever tool can be invoked with a string query."""
     # Mock the LlamaStack client and vector store response
@@ -44,7 +44,7 @@ def test_retriever_tool_invoke_with_string_query(mock_get_components):
 
     mock_get_components.return_value = {
         "client": mock_client,
-        "vector_store_id": "test-vector-store-id"
+        "vector_store_id": "test-vector-store-id",
     }
 
     # Invoke the tool
@@ -61,13 +61,11 @@ def test_retriever_tool_invoke_with_string_query(mock_get_components):
 
     # Verify the client was called correctly
     mock_client.vector_io.query.assert_called_once_with(
-        vector_store_id="test-vector-store-id",
-        query=query,
-        params={"max_chunks": 2}
+        vector_store_id="test-vector-store-id", query=query, params={"max_chunks": 2}
     )
 
 
-@patch('src.langgraph_agentic_rag.tools.get_retriever_components')
+@patch("src.langgraph_agentic_rag.tools.get_retriever_components")
 def test_retriever_tool_no_results(mock_get_components):
     """Test retriever tool behavior when no results are found."""
     # Mock empty response
@@ -79,7 +77,7 @@ def test_retriever_tool_no_results(mock_get_components):
 
     mock_get_components.return_value = {
         "client": mock_client,
-        "vector_store_id": "test-vector-store-id"
+        "vector_store_id": "test-vector-store-id",
     }
 
     # Invoke the tool
@@ -89,7 +87,7 @@ def test_retriever_tool_no_results(mock_get_components):
     assert "No relevant information was found" in result
 
 
-@patch('src.langgraph_agentic_rag.tools.get_retriever_components')
+@patch("src.langgraph_agentic_rag.tools.get_retriever_components")
 def test_retriever_tool_multiple_chunks(mock_get_components):
     """Test retriever tool with multiple chunks returned."""
     # Mock multiple chunks
@@ -112,7 +110,7 @@ def test_retriever_tool_multiple_chunks(mock_get_components):
 
     mock_get_components.return_value = {
         "client": mock_client,
-        "vector_store_id": "test-vector-store-id"
+        "vector_store_id": "test-vector-store-id",
     }
 
     # Invoke the tool
@@ -127,7 +125,7 @@ def test_retriever_tool_multiple_chunks(mock_get_components):
     assert "doc2.txt" in result
 
 
-@patch('src.langgraph_agentic_rag.tools.get_retriever_components')
+@patch("src.langgraph_agentic_rag.tools.get_retriever_components")
 def test_retriever_tool_filters_empty_chunks(mock_get_components):
     """Test that empty or separator chunks are filtered out."""
     # Mock chunks with empty/separator content
@@ -155,7 +153,7 @@ def test_retriever_tool_filters_empty_chunks(mock_get_components):
 
     mock_get_components.return_value = {
         "client": mock_client,
-        "vector_store_id": "test-vector-store-id"
+        "vector_store_id": "test-vector-store-id",
     }
 
     # Invoke the tool
@@ -169,12 +167,13 @@ def test_retriever_tool_filters_empty_chunks(mock_get_components):
     assert "Document 2" not in result
 
 
-@patch('src.langgraph_agentic_rag.tools.LlamaStackClient')
-@patch('src.langgraph_agentic_rag.tools.get_env_var')
+@patch("src.langgraph_agentic_rag.tools.LlamaStackClient")
+@patch("src.langgraph_agentic_rag.tools.get_env_var")
 def test_get_retriever_components_initialization(mock_get_env, mock_client_class):
     """Test that retriever components are properly initialized."""
     # Reset cache
     import src.langgraph_agentic_rag.tools as tools_module
+
     tools_module._client_cache = None
     tools_module._vector_store_id_cache = None
 
@@ -202,12 +201,13 @@ def test_get_retriever_components_initialization(mock_get_env, mock_client_class
     mock_client_class.assert_called_once_with(base_url="http://localhost:8321")
 
 
-@patch('src.langgraph_agentic_rag.tools.LlamaStackClient')
-@patch('src.langgraph_agentic_rag.tools.get_env_var')
+@patch("src.langgraph_agentic_rag.tools.LlamaStackClient")
+@patch("src.langgraph_agentic_rag.tools.get_env_var")
 def test_get_retriever_components_caching(mock_get_env, mock_client_class):
     """Test that retriever components are cached after first call."""
     # Set up cache with values
     import src.langgraph_agentic_rag.tools as tools_module
+
     mock_cached_client = Mock()
     tools_module._client_cache = mock_cached_client
     tools_module._vector_store_id_cache = "cached-vector-store-id"
@@ -221,11 +221,12 @@ def test_get_retriever_components_caching(mock_get_env, mock_client_class):
     mock_client_class.assert_not_called()
 
 
-@patch('src.langgraph_agentic_rag.tools.LlamaStackClient')
+@patch("src.langgraph_agentic_rag.tools.LlamaStackClient")
 def test_get_retriever_components_with_base_url(mock_client_class):
     """Test that base_url parameter is used when provided."""
     # Reset cache
     import src.langgraph_agentic_rag.tools as tools_module
+
     tools_module._client_cache = None
     tools_module._vector_store_id_cache = None
 
@@ -248,12 +249,13 @@ def test_get_retriever_components_with_base_url(mock_client_class):
     assert result["vector_store_id"] == "test-id"
 
 
-@patch('src.langgraph_agentic_rag.tools.LlamaStackClient')
-@patch('src.langgraph_agentic_rag.tools.get_env_var')
+@patch("src.langgraph_agentic_rag.tools.LlamaStackClient")
+@patch("src.langgraph_agentic_rag.tools.get_env_var")
 def test_get_retriever_components_no_vector_store(mock_get_env, mock_client_class):
     """Test error handling when no vector store is found."""
     # Reset cache
     import src.langgraph_agentic_rag.tools as tools_module
+
     tools_module._client_cache = None
     tools_module._vector_store_id_cache = None
 

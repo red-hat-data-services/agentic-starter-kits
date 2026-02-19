@@ -20,15 +20,13 @@ base_url = get_env_var("BASE_URL")
 model_id = get_env_var("MODEL_ID")
 
 # Ensure base_url ends with /v1 if provided
-if base_url and not base_url.endswith('/v1'):
-    base_url = base_url.rstrip('/') + '/v1'
+if base_url and not base_url.endswith("/v1"):
+    base_url = base_url.rstrip("/") + "/v1"
 
 stream = True
 context = SimpleContext()
 ai_service_resp_func = ai_stream_service(
-    context=context,
-    base_url=base_url,
-    model_id=model_id
+    context=context, base_url=base_url, model_id=model_id
 )[stream]
 
 

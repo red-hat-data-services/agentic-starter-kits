@@ -1,11 +1,18 @@
 from typing import Generator
-from langchain_core.messages import AIMessage, SystemMessage, HumanMessage, BaseMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    SystemMessage,
+    HumanMessage,
+    BaseMessage,
+    ToolMessage,
+)
 from langgraph_agentic_rag.agent import get_graph_closure
 
+
 def ai_stream_service(
-        context,
-        base_url=None,
-        model_id=None,
+    context,
+    base_url=None,
+    model_id=None,
 ):
     """Create a deployable AI service that runs the RAG agent and returns (generate, generate_stream).
 
@@ -33,14 +40,14 @@ def ai_stream_service(
         if isinstance(resp, ToolMessage):
             return {
                 "role": "tool",
-                "content": f"\n📚 Retrieved Documents:\n{resp.content}"
+                "content": f"\n📚 Retrieved Documents:\n{resp.content}",
             }
 
         if hasattr(resp, "tool_calls") and resp.tool_calls:
             tc = resp.tool_calls[0]
             return {
                 "role": "assistant",
-                "content": f"🔍 Searching knowledge base with query: '{tc['args'].get('query', 'N/A')}'"
+                "content": f"🔍 Searching knowledge base with query: '{tc['args'].get('query', 'N/A')}'",
             }
 
         if resp.content:
@@ -68,11 +75,13 @@ def ai_stream_service(
         return {
             "headers": {"Content-Type": "application/json"},
             "body": {
-                "choices": [{
-                    "index": 0,
-                    "message": {"role": "assistant", "content": final_msg.content}
-                }]
-            }
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": final_msg.content},
+                    }
+                ]
+            },
         }
 
     def generate_stream(context) -> Generator[dict, None, None]:
@@ -80,10 +89,7 @@ def ai_stream_service(
         payload = context.get_json()
         messages = [convert_dict_to_message(m) for m in payload.get("messages", [])]
 
-        response_stream = agent.stream(
-            {"messages": messages},
-            stream_mode="updates"
-        )
+        response_stream = agent.stream({"messages": messages}, stream_mode="updates")
 
         for update in response_stream:
             node_name = list(update.keys())[0]
@@ -101,11 +107,9 @@ def ai_stream_service(
                     # Only yield if it's a valid message for the user
                     if message:
                         yield {
-                            "choices": [{
-                                "index": 0,
-                                "delta": message,
-                                "finish_reason": None
-                            }]
+                            "choices": [
+                                {"index": 0, "delta": message, "finish_reason": None}
+                            ]
                         }
 
     return generate, generate_stream

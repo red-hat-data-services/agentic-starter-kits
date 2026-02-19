@@ -4,7 +4,7 @@ import os
 import pytest
 
 # Add parent directory to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.llama_index_workflow_agent_base.tools import dummy_web_search
 
@@ -49,13 +49,7 @@ def test_dummy_web_search_return_value():
 
 def test_dummy_web_search_with_different_queries():
     """Test that dummy_web_search works with different query strings."""
-    queries = [
-        "OpenShift",
-        "LangGraph",
-        "artificial intelligence",
-        "test",
-        "123"
-    ]
+    queries = ["OpenShift", "LangGraph", "artificial intelligence", "test", "123"]
 
     for query in queries:
         result = dummy_web_search(query)
@@ -79,7 +73,7 @@ def test_dummy_web_search_with_special_characters():
         "query-with-dashes",
         "query_with_underscores",
         "query@with#symbols",
-        "query\nwith\nnewlines"
+        "query\nwith\nnewlines",
     ]
 
     for query in special_queries:
@@ -130,7 +124,7 @@ def test_dummy_web_search_type_hints():
     # Should have type hints for query and return
     assert "query" in hints
     assert "return" in hints
-    assert hints["query"] == str
+    assert isinstance(hints["query"], str)
 
 
 if __name__ == "__main__":

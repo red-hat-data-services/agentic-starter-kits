@@ -40,11 +40,11 @@ async def lifespan(app: FastAPI):
     # Get environment variables
     base_url = get_env_var("BASE_URL")
     model_id = get_env_var("MODEL_ID")
-    api_key = get_env_var("API_KEY")
+    # api_key = get_env_var("API_KEY")
 
     # RAG-specific configuration
-    vector_store_path = get_env_var("VECTOR_STORE_PATH")
-    embedding_model = get_env_var("EMBEDDING_MODEL") or "text-embedding-3-small"
+    # vector_store_path = get_env_var("VECTOR_STORE_PATH")
+    # embedding_model = get_env_var("EMBEDDING_MODEL") or "text-embedding-3-small"
     use_milvus = get_env_var("USE_MILVUS")
     use_milvus = use_milvus.lower() == "true" if use_milvus else True
 
@@ -103,10 +103,12 @@ async def chat(request: ChatRequest):
             for message in result["messages"]:
                 # 1. User message (HumanMessage)
                 if isinstance(message, HumanMessage):
-                    response_messages.append({
-                        "role": "user",
-                        "content": message.content,
-                    })
+                    response_messages.append(
+                        {
+                            "role": "user",
+                            "content": message.content,
+                        }
+                    )
 
                 # 2. AI message (AIMessage)
                 elif isinstance(message, AIMessage):
@@ -130,22 +132,20 @@ async def chat(request: ChatRequest):
 
                 # 3. Tool response (ToolMessage)
                 elif isinstance(message, ToolMessage):
-                    response_messages.append({
-                        "role": "tool",
-                        "tool_call_id": message.tool_call_id,
-                        "name": message.name,
-                        "content": message.content,
-                    })
+                    response_messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": message.tool_call_id,
+                            "name": message.name,
+                            "content": message.content,
+                        }
+                    )
 
-        return {
-            "messages": response_messages,
-            "finish_reason": "stop"
-        }
+        return {"messages": response_messages, "finish_reason": "stop"}
 
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Error processing request: {str(e)}"
+            status_code=500, detail=f"Error processing request: {str(e)}"
         )
 
 
