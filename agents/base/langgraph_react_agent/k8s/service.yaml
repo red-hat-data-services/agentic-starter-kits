@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: langgraph-react-agent
+  labels:
+    app: langgraph-react-agent
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: langgraph-react-agent
+

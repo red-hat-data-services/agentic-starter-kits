@@ -1,0 +1,67 @@
+# Deployment for LlamaIndex Websearch Agent
+#
+# Deploy using environment variables:
+# 1. Secret for API_KEY (required):
+#    oc create secret generic llamaindex-websearch-agent-secrets \
+#      --from-literal=api-key='YOUR_API_KEY_HERE'
+#
+#   export BASE_URL="https://your-endpoint.com/v1"
+#   export MODEL_ID="llama-31-8b-instruct"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llamaindex-websearch-agent
+  labels:
+    app: llamaindex-websearch-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llamaindex-websearch-agent
+  template:
+    metadata:
+      labels:
+        app: llamaindex-websearch-agent
+    spec:
+      containers:
+      - name: llamaindex-websearch-agent
+        image: "${CONTAINER_IMAGE}"
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: PORT
+          value: "8080"
+        # API_KEY from Secret (secure)
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: llamaindex-websearch-agent-secrets
+              key: api-key
+        - name: BASE_URL
+          value: "${BASE_URL}"
+        - name: MODEL_ID
+          value: "${MODEL_ID}"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 120
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 30
+          timeoutSeconds: 3
+          failureThreshold: 3

@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: llamaindex-websearch-agent
+  labels:
+    app: llamaindex-websearch-agent
+spec:
+  to:
+    kind: Service
+    name: llamaindex-websearch-agent
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

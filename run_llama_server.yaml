@@ -1,0 +1,39 @@
+version: '2'
+image_name: ollama
+apis:
+  - inference
+  - safety
+  - vector_io
+providers:
+  vector_io:
+    - provider_id: milvus
+      provider_type: inline::milvus
+      config:
+        db_path: /Users/tguzik/Desktop/repos/Agentic-Starter-Kits/milvus_data/milvus_lite.db
+        persistence:
+          namespace: vector_io::milvus
+          backend: kv_default
+  inference:
+    - provider_id: ollama
+      provider_type: remote::ollama
+      config:
+        url: http://localhost:11434/v1
+  safety:
+    - provider_id: llama-guard
+      provider_type: inline::llama-guard
+      config: {}
+registered_resources:
+  models:
+  - model_id: llama3.2:3b
+    provider_id: ollama
+    model_type: llm
+    metadata: {}
+  - model_id: embeddinggemma:latest
+    provider_id: ollama
+    model_type: embedding
+    metadata:
+      embedding_dimension: 768
+metadata:
+  tags: []
+server:
+  port: 8321

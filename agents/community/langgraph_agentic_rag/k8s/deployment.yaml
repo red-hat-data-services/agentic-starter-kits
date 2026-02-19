@@ -1,0 +1,78 @@
+# Deployment for LangGraph Agentic RAG
+#
+# Deploy using environment variables:
+# 1. Secret for API_KEY (required):
+#    oc create secret generic langgraph-agentic-rag-secrets \
+#      --from-literal=api-key='YOUR_API_KEY_HERE'
+#
+#   export BASE_URL="https://your-endpoint.com/v1"
+#   export MODEL_ID="llama-31-8b-instruct"
+#   export EMBEDDING_MODEL="text-embedding-3-small"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langgraph-agentic-rag
+  labels:
+    app: langgraph-agentic-rag
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: langgraph-agentic-rag
+  template:
+    metadata:
+      labels:
+        app: langgraph-agentic-rag
+    spec:
+      containers:
+      - name: langgraph-agentic-rag
+        image: "${CONTAINER_IMAGE}"
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: PORT
+          value: "8080"
+        # API_KEY from Secret (secure)
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: langgraph-agentic-rag-secrets
+              key: api-key
+        - name: BASE_URL
+          value: "${BASE_URL}"
+        - name: MODEL_ID
+          value: "${MODEL_ID}"
+        - name: EMBEDDING_MODEL
+          value: "${EMBEDDING_MODEL}"
+        - name: VECTOR_STORE_PATH
+          value: "/app/data/vector_store"
+        volumeMounts:
+        - name: vector-store
+          mountPath: /app/data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 120
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: vector-store
+        emptyDir: {}
