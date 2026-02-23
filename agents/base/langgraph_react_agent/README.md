@@ -1,33 +1,15 @@
 
 # Use Agent Locally
 
-### Installation Script
-Run this script to set up stuff:
-
-```bash
-git clone <repository-url>
-cd Agentic-Starter-Kits
-```
-```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-```
-
 If you want to install ollama you need to install app from [Ollama site](https://ollama.com/) or via [Brew](https://formulae.brew.sh/formula/ollama#default)
 
 ```bash
 #brew install ollama
 # or
-#curl -fsSL https://ollama.com/install.sh | sh
+curl -fsSL https://ollama.com/install.sh | sh
 ```
-
-**Install Llama Stack**:
-
-```bash
-pip install llama-stack llama-stack-client
-```
-
-### Setup Instructions
+---
+### Setup Instructions with `pip`
 
 **Step 1: Pull Required Models**
 
@@ -51,7 +33,7 @@ From the **repository root directory**:
 llama stack run run_llama_server.yaml
 ```
 
-> **Keep this terminal open** - the server needs to keep running.
+> **Keep this terminal open** - the server needs to keep running.\
 > You should see output indicating the server started on `http://localhost:8321`.
 
 **Step 4: Install Agent Dependencies**
@@ -85,8 +67,8 @@ API_KEY=not-needed
 cd ../examples
 python execute_ai_service_locally.py
 ```
-
-**⚡ Or with [uv](https://docs.astral.sh/uv/)** (from repo root):
+---
+### Setup Instructions with [uv](https://docs.astral.sh/uv/)
 
 1. Create venv and activate:
 ```bash
@@ -101,8 +83,31 @@ cp utils.py agents/base/langgraph_react_agent/src/langgraph_react_agent_base/
 
 3. Install agent (editable) and its requirements:
 ```bash
-uv pip install -e agents/base/langgraph_react_agent/. -r agents/base/langgraph_react_agent/requirements.txt
+uv pip install -e agents/base/langgraph_react_agent/.
+uv pip install -r agents/base/langgraph_react_agent/requirements.txt
 ```
+
+Edit the `.env` file and fill in all required values (see notes below):
+```
+API_KEY=your-api-key-here
+BASE_URL=https://your-llama-stack-distribution.com/v1
+MODEL_ID=llama-3.1-8b-instruct
+CONTAINER_IMAGE=quay.io/your-username/langgraph-react-agent:latest
+```
+
+**Notes:**
+- `API_KEY` - contact your cluster administrator
+- `BASE_URL` - should end with `/v1`
+- `MODEL_ID` - contact your cluster administrator
+- `CONTAINER_IMAGE` - full image path where the agent container will be pushed and pulled from.
+  The image is built locally, pushed to this registry, and then deployed to OpenShift.
+  
+  Format: `<registry>/<namespace>/<image-name>:<tag>`
+  
+  Examples:
+  - Quay.io: `quay.io/your-username/langgraph-react-agent:latest`
+  - Docker Hub: `docker.io/your-username/langgraph-react-agent:latest`
+  - GHCR: `ghcr.io/your-org/langgraph-react-agent:latest`
 
 4. Run the example:
 ```bash
