@@ -76,14 +76,9 @@ Create package with agent and install it to venv
 uv pip install -e .
 ```
 
-Install needed requirements
 ```bash
-uv pip install -r requirements.txt
+uv pip install ollama
 ```
-```bash
-uv pip install ollama 'pymilvus[milvus_lite]'
-```
-uv pip install setuptools
 
 Install app from Ollama site or via Brew
 ```bash
@@ -110,10 +105,6 @@ llama stack run ../../../run_llama_server.yaml
 ```
 > **Keep this terminal open** - the server needs to keep running.\
 > You should see output indicating the server started on `http://localhost:8321`.
-uv
----
-
-
 
  Run the example:
 ```bash
@@ -122,19 +113,12 @@ uv run agents/base/langgraph_react_agent/examples/execute_ai_service_locally.py
 
 # Deployment on RedHat OpenShift Cluster
 
-### Step 1: Initialize the Agent
-Navigate to the agent directory:
-
+Make deploy file executable
 ```bash
-chmod +x init.sh deploy.sh   
-./init.sh
+chmod +x deploy.sh
 ```
-This will:
-- Load and validate environment variables from `.env` file
-- Copy shared utilities (`utils.py`) to the agent source directory
 
-### Step 2: Build image and deploy Agent
-
+Build image and deploy Agent
 ```bash
 ./deploy.sh
 ```
@@ -145,16 +129,12 @@ This will:
 - Deploy the agent to OpenShift
 - Create Service and Route
 
-### Step 3: Test the Agent
-
-Get your route URL:
-
+Get the route URL
 ```bash
 oc get route langgraph-react-agent -o jsonpath='{.spec.host}'
 ```
 
 Send a test request:
-
 ```bash
 curl -X POST https://<YOUR_ROUTE_URL>/chat \
   -H "Content-Type: application/json" \
@@ -164,28 +144,5 @@ curl -X POST https://<YOUR_ROUTE_URL>/chat \
 ## Agent-Specific Documentation
 
 Each agent has detailed documentation for setup and deployment:
-
-### Base Agents
-
-#### LangGraph ReAct Agent
-- **Directory**: `agents/base/langgraph_react_agent/`
-- **README**: [agents/base/langgraph_react_agent/README.md](./agents/base/langgraph_react_agent/README.md)
-- **Features**: General-purpose agent with tool calling, ReAct pattern
-- **Use Case**: Task automation, question answering, tool orchestration
-
-#### LlamaIndex WebSearch Agent
-- **Directory**: `agents/base/llamaindex_websearch_agent/`
-- **README**: [agents/base/llamaindex_websearch_agent/README.md](./agents/base/llamaindex_websearch_agent/README.md)
-- **Features**: Web search integration, workflow-based execution
-- **Use Case**: Research tasks, real-time information retrieval
-
-### Community Agents
-
-#### LangGraph Agentic RAG
-- **Directory**: `agents/community/langgraph_agentic_rag/`
-- **README**: [agents/community/langgraph_agentic_rag/README.md](./agents/community/langgraph_agentic_rag/README.md)
-- **Quick Start**: [agents/community/langgraph_agentic_rag/QUICKSTART.md](./agents/community/langgraph_agentic_rag/QUICKSTART.md)
-- **Features**: RAG with Milvus vector store, document retrieval, context-aware generation
-- **Use Case**: Document Q&A, knowledge base queries, information synthesis
-https://ollama.com/
+- https://ollama.com/
 - https://formulae.brew.sh/formula/ollama#default
