@@ -112,6 +112,9 @@ uv run agents/base/langgraph_react_agent/examples/execute_ai_service_locally.py
 ```
 
 # Deployment on RedHat OpenShift Cluster
+```bash
+
+```
 
 Make deploy file executable
 ```bash
