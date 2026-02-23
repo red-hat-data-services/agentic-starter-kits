@@ -1,7 +1,6 @@
 # Agentic Starter Kits
 
 ## Purpose
-
 Agentic Starter Kits is a collection of production-ready agent templates that demonstrate how to build and deploy LLM-powered agents using modern frameworks. This repository provides:
 
 - **Base Agent Templates**: Ready-to-use agent implementations using LangGraph and LlamaIndex
@@ -11,7 +10,6 @@ Agentic Starter Kits is a collection of production-ready agent templates that de
 - **Clear Documentation**: Step-by-step guides for setup, configuration, and deployment
 
 ## Deployment Options
-
 Agents in this repository can support two deployment modes:
 
 ### 🖥️ Local Development
@@ -41,9 +39,10 @@ Agentic-Starter-Kits/
 ├── utils.py                             # Shared utilities
 └── README.md                            # This file
 ```
----
-## How to Use This Repository
 
+---
+
+## How to Use This Repository
 1. **Start Here**: Read this README to understand the overall structure and install core dependencies
 2. **Choose an Agent**: Select an agent from the `agents/` directory based on your use case
 3. **Follow Agent README**: Navigate to the agent's directory and follow its specific README for:
@@ -76,9 +75,10 @@ uv venv --python 3.12
 ```bash
 source .venv/bin/activate
 ```
----
-## Next Steps
 
+---
+
+## Next Steps
 After completing the setup, choose an agent and follow its specific README:
 
 **Base Agents:**
@@ -90,15 +90,14 @@ After completing the setup, choose an agent and follow its specific README:
 - **[LangGraph Agentic RAG](./agents/community/langgraph_agentic_rag/README.md)** - RAG with Milvus vector store
 
 ## Additional Resources
-
 - **Llama Stack Documentation**: https://llama-stack.readthedocs.io/
 - **Ollama Documentation**: https://docs.ollama.com/
 - **OpenShift Documentation**: https://docs.openshift.com/
 - **Kubernetes**: https://kubernetes.io/docs/
-## Contributing
 
+
+## Contributing
 Contributions are welcome! Please see individual agent READMEs for specific guidelines.
 
 ## License
-
 MIT License
