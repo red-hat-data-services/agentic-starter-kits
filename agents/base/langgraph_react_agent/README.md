@@ -142,7 +142,6 @@ curl -X POST https://<YOUR_ROUTE_URL>/chat \
 ```
 
 ## Agent-Specific Documentation
-
 Each agent has detailed documentation for setup and deployment:
 - https://ollama.com/
 - https://formulae.brew.sh/formula/ollama#default
