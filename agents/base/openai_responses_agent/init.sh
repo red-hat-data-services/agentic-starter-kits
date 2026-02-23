@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Initialize the LlamaStack Agent
+# Initialize the OpenAI Responses Agent
 #
 # Usage:
 #   ./init.sh
@@ -42,7 +42,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 # Copy utils.py to the destination (if present at repo root)
 if [ -f "$ROOT_DIR/utils.py" ]; then
-    cp "$ROOT_DIR/utils.py" "$SCRIPT_DIR/src/llamastack_agent_base/" && echo "utils.py copied to destination"
+    cp "$ROOT_DIR/utils.py" "$SCRIPT_DIR/src/openai_responses_agent_base/" && echo "utils.py copied to destination"
 fi
 
 echo "Agent initialized successfully"

@@ -1,17 +1,17 @@
 [tool.poetry]
-name = "llamastack_agent_base"
+name = "openai_responses_agent_base"
 version = "0.1.0"
-description = "Agent built on LlamaStack API only (no LlamaIndex). Placeholder for full llama-stack-client integration."
+description = "Agent without any agentic framework: OpenAI client and pure Python (Responses API)."
 authors = ["Your Name <you@example.com>"]
 license = "MIT"
 packages = [
-    { include = "llamastack_agent_base", from = "src" }
+    { include = "openai_responses_agent_base", from = "src" }
 ]
 
 [tool.poetry.dependencies]
 python = ">=3.12"
 python-dotenv = "^1.0.0"
-llama-stack-client = ">=0.4.0"
+openai = ">=1.0.0"
 
 [tool.poetry.group.dev]
 optional = true
