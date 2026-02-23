@@ -1,93 +1,36 @@
+<div style="text-align: center;">
 
-# Use Agent Locally
+![LangGraph Logo](/images/langgraph_logo.png)
+# ReACT Agent
 
-If you want to install ollama you need to install app from [Ollama site](https://ollama.com/) or via [Brew](https://formulae.brew.sh/formula/ollama#default)
+</div>
 
-```bash
-#brew install ollama
-# or
-curl -fsSL https://ollama.com/install.sh | sh
-```
 ---
-### Setup Instructions with `pip`
+### Preconditions:
+- You need to copy/paste .env file and change its values to yours
+- Decide what way you want to go `local` or `RH OpenShift Cluster` and fill needed values
+- use `./init.sh` that will add those values from .env to environment variables
 
-**Step 1: Pull Required Models**
 
+
+Copy .env file
 ```bash
-ollama pull llama3.2:3b
+cp template.env agents/base/langgraph_react_agent/.env
 ```
 
-**Step 2: Start Ollama Service**
+#### Local
+Edit the `.env` file with your local configuration:
 
-```bash
-ollama serve
 ```
-
->**Keep this terminal open** - Ollama needs to keep running.
-
-**Step 3: Start Llama Stack Server**
-
-From the **repository root directory**:
-
-```bash
-llama stack run run_llama_server.yaml
-```
-
-> **Keep this terminal open** - the server needs to keep running.\
-> You should see output indicating the server started on `http://localhost:8321`.
-
-**Step 4: Install Agent Dependencies**
-
-Navigate to the RAG agent directory and install dependencies:
-
-```bash
-cd agents/community/langgraph_agentic_rag
-pip install -r requirements.txt
-```
-
-**Step 5: Configure Environment Variables**
-
-Copy the example environment file:
-
-```bash
-cp .env.example .env
-```
-
-Edit the `.env` file with your configuration:
-
-```env
-# Llama Stack Server Configuration
 BASE_URL=http://localhost:8321
 MODEL_ID=ollama/llama3.2:3b
 API_KEY=not-needed
-```
-**Step 6: Run the Interactive Chat**
-
-```bash
-cd ../examples
-python execute_ai_service_locally.py
-```
----
-### Setup Instructions with [uv](https://docs.astral.sh/uv/)
-
-1. Create venv and activate:
-```bash
-uv venv --python 3.12
-source .venv/bin/activate
+CONTAINER_IMAGE=not-needed
 ```
 
-2. Copy shared utils into the agent package:
-```bash
-cp utils.py agents/base/langgraph_react_agent/src/langgraph_react_agent_base/
-```
+#### OpenShift Cluster
+Edit the `.env` file and fill in all required values:
 
-3. Install agent (editable) and its requirements:
-```bash
-uv pip install -e agents/base/langgraph_react_agent/.
-uv pip install -r agents/base/langgraph_react_agent/requirements.txt
-```
-
-Edit the `.env` file and fill in all required values (see notes below):
 ```
 API_KEY=your-api-key-here
 BASE_URL=https://your-llama-stack-distribution.com/v1
@@ -101,7 +44,7 @@ CONTAINER_IMAGE=quay.io/your-username/langgraph-react-agent:latest
 - `MODEL_ID` - contact your cluster administrator
 - `CONTAINER_IMAGE` - full image path where the agent container will be pushed and pulled from.
   The image is built locally, pushed to this registry, and then deployed to OpenShift.
-  
+
   Format: `<registry>/<namespace>/<image-name>:<tag>`
   
   Examples:
@@ -109,7 +52,70 @@ CONTAINER_IMAGE=quay.io/your-username/langgraph-react-agent:latest
   - Docker Hub: `docker.io/your-username/langgraph-react-agent:latest`
   - GHCR: `ghcr.io/your-org/langgraph-react-agent:latest`
 
-4. Run the example:
+Go to agent dir
+```bash
+cd agents/base/langgraph_react_agent
+```
+
+Make scripts executable
+```bash
+chmod +x init.sh
+```
+
+Add to values from .env to environment variables
+```bash
+./init.sh
+```
+
+---
+
+## Local usage (Ollama + LlamaStack Server)
+
+Create package with agent and install it to venv
+```bash
+uv pip install -e .
+```
+
+Install needed requirements
+```bash
+uv pip install -r requirements.txt
+```
+```bash
+uv pip install ollama 'pymilvus[milvus_lite]'
+```
+uv pip install setuptools
+
+Install app from Ollama site or via Brew
+```bash
+#brew install ollama
+# or
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+Pull Required Model
+```bash
+ollama pull llama3.2:3b
+```
+
+Start Ollama Service
+```bash
+ollama serve
+```
+>**Keep this terminal open!**\
+> Ollama needs to keep running.
+
+Start LlamaStack Server
+```bash
+llama stack run ../../../run_llama_server.yaml
+```
+> **Keep this terminal open** - the server needs to keep running.\
+> You should see output indicating the server started on `http://localhost:8321`.
+uv
+---
+
+
+
+ Run the example:
 ```bash
 uv run agents/base/langgraph_react_agent/examples/execute_ai_service_locally.py
 ```
@@ -120,15 +126,9 @@ uv run agents/base/langgraph_react_agent/examples/execute_ai_service_locally.py
 Navigate to the agent directory:
 
 ```bash
-cd agents/base/langgraph_react_agent
-```
-Make scripts executable (first time only)
-
-```bash
 chmod +x init.sh deploy.sh   
 ./init.sh
 ```
-
 This will:
 - Load and validate environment variables from `.env` file
 - Copy shared utilities (`utils.py`) to the agent source directory
@@ -187,3 +187,5 @@ Each agent has detailed documentation for setup and deployment:
 - **Quick Start**: [agents/community/langgraph_agentic_rag/QUICKSTART.md](./agents/community/langgraph_agentic_rag/QUICKSTART.md)
 - **Features**: RAG with Milvus vector store, document retrieval, context-aware generation
 - **Use Case**: Document Q&A, knowledge base queries, information synthesis
+https://ollama.com/
+- https://formulae.brew.sh/formula/ollama#default
