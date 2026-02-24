@@ -112,8 +112,13 @@ uv run agents/base/langgraph_react_agent/examples/execute_ai_service_locally.py
 ```
 
 # Deployment on RedHat OpenShift Cluster
+Login to OC
 ```bash
-
+oc login -u "login" -p "password" https://super-link-to-cluster:111
+```
+Login ex. Docker 
+```bash
+docker login -u='login' -p='password' quay.io
 ```
 
 Make deploy file executable
@@ -132,7 +137,7 @@ This will:
 - Deploy the agent to OpenShift
 - Create Service and Route
 
-Get the route URL
+COPY the route URL and PASTE into the CURL below
 ```bash
 oc get route langgraph-react-agent -o jsonpath='{.spec.host}'
 ```
