@@ -1,8 +1,9 @@
 """
-LlamaStack agent – chat and tools agent using LlamaStack Client instead of OpenAI.
+Agent without any agentic framework: OpenAI client and pure Python.
 
-See: https://llama-stack.readthedocs.io/ and https://pypi.org/project/llama-stack-client/
-Based on the OpenAI example; all calls go through the LlamaStack API.
+Uses only the official OpenAI Python client (openai package) and Responses API.
+No LlamaStack, LangChain, LlamaIndex, etc. - to show it can be done without frameworks.
+Compatible with OpenAI API and any OpenAI-compatible endpoint (e.g. base_url override).
 """
 
 import asyncio
@@ -13,10 +14,10 @@ from io import StringIO
 from typing import Any, Callable, Dict, List, Optional
 
 from dotenv import load_dotenv
-from llama_stack_client import LlamaStackClient
+from openai import OpenAI
 
-from llamastack_agent_base.utils import get_env_var
-from llamastack_agent_base.tools import search_price, search_reviews
+from openai_responses_agent_base.utils import get_env_var
+from openai_responses_agent_base.tools import search_price, search_reviews
 
 
 def get_agent_closure(
@@ -92,8 +93,44 @@ class _AIAgentAdapter:
         return {"messages": response_messages, "finish_reason": "stop"}
 
 
+def _messages_to_responses_input(messages: List[Dict]) -> tuple[str, List[Dict]]:
+    """
+    Convert chat-style messages to Responses API format.
+    Returns (instructions, input_items) where instructions is the system content
+    and input_items is a list of {role, content} with content as [{type: 'input_text', text: '...'}].
+    """
+    instructions = ""
+    input_items: List[Dict] = []
+    for m in messages:
+        role = m.get("role", "user")
+        content = m.get("content", "") or ""
+        text_content = [{"type": "input_text", "text": content}]
+        if role == "system":
+            instructions = content
+            continue
+        input_items.append({"role": role, "content": text_content})
+    return instructions, input_items
+
+
+def _get_output_text_from_response(response: Any) -> str:
+    """Extract assistant text from Responses API response (response.output[].content[])."""
+    if not getattr(response, "output", None) or not response.output:
+        return ""
+    for item in response.output:
+        content = getattr(item, "content", None) or []
+        for block in content:
+            if getattr(block, "type", None) == "output_text":
+                return getattr(block, "text", None) or ""
+            # some SDKs may expose .text directly
+            if hasattr(block, "text"):
+                return block.text or ""
+    return ""
+
+
 class AIAgent:
-    """Agent that uses tools and chat via the LlamaStack API instead of OpenAI."""
+    """
+    Agent using only OpenAI client and pure Python: Responses API, no agentic framework.
+    """
 
     def __init__(
         self,
@@ -103,13 +140,13 @@ class AIAgent:
         api_key: Optional[str] = None,
     ):
         """
-        Initialize the agent with tools and LlamaStack configuration.
+        Initialize the agent with tools and OpenAI client configuration.
 
         Args:
-            model: Model identifier in LlamaStack (e.g. "Llama3.2-3B-Instruct")
-            temperature: Sampling temperature (0 = deterministic)
-            base_url: LlamaStack endpoint URL (e.g. http://localhost:8321)
-            api_key: Optional API key
+            model: Model identifier (e.g. "gpt-4o-mini" or provider-specific id).
+            temperature: Sampling temperature (0 = deterministic).
+            base_url: Optional API base URL (for OpenAI-compatible endpoints).
+            api_key: Optional API key (required for OpenAI; can be None for some local endpoints).
         """
         load_dotenv()
 
@@ -123,11 +160,14 @@ class AIAgent:
             except (EnvironmentError, ValueError):
                 api_key = None
 
-        kwargs: Dict = {"base_url": base_url.rstrip("/")}
+        # OpenAI client: works with api.openai.com or any OpenAI-compatible API (base_url)
+        client_kwargs: Dict[str, Any] = {}
+        if base_url:
+            client_kwargs["base_url"] = base_url.rstrip("/")
         if api_key:
-            kwargs["api_key"] = api_key
+            client_kwargs["api_key"] = api_key
 
-        self.client = LlamaStackClient(**kwargs)
+        self.client = OpenAI(**client_kwargs)
         self.model = model
         self.temperature = temperature
         self.tools: Dict[str, Callable] = {}
@@ -152,62 +192,57 @@ class AIAgent:
         args = next(reader)
         return [arg.strip().strip("'\"") for arg in args]
 
-    def chat_completion(
+    def _responses_create(
         self,
         messages: Optional[List[Dict]] = None,
         temperature: Optional[float] = None,
         model: Optional[str] = None,
     ):
         """
-        Single chat completion call via LlamaStack (equivalent to OpenAI chat.completions.create).
+        Single Responses API call via OpenAI client.
 
         Args:
-            messages: List of messages; if None, self.messages is used
-            temperature: Override temperature for this call
-            model: Override model for this call
+            messages: List of messages; if None, self.messages is used.
+            temperature: Override temperature for this call.
+            model: Override model for this call.
 
         Returns:
-            Response from client.chat.completions.create (object with .choices etc.)
+            Response from client.responses.create (object with .output etc.).
         """
         msg_list = messages if messages is not None else self.messages
         temp = temperature if temperature is not None else self.temperature
         model_id = model if model is not None else self.model
 
-        kwargs: Dict = {
+        instructions, input_items = _messages_to_responses_input(msg_list)
+        kwargs: Dict[str, Any] = {
             "model": model_id,
-            "messages": msg_list,
+            "instructions": instructions,
+            "input": input_items,
         }
         if temp != 0:
             kwargs["temperature"] = temp
 
-        return self.client.chat.completions.create(**kwargs)
-
-    def get_response_content(self, response: Any) -> str:
-        """Extract assistant response text from the completion response object."""
-        if not response.choices or len(response.choices) == 0:
-            return ""
-        msg = response.choices[0].message
-        return getattr(msg, "content", None) or ""
+        return self.client.responses.create(**kwargs)
 
     def _execute(self) -> str:
-        """Execute a chat completion request."""
-        completion = self.client.chat.completions.create(
-            model=self.model,
-            temperature=self.temperature,
+        """Execute a Responses API request."""
+        response = self._responses_create(
             messages=self.messages,
+            temperature=self.temperature,
+            model=self.model,
         )
-        return self.get_response_content(completion)
+        return _get_output_text_from_response(response)
 
     def query(self, question: str, max_turns: int = 10) -> Optional[str]:
         """
         Process a question through multiple turns until getting final answer.
 
         Args:
-            question: The input question to process
-            max_turns: Maximum number of turns before timing out
+            question: The input question to process.
+            max_turns: Maximum number of turns before timing out.
 
         Returns:
-            The final answer or None if no answer found
+            The final answer or None if no answer found.
         """
         self.setup_system_prompt()
         next_prompt = question

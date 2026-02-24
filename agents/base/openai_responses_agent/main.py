@@ -2,8 +2,8 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
-from llamastack_agent_base.agent import get_agent_closure
-from llamastack_agent_base.utils import get_env_var
+from openai_responses_agent_base.agent import get_agent_closure
+from openai_responses_agent_base.utils import get_env_var
 from pydantic import BaseModel
 
 
@@ -27,17 +27,20 @@ get_agent = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize the LlamaStack agent closure on startup and clear it on shutdown.
+    """Initialize the agent closure on startup and clear it on shutdown.
 
     Reads BASE_URL and MODEL_ID from the environment and sets the global get_agent
-    for the /chat endpoint. Uses only LlamaStack API (no LlamaIndex).
+    for the /chat endpoint. Uses OpenAI client and Responses API (no agentic framework).
     """
     global get_agent
 
     base_url = get_env_var("BASE_URL")
     model_id = get_env_var("MODEL_ID")
 
-    # LlamaStack base_url is typically full (e.g. http://localhost:8321); no /v1 suffix required
+    # Ensure base_url ends with /v1 if provided
+    if base_url and not base_url.endswith("/v1"):
+        base_url = base_url.rstrip("/") + "/v1"
+
     get_agent = get_agent_closure(base_url=base_url, model_id=model_id)
 
     yield
@@ -46,8 +49,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="LlamaStack Agent API",
-    description="FastAPI service for LlamaStack Agent (LlamaStack API only, no LlamaIndex)",
+    title="OpenAI Responses Agent API",
+    description="FastAPI service for agent (OpenAI client + pure Python, Responses API, no agentic framework)",
     lifespan=lifespan,
 )
 

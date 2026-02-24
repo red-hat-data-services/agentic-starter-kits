@@ -1,30 +1,30 @@
-# Deployment for LlamaStack Agent
+# Deployment for OpenAI Responses Agent
 #
 # Deploy using environment variables:
-# 1. Secret for API_KEY (if required by LlamaStack):
-#    oc create secret generic llamastack-agent-secrets \
+# 1. Secret for API_KEY (if required):
+#    oc create secret generic openai-responses-agent-secrets \
 #      --from-literal=api-key='YOUR_API_KEY_HERE'
 #
-#   export BASE_URL="https://your-llamastack-endpoint.com"
-#   export MODEL_ID="Llama3.2-3B-Instruct"
+#   export BASE_URL="https://api.openai.com/v1"
+#   export MODEL_ID="gpt-4o-mini"
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: llamastack-agent
+  name: openai-responses-agent
   labels:
-    app: llamastack-agent
+    app: openai-responses-agent
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: llamastack-agent
+      app: openai-responses-agent
   template:
     metadata:
       labels:
-        app: llamastack-agent
+        app: openai-responses-agent
     spec:
       containers:
-      - name: llamastack-agent
+      - name: openai-responses-agent
         image: "${CONTAINER_IMAGE}"
         ports:
         - containerPort: 8080
@@ -35,7 +35,7 @@ spec:
         - name: API_KEY
           valueFrom:
             secretKeyRef:
-              name: llamastack-agent-secrets
+              name: openai-responses-agent-secrets
               key: api-key
         - name: BASE_URL
           value: "${BASE_URL}"

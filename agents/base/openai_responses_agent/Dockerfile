@@ -1,4 +1,4 @@
-# LlamaStack Agent (LlamaStack API only, no LlamaIndex). Python 3.12+ required by llama-stack-client.
+# OpenAI Responses Agent – OpenAI client + pure Python (Responses API, no agentic framework). Python 3.12+.
 FROM python:3.12-slim
 
 WORKDIR /app

@@ -37,7 +37,7 @@ Agentic-Starter-Kits/
 │   ├── base/
 │   │   ├── langgraph_react_agent/       # LangGraph ReAct agent 
 │   │   └── llamaindex_websearch_agent/  # LlamaIndex web search agent
-│   │   └── llamastack_agent/            # Llamastack bare API 
+│   │   └── openai_responses_agent/      # OpenAI Responses API (no framework)
 │   └── community/
 │       └── langgraph_agentic_rag/       # RAG agent with Milvus vector store
 ├── run_llama_server.yaml                # Llama Stack server configuration
@@ -85,7 +85,7 @@ After completing the setup, choose an agent and follow its specific README:
 **Base Agents:**
 - **[LangGraph ReAct Agent](./agents/base/langgraph_react_agent/README.md)** - General-purpose agent with tool use
 - **[LlamaIndex WebSearch Agent](./agents/base/llamaindex_websearch_agent/README.md)** - Web search capabilities
-- **[Llama Stack bare API](./agents/base/llamastack_agent/README.md)** - Web search capabilities
+- **[OpenAI Responses Agent](./agents/base/openai_responses_agent/README.md)** - OpenAI client + pure Python (Responses API)
 
 **Community Agents:**
 - **[LangGraph Agentic RAG](./agents/community/langgraph_agentic_rag/README.md)** - RAG with Milvus vector store
