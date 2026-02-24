@@ -1,43 +1,43 @@
-"""
-Run agent locally (OpenAI client + pure Python; use OpenAI or any OpenAI-compatible API via BASE_URL).
-
-Usage:
-  From repo root with PYTHONPATH including agents/base/openai_responses_agent:
-    python -m agents.base.openai_responses_agent.examples.execute_ai_service_locally
-
-  Or after cd agents/base/openai_responses_agent and PYTHONPATH=/app:/app/src:
-    uvicorn main:app --reload
-    # Then POST /chat with {"message": "Hello"}
-"""
-
-import asyncio
-import os
-
-# Ensure we can import the agent and utils
-if __name__ == "__main__":
-    import sys
-
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
-
-from openai_responses_agent_base.agent import get_agent_closure
+from _interactive_chat import InteractiveChat
+from ai_service import ai_stream_service
 from openai_responses_agent_base.utils import get_env_var
 
 
-async def main():
-    base_url = get_env_var("BASE_URL")
-    model_id = get_env_var("MODEL_ID")
-    get_agent = get_agent_closure(base_url=base_url, model_id=model_id)
-    agent = get_agent()
-    result = await agent.run(
-        input=[
-            {
-                "role": "user",
-                "content": "How much does a Lenovo Laptop costs and what are the reviews?",
-            }
-        ]
-    )
-    print("Response:", result)
+class SimpleContext:
+    """Simple context object for local execution that holds request payload and headers."""
+
+    def __init__(self, payload=None):
+        """Store the initial request payload (or an empty dict)."""
+        self.request_payload_json = payload or {}
+
+    def get_json(self):
+        """Return the current request payload as a dict (e.g. messages for the agent)."""
+        return self.request_payload_json
+
+    def get_headers(self):
+        """Return request headers; empty dict for local execution."""
+        return {}
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+base_url = get_env_var("BASE_URL")
+model_id = get_env_var("MODEL_ID")
+
+# Ensure base_url ends with /v1 if provided
+if base_url and not base_url.endswith("/v1"):
+    base_url = base_url.rstrip("/") + "/v1"
+
+stream = True
+context = SimpleContext()
+ai_service_resp_func = ai_stream_service(
+    context=context, base_url=base_url, model_id=model_id
+)[stream]
+
+
+def ai_service_invoke(payload):
+    """Run the AI service for one turn: set context from payload and return (stream or full) response."""
+    context.request_payload_json = payload
+    return ai_service_resp_func(context)
+
+
+chat = InteractiveChat(ai_service_invoke, stream=stream)
+chat.run()
