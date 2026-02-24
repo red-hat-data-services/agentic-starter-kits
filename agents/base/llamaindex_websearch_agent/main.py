@@ -64,7 +64,11 @@ app = FastAPI(
 def _get_message_content(msg) -> str:
     """Extract text content from a LlamaIndex ChatMessage."""
     if hasattr(msg, "blocks") and msg.blocks:
-        return (msg.blocks[0].text or "") if msg.blocks else ""
+        # Find the first block with text content (skip ToolCallBlock)
+        for block in msg.blocks:
+            if hasattr(block, "text"):
+                return block.text or ""
+        return ""
     if hasattr(msg, "content"):
         if isinstance(msg.content, str):
             return msg.content
@@ -101,6 +105,24 @@ def _message_to_response_dict(msg):
                     }
                     for tc in tool_calls
                 ]
+            elif hasattr(tool_calls[0], "id") and hasattr(tool_calls[0], "function"):
+                # ChatCompletionMessageFunctionToolCall object
+                msg_data["tool_calls"] = []
+                for tc in tool_calls:
+                    fn = tc.function
+                    args = fn.arguments if hasattr(fn, "arguments") else ""
+                    if isinstance(args, dict):
+                        args = json.dumps(args)
+                    msg_data["tool_calls"].append(
+                        {
+                            "id": tc.id,
+                            "type": getattr(tc, "type", "function"),
+                            "function": {
+                                "name": fn.name if hasattr(fn, "name") else "",
+                                "arguments": args,
+                            },
+                        }
+                    )
             else:  # dict format (e.g. from additional_kwargs)
                 msg_data["tool_calls"] = []
                 for tc in tool_calls:
