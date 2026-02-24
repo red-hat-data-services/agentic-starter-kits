@@ -31,6 +31,10 @@ if [ -z "$MODEL_ID" ]; then
     echo "MODEL_ID not set, check .env file"
     exit 1
 fi
+if [ -z "$VECTOR_STORE_PATH" ]; then
+    echo "VECTOR_STORE_PATH not set, check .env file"
+    exit 1
+fi
 
 # Get the directory where the script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

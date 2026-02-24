@@ -48,6 +48,7 @@ def load_and_index_documents(
 
     client = LlamaStackClient(
         base_url=base_url,
+        api_key=api_key,
     )
 
     vector_store_list = client.vector_stores.list()

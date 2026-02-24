@@ -14,4 +14,6 @@ langgraph-prebuilt>=1.0.0
 openai>=2.21.0
 python-dotenv>=1.2.1
 pymilvus>=2.6.8
+milvus-lite>=2.5.1
+setuptools>=80.9.0,<82.0.0
 typing-extensions>=4.15.0

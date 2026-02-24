@@ -99,7 +99,15 @@ Add values from .env to environment variables
 
 ## Local usage (Ollama + LlamaStack Server)
 
-Install app from Ollama site or via Brew
+Create package with agent and install it to venv
+
+```bash
+uv pip install -e .
+```
+
+```bash
+uv pip install ollama
+```
 
 ```bash
 #brew install ollama
