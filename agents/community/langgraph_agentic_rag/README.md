@@ -140,12 +140,6 @@ llama stack run ../../../run_llama_server.yaml
 > **Keep this terminal open** - the server needs to keep running.\
 > You should see output indicating the server started on `http://localhost:8321`.
 
-Create package with agent and install it to venv
-
-```bash
-uv pip install -e .
-```
-
 ### Load Documents into Vector Store
 
 **IMPORTANT**: Before running the agent, you must load documents into the vector store.
@@ -162,43 +156,6 @@ This will:
 - Split documents into chunks (512 characters with 128 overlap by default)
 - Generate embeddings using the model specified in `EMBEDDING_MODEL`
 - Store chunks in the Milvus Lite vector database at `VECTOR_STORE_PATH`
-
-**Adding your own documents:**
-
-1. Create a text file with your content (e.g., `my_documents.txt`)
-2. Update `.env`:
-   ```env
-   DOCS_TO_LOAD=./data/my_documents.txt
-   ```
-3. Re-run the document loader:
-   ```bash
-   cd data
-   python load_documents.py
-   ```
-
-**Customizing chunk size:**
-
-Edit `load_documents.py` to adjust chunking parameters:
-
-```python
-load_and_index_documents(
-    chunk_size=512,  # Size of text chunks (default: 512)
-    chunk_overlap=128,  # Overlap between chunks (default: 128)
-)
-```
-
-**Recommended chunk sizes:**
-
-- Technical documentation: 512-1024 characters
-- Narrative text: 256-512 characters
-- Code snippets: 128-256 characters
-
-**Troubleshooting vector store:**
-
-If you encounter issues with the vector store:
-
-1. Delete the contents of the `milvus_data` folder
-2. Re-run `python load_documents.py` to recreate it
 
 ### Run the example:
 
@@ -255,39 +212,6 @@ curl -X POST https://<YOUR_ROUTE_URL>/chat \
 ```
 
 ## Agent-Specific Documentation
-
-### Architecture
-
-The RAG workflow consists of three main steps:
-
-1. **Agent Node**: Decides whether to retrieve information based on the user's query
-2. **Retrieve Node**: If needed, retrieves relevant documents from the vector store
-3. **Generate Node**: Generates a final answer based on retrieved context
-
-```
-START → Agent → [Decision] → Retrieve → Generate → END
-                    ↓
-                   END (if no retrieval needed)
-```
-
-### Features
-
-- **Agentic RAG Workflow**: The agent autonomously decides when to retrieve information
-- **Llama Stack Integration**: Unified model serving with Ollama for local LLM inference
-- **Milvus Lite Vector Store**: High-performance vector database with easy migration to production Milvus
-- **FastAPI Service**: REST API with `/chat` and `/health` endpoints
-- **Tool-based Retrieval**: LangGraph tool integration for seamless retrieval
-- **Document Loader**: Easy document ingestion from text files with customizable chunking
-
-### Key Differences from Base Agents
-
-This RAG agent extends the base LangGraph agent with:
-
-1. **Retrieval Capability**: Automatic knowledge base search via Llama Stack
-2. **Multi-step Workflow**: Agent → Retrieve → Generate pattern
-3. **Vector Store Integration**: Milvus Lite-based document storage and retrieval
-4. **Context-aware Generation**: Answers based on retrieved documents with relevance checking
-5. **Embedding Model Requirement**: Requires separate embedding model for document vectorization
 
 ### Additional Resources
 
