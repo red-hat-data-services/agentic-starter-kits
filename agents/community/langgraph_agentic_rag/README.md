@@ -7,6 +7,10 @@
 </div>
 
 ---
+## What this agent does
+RAG agent that indexes documents in a vector store (Milvus) and retrieves relevant chunks to augment the LLM's answers with your own data.
+
+---
 ### Preconditions:
 
 - You need to copy/paste .env file and change its values to yours

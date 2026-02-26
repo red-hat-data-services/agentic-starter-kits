@@ -6,6 +6,10 @@
 </div>
 
 ---
+## What this agent does
+General-purpose agent using a ReAct loop: it reasons and calls tools (e.g. search, math) step by step. Built with LangGraph and LangChain.
+
+---
 ### Preconditions:
 - You need to copy/paste .env file and change its values to yours
 - Decide what way you want to go `local` or `RH OpenShift Cluster` and fill needed values
