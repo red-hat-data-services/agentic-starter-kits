@@ -1,6 +1,6 @@
 <div style="text-align: center;">
 
-![LangGraph Logo](/images/langgraph_logo.png)
+![LangGraph Logo](/images/langgraph_logo.svg)
 # ReACT Agent
 
 </div>
