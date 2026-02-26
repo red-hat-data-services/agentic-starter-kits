@@ -4,15 +4,16 @@ version = "0.1.0"
 description = "A template for a LangGraph LLM app deployable on RHOAI Cloud as an ai_service. This particular example focues on an AutoX chatbot enhanced with external tools (function calling)."
 authors = ["Your Name <you@example.com>"]
 license = "MIT"
+readme = "README.md"
 packages = [
     { include = "langgraph_react_agent_base", from = "src" }
 ]
 
 
 [tool.poetry.dependencies]
-python = ">=3.10,<=3.13"
+python = ">=3.12,<3.14"
 fastapi = ">=0.115.0"
-uvicorn = {extras = ["standard"], version = ">=0.41.0"}
+uvicorn = { extras = ["standard"], version = ">=0.41.0" }
 pydantic = ">=2.0.0"
 langchain = ">=1.2.7"
 langchain-core = ">=1.2.7"
@@ -26,13 +27,13 @@ setuptools = "69.5.1"
 milvus-lite = "2.5.1"
 pymilvus = "2.6.9"
 python-dotenv = ">=1.0.0"
-pytest = "^8.3.3"
 
 
 [tool.poetry.group.dev]
 optional = true
 
 [tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
 
 [tool.poetry.group.eval.dependencies]
 unitxt = "^1.24.0"

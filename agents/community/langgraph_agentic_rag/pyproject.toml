@@ -1,17 +1,17 @@
 [tool.poetry]
-name = "langgraph_agentic_rag"
-version = "0.2.0"
+name = "langgraph_agentic_rag_base"
+version = "0.1.0"
 description = "A LangGraph Agentic RAG app using OpenAI-compatible APIs. Supports retrieval-augmented generation with customizable vector stores."
 authors = ["Your Name <you@example.com>"]
 license = "MIT"
 readme = "README.md"
 packages = [
-    { include = "langgraph_agentic_rag", from = "src" }
+    { include = "langgraph_agentic_rag_base", from = "src" }
 ]
 
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.14"
+python = ">=3.12,<3.14"
 langchain-openai = ">=1.1.10"
 openai = ">=2.21.0"
 langgraph = ">=1.0.9"

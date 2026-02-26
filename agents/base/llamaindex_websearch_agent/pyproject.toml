@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "A template for a LlamaIndex LLM app deployable on RHOAI Cloud as an ai_service. This particular example focues on an AutoX chatbot enhanced with external tools (function calling)."
 authors = ["Your Name <you@example.com>"]
 license = "MIT"
+readme = "README.md"
 packages = [
     { include = "llama_index_workflow_agent_base", from = "src" }
 ]
@@ -12,7 +13,7 @@ packages = [
 [tool.poetry.dependencies]
 python = ">=3.12, <3.14"
 fastapi = ">=0.132.0"
-uvicorn = {extras = ["standard"], version = ">=0.41.0"}
+uvicorn = { extras = ["standard"], version = ">=0.41.0" }
 llama-index-llms-openai-like = ">=0.5.3"
 llama-index-llms-openai = ">=0.6.19"
 llama-index = ">=0.14.15"

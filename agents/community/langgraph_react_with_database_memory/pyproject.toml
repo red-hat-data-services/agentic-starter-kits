@@ -1,0 +1,38 @@
+[tool.poetry]
+name = "langgraph_react_with_database_memory_base"
+version = "0.1.0"
+description = "A LangGraph ReAct agent with PostgreSQL-based conversation memory. Uses OpenAI-compatible APIs for LLM access and persistent thread-based chat history."
+authors = ["Your Name <you@example.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [
+    { include = "langgraph_react_with_database_memory_base", from = "src" }
+]
+
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.14"
+fastapi = ">=0.115.0"
+uvicorn = { extras = ["standard"], version = ">=0.41.0" }
+pydantic = ">=2.0.0"
+langchain = ">=0.3.27"
+langchain-core = ">=1.2.15"
+langchain-openai = ">=1.1.10"
+langgraph = ">=0.6.11"
+langgraph-checkpoint-postgres = "3.0.0"
+psycopg = { extras = ["binary", "pool"], version = ">=3.2.9" }
+openai = ">=2.21.0"
+python-dotenv = ">=1.0.0"
+requests = ">=2.31.0"
+pytest = ">=8.3.3"
+
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
