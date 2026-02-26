@@ -1,0 +1,87 @@
+# Deployment for LangGraph React Agent with Database Memory
+#
+# Deploy using environment variables:
+# 1. Secret for API_KEY and POSTGRES_PASSWORD (required):
+#    oc create secret generic langgraph-db-memory-secrets \
+#      --from-literal=api-key='YOUR_API_KEY_HERE' \
+#      --from-literal=postgres-password='YOUR_DB_PASSWORD'
+#
+# 2. Set environment variables before deploying:
+#   export BASE_URL="https://your-endpoint.com/v1"
+#   export MODEL_ID="llama-31-8b-instruct"
+#   export POSTGRES_HOST="your-postgres-host.com"
+#   export POSTGRES_PORT="5432"
+#   export POSTGRES_DB="agent_memory"
+#   export POSTGRES_USER="postgres"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langgraph-db-memory
+  labels:
+    app: langgraph-db-memory
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: langgraph-db-memory
+  template:
+    metadata:
+      labels:
+        app: langgraph-db-memory
+    spec:
+      containers:
+      - name: langgraph-db-memory
+        image: "${CONTAINER_IMAGE}"
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: PORT
+          value: "8080"
+        # LLM Configuration
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: langgraph-db-memory-secrets
+              key: api-key
+        - name: BASE_URL
+          value: "${BASE_URL}"
+        - name: MODEL_ID
+          value: "${MODEL_ID}"
+        # PostgreSQL Configuration
+        - name: POSTGRES_HOST
+          value: "${POSTGRES_HOST}"
+        - name: POSTGRES_PORT
+          value: "${POSTGRES_PORT}"
+        - name: POSTGRES_DB
+          value: "${POSTGRES_DB}"
+        - name: POSTGRES_USER
+          value: "${POSTGRES_USER}"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: langgraph-db-memory-secrets
+              key: postgres-password
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 120
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 3
+          failureThreshold: 3

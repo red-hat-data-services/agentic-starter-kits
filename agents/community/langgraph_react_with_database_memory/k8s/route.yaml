@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: langgraph-db-memory
+  labels:
+    app: langgraph-db-memory
+spec:
+  to:
+    kind: Service
+    name: langgraph-db-memory
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
