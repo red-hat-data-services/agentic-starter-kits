@@ -35,7 +35,9 @@ if base_url and not base_url.endswith("/v1"):
 
 context = SimpleContext()
 ai_service_resp_func = ai_stream_service(
-    context=context, base_url=base_url, model_id=model_id, api_key=api_key
+    context=context,
+    base_url=base_url,
+    model_id=model_id,
 )[stream]
 
 if thread_id == "PLACEHOLDER FOR YOUR THREAD ID":
