@@ -5,10 +5,10 @@
 </div>
 
 ---
-Agent **without any agentic framework**: uses only the **OpenAI Python client** and **pure Python** (Responses API). No LlamaStack, LangChain, LlamaIndex, etc. Uses `AIAgent` with chat, tools, and Action/Observation loop. Compatible with OpenAI API or any OpenAI-compatible endpoint (e.g. `BASE_URL` override). Python 3.12+.
+## What this agent does
+Minimal agent with no framework: only the OpenAI Python client and an Action/Observation loop with tools. Use with OpenAI or any compatible API.
 
 ---
-
 ### Preconditions
 
 - Copy/paste the `.env` file and set values for your environment

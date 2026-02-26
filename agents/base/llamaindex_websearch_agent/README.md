@@ -1,9 +1,14 @@
 <div style="text-align: center;">
 
 ![LlamaIndex Logo](/images/llamaindex_logo.svg)
+
 # WebSearch Agent
 
 </div>
+
+---
+## What this agent does
+Agent built on LlamaIndex that uses a web search tool to query the internet and use the results in its answers.
 
 ---
 ### Preconditions:

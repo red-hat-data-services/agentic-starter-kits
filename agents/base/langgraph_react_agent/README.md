@@ -1,9 +1,13 @@
 <div style="text-align: center;">
 
-![LangGraph Logo](/images/langgraph_logo.png)
+![LangGraph Logo](/images/langgraph_logo.svg)
 # ReACT Agent
 
 </div>
+
+---
+## What this agent does
+General-purpose agent using a ReAct loop: it reasons and calls tools (e.g. search, math) step by step. Built with LangGraph and LangChain.
 
 ---
 ### Preconditions:
