@@ -168,8 +168,7 @@ This will:
 ### Run the example:
 
 ```bash
-cd ..
-uv run agents/community/langgraph_agentic_rag/examples/execute_ai_service_locally.py
+uv run examples/execute_ai_service_locally.py
 ```
 
 # Deployment on RedHat OpenShift Cluster

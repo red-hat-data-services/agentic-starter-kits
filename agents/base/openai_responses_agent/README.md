@@ -143,7 +143,7 @@ llama stack run ../../../run_llama_server.yaml
 Run the example:
 
 ```bash
-uv run agents/base/openai_responses_agent/examples/execute_ai_service_locally.py
+uv run examples/execute_ai_service_locally.py
 ```
 
 ---
