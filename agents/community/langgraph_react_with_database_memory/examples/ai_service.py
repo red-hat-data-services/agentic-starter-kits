@@ -1,154 +1,204 @@
 from typing import Generator
 from langgraph.checkpoint.postgres import PostgresSaver
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
-
-# Importing your specific method
 from langgraph_react_with_database_memory_base.agent import get_graph_closure
+from langchain_core.messages import (
+    BaseMessage,
+    HumanMessage,
+    AIMessage,
+    SystemMessage,
+)
 from langgraph_react_with_database_memory_base.utils import get_database_uri
 
 
 def ai_stream_service(
     context, base_url=None, model_id=None, postgres_db_connection_id=None
 ):
-    # 1. Initialize the agent factory using your method
-    # This prepares the logic for the model and the graph structure
     agent_closure = get_graph_closure(
         model_id=model_id,
-        base_url=base_url,  # Mapping 'url' to 'base_url' per your requirement
+        base_url=base_url,
     )
 
+    # def get_database_uri():
+    #     db_details = client.connections.get_details(postgres_db_connection_id)
+    #     db_credentials = db_details["entity"]["properties"]
+    #     db_host = db_credentials["host"]
+    #     db_port = db_credentials["port"]
+    #     db_name = db_credentials["database"]
+    #     db_username = db_credentials["username"]
+    #     db_password = db_credentials["password"]
+    #     return f"postgresql://{db_username}:{db_password}@{db_host}:{db_port}/{db_name}"
+
     DB_URI = get_database_uri()
+
+    with PostgresSaver.from_conn_string(DB_URI) as saver:
+        saver.setup()
 
     def get_formatted_message(
         resp: BaseMessage, is_assistant: bool = False
     ) -> dict | None:
         role = resp.type
+
         if resp.content:
             if role in {"AIMessageChunk", "ai"}:
                 return {"role": "assistant", "content": resp.content}
             elif role == "tool":
-                return {
-                    "role": "assistant" if is_assistant else "tool",
-                    "step_details" if is_assistant else "content": {
-                        "type": "tool_response",
+                if is_assistant:
+                    return {
+                        "role": "assistant",
+                        "step_details": {
+                            "type": "tool_response",
+                            "id": resp.id,
+                            "tool_call_id": resp.tool_call_id,
+                            "name": resp.name,
+                            "content": resp.content,
+                        },
+                    }
+                else:
+                    return {
+                        "role": role,
                         "id": resp.id,
                         "tool_call_id": resp.tool_call_id,
                         "name": resp.name,
                         "content": resp.content,
                     }
-                    if is_assistant
-                    else resp.content,
-                }
-        elif role == "ai" and "tool_calls" in resp.additional_kwargs:
-            tool_call = resp.additional_kwargs["tool_calls"][0]
-            return {
-                "role": "assistant",
-                "tool_calls": [
-                    {
-                        "id": tool_call["id"],
-                        "type": "function",
-                        "function": {
-                            "name": tool_call["function"]["name"],
-                            "arguments": tool_call["function"]["arguments"],
+        elif role == "ai":  # this implies resp.additional_kwargs
+            if additional_kw := resp.additional_kwargs:
+                tool_call = additional_kw["tool_calls"][0]
+                if is_assistant:
+                    return {
+                        "role": "assistant",
+                        "step_details": {
+                            "type": "tool_calls",
+                            "tool_calls": [
+                                {
+                                    "id": tool_call["id"],
+                                    "name": tool_call["function"]["name"],
+                                    "args": tool_call["function"]["arguments"],
+                                }
+                            ],
                         },
                     }
-                ],
-            }
-        return None
+                else:
+                    return {
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "id": tool_call["id"],
+                                "type": "function",
+                                "function": {
+                                    "name": tool_call["function"]["name"],
+                                    "arguments": tool_call["function"]["arguments"],
+                                },
+                            }
+                        ],
+                    }
 
     def convert_dict_to_message(_dict: dict) -> BaseMessage:
-        if _dict["role"] == "assistant":
-            return AIMessage(content=_dict["content"])
-        elif _dict["role"] == "system":
-            return SystemMessage(content=_dict["content"])
-        else:
-            return HumanMessage(content=_dict["content"])
+        """Convert user message in dict to langchain_core.messages.BaseMessage"""
+
+        role = _dict.get("role")
+        content = _dict.get("content", "")
+        if role == "assistant":
+            return AIMessage(content=content)
+        elif role == "system":
+            return SystemMessage(content=content)
+        return HumanMessage(content=content)
 
     def generate(context) -> dict:
+
         payload = context.get_json()
         raw_messages = payload.get("messages", [])
         thread_id = payload.get("thread_id")
         messages = [convert_dict_to_message(_dict) for _dict in raw_messages]
 
         with PostgresSaver.from_conn_string(DB_URI) as saver:
-            # Important: Ensure tables exist
-            saver.setup()
-
-            # Get the compiled agent from the closure
-            agent = agent_closure(saver=saver)
-
-            # Handle system message logic
-            system_content = None
             if messages and messages[0].type == "system":
-                system_content = messages[0].content
+                agent = agent_closure(saver, thread_id, messages[0].content)
                 del messages[0]
+            else:
+                agent = agent_closure(saver, thread_id)
 
-            config = {"configurable": {"thread_id": thread_id}} if thread_id else {}
+            if thread_id:
+                config = {"configurable": {"thread_id": thread_id}}
+                generated_response = agent.invoke({"messages": messages}, config)
+            else:
+                generated_response = agent.invoke({"messages": messages})
 
-            # If your get_graph_closure implementation handles system messages
-            # via input state or constructor, adjust the invoke call here:
-            generated_response = agent.invoke({"messages": messages}, config)
-
-            return {
+            choices = []
+            execute_response = {
                 "headers": {"Content-Type": "application/json"},
-                "body": {
-                    "choices": [
-                        {
-                            "index": 0,
-                            "message": get_formatted_message(
-                                generated_response["messages"][-1]
-                            ),
-                        }
-                    ]
-                },
+                "body": {"choices": choices},
             }
 
-    def generate_stream(context) -> Generator[dict, None, None]:
+            choices.append(
+                {
+                    "index": 0,
+                    "message": get_formatted_message(
+                        generated_response["messages"][-1]
+                    ),
+                }
+            )
+
+            return execute_response
+
+    def generate_stream(context) -> Generator[dict, ..., ...]:
         headers = context.get_headers()
         is_assistant = headers.get("X-Ai-Interface") == "assistant"
+
         payload = context.get_json()
         raw_messages = payload.get("messages", [])
         thread_id = payload.get("thread_id")
         messages = [convert_dict_to_message(_dict) for _dict in raw_messages]
-
         with PostgresSaver.from_conn_string(DB_URI) as saver:
-            saver.setup()
-            agent = agent_closure(saver=saver)
-
             if messages and messages[0].type == "system":
+                agent = agent_closure(saver, thread_id, messages[0].content)
                 del messages[0]
+            else:
+                agent = agent_closure(saver, thread_id)
 
-            config = {"configurable": {"thread_id": thread_id}} if thread_id else {}
-            response_stream = agent.stream(
-                {"messages": messages}, config, stream_mode=["updates", "messages"]
-            )
+            if thread_id:
+                config = {"configurable": {"thread_id": thread_id}}
+                response_stream = agent.stream(
+                    {"messages": messages}, config, stream_mode=["updates", "messages"]
+                )
+            else:
+                response_stream = agent.stream(
+                    {"messages": messages}, stream_mode=["updates", "messages"]
+                )
 
             for chunk_type, data in response_stream:
                 msg_obj = None
+
                 if chunk_type == "messages":
                     msg_obj = data[0]
+                    # Skip tool messages (internal)
                     if msg_obj.type == "tool":
                         continue
+                    # Skip system messages
+                    if msg_obj.type == "system":
+                        continue
                 elif chunk_type == "updates":
-                    if "agent" in data:
-                        msg_obj = data["agent"]["messages"][0]
-                    elif "tools" in data:
-                        msg_obj = data["tools"]["messages"][0]
+                    if agent_data := data.get("agent"):
+                        msg_obj = agent_data["messages"][0]
+                    elif tool_data := data.get("tools"):
+                        msg_obj = tool_data["messages"][0]
+                    else:
+                        # Skip updates without messages (e.g., pre_model_hook)
+                        continue
+                else:
+                    continue
 
-                if msg_obj:
-                    if message := get_formatted_message(
-                        msg_obj, is_assistant=is_assistant
-                    ):
-                        yield {
-                            "choices": [
-                                {
-                                    "index": 0,
-                                    "delta": message,
-                                    "finish_reason": msg_obj.response_metadata.get(
-                                        "finish_reason"
-                                    ),
-                                }
-                            ]
-                        }
+                # Format and yield the message if valid
+                if msg_obj and (message := get_formatted_message(msg_obj, is_assistant=is_assistant)) is not None:
+                    chunk_response = {
+                        "choices": [
+                            {
+                                "index": 0,
+                                "delta": message,
+                                "finish_reason": msg_obj.response_metadata.get("finish_reason"),
+                            }
+                        ]
+                    }
+                    yield chunk_response
 
     return generate, generate_stream
