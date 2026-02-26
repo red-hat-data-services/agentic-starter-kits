@@ -57,6 +57,13 @@ Go to agent dir
 cd agents/base/langgraph_react_agent
 ```
 
+Create and activate a virtual environment (Python 3.12) in this directory using [uv](https://docs.astral.sh/uv/):
+```bash
+uv venv --python 3.12
+source .venv/bin/activate
+```
+(On Windows: `.venv\Scripts\activate`)
+
 Make scripts executable
 ```bash
 chmod +x init.sh
@@ -108,7 +115,7 @@ llama stack run ../../../run_llama_server.yaml
 
  Run the example:
 ```bash
-uv run agents/base/langgraph_react_agent/examples/execute_ai_service_locally.py
+uv run examples/execute_ai_service_locally.py
 ```
 
 # Deployment on RedHat OpenShift Cluster
