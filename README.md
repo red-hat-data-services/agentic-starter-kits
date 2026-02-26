@@ -6,13 +6,15 @@
 </div>
 
 ## Purpose
-Agentic Starter Kits is a collection of production-ready agent templates that demonstrate how to build and deploy LLM-powered agents using modern frameworks. This repository provides:
+Production-ready agent templates to build and deploy LLM-powered agents. Run locally (e.g. with Ollama/Llama Stack) or deploy to Red Hat OpenShift. Each agent has step-by-step docs.
 
-- **Base Agent Templates**: Ready-to-use agent implementations using LangGraph and LlamaIndex
-- **Community Agent Examples**: Advanced agents like RAG (Retrieval-Augmented Generation) systems
-- **Dual Deployment Options**: Run agents locally for development or deploy to Red Hat OpenShift Cluster for production
-- **Llama stack Integration**: Unified model serving with Ollama for local LLM inference
-- **Clear Documentation**: Step-by-step guides for setup, configuration, and deployment
+## Agents
+Choose an agent and follow its README for setup and deployment:
+
+- **[LangGraph ReAct](./agents/base/langgraph_react_agent/README.md)** – General-purpose agent using a ReAct loop: it reasons and calls tools (e.g. search, math) step by step. Built with LangGraph and LangChain.
+- **[LlamaIndex WebSearch](./agents/base/llamaindex_websearch_agent/README.md)** – Agent built on LlamaIndex that uses a web search tool to query the internet and use the results in its answers.
+- **[OpenAI Responses](./agents/base/openai_responses_agent/README.md)** – Minimal agent with no framework: only the OpenAI Python client and an Action/Observation loop with tools. Use with OpenAI or any compatible API.
+- **[LangGraph Agentic RAG](./agents/community/langgraph_agentic_rag/README.md)** – RAG agent that indexes documents in a vector store (Milvus) and retrieves relevant chunks to augment the LLM’s answers with your own data.
 
 ## Deployment Options
 Agents in this repository can support two deployment modes:
@@ -73,17 +75,6 @@ Install UV
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 ---
-
-## Next Steps
-After completing the setup, choose an agent and follow its specific README:
-
-**Base Agents:**
-- **[LangGraph ReAct Agent](./agents/base/langgraph_react_agent/README.md)** - General-purpose agent with tool use
-- **[LlamaIndex WebSearch Agent](./agents/base/llamaindex_websearch_agent/README.md)** - Web search capabilities
-- **[OpenAI Responses Agent](./agents/base/openai_responses_agent/README.md)** - OpenAI client + pure Python (Responses API)
-
-**Community Agents:**
-- **[LangGraph Agentic RAG](./agents/community/langgraph_agentic_rag/README.md)** - RAG with Milvus vector store
 
 ## Additional Resources
 - **Llama Stack Documentation**: https://llama-stack.readthedocs.io/
