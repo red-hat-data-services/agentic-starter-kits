@@ -72,11 +72,6 @@ Install UV
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
-Create venv and activate
-```bash
-uv venv --python 3.12
-source .venv/bin/activate
-```
 ---
 
 ## Next Steps
