@@ -2,7 +2,7 @@ from typing import Callable
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from langchain_core.messages import BaseMessage, SystemMessage
 from langgraph_react_with_database_memory_base import TOOLS
 from langgraph.checkpoint.postgres import PostgresSaver
@@ -81,10 +81,13 @@ def get_graph_closure(
             return {"messages": input_messages}
 
         if thread_id:
-            return create_react_agent(
-                chat, tools=TOOLS, checkpointer=memory, pre_model_hook=messages_modifier
+            return create_agent(
+                chat,
+                tools=TOOLS,
+                checkpointer=memory,
+                system_prompt=messages_modifier,
             )
         else:
-            return create_react_agent(chat, tools=TOOLS, prompt=system_prompt)
+            return create_agent(chat, tools=TOOLS, system_prompt=system_prompt)
 
     return get_graph

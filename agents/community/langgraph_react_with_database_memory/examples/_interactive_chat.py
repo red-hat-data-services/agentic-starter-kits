@@ -8,7 +8,6 @@ class InteractiveChat:
     def __init__(
         self,
         ai_service_invoke: Callable,
-        questions: tuple[str] = None,
         stream: bool = False,
         verbose: bool = True,
     ) -> None:
@@ -19,8 +18,6 @@ class InteractiveChat:
         self._delta_start = False
         self.verbose = verbose
         self.stream = stream
-
-        self.questions = ("Hi! How are you?",) if questions is None else questions
 
         self._help_message = textwrap.dedent(
             """
@@ -34,13 +31,6 @@ class InteractiveChat:
     @property
     def questions(self) -> tuple:
         return self._questions
-
-    @questions.setter
-    def questions(self, q: tuple) -> None:
-        self._questions = q
-        self._questions_prompt = (
-            f"\tQuestions:\n{self._ordered_list(self._questions)}\n"
-        )
 
     def _user_input_loop(self) -> Generator[tuple[str, str], None, None]:
         print(self._help_message)
@@ -69,7 +59,6 @@ class InteractiveChat:
             print(f"{choice['message'].get('content', choice['message'])}")
 
     def run(self) -> None:
-        # TODO implement signal handling (especially Ctrl-C)
         while True:
             try:
                 q = None
@@ -82,24 +71,9 @@ class InteractiveChat:
                     elif action == "quit" or action == "q":
                         raise EOFError
 
-                    elif action == "list_questions":
-                        print(self._questions_prompt)
-
                     elif stage == "question":
                         user_message = {}
-                        # small caveat -- if user answers to the chat a single digit we'll treat it as trying to choose on of our self.questions
-                        if not action.isdigit():  # user defined question
-                            user_message["content"] = action.strip()
-                        else:
-                            number = int(action)
-
-                            print(f"you chose QUESTION {number}\n")
-                            if number > len(self.questions) or number < 0:
-                                print(
-                                    "provided numbers have to match the available numbers"
-                                )
-                            else:
-                                user_message["content"] = self.questions[number - 1]
+                        user_message["content"] = action.strip()
 
                         request_payload_json = {
                             "messages": [{"role": "user", **user_message}]

@@ -149,6 +149,7 @@ def ai_stream_service(
         raw_messages = payload.get("messages", [])
         thread_id = payload.get("thread_id")
         messages = [convert_dict_to_message(_dict) for _dict in raw_messages]
+
         with PostgresSaver.from_conn_string(DB_URI) as saver:
             if messages and messages[0].type == "system":
                 agent = agent_closure(saver, thread_id, messages[0].content)
@@ -189,13 +190,23 @@ def ai_stream_service(
                     continue
 
                 # Format and yield the message if valid
-                if msg_obj and (message := get_formatted_message(msg_obj, is_assistant=is_assistant)) is not None:
+                if (
+                    msg_obj
+                    and (
+                        message := get_formatted_message(
+                            msg_obj, is_assistant=is_assistant
+                        )
+                    )
+                    is not None
+                ):
                     chunk_response = {
                         "choices": [
                             {
                                 "index": 0,
                                 "delta": message,
-                                "finish_reason": msg_obj.response_metadata.get("finish_reason"),
+                                "finish_reason": msg_obj.response_metadata.get(
+                                    "finish_reason"
+                                ),
                             }
                         ]
                     }

@@ -23,8 +23,13 @@ providers:
       provider_type: inline::llama-guard
       config: { }
 persistence:
-  namespace: vector_io::milvus
-  backend: kv_default
+  host: localhost
+  port: 5432
+  db_name: agent_memory
+  user: postgres
+  password: your_password_here
+  # Use 'postgres' or 'remote::postgres' depending on your local stack build
+  type: postgres
 registered_resources:
   models:
     - model_id: llama3.2:3b

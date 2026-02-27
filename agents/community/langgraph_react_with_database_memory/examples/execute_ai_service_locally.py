@@ -20,7 +20,7 @@ class SimpleContext:
         return {}
 
 
-thread_id = "PLACEHOLDER FOR YOUR THREAD ID"
+thread_id = "PLACEHOLDER_FOR_YOUR_THREAD_ID"
 
 stream = True
 
@@ -40,7 +40,7 @@ ai_service_resp_func = ai_stream_service(
     model_id=model_id,
 )[stream]
 
-if thread_id == "PLACEHOLDER FOR YOUR THREAD ID":
+if thread_id == "PLACEHOLDER_FOR_YOUR_THREAD_ID":
     thread_id = str(uuid.uuid4())
 
 header = f" thread_id: {thread_id} "
