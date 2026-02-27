@@ -3,7 +3,6 @@ from typing import Callable
 from langchain_openai import ChatOpenAI
 from langgraph.graph.state import CompiledStateGraph
 from langchain.agents import create_agent
-from langgraph_react_with_database_memory_base import TOOLS
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph_react_with_database_memory_base.utils import get_env_var
 from langchain.agents.middleware import wrap_model_call, ModelRequest, ModelResponse
@@ -64,37 +63,28 @@ def get_graph_closure(
         def messages_modifier(
             request: ModelRequest, handler: Callable[[ModelRequest], ModelResponse]
         ) -> ModelResponse:
-            """Reduces number of agent's input messages right before LLM execution"""
+            """Reduces number of agent's input messages right before LLM execution.
 
-            # The system prompt is automatically placed at request.messages[0]
-            input_messages = request.messages
+            Keeps only the most recent max_messages_in_context conversation messages
+            (FIFO). The system prompt is handled separately by create_agent via
+            request.system_message and is NOT part of request.messages.
+            """
+            messages = request.messages
 
-            if len(input_messages) > max_messages_in_context:
-                if max_messages_in_context == 0:
-                    input_messages = []
-                elif max_messages_in_context == 1:
-                    input_messages = [input_messages[0]]
-                else:
-                    # Keep System Prompt [0] and the most recent N-1 messages
-                    input_messages = [input_messages[0]] + input_messages[
-                        -(max_messages_in_context - 1) :
-                    ]
+            if len(messages) > max_messages_in_context:
+                messages = messages[-max_messages_in_context:]
 
-            # 3. Overwrite the messages in the request payload
-            request.messages = input_messages
-
-            # 4. Pass the modified request onward to the LLM
-            return handler(request)
+            return handler(request.override(messages=messages))
 
         if thread_id:
             return create_agent(
                 chat,
-                tools=TOOLS,
+                tools=[],
                 checkpointer=memory,
                 system_prompt=system_prompt,
                 middleware=[messages_modifier],  # Properly inject the middleware
             )
         else:
-            return create_agent(chat, tools=TOOLS, system_prompt=system_prompt)
+            return create_agent(chat, tools=[], system_prompt=system_prompt)
 
     return get_graph
