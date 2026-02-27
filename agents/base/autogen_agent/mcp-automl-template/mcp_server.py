@@ -1,4 +1,3 @@
-# mcp_server.py
 import asyncio
 from utils import PersonInformation
 from mcp.server.fastmcp import FastMCP
