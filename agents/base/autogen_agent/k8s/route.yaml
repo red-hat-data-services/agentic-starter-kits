@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: autogen-agent
+  labels:
+    app: autogen-agent
+spec:
+  to:
+    kind: Service
+    name: autogen-agent
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
