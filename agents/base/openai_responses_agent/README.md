@@ -174,11 +174,30 @@ oc get route openai-responses-agent -o jsonpath='{.spec.host}'
 ```
 
 Send a test request:
+/chat endpoint
 
 ```bash
 curl -X POST https://<YOUR_ROUTE_URL>/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "How much does a Lenovo Laptop cost and what are the reviews?"}'
+```
+
+/stream endpoint
+Classic Print
+
+```bash
+curl -X POST https://<YOUR_ROUTE_URL>/stream \
+  -H "Content-Type: application/json" \
+  -d '{"message": "How much does a Lenovo Laptop cost and what are the reviews?"}'
+```
+
+Pretty Printed Stream
+
+```bash
+curl -X POST https://<YOUR_ROUTE_URL>/stream \
+  -H "Content-Type: application/json" \
+  -d '{"message": "How much does a Lenovo Laptop cost and what are the reviews?"}' |
+   jq -R -r -j --stream 'scan("^data:(.*)")[] | fromjson.content // empty'
 ```
 
 ---

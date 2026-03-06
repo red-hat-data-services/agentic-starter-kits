@@ -233,13 +233,14 @@ class AIAgent:
         )
         return _get_output_text_from_response(response)
 
-    def query(self, question: str, max_turns: int = 10) -> Optional[str]:
+    def query(self, question: str, max_turns: int = 10, on_event: Optional[Callable] = None) -> Optional[str]:
         """
         Process a question through multiple turns until getting final answer.
 
         Args:
             question: The input question to process.
             max_turns: Maximum number of turns before timing out.
+            on_event: Optional callback(event_type, data) for streaming events.
 
         Returns:
             The final answer or None if no answer found.
@@ -268,11 +269,18 @@ class AIAgent:
                     action, args_str = actions[0].groups()
                     action_inputs = self._parse_arguments(args_str)
 
+                    if on_event:
+                        on_event("tool_call", {"name": action, "args": action_inputs})
+
                     tool = self.tools.get(action)
                     if not tool:
                         raise ValueError(f"Unknown action: {action}")
 
                     observation = tool(*action_inputs)
+
+                    if on_event:
+                        on_event("tool_result", {"name": action, "output": str(observation)})
+
                     next_prompt = f"Observation: {observation}"
                 else:
                     # No Action: line – treat the whole response as the final answer
