@@ -182,10 +182,18 @@ COPY the route URL and PASTE into the CURL below
 oc get route langgraph-react-agent -o jsonpath='{.spec.host}'
 ```
 
-Send a test request:
+Send a test request on `/chat` endpoint
 
 ```bash
 curl -X POST https://<YOUR_ROUTE_URL>/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What is the best company? Answer with the first correct answer."}'
+```
+
+Send a test request on `/stream` endpoint
+
+```bash
+curl -X POST https://<YOUR_ROUTE_URL>/stream \
   -H "Content-Type: application/json" \
   -d '{"message": "What is the best company? Answer with the first correct answer."}'
 ```
