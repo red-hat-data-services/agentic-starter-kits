@@ -183,10 +183,30 @@ oc get route llamaindex-websearch-agent -o jsonpath='{.spec.host}'
 
 Send a test request:
 
+/chat endpoint
+
 ```bash
 curl -X POST https://<YOUR_ROUTE_URL>/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "Which company is consider the best?"}'
+```
+
+/stream endpoint
+Classic Print
+
+```bash
+curl -X POST https://<YOUR_ROUTE_URL>/stream \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Which company is consider the best?"}'
+```
+
+Pretty Printed Stream
+
+```bash
+curl -X POST https://<YOUR_ROUTE_URL>/stream \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Which company is consider the best?"}' |
+   jq -R -r -j --stream 'scan("^data:(.*)")[] | fromjson.content // empty'
 ```
 
 ---

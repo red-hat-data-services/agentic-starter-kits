@@ -1,10 +1,15 @@
 import json
+import logging
 from contextlib import asynccontextmanager
 from os import getenv
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from llama_index_workflow_agent_base.agent import get_workflow_closure
+from llama_index_workflow_agent_base.workflow import ToolCallEvent, InputEvent
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 
 # Request/Response models
@@ -187,6 +192,66 @@ async def chat(request: ChatRequest):
         raise HTTPException(
             status_code=500, detail=f"Error processing request: {str(e)}"
         )
+
+
+@app.post("/stream")
+async def stream(request: ChatRequest):
+    """
+    Streaming chat endpoint that accepts a message and returns the agent's
+    response as Server-Sent Events (SSE).
+
+    Event types:
+        - tool_call: tool invocation by the agent
+        - tool_result: result returned by a tool
+        - token: final answer text
+        - done: signals the stream is complete
+
+    Args:
+        request: ChatRequest containing the user message
+    """
+    global get_agent
+
+    if get_agent is None:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+
+    async def event_generator():
+        try:
+            agent = get_agent()
+            messages = [{"role": "user", "content": request.message}]
+
+            handler = agent.run(input=messages)
+
+            async for event in handler.stream_events():
+                if isinstance(event, ToolCallEvent):
+                    for tc in event.tool_calls:
+                        yield f"event: tool_call\ndata: {json.dumps({'name': tc.tool_name, 'args': tc.tool_kwargs})}\n\n"
+
+                elif isinstance(event, InputEvent):
+                    # Check if the last message is a tool result
+                    if event.input:
+                        last_msg = event.input[-1]
+                        if getattr(last_msg, "role", None) == "tool":
+                            additional = getattr(last_msg, "additional_kwargs", {}) or {}
+                            yield f"event: tool_result\ndata: {json.dumps({'name': additional.get('name', ''), 'output': _get_message_content(last_msg)})}\n\n"
+
+            result = await handler
+            # Extract final answer from the result
+            if result and "response" in result:
+                content = _get_message_content(result["response"].message)
+                if content:
+                    yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
+
+            yield "event: done\ndata: {}\n\n"
+
+        except Exception as e:
+            logger.exception("Error in stream event_generator")
+            yield f"event: error\ndata: {json.dumps({'detail': 'Internal server error'})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/health")

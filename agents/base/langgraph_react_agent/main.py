@@ -1,4 +1,5 @@
 import json
+import logging
 from contextlib import asynccontextmanager
 from os import getenv
 
@@ -6,6 +7,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 from langgraph_react_agent_base.agent import get_graph_closure
 
@@ -193,7 +196,8 @@ async def stream(request: ChatRequest):
             yield "event: done\ndata: {}\n\n"
 
         except Exception as e:
-            yield f"event: error\ndata: {json.dumps({'detail': str(e)})}\n\n"
+            logger.exception("Error in stream event_generator")
+            yield f"event: error\ndata: {json.dumps({'detail': 'Internal server error'})}\n\n"
 
     return StreamingResponse(
         event_generator(),
