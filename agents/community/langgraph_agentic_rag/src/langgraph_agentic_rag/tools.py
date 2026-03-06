@@ -32,7 +32,12 @@ def get_retriever_components(
     # Get configuration from environment if not provided
     if not base_url:
         base_url = getenv("BASE_URL")
-    vector_store_name = getenv("VECTOR_STORE_NAME")
+    vector_store_id = getenv("VECTOR_STORE_ID")
+    if not vector_store_id:
+        raise RuntimeError(
+            "VECTOR_STORE_ID env var is not set. Run load_documents.py first."
+            "or check if you provided right ID"
+        )
 
     # Initialize LlamaStack client
     client = LlamaStackClient(
@@ -40,21 +45,7 @@ def get_retriever_components(
         api_key=getenv("API_KEY"),
     )
 
-    # Get the vector store ID by name
-    vector_store_list = client.vector_stores.list()
-    vector_store_id = None
-
-    for vs in vector_store_list.data:
-        if vs.name == vector_store_name:
-            print(f"Your Vector Store: {vs.id} ({vs.name})")
-            vector_store_id = vs.id
-
-    if not vector_store_id:
-        available = [f"{vs.name} ({vs.id})" for vs in vector_store_list.data]
-        raise RuntimeError(
-            f"Vector store '{vector_store_name}' not found. "
-            f"Available: {available}. Run load_documents.py first."
-        )
+    print(f"Using vector store: {vector_store_id}")
 
     # Cache the components
     _client_cache = client

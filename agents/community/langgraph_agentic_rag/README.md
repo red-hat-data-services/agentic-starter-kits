@@ -222,10 +222,30 @@ oc get route langgraph-agentic-rag -o jsonpath='{.spec.host}'
 
 Send a test request:
 
+/chat endpoint
+
 ```bash
 curl -X POST https://<YOUR_ROUTE_URL>/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "What is LangChain?"}'
+```
+
+/stream endpoint
+Classic Print
+
+```bash
+curl -X POST https://<YOUR_ROUTE_URL>/stream \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What is LangChain?"}'
+```
+
+Pretty Printed Stream
+
+```bash
+curl -X POST https://<YOUR_ROUTE_URL>/stream \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What is LangChain?"}' |
+   jq -R -r -j --stream 'scan("^data:(.*)")[] | fromjson.content // empty'
 ```
 
 ## Agent-Specific Documentation

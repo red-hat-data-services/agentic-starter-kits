@@ -2,7 +2,7 @@
 Script to load documents from text files into a vector store via LlamaStack.
 
 If VECTOR_STORE_ID is set, documents are added to the existing store.
-Otherwise a new vector store is created using VECTOR_STORE_NAME,
+Otherwise, a new vector store is created using VECTOR_STORE_NAME,
 its ID is printed and written back into the .env file.
 """
 
@@ -22,7 +22,9 @@ load_dotenv(verbose=True)
 
 def update_env_file(key: str, value: str):
     """Update or add a key=value pair in the .env file next to this script."""
-    env_path = Path(__file__).resolve().parent.parent / ".env"  # data/ -> langgraph_agentic_rag/.env
+    env_path = (
+        Path(__file__).resolve().parent.parent / ".env"
+    )  # data/ -> langgraph_agentic_rag/.env
     if not env_path.exists():
         env_path.write_text(f"{key}={value}\n")
         return
@@ -78,7 +80,6 @@ def load_and_index_documents(
     )
 
     vector_store_id = getenv("VECTOR_STORE_ID")
-    vector_store_name = getenv("VECTOR_STORE_NAME") or "my_vector_store"
     provider_id = "milvus"
     embedding_dimension = 768
 
@@ -88,7 +89,6 @@ def load_and_index_documents(
     else:
         # Create a new vector store
         vector_store = client.vector_stores.create(
-            name=vector_store_name,
             extra_body={
                 "provider_id": provider_id,
                 "embedding_model": embedding_model,
@@ -96,11 +96,12 @@ def load_and_index_documents(
             },
         )
         vector_store_id = vector_store.id
-        print(f"Vector store created: id={vector_store_id} name={vector_store_name}")
+        print(f"Vector store created: id={vector_store_id} name={vector_store.name}")
 
         # Persist the new ID to .env
         update_env_file("VECTOR_STORE_ID", vector_store_id)
         print(f"Updated .env with VECTOR_STORE_ID={vector_store_id}")
+        print("NOTE!: Please use `source ./init.sh' to update the env variables.")
 
     print("Loading documents from directory...")
     loader = TextLoader(docs_to_load)
@@ -159,7 +160,9 @@ def load_and_index_documents(
         vector_store_id=vector_store_id,
     )
 
-    print(f"Done! {len(formatted_chunks)} chunks inserted into vector store {vector_store_id}")
+    print(
+        f"Done! {len(formatted_chunks)} chunks inserted into vector store {vector_store_id}"
+    )
 
 
 if __name__ == "__main__":
