@@ -101,7 +101,7 @@ def load_and_index_documents(
         # Persist the new ID to .env
         update_env_file("VECTOR_STORE_ID", vector_store_id)
         print(f"Updated .env with VECTOR_STORE_ID={vector_store_id}")
-        print("NOTE!: Please use `source ./init.sh' to update the env variables.")
+        print("NOTE!: Please re-run `source .env` or `make run` to pick up the new variable.")
 
     print("Loading documents from directory...")
     loader = TextLoader(docs_to_load)

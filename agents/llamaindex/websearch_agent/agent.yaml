@@ -1,0 +1,12 @@
+name: llamaindex-websearch-agent
+displayName: "LlamaIndex WebSearch Agent"
+framework: llamaindex
+description: "Agent built on LlamaIndex that uses a web search tool to query the internet and augment answers."
+env:
+  required:
+    - API_KEY
+    - BASE_URL
+    - MODEL_ID
+  optional:
+    - PORT
+    - CONTAINER_IMAGE

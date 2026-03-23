@@ -23,10 +23,11 @@ Agents are organized by framework. Pick one and follow its README:
 | **CrewAI** | [WebSearch Agent](./agents/crewai/websearch_agent/) | CrewAI-based agent with a web search tool to query the internet and answer user questions. |
 | **Vanilla Python** | [OpenAI Responses Agent](./agents/vanilla_python/openai_responses_agent/) | Minimal agent with no framework: only the OpenAI Python client and an Action/Observation loop with tools. Use with OpenAI or any compatible API. |
 | **AutoGen** | [MCP Agent](./agents/autogen/mcp_agent/) | AutoGen AssistantAgent with MCP tools over SSE (e.g. churn prediction, math tools), FastAPI `/chat/completions`. |
+| **Langflow** | [Simple Tool Calling Agent](./agents/langflow/simple_tool_calling_agent/) | Outdoor activity planner built with Langflow's visual UI. Uses weather, air quality, and NPS APIs. Runs via `podman-compose` (see its own README). |
 
 ## Deployment Options
 
-Agents in this repository can support two deployment modes:
+Agents in this repository support two deployment modes:
 
 ### 🖥️ Local Development
 
@@ -35,12 +36,49 @@ Agents in this repository can support two deployment modes:
 - Ideal for development, testing, and experimentation
 - No cloud infrastructure required
 
+```bash
+git clone https://github.com/red-hat-data-services/agentic-starter-kits
+cd agentic-starter-kits
+
+# Install uv (Python package manager)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Pick an agent and go
+cd agents/langgraph/react_agent
+make init        # creates .env from .env.example
+# Edit .env with your API_KEY, BASE_URL, MODEL_ID
+make run         # starts on http://localhost:8080
+```
+
+See [Local Development Guide](./docs/local-development.md) for Ollama + Llama Stack setup.
+
 ### ☁️ Production Deployment
 
 - Deploy agents to Red Hat OpenShift Cluster
 - Containerized deployment with Kubernetes
 - Production-grade scaling and monitoring
 - CI/CD ready
+
+```bash
+cd agents/langgraph/react_agent
+
+# Option A: Build locally with Podman (or Docker) and push to a registry
+make build            # builds container image locally
+make push             # pushes image to registry
+make deploy           # deploys via Helm
+
+# Option B: Build in-cluster on OpenShift (no Podman/Docker needed)
+make build-openshift  # builds image via OpenShift BuildConfig
+make deploy           # deploys via Helm
+```
+
+Preview rendered Helm manifests before deploying:
+
+```bash
+make dry-run
+```
+
+See [OpenShift Deployment Guide](./docs/openshift-deployment.md) for details.
 
 ## Repository Structure
 
@@ -57,60 +95,52 @@ agentic-starter-kits/
 │   │   └── websearch_agent/         # LlamaIndex web search agent
 │   ├── vanilla_python/
 │   │   └── openai_responses_agent/  # OpenAI Responses API (no framework)
-│   └── autogen/
-│       └── mcp_agent/               # AutoGen + MCP (SSE)
+│   ├── autogen/
+│   │   └── mcp_agent/               # AutoGen + MCP (SSE)
+│   └── langflow/
+│       └── simple_tool_calling_agent/ # Langflow visual agent (podman-compose)
+├── charts/
+│   └── agent/                       # Shared Helm chart for all agents
+├── docs/                            # Guides: deployment, local dev, contributing
+├── infrastructure/
+│   └── llama-stack/                 # Llama Stack server configuration
 └── README.md
 ```
 
----
+Each Helm-based agent directory contains:
 
-## How to Use This Repository
-
-1. **Start Here**: Read this README to understand the overall structure and install core dependencies
-2. **Choose an Agent**: Select an agent from the `agents/` directory based on your use case
-3. **Follow Agent README**: Navigate to the agent's directory and follow its specific README for:
-    - Agent-specific dependencies installation
-    - Configuration and setup
-    - Local development or OpenShift deployment
-    - Usage examples and API endpoints
-
-### Pre-requisitions to run that repo
-
-Run this script to set up repo stuff with a use of [UV](https://docs.astral.sh/uv/) and python 3.12
-
-Download repo
-
-```bash
-git clone https://github.com/red-hat-data-services/agentic-starter-kits
+```
+agent-name/
+├── agent.yaml         # Agent metadata and required env vars
+├── values.yaml        # Helm values override for this agent
+├── .env.example       # Environment variable template
+├── Makefile           # make init, run, build, build-openshift, deploy, dry-run, test
+├── Dockerfile         # Container build
+├── pyproject.toml     # Python dependencies
+├── main.py            # FastAPI app (/chat/completions, /health)
+├── src/               # Agent source code
+├── tests/             # Tests
+└── examples/          # Example scripts
 ```
 
-Get into root dir
+## Documentation
 
-```bash
-cd agentic-starter-kits
-```
-
-Install UV
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
----
+- [Local Development](./docs/local-development.md) — Ollama + Llama Stack setup
+- [OpenShift Deployment](./docs/openshift-deployment.md) — Helm-based deployment guide
+- [Adding a New Agent](./docs/adding-a-new-agent.md) — How to contribute a new agent template
 
 ## Additional Resources
 
-- **Llama Stack Documentation**: https://llama-stack.readthedocs.io/
-- **Ollama Documentation**: https://docs.ollama.com/
-- **OpenShift Documentation**: https://docs.openshift.com/
+- **Llama Stack**: https://llama-stack.readthedocs.io/
+- **Ollama**: https://docs.ollama.com/
+- **Red Hat OpenShift**: https://docs.openshift.com/
+- **Helm**: https://helm.sh/docs/
 - **Kubernetes**: https://kubernetes.io/docs/
 
 ## Contributing
 
-Contributions are welcome! Please see individual agent READMEs for specific guidelines.
+Contributions are welcome! See [Adding a New Agent](./docs/adding-a-new-agent.md) and [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## License
 
-MIT License
-
-Copyright (c) 2026
+[Apache License 2.0](./LICENSE)

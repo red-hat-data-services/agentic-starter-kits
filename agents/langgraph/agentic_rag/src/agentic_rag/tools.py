@@ -35,8 +35,8 @@ def get_retriever_components(
     vector_store_id = getenv("VECTOR_STORE_ID")
     if not vector_store_id:
         raise RuntimeError(
-            "VECTOR_STORE_ID env var is not set. Run load_documents.py first."
-            "or check if you provided right ID"
+            "VECTOR_STORE_ID env var is not set. Run load_documents.py first. "
+            "Or check if you provided right ID"
         )
 
     # Initialize LlamaStack client

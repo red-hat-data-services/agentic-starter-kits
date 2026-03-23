@@ -1,0 +1,26 @@
+# Helm values override for LangGraph ReAct Agent with Database Memory
+nameOverride: "langgraph-react-db-memory"
+
+env:
+  MODEL_ID: ""
+  BASE_URL: ""
+  POSTGRES_HOST: ""
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "agent_memory"
+  POSTGRES_USER: ""
+
+secrets:
+  apiKey: ""
+  postgresPassword: ""
+
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "200m"
+  limits:
+    memory: "1Gi"
+    cpu: "1000m"
+
+healthCheck:
+  livenessInitialDelay: 15
+  readinessInitialDelay: 10

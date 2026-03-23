@@ -14,201 +14,114 @@ Agent built on LlamaIndex that uses a web search tool to query the internet and 
 
 ---
 
-### Preconditions:
-
-- You need to change .env.template file to .env
-- Decide what way you want to go `local` or `RH OpenShift Cluster` and fill needed values
-- use `./init.sh` that will add those values from .env to environment variables
-
-Go to agent dir
+## Quick Start
 
 ```bash
 cd agents/llamaindex/websearch_agent
+make init        # creates .env from .env.example
+# Edit .env with your API_KEY, BASE_URL, MODEL_ID
+make run         # starts on http://localhost:8080
 ```
 
-Copy .env file
+## Configuration
 
-```bash
-mv template.env .env
-```
-
-#### Local
-
-Edit the `.env` file with your local configuration:
+### Local
 
 ```
-BASE_URL=http://localhost:8321
-MODEL_ID=ollama/llama3.2:3b
 API_KEY=not-needed
-CONTAINER_IMAGE=not-needed
+BASE_URL=http://localhost:8321/v1
+MODEL_ID=ollama/llama3.2:3b
 ```
 
-#### OpenShift Cluster
+See [Local Development](../../../docs/local-development.md) for Ollama + Llama Stack setup.
 
-Edit the `.env` file and fill in all required values:
+### OpenShift / Remote API
 
 ```
 API_KEY=your-api-key-here
-BASE_URL=https://your-llama-stack-distribution.com/v1
+BASE_URL=https://your-model-endpoint.com/v1
 MODEL_ID=llama-3.1-8b-instruct
 CONTAINER_IMAGE=quay.io/your-username/llamaindex-websearch-agent:latest
 ```
 
 **Notes:**
 
-- `API_KEY` - contact your cluster administrator
+- `API_KEY` - your API key or contact your cluster administrator
 - `BASE_URL` - should end with `/v1`
-- `MODEL_ID` - contact your cluster administrator
-- `CONTAINER_IMAGE` - full image path where the agent container will be pushed and pulled from.
-  The image is built locally, pushed to this registry, and then deployed to OpenShift.
+- `MODEL_ID` - model identifier available on your endpoint
+- `CONTAINER_IMAGE` – full image path where the agent container will be pushed and pulled from. The image is built
+  locally, pushed to this registry, and then deployed to OpenShift.
 
   Format: `<registry>/<namespace>/<image-name>:<tag>`
 
   Examples:
+
     - Quay.io: `quay.io/your-username/llamaindex-websearch-agent:latest`
     - Docker Hub: `docker.io/your-username/llamaindex-websearch-agent:latest`
     - GHCR: `ghcr.io/your-org/llamaindex-websearch-agent:latest`
 
-Create and activate a virtual environment (Python 3.12) in this directory using [uv](https://docs.astral.sh/uv/):
+## Deploying to OpenShift
 
 ```bash
-uv venv --python 3.12
-source .venv/bin/activate
+# Option A: Build locally with Podman (or Docker) and push to a registry
+make build            # builds container image locally
+make push             # pushes image to registry
+make deploy           # deploys via Helm
+
+# Option B: Build in-cluster on OpenShift (no Podman/Docker needed)
+make build-openshift  # builds image via OpenShift BuildConfig
+make deploy
+
+# Preview rendered manifests before deploying
+make dry-run
 ```
 
-(On Windows: `.venv\Scripts\activate`)
+See [OpenShift Deployment](../../../docs/openshift-deployment.md) for details.
 
-Make scripts executable
+### Testing on OpenShift
 
-```bash
-chmod +x init.sh
-```
-
-Add to values from .env to environment variables
-
-```bash
-source ./init.sh
-```
-
----
-
-## Local usage (Ollama + LlamaStack Server)
-
-Create package with agent and install it to venv
-
-```bash
-uv pip install -e .
-```
-
-```bash
-uv pip install ollama
-```
-
-Install app from Ollama site or via Brew
-
-```bash
-#brew install ollama
-# or
-curl -fsSL https://ollama.com/install.sh | sh
-```
-
-Pull Required Model
-
-```bash
-ollama pull llama3.2:3b
-```
-
-Start Ollama Service
-
-```bash
-ollama serve
-```
-
-> **Keep this terminal open!**\
-> Ollama needs to keep running.
-
-Start LlamaStack Server
-
-```bash
-llama stack run ../../../run_llama_server.yaml
-```
-
-> **Keep this terminal open** - the server needs to keep running.\
-> You should see output indicating the server started on `http://localhost:8321`.
-
-Run the example:
-
-```bash
-uv run examples/execute_ai_service_locally.py
-```
-
-# Deployment on RedHat OpenShift Cluster
-
-Login to OC
-
-```bash
-oc login -u "login" -p "password" https://super-link-to-cluster:111
-```
-
-Login ex. Docker
-
-```bash
-docker login -u='login' -p='password' quay.io
-```
-
-Make deploy file executable
-
-```bash
-chmod +x deploy.sh
-```
-
-Build image and deploy Agent
-
-```bash
-./deploy.sh
-```
-
-This will:
-
-- Create Kubernetes secret for API key
-- Build and push the Docker image
-- Deploy the agent to OpenShift
-- Create Service and Route
-
-COPY the route URL and PASTE into the CURL below
+Get the route URL:
 
 ```bash
 oc get route llamaindex-websearch-agent -o jsonpath='{.spec.host}'
 ```
 
-Send a test request:
+Replace `http://localhost:8080` with `https://<YOUR_ROUTE_URL>` in the API examples below.
 
-Non-streaming
+## API Endpoints
+
+### POST /chat/completions
+
+Non-streaming:
 
 ```bash
-curl -X POST https://<YOUR_ROUTE_URL>/chat/completions \
+curl -X POST http://localhost:8080/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"messages": [{"role": "user", "content": "Which company is consider the best?"}], "stream": false}'
+  -d '{"messages": [{"role": "user", "content": "Which company is considered the best?"}], "stream": false}'
 ```
 
-Streaming
+Streaming:
 
 ```bash
-curl -X POST https://<YOUR_ROUTE_URL>/chat/completions \
+curl -sN -X POST http://localhost:8080/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"messages": [{"role": "user", "content": "Which company is consider the best?"}], "stream": true}'
+  -d '{"messages": [{"role": "user", "content": "Which company is considered the best?"}], "stream": true}'
 ```
 
-Pretty Printed Stream
+Pretty Printed Stream:
 
 ```bash
-curl -X POST https://<YOUR_ROUTE_URL>/chat/completions \
+curl -sN -X POST http://localhost:8080/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"messages": [{"role": "user", "content": "Which company is consider the best?"}], "stream": true}' |
+  -d '{"messages": [{"role": "user", "content": "Which company is considered the best?"}], "stream": true}' |
    jq -R -r -j --stream 'scan("^data:(.*)")[] | fromjson.choices[0].delta.content // empty'
 ```
 
----
+### GET /health
+
+```bash
+curl http://localhost:8080/health
+```
 
 ## Playground UI
 
@@ -254,14 +167,14 @@ If the agent runs on a different host or port:
 AGENT_URL=https://your-agent-url flask --app playground/app run --port 5001
 ```
 
----
+## Tests
 
-## Agent-Specific Documentation
+```bash
+make test
+```
 
-Each agent has detailed documentation for setup and deployment:
+## Resources
 
-- https://ollama.com/
-- https://formulae.brew.sh/formula/ollama#default
-- https://docs.llamaindex.ai/
-- https://docs.llamaindex.ai/en/stable/module_guides/workflow/
-- https://llama-stack.readthedocs.io/
+- [LlamaIndex Documentation](https://docs.llamaindex.ai/)
+- [LlamaIndex Workflows](https://docs.llamaindex.ai/en/stable/module_guides/workflow/)
+- [Llama Stack Documentation](https://llama-stack.readthedocs.io/)

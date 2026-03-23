@@ -41,7 +41,7 @@ def get_graph_closure(
         model_id = getenv("MODEL_ID")
 
     # Check if using local deployment
-    is_local = any(host in base_url for host in ["localhost", "127.0.0.1"])
+    is_local = base_url is not None and any(host in base_url for host in ["localhost", "127.0.0.1"])
 
     if not is_local and not api_key:
         raise ValueError("API_KEY is required for non-local environments.")
@@ -58,8 +58,8 @@ def get_graph_closure(
 
     # Define system prompt
     default_system_prompt = (
-        "You are a helpful AI assistant that can retrieve information from a knowledge base."
-        "When you receive a question, first check if you need to retrieve information using the retriever tool."
+        "You are a helpful AI assistant that can retrieve information from a knowledge base. "
+        "When you receive a question, first check if you need to retrieve information using the retriever tool. "
         "If the question requires specific knowledge that you might not have, use the retriever tool to get relevant information. "
         "Then provide a meaningfully but short sentenced answer with a use of retrieved data from chunks"
     )

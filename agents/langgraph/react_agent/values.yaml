@@ -1,0 +1,6 @@
+# Helm values override for LangGraph ReAct Agent
+nameOverride: "langgraph-react-agent"
+
+env:
+  MODEL_ID: ""
+  BASE_URL: ""

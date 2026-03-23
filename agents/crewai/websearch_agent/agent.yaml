@@ -1,0 +1,12 @@
+name: crewai-websearch-agent
+displayName: "CrewAI WebSearch Agent"
+framework: crewai
+description: "Web search agent built with CrewAI using a ReAct-style crew with a web search tool to answer user questions."
+env:
+  required:
+    - API_KEY
+    - BASE_URL
+    - MODEL_ID
+  optional:
+    - PORT
+    - CONTAINER_IMAGE

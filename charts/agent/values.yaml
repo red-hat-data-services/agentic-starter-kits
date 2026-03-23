@@ -1,0 +1,58 @@
+# Default values for all agents
+# Agent-specific values.yaml files override these defaults
+
+replicaCount: 1
+
+image:
+  repository: ""
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+env: {}
+  # Agents define their own env vars via per-agent values.yaml
+  # Example:
+  #   MODEL_ID: "llama3.2:3b"
+  #   BASE_URL: "http://localhost:8321/v1"
+
+secrets:
+  apiKey: ""
+  postgresPassword: ""
+
+service:
+  port: 8080
+  type: ClusterIP
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+# OpenShift Route — enabled by default
+openshift:
+  route:
+    enabled: true
+    tls:
+      termination: edge
+      insecureEdgeTerminationPolicy: Redirect
+
+# Vanilla K8s Ingress — opt-in
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  tls: []
+
+healthCheck:
+  path: /health
+  livenessInitialDelay: 10
+  livenessPeriod: 120
+  livenessTimeout: 5
+  readinessInitialDelay: 5
+  readinessPeriod: 30
+  readinessTimeout: 3
+
+volumes: []
+volumeMounts: []

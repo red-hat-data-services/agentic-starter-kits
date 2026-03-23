@@ -1,0 +1,6 @@
+# Helm values override for OpenAI Responses Agent
+nameOverride: "openai-responses-agent"
+
+env:
+  MODEL_ID: ""
+  BASE_URL: ""

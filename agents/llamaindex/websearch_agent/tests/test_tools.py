@@ -121,7 +121,7 @@ def test_dummy_web_search_type_hints():
     # Should have type hints for query and return
     assert "query" in hints
     assert "return" in hints
-    assert isinstance(hints["query"], str)
+    assert hints["query"] is str
 
 
 if __name__ == "__main__":

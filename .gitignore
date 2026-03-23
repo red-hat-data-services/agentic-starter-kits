@@ -1,6 +1,5 @@
 .env*
 !.env.example
-.env
 .vscode
 .idea
 .DS_Store
@@ -14,4 +13,5 @@ config.toml
 milvus_data/
 *.egg-info/
 uv.lock
+.helm-secrets.yaml
 agents/langflow/simple_tool_calling_agent/local/.ollama-enabled

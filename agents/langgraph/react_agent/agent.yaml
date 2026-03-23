@@ -1,0 +1,12 @@
+name: langgraph-react-agent
+displayName: "LangGraph ReAct Agent"
+framework: langgraph
+description: "General-purpose agent using a ReAct loop: reasons and calls tools (search, math) step by step."
+env:
+  required:
+    - API_KEY
+    - BASE_URL
+    - MODEL_ID
+  optional:
+    - PORT
+    - CONTAINER_IMAGE

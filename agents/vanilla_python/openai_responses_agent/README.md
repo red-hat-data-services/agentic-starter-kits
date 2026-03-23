@@ -1,6 +1,6 @@
 <div style="text-align: center;">
 
-![LangGraph Logo](/images/openai_logo.svg)
+![OpenAI Logo](/images/openai_logo.svg)
 
 # Pure Responses Agent
 
@@ -15,40 +15,36 @@ OpenAI or any compatible API.
 
 ---
 
-### Preconditions
-
-- Copy/paste the `.env` file and set values for your environment
-- Choose **local** or **RH OpenShift Cluster** and fill the needed values
-- Run `./init.sh` to load values from `.env` into the environment
-
-Go to agent dir:
+## Quick Start
 
 ```bash
 cd agents/vanilla_python/openai_responses_agent
+make init        # creates .env from .env.example
+# Edit .env with your API_KEY, BASE_URL, MODEL_ID
+make run         # starts on http://localhost:8080
 ```
 
-Change the name of .env file
+## Configuration
 
-```bash
-mv template.env .env
-```
-
-#### Local but with a use of OpenAI API
-
-Edit the `.env` file with your local configuration:
-
-**OpenAI API** directly:
+### Local (with Ollama + Llama Stack)
 
 ```
+API_KEY=not-needed
+BASE_URL=http://localhost:8321/v1
+MODEL_ID=ollama/llama3.2:3b
+```
+
+### Local (with OpenAI API)
+
+```
+API_KEY=sk-...
 BASE_URL=https://api.openai.com/v1
 MODEL_ID=gpt-4o-mini
-API_KEY=sk-...
-CONTAINER_IMAGE=not-needed
 ```
 
-#### OpenShift Cluster
+See [Local Development](../../../docs/local-development.md) for Ollama + Llama Stack setup.
 
-Edit the `.env` file and fill in all required values:
+### OpenShift / Remote API
 
 ```
 API_KEY=your-api-key-here
@@ -59,9 +55,9 @@ CONTAINER_IMAGE=quay.io/your-username/openai-responses-agent:latest
 
 **Notes:**
 
-- `API_KEY` – contact your cluster administrator
-- `BASE_URL` – should end with `/v1`
-- `MODEL_ID` – contact your cluster administrator
+- `API_KEY` - your API key or contact your cluster administrator
+- `BASE_URL` - should end with `/v1`
+- `MODEL_ID` - model identifier available on your endpoint
 - `CONTAINER_IMAGE` – full image path where the agent container will be pushed and pulled from. The image is built
   locally, pushed to this registry, and then deployed to OpenShift.
 
@@ -73,99 +69,25 @@ CONTAINER_IMAGE=quay.io/your-username/openai-responses-agent:latest
     - Docker Hub: `docker.io/your-username/openai-responses-agent:latest`
     - GHCR: `ghcr.io/your-org/openai-responses-agent:latest`
 
-Create and activate a virtual environment (Python 3.12) in this directory using [uv](https://docs.astral.sh/uv/):
+## Deploying to OpenShift
 
 ```bash
-uv venv --python 3.12
-source .venv/bin/activate
+# Option A: Build locally with Podman (or Docker) and push to a registry
+make build            # builds container image locally
+make push             # pushes image to registry
+make deploy           # deploys via Helm
+
+# Option B: Build in-cluster on OpenShift (no Podman/Docker needed)
+make build-openshift  # builds image via OpenShift BuildConfig
+make deploy
+
+# Preview rendered manifests before deploying
+make dry-run
 ```
 
-(On Windows: `.venv\Scripts\activate`)
+See [OpenShift Deployment](../../../docs/openshift-deployment.md) for details.
 
-Make scripts executable:
-
-```bash
-chmod +x init.sh
-```
-
-Load values from `.env` into environment variables:
-
-```bash
-source ./init.sh
-```
-
----
-
-## Local usage (Ollama + LlamaStack Server)
-
-Create package with agent and install it in venv:
-
-```bash
-uv pip install -e .
-uv pip install ollama
-```
-
-Install Ollama from the [Ollama site](https://ollama.com/) or via Brew:
-
-```bash
-# brew install ollama
-# or
-curl -fsSL https://ollama.com/install.sh | sh
-```
-
-Pull required models:
-
-```bash
-ollama pull llama3.2:3b
-ollama pull embeddinggemma:latest
-```
-
-Start Ollama service:
-
-```bash
-ollama serve
-```
-
-> **Keep this terminal open!**  
-> Ollama needs to keep running.
-
-Start LlamaStack server:
-
-```bash
-llama stack run ../../../run_llama_server.yaml
-```
-
-> **Keep this terminal open** – the server needs to keep running.  
-> You should see output indicating the server started on `http://localhost:8321`.
-
-Run the example:
-
-```bash
-uv run examples/execute_ai_service_locally.py
-```
-
----
-
-## Deployment on Red Hat OpenShift Cluster
-
-Make deploy script executable:
-
-```bash
-chmod +x deploy.sh
-```
-
-Build image and deploy agent:
-
-```bash
-./deploy.sh
-```
-
-This will:
-
-- Create Kubernetes secret for API key
-- Build and push the Docker image
-- Deploy the agent to OpenShift
-- Create Service and Route
+### Testing on OpenShift
 
 Get the route URL:
 
@@ -173,34 +95,42 @@ Get the route URL:
 oc get route openai-responses-agent -o jsonpath='{.spec.host}'
 ```
 
-Send a test request:
+Replace `http://localhost:8080` with `https://<YOUR_ROUTE_URL>` in the API examples below.
 
-Non-streaming
+## API Endpoints
+
+### POST /chat/completions
+
+Non-streaming:
 
 ```bash
-curl -X POST https://<YOUR_ROUTE_URL>/chat/completions \
+curl -X POST http://localhost:8080/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"messages": [{"role": "user", "content": "How much does a Lenovo Laptop cost and what are the reviews?"}], "stream": false}'
 ```
 
-Streaming
+Streaming:
 
 ```bash
-curl -X POST https://<YOUR_ROUTE_URL>/chat/completions \
+curl -sN -X POST http://localhost:8080/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"messages": [{"role": "user", "content": "How much does a Lenovo Laptop cost and what are the reviews?"}], "stream": true}'
 ```
 
-Pretty Printed Stream
+Pretty Printed Stream:
 
 ```bash
-curl -X POST https://<YOUR_ROUTE_URL>/chat/completions \
+curl -X POST http://localhost:8080/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"messages": [{"role": "user", "content": "How much does a Lenovo Laptop cost and what are the reviews?"}], "stream": true}' |
    jq -R -r -j --stream 'scan("^data:(.*)")[] | fromjson.choices[0].delta.content // empty'
 ```
 
----
+### GET /health
+
+```bash
+curl http://localhost:8080/health
+```
 
 ## Playground UI
 
@@ -246,11 +176,13 @@ If the agent runs on a different host or port:
 AGENT_URL=https://your-agent-url flask --app playground/app run --port 5001
 ```
 
----
+## Tests
 
-## Agent-Specific Documentation
+```bash
+make test
+```
 
-- [OpenAI Python client](https://github.com/openai/openai-python)
+## Resources
+
+- [OpenAI Python Client](https://github.com/openai/openai-python)
 - [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses/create)
-- [Ollama](https://ollama.com/)
-- [Ollama (Homebrew)](https://formulae.brew.sh/formula/ollama#default)

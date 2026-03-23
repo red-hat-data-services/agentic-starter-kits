@@ -1,0 +1,17 @@
+name: langgraph-react-db-memory
+displayName: "LangGraph ReAct Agent with Database Memory"
+framework: langgraph
+description: "ReAct agent with PostgreSQL-backed conversation memory for persistent, thread-based chat history."
+env:
+  required:
+    - API_KEY
+    - BASE_URL
+    - MODEL_ID
+    - POSTGRES_HOST
+    - POSTGRES_PORT
+    - POSTGRES_DB
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+  optional:
+    - PORT
+    - CONTAINER_IMAGE

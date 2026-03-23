@@ -1,13 +1,9 @@
-# Use Python 3.12 slim image as base
-FROM python:3.12-slim
+# Use Red Hat UBI9 Python 3.12 image (no Docker Hub rate limits on OpenShift)
+FROM registry.access.redhat.com/ubi9/python-312:latest
+WORKDIR /opt/app-root/src
 
-# Set working directory
-WORKDIR /app
-
-# Create a non-privileged user for OpenShift
-# UID 1001 is commonly used in OpenShift deployments
-# Adding to root group (GID 0) is the OpenShift convention for arbitrary UIDs
-RUN groupadd -r appuser && useradd -r -u 1001 -g 0 -m -d /home/appuser appuser
+# Switch to root for installing dependencies
+USER 0
 
 # Install uv for fast dependency management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
@@ -17,7 +13,7 @@ COPY pyproject.toml .
 COPY src/ ./src/
 
 # Install the project and its dependencies using uv
-RUN uv pip install --system --no-cache .
+RUN uv pip install --no-cache .
 
 # Copy the application entrypoint, playground UI, and images
 COPY main.py .
@@ -27,20 +23,20 @@ COPY images/ ./images/
 # Pre-create the directory that CrewAI writes to at import time
 # (crewai.utilities.paths.db_storage_path -> ~/.local/share/app/)
 # Make everything group-writable (GID 0) for OpenShift arbitrary UID support
-RUN mkdir -p /home/appuser/.local/share/app \
-    && chown -R appuser:0 /app /home/appuser \
-    && chmod -R g=u /app /home/appuser
+RUN mkdir -p /opt/app-root/.local/share/app \
+    && chown -R 1001:0 /opt/app-root/src /opt/app-root/.local \
+    && chmod -R g=u /opt/app-root/src /opt/app-root/.local
 
-# Switch to non-privileged user
-USER appuser
+# Switch back to default non-root user
+USER 1001
 
 # Expose port 8080 (OpenShift standard)
 EXPOSE 8080
 
 # Set environment variables
 ENV PORT=8080
-ENV HOME=/home/appuser
-ENV PYTHONPATH=/app:/app/src
+ENV HOME=/opt/app-root
+ENV PYTHONPATH=/opt/app-root/src
 
 # Run the application
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

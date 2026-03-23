@@ -8,10 +8,10 @@ requires-python = ">=3.12, <3.14"
 dependencies = [
     "python-dotenv>=1.2.2",
     "openai>=2.24.0",
-    "llama-stack>=0.5.1",
-    "milvus-lite==2.5.1",
     "setuptools>=80.9.0,<82.0.0",
     "flask>=3.1.0",
+    "fastapi>=0.129.0",
+    "uvicorn[standard]>=0.41.0",
 ]
 
 [project.optional-dependencies]

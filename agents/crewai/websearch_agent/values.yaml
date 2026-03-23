@@ -1,0 +1,5 @@
+nameOverride: "crewai-websearch-agent"
+
+env:
+  MODEL_ID: ""
+  BASE_URL: ""
