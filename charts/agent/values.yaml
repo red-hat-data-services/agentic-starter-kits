@@ -6,7 +6,7 @@ replicaCount: 1
 image:
   repository: ""
   tag: "latest"
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 env: {}
   # Agents define their own env vars via per-agent values.yaml
