@@ -117,6 +117,79 @@ Without these flags, requests from the agent will fail with:
 
 See the [vLLM tool calling documentation](https://docs.vllm.ai/en/latest/features/tool_calling.html) for the full list of supported parsers and configuration options.
 
+##### Making the Model Visible in OpenShift AI Dashboard
+
+By default, models deployed via `oc apply` or CLI-created `InferenceService` resources will
+**not** appear in the OpenShift AI dashboard (Model Serving, AI Hub, or GenAI Playground).
+Several labels and annotations are required for full visibility.
+
+**1. Label the namespace as a Data Science Project**
+
+The namespace must be recognized by RHOAI as a Data Science Project:
+
+```bash
+oc label namespace <your-namespace> opendatahub.io/dashboard=true
+oc label namespace <your-namespace> modelmesh-enabled=false
+```
+
+**2. Required InferenceService labels**
+
+| Label | Value | Purpose |
+|---|---|---|
+| `opendatahub.io/dashboard` | `"true"` | Makes the resource visible in the RHOAI dashboard |
+| `opendatahub.io/genai-asset` | `"true"` | Registers the model as an AI asset endpoint for the GenAI Playground |
+
+**3. Required InferenceService annotations**
+
+| Annotation | Value | Purpose |
+|---|---|---|
+| `opendatahub.io/apiProtocol` | `REST` | Declares the API protocol |
+| `opendatahub.io/model-type` | `generative` | Marks the model as generative (vs. embedding, etc.) so it appears in the Playground |
+| `openshift.io/display-name` | e.g. `"Granite 3.1 2B Instruct"` | Friendly name shown in the UI |
+| `serving.kserve.io/deploymentMode` | `RawDeployment` | Deployment mode (standard for single-model serving) |
+| `security.opendatahub.io/enable-auth` | `"false"` | Allows the Playground to query the model without a bearer token |
+
+**Example: complete InferenceService manifest**
+
+```yaml
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: <your-model-name>
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/genai-asset: "true"
+  annotations:
+    opendatahub.io/apiProtocol: REST
+    opendatahub.io/model-type: generative
+    openshift.io/display-name: "<Your Model Display Name>"
+    serving.kserve.io/deploymentMode: RawDeployment
+    security.opendatahub.io/enable-auth: "false"
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: vLLM
+      runtime: <your-serving-runtime>
+      storageUri: <your-model-uri>
+    resources:
+      limits:
+        nvidia.com/gpu: "1"
+      requests:
+        cpu: "2"
+        memory: 8Gi
+        nvidia.com/gpu: "1"
+```
+
+The `storageUri` can point to any supported source:
+- HuggingFace: `hf://<org>/<model-name>` (e.g. `hf://ibm-granite/granite-3.1-2b-instruct`)
+- OCI / Modelcar: `oci://registry.redhat.io/rhelai1/<modelcar-image>:<tag>`
+- S3 / PVC: see [KServe storage documentation](https://kserve.github.io/website/latest/modelserving/storage/storagecontainers/)
+
+> **Tip:** If you create the model deployment through the RHOAI dashboard UI, these labels
+> and annotations are set automatically when you check **"Add as AI asset endpoint"** in
+> the deployment configuration. The above is only needed when deploying via CLI or GitOps.
+
 ##### Tracing
 
 To enable tracing and logging with MLflow on your OpenShift cluster, add the following environment variables to your `.env` file:
