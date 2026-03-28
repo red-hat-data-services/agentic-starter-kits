@@ -79,6 +79,44 @@ CONTAINER_IMAGE=quay.io/your-username/langgraph-react-agent:latest
     - Docker Hub: `docker.io/your-username/langgraph-react-agent:latest`
     - GHCR: `ghcr.io/your-org/langgraph-react-agent:latest`
 
+##### vLLM Tool Calling Configuration
+
+This agent uses LangChain tool calling (e.g. `dummy_web_search`) as part of its ReAct loop.
+When serving the model with **vLLM**, you must enable tool-calling support by adding
+the following flags to the vLLM server command:
+
+```bash
+--enable-auto-tool-choice --tool-call-parser=<parser>
+```
+
+The `--tool-call-parser` value depends on the model family:
+
+| Model | Parser |
+|---|---|
+| Granite (e.g. `granite-3.1-2b-instruct`) | `granite` |
+| Llama 3.1+ | `llama3_json` |
+| Mistral/Mixtral | `mistral` |
+| Hermes-based models | `hermes` |
+
+For example, when configuring a vLLM `ServingRuntime` or `InferenceService` in OpenShift AI,
+add these to the container args:
+
+```yaml
+args:
+  - --port=8080
+  - --model=/mnt/models
+  - --served-model-name={{.Name}}
+  - --enable-auto-tool-choice
+  - --tool-call-parser=granite
+```
+
+Without these flags, requests from the agent will fail with:
+```
+"auto" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set
+```
+
+See the [vLLM tool calling documentation](https://docs.vllm.ai/en/latest/features/tool_calling.html) for the full list of supported parsers and configuration options.
+
 ##### Tracing
 
 To enable tracing and logging with MLflow on your OpenShift cluster, add the following environment variables to your `.env` file:
