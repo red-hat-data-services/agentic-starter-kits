@@ -116,8 +116,3 @@ spec:
 ## 2\. Expose the Model Externally
 
 When deploying vllm with KServe using RawDeployment, it creates a **headless Service** (clusterIP: None). To expose the model externally, I needed to expose an OpenShift Route. But, OpenShift Routes cannot point to headless Services, so I needed a workaround to create a ClusterIP service. Using the product dashboard will let you do this too.
-
-3. Update app code to point to vllm \+ KServe on OAI
-
-This was one of the bigger changes that I’ve captured here \- initially using Claude & Anthropic’s Agent SDK and changed it to langgraph/pure python agents for this exercise.
-
