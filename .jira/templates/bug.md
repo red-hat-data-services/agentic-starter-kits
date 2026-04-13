@@ -7,12 +7,12 @@ fields:
     name: Bug
   components:
     - name: Tooling Experience
-  # Team
-  customfield_12313240:
-    name: Tooling Experience
+  # Team (Tooling Experience)
+  customfield_10001: "ec74d716-af36-4b3c-950f-f79213d08f71-1611"
   # Activity Type
-  customfield_12320841:
-    name: Tech Debt & Quality
+  customfield_10464:
+    id: "12228"
+    value: Tech Debt & Quality
 ---
 
 ## Description
@@ -47,9 +47,9 @@ fields:
 
 ## Acceptance Criteria
 
-- [ ] Bug cannot be reproduced using the steps above
-- [ ] Example runs successfully locally and on RHOAI
-- [ ] CI/CD pipeline passes
+1. Bug cannot be reproduced using the steps above
+2. Example runs successfully locally and on RHOAI
+3. CI/CD pipeline passes
 
 ## Testing Strategy
 

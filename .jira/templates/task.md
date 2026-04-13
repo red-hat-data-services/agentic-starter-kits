@@ -7,12 +7,12 @@ fields:
     name: Task
   components:
     - name: Tooling Experience
-  # Team
-  customfield_12313240:
-    name: Tooling Experience
+  # Team (Tooling Experience)
+  customfield_10001: "ec74d716-af36-4b3c-950f-f79213d08f71-1611"
   # Activity Type
-  customfield_12320841:
-    name: Tech Debt & Quality
+  customfield_10464:
+    id: "12228"
+    value: Tech Debt & Quality
 ---
 
 ## Goal
@@ -29,9 +29,9 @@ fields:
 
 ## Acceptance Criteria
 
-- [ ] Pipeline or automation executes successfully
-- [ ] Existing examples and tests pass without regressions
-- [ ] Specific internal outcome is achieved
+1. Pipeline or automation executes successfully
+2. Existing examples and tests pass without regressions
+3. Specific internal outcome is achieved
 
 ## Testing Strategy
 

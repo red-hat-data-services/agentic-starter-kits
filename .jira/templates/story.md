@@ -7,12 +7,12 @@ fields:
     name: Story
   components:
     - name: Tooling Experience
-  # Team
-  customfield_12313240:
-    name: Tooling Experience
+  # Team (Tooling Experience)
+  customfield_10001: "ec74d716-af36-4b3c-950f-f79213d08f71-1611"
   # Activity Type
-  customfield_12320841:
-    name: New Features
+  customfield_10464:
+    id: "12229"
+    value: New Features
 ---
 
 ## Value Statement
@@ -25,9 +25,9 @@ fields:
 
 ## Acceptance Criteria
 
-- [ ] Example runs successfully in a local development environment
-- [ ] Example deploys and runs successfully on RHOAI
-- [ ] README documents setup, usage, and expected output
+1. Example runs successfully in a local development environment
+2. Example deploys and runs successfully on RHOAI
+3. README documents setup, usage, and expected output
 
 ## Testing Strategy
 

@@ -7,11 +7,8 @@ fields:
     name: Epic
   components:
     - name: Tooling Experience
-  # Team
-  customfield_12313240:
-    name: Tooling Experience
-  # Epic Name (required for Epics)
-  customfield_12311141: ""
+  # Team (Tooling Experience)
+  customfield_10001: "ec74d716-af36-4b3c-950f-f79213d08f71-1611"
 ---
 
 ## Business Objective
@@ -28,12 +25,12 @@ fields:
 
 ## Epic Acceptance Criteria
 
-- [ ] E2E example is functional locally and deployed on RHOAI
-- [ ] Documentation and README are complete and reviewed
-- [ ] CI/CD pipeline passes for the example
+1. E2E example is functional locally and deployed on RHOAI
+2. Documentation and README are complete and reviewed
+3. CI/CD pipeline passes for the example
 
 ## Shepherd Breakdown Checklist
 
-- [ ] Epic is broken down into properly sized Stories, Tasks, and Spikes.
-- [ ] Child tickets meet the Definition of Ready (clear intent, AC defined, pointed).
-- [ ] Work is delegated across the team to build shared expertise and prevent knowledge silos.
+1. Epic is broken down into properly sized Stories, Tasks, and Spikes.
+2. Child tickets meet the Definition of Ready (clear intent, AC defined, pointed).
+3. Work is delegated across the team to build shared expertise and prevent knowledge silos.
