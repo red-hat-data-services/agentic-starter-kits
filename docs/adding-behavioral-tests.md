@@ -29,21 +29,19 @@ agents/langgraph/react_agent/tests/behavioral/
 
 ## 2. Create conftest.py
 
-The conftest defines fixtures specific to your agent. At minimum you need:
+The conftest defines fixtures specific to your agent. Because agent tests live under `agents/` (a separate directory tree from `tests/behavioral/`), pytest's conftest discovery won't find the shared fixtures. You must define `http_client` and `eval_config` locally. At minimum you need:
 
 - `agent_url` — reads from a new env var specific to your agent
+- `http_client` — must be redefined locally (not inherited from `tests/behavioral/conftest.py`)
+- `eval_config` — resolves the path to `tests/behavioral/configs/thresholds.yaml` relative to the repo root (adjust `.parents[N]` based on your agent's directory depth)
 - `known_tools` — lists the tools in the agent's schema (used by hallucination detection)
-- `agent_thresholds` — pulls from the shared `eval_config` fixture (defined in `tests/behavioral/conftest.py`)
+- `agent_thresholds` — pulls from the shared `eval_config` fixture
 - `run_eval` — overrides the root fixture to add MLflow trace enrichment
 
 See existing agent implementations for working examples:
 
 - `agents/langgraph/react_agent/tests/behavioral/conftest.py`
 - `agents/vanilla_python/openai_responses_agent/tests/behavioral/conftest.py`
-
-> **Note:** Agent-specific test directories are added in follow-up PRs.
-> The shared infrastructure in `tests/behavioral/` provides the harness,
-> scorers, and root fixtures that each agent conftest builds on.
 
 ## 3. Add Thresholds
 
