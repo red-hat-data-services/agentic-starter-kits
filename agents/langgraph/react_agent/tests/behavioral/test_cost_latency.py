@@ -15,7 +15,6 @@ pytestmark = pytest.mark.langgraph_react
 from harness.scorers.latency import score_latency
 
 
-@pytest.mark.asyncio
 async def test_latency_under_threshold(
     run_eval: Any, react_thresholds: dict[str, Any]
 ) -> None:

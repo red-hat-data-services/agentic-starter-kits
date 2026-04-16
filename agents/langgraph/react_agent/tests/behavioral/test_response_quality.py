@@ -14,7 +14,6 @@ pytestmark = pytest.mark.langgraph_react
 from harness.scorers.plan_coherence import score_plan_coherence
 
 
-@pytest.mark.asyncio
 async def test_plan_coherence(run_eval: Any) -> None:
     """Response should have structure and substance (not a bare one-liner)."""
     result = await run_eval(

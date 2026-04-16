@@ -34,7 +34,7 @@ from harness.scorers.tool_sequence import (
 def _load_golden(category: str | None = None) -> list[dict[str, Any]]:
     """Load golden queries, optionally filtering by category."""
     path = Path(__file__).parent / "fixtures" / "golden_queries.yaml"
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
     queries = data.get("queries", [])
     if category:
@@ -50,7 +50,6 @@ def _factual_queries() -> list[dict[str, Any]]:
 _SEARCH_TOOL_MARKERS = ["openshift ai", "openshift", "red hat"]
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "golden",
     _factual_queries(),
@@ -95,7 +94,6 @@ async def test_tool_selection_accuracy(
         )
 
 
-@pytest.mark.asyncio
 async def test_no_hallucinated_tools(
     run_eval: Any, known_tools: list[str]
 ) -> None:
@@ -116,7 +114,6 @@ async def test_no_hallucinated_tools(
     )
 
 
-@pytest.mark.asyncio
 async def test_tool_call_has_valid_args(run_eval: Any) -> None:
     """All tool call arguments must be valid JSON with required fields.
 
@@ -134,7 +131,6 @@ async def test_tool_call_has_valid_args(run_eval: Any) -> None:
     )
 
 
-@pytest.mark.asyncio
 async def test_tool_not_called_for_greeting(run_eval: Any) -> None:
     """Simple greetings should not trigger any tool calls.
 

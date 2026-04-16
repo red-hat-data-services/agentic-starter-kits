@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 from pathlib import Path
@@ -11,12 +12,30 @@ import httpx
 import pytest
 import yaml
 
-from harness.runner import EvalResult, TaskConfig, run_task
+from harness.runner import TaskResult, TaskConfig, run_task
 
 try:
     from harness.mlflow_client import MLflowTraceClient
 except ImportError:
     MLflowTraceClient = None  # type: ignore[misc,assignment]
+
+
+def _find_repo_root() -> Path:
+    """Walk up from this file to find the repository root.
+
+    Uses the presence of tests/behavioral/configs/thresholds.yaml as
+    the sentinel to distinguish the repo root from agent-level directories
+    that also contain pyproject.toml and tests/behavioral/.
+    """
+    path = Path(__file__).resolve().parent
+    while path.parent != path:
+        candidate = path / "tests" / "behavioral" / "configs" / "thresholds.yaml"
+        if candidate.is_file():
+            return path
+        path = path.parent
+    raise FileNotFoundError(
+        "Could not find repo root (no tests/behavioral/configs/thresholds.yaml)"
+    )
 
 
 @pytest.fixture
@@ -35,8 +54,8 @@ async def http_client() -> AsyncGenerator[httpx.AsyncClient, None]:
 @pytest.fixture
 def eval_config() -> dict[str, Any]:
     """Load threshold configuration from the shared configs directory."""
-    config_path = Path(__file__).resolve().parents[5] / "tests" / "behavioral" / "configs" / "thresholds.yaml"
-    with open(config_path) as f:
+    config_path = _find_repo_root() / "tests" / "behavioral" / "configs" / "thresholds.yaml"
+    with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -55,7 +74,7 @@ def react_thresholds(eval_config: dict[str, Any]) -> dict[str, Any]:
 @pytest.fixture
 def run_eval(
     agent_url: str, http_client: httpx.AsyncClient
-) -> Callable[..., Coroutine[Any, Any, EvalResult]]:
+) -> Callable[..., Coroutine[Any, Any, TaskResult]]:
     """Run eval with automatic MLflow enrichment when available.
 
     Overrides the root run_eval fixture to add MLflow trace data
@@ -75,7 +94,7 @@ def run_eval(
         max_tokens_budget: int | None = None,
         model: str | None = None,
         stream: bool = False,
-    ) -> EvalResult:
+    ) -> TaskResult:
         config = TaskConfig(
             agent_url=agent_url,
             query=query,
@@ -89,7 +108,9 @@ def run_eval(
         result = await run_task(config, client=http_client)
 
         if mlflow is not None and result.success:
-            mlflow.enrich_eval_result(result, since_ms=request_start_ms)
+            await asyncio.to_thread(
+                mlflow.enrich_eval_result, result, since_ms=request_start_ms
+            )
 
         return result
 
