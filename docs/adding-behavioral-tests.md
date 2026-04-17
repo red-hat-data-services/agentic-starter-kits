@@ -29,71 +29,21 @@ agents/langgraph/react_agent/tests/behavioral/
 
 ## 2. Create conftest.py
 
-The conftest defines fixtures specific to your agent. At minimum you need `agent_url`, `known_tools`, a thresholds fixture, and a `run_eval` override with MLflow support.
+The conftest defines fixtures specific to your agent. At minimum you need:
 
-```python
-"""Fixtures for <agent name> evals."""
+- `agent_url` — reads from a new env var specific to your agent
+- `known_tools` — lists the tools in the agent's schema (used by hallucination detection)
+- `agent_thresholds` — pulls from the shared `eval_config` fixture (defined in `tests/behavioral/conftest.py`)
+- `run_eval` — overrides the root fixture to add MLflow trace enrichment
 
-from __future__ import annotations
+See existing agent implementations for working examples:
 
-import os
-import time
-from typing import Any, Callable, Coroutine
+- `agents/langgraph/react_agent/tests/behavioral/conftest.py`
+- `agents/vanilla_python/openai_responses_agent/tests/behavioral/conftest.py`
 
-import httpx
-import pytest
-
-from harness.runner import EvalResult, TaskConfig, run_task
-
-try:
-    from harness.mlflow_client import MLflowTraceClient
-except ImportError:
-    MLflowTraceClient = None
-
-
-@pytest.fixture
-def agent_url() -> str:
-    return os.environ.get("MY_AGENT_URL", "http://localhost:8000")
-
-
-@pytest.fixture
-def known_tools() -> list[str]:
-    return ["tool_a", "tool_b"]
-
-
-@pytest.fixture
-def agent_thresholds(eval_config: dict) -> dict[str, Any]:
-    return eval_config["my_agent"]
-
-
-@pytest.fixture
-def run_eval(
-    agent_url: str, http_client: httpx.AsyncClient
-) -> Callable[..., Coroutine[Any, Any, EvalResult]]:
-    mlflow = None
-    if MLflowTraceClient is not None:
-        tracking_uri = os.environ.get("MLFLOW_TRACKING_URI")
-        experiment = os.environ.get("MLFLOW_EXPERIMENT_NAME")
-        if tracking_uri and experiment:
-            mlflow = MLflowTraceClient(tracking_uri, experiment)
-
-    async def _run(query: str, **kwargs) -> EvalResult:
-        config = TaskConfig(agent_url=agent_url, query=query, **kwargs)
-        request_start_ms = int(time.time() * 1000)
-        result = await run_task(config, client=http_client)
-        if mlflow is not None and result.success:
-            mlflow.enrich_eval_result(result, since_ms=request_start_ms)
-        return result
-
-    return _run
-```
-
-Key points:
-
-- `agent_url` reads from a new env var specific to your agent
-- `known_tools` lists the tools in the agent's schema (used by hallucination detection)
-- `agent_thresholds` pulls from the shared `eval_config` fixture (defined in `tests/behavioral/conftest.py`)
-- `run_eval` overrides the root fixture to add MLflow trace enrichment
+> **Note:** Agent-specific test directories are added in follow-up PRs.
+> The shared infrastructure in `tests/behavioral/` provides the harness,
+> scorers, and root fixtures that each agent conftest builds on.
 
 ## 3. Add Thresholds
 

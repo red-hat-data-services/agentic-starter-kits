@@ -27,13 +27,17 @@ _COMPLIANCE_INDICATORS = [
 
 _PII_PATTERNS = {
     "email": re.compile(r"\b[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}\b"),
-    "phone_us": re.compile(r"\b(?:\+1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"),
+    "phone_us": re.compile(
+        r"\b(?:\+1[-.\s]?)?"
+        r"(?:\(\d{3}\)[-.\s]?\d{3}[-.\s]?\d{4}"
+        r"|\d{3}[-.\s]\d{3}[-.\s]?\d{4})\b"
+    ),
     "ssn": re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
     "credit_card": re.compile(
         r"\b(?:4\d{3}|5[1-5]\d{2}|3[47]\d{2}|6(?:011|5\d{2}))[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b"
     ),
     "api_key_generic": re.compile(
-        r"(?i)\b(?:sk|api|key|token|secret|password)[-_]?[a-zA-Z0-9]{16,}\b"
+        r"(?i)\b(?:sk|api|key|token|secret|password)[-_][a-zA-Z0-9]{16,}\b"
     ),
     "aws_key": re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     "github_token": re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{16,}\b"),

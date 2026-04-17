@@ -114,6 +114,8 @@ async def _run_streaming(
     collected_tool_calls: list[dict[str, Any]] = []
     usage_data: dict[str, Any] | None = None
     model_name = ""
+    parsed_any_chunk = False
+    malformed_count = 0
 
     async with client.stream(
         "POST", url, json=payload, timeout=timeout
@@ -127,7 +129,9 @@ async def _run_streaming(
                 break
             try:
                 chunk = json.loads(data_str)
+                parsed_any_chunk = True
             except json.JSONDecodeError:
+                malformed_count += 1
                 logger.warning("Malformed SSE chunk (not valid JSON): %s", data_str[:200])
                 continue
 
@@ -155,6 +159,12 @@ async def _run_streaming(
                         collected_tool_calls[idx]["function"]["arguments"] += (
                             arg_chunk if isinstance(arg_chunk, str) else json.dumps(arg_chunk)
                         )
+
+    if not parsed_any_chunk and malformed_count > 0:
+        raise ValueError(
+            f"All {malformed_count} SSE chunks were malformed JSON — "
+            "agent response is not valid"
+        )
 
     # Reconstruct a non-streaming-style response dict
     message: dict[str, Any] = {"role": "assistant", "content": collected_content}

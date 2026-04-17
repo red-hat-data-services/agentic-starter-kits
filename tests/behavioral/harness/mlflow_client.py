@@ -6,7 +6,7 @@ tool calls and token usage that aren't exposed in the HTTP response.
 Usage:
     client = MLflowTraceClient("http://localhost:5000", "react-agent-evals")
     # After running an eval, enrich with trace data:
-    enriched = client.enrich_result(result, query="What is OpenShift?")
+    enriched = client.enrich_eval_result(result, since_ms=request_start_ms)
 """
 
 from __future__ import annotations
@@ -95,7 +95,7 @@ class MLflowTraceClient:
         for attempt in range(max_retries):
             try:
                 traces = mlflow.search_traces(
-                    locations=[self._experiment_id],
+                    experiment_ids=[self._experiment_id],
                     max_results=1,
                     order_by=["timestamp_ms DESC"],
                 )

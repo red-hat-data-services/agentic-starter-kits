@@ -64,12 +64,6 @@ agentic-starter-kits/
 │       └── simple_tool_calling_agent/ # Langflow tool-calling agent
 ├── tests/
 │   └── behavioral/                  # Behavioral eval suite (shared infra)
-│       ├── conftest.py              # Root fixtures (agent_url, run_eval, etc.)
-│       ├── harness/                 # Eval harness (runner, scorers, MLflow client)
-│       ├── api_contract/            # Cross-agent API contract tests
-│       ├── adversarial/             # Cross-agent safety & injection tests
-│       ├── fixtures/                # Shared test data (injection payloads)
-│       └── configs/                 # Threshold definitions per agent
 ├── charts/
 │   └── agent/                       # Shared Helm chart for all agents
 ├── docs/                            # Guides: local dev, deployment, contributing

@@ -63,7 +63,6 @@ def pytest_configure(config: pytest.Config) -> None:
                 agent_url = os.environ.get(env_var)
                 if agent_url:
                     os.environ["AGENT_URL"] = agent_url
-            break
 
 
 def pytest_report_header(config: pytest.Config) -> list[str]:
