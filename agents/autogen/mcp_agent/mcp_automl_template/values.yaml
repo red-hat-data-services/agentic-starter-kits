@@ -1,0 +1,8 @@
+nameOverride: "mcp-automl"
+
+env:
+  DISABLE_DNS_REBINDING_PROTECTION: "true"
+  DEPLOYMENT_URL: ""
+
+extraSecrets:
+  DEPLOYMENT_TOKEN: ""

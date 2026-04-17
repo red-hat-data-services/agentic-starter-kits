@@ -4,7 +4,7 @@ CHART_DIR      := ../../../charts/agent
 VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 
-.PHONY: init run run-mcp interact-mcp build push build-openshift deploy deploy-mcp undeploy test dry-run help
+.PHONY: init run run-mcp interact-mcp build push build-openshift deploy deploy-mcp undeploy undeploy-mcp test dry-run dry-run-mcp help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -23,7 +23,7 @@ interact-mcp: ## Chat with MCP tools directly via LangGraph (no AutoGen agent)
 
 run-mcp: ## Start MCP AutoML server locally (port 8080)
 	@set -a && source .env && set +a && \
-	  cd mcp_automl_template && PORT=8080 uv run python mcp_server.py
+	  cd mcp_automl_template && PORT=8080 DISABLE_DNS_REBINDING_PROTECTION=true uv run python mcp_server.py
 
 build: ## Build container image locally (podman/docker)
 	@[ -n "$(CONTAINER_CLI)" ] || { echo "ERROR: neither podman nor docker found in PATH"; exit 1; } && \
@@ -83,8 +83,42 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	    fi; \
 	  fi
 
-deploy-mcp: ## Deploy MCP AutoML server to OpenShift
-	@./mcp_automl_template/deploy_mcp.sh
+deploy-mcp: ## Build MCP AutoML server in-cluster and deploy via Helm
+	@source .env 2>/dev/null || true && \
+	  echo "--- Building MCP AutoML server in-cluster ---" && \
+	  oc new-build --strategy=docker --binary --name=mcp-automl --to=mcp-automl:latest 2>/dev/null || true && \
+	  oc start-build mcp-automl --from-dir=mcp_automl_template --follow && \
+	  NS=$$(oc project -q) && \
+	  MCP_IMAGE="image-registry.openshift-image-registry.svc:5000/$$NS/mcp-automl:latest" && \
+	  echo "--- Deploying MCP AutoML server via Helm ---" && \
+	  trap 'rm -f .helm-secrets-mcp.yaml' EXIT && \
+	  umask 077 && \
+	  printf 'extraSecrets:\n  DEPLOYMENT_TOKEN: "%s"\n' "$${DEPLOYMENT_TOKEN}" > .helm-secrets-mcp.yaml && \
+	  helm upgrade --install mcp-automl $(CHART_DIR) \
+	    -f mcp_automl_template/values.yaml \
+	    -f .helm-secrets-mcp.yaml \
+	    --set image.repository="$${MCP_IMAGE%:*}" \
+	    --set image.tag="latest" \
+	    $${DEPLOYMENT_URL:+--set env.DEPLOYMENT_URL="$${DEPLOYMENT_URL}"} && \
+	  echo "" && echo "Waiting for rollout..." && \
+	  if oc rollout status deployment/mcp-automl --timeout=120s; then \
+	    ROUTE=$$(oc get route mcp-automl -o jsonpath='{.spec.host}' 2>/dev/null || true); \
+	    if [ -n "$$ROUTE" ]; then echo "" && echo "MCP server deployed. The agent connects via in-cluster DNS (http://mcp-automl:8080/sse)." && echo "External URL (for debugging): https://$$ROUTE"; fi; \
+	  fi
+
+undeploy-mcp: ## Remove MCP AutoML server from cluster
+	@helm uninstall mcp-automl || true
+	@if command -v oc >/dev/null 2>&1; then \
+	  oc delete buildconfig/mcp-automl imagestream/mcp-automl --ignore-not-found=true; \
+	fi
+
+dry-run-mcp: ## Preview MCP AutoML server Helm templates
+	@source .env 2>/dev/null || true && \
+	  helm template mcp-automl $(CHART_DIR) \
+	    -f mcp_automl_template/values.yaml \
+	    --set image.repository="placeholder" \
+	    --set extraSecrets.DEPLOYMENT_TOKEN="REDACTED" \
+	    $${DEPLOYMENT_URL:+--set env.DEPLOYMENT_URL="$${DEPLOYMENT_URL}"}
 
 dry-run: _check-env ## Render Helm templates without deploying
 	@source .env && \

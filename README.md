@@ -19,11 +19,14 @@ Agents are organized by framework. Pick one and follow its README:
 | **LangGraph** | [ReAct Agent](./agents/langgraph/react_agent/) | General-purpose agent using a ReAct loop: it reasons and calls tools (e.g. search, math) step by step. Built with LangGraph and LangChain. |
 | **LangGraph** | [Agentic RAG](./agents/langgraph/agentic_rag/) | RAG agent that indexes documents in a vector store (Milvus) and retrieves relevant chunks to augment the LLM's answers with your own data. |
 | **LangGraph** | [ReAct + DB Memory](./agents/langgraph/react_with_database_memory/) | ReAct agent with PostgreSQL-backed conversation memory. Full chat history is persisted in the database while a FIFO sliding window keeps only the last N messages in the LLM context. |
+| **LangGraph** | [Human-in-the-Loop](./agents/langgraph/human_in_the_loop/) | ReAct agent with a human approval step. The agent pauses before executing tool calls and waits for user confirmation, enabling oversight of critical actions. |
 | **LlamaIndex** | [WebSearch Agent](./agents/llamaindex/websearch_agent/) | Agent built on LlamaIndex that uses a web search tool to query the internet and use the results in its answers. |
 | **CrewAI** | [WebSearch Agent](./agents/crewai/websearch_agent/) | CrewAI-based agent with a web search tool to query the internet and answer user questions. |
 | **Vanilla Python** | [OpenAI Responses Agent](./agents/vanilla_python/openai_responses_agent/) | Minimal agent with no framework: only the OpenAI Python client and an Action/Observation loop with tools. Use with OpenAI or any compatible API. |
 | **AutoGen** | [MCP Agent](./agents/autogen/mcp_agent/) | AutoGen AssistantAgent with MCP tools over SSE (e.g. churn prediction, math tools), FastAPI `/chat/completions`. |
+| **Google ADK** | [ADK Agent](./agents/google/adk/) | General-purpose agent using Google ADK 2.0 with LiteLLM to route inference through a LlamaStack-compatible endpoint. |
 | **Langflow** | [Simple Tool Calling Agent](./agents/langflow/simple_tool_calling_agent/) | Tool-calling agent built with Langflow's visual flow builder. Calls external APIs as tools and reasons over results. Includes Langfuse v3 tracing. Runs locally via `podman-compose`. |
+| **A2A** | [LangGraph + CrewAI Agent](./agents/a2a/langgraph_crewai_agent/) | Multi-agent system using the Agent-to-Agent (A2A) protocol. A LangGraph orchestrator delegates tasks to a CrewAI worker agent. Uses a dedicated Helm chart. |
 
 ## Deployment Options
 
@@ -51,7 +54,8 @@ agentic-starter-kits/
 │   ├── langgraph/
 │   │   ├── react_agent/              # LangGraph ReAct agent
 │   │   ├── agentic_rag/             # LangGraph RAG agent with Milvus
-│   │   └── react_with_database_memory/ # LangGraph ReAct + PostgreSQL memory
+│   │   ├── react_with_database_memory/ # LangGraph ReAct + PostgreSQL memory
+│   │   └── human_in_the_loop/       # LangGraph Human-in-the-Loop agent
 │   ├── crewai/
 │   │   └── websearch_agent/         # CrewAI web search agent
 │   ├── llamaindex/
@@ -60,12 +64,17 @@ agentic-starter-kits/
 │   │   └── openai_responses_agent/  # OpenAI Responses API (no framework)
 │   ├── autogen/
 │   │   └── mcp_agent/               # AutoGen + MCP (SSE)
-│   └── langflow/
-│       └── simple_tool_calling_agent/ # Langflow tool-calling agent
+│   ├── google/
+│   │   └── adk/                     # Google ADK 2.0 agent
+│   ├── langflow/
+│   │   └── simple_tool_calling_agent/ # Langflow tool-calling agent
+│   └── a2a/
+│       └── langgraph_crewai_agent/  # A2A multi-agent (LangGraph + CrewAI)
 ├── tests/
 │   └── behavioral/                  # Behavioral eval suite (shared infra)
 ├── charts/
-│   └── agent/                       # Shared Helm chart for all agents
+│   ├── agent/                       # Shared Helm chart for all standard agents
+│   └── a2a-langgraph-crewai/        # Dedicated Helm chart for A2A agent
 ├── docs/                            # Guides: local dev, deployment, contributing
 ├── pyproject.toml                   # Test deps & pytest config
 └── README.md

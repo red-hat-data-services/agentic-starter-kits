@@ -70,15 +70,18 @@ MODEL_ID=llama-3.1-8b-instruct
 
 #### MCP Configuration
 
-The agent connects to an MCP server at startup via `MCP_SERVER_URL`. The default in `.env` points to localhost for
-local development:
+The agent can connect to any MCP server that supports SSE transport. By default it points to the bundled `mcp_automl_template` server(no configuration needed):
+
+| Environment | Default `MCP_SERVER_URL` | How it's set |
+|-------------|--------------------------|--------------|
+| Local (`make run`) | `http://127.0.0.1:8080/sse` | Makefile fallback |
+| OpenShift (`make deploy`) | `http://mcp-automl:8080/sse` | `values.yaml` (in-cluster service DNS) |
+
+To connect to an external MCP server, set `MCP_SERVER_URL` in your `.env`:
 
 ```ini
-MCP_SERVER_URL=http://127.0.0.1:8080/sse
+MCP_SERVER_URL=https://your-external-mcp-server.example.com/sse
 ```
-
-When deploying to OpenShift, `make deploy` uses the `MCP_SERVER_URL` from `values.yaml`
-(`http://mcp-automl:8080/sse`) unless you override it in `.env`.
 
 #### DNS Rebinding Protection
 
@@ -95,17 +98,15 @@ unless you encounter host-header mismatch errors.
 
 #### MCP AutoML Server Variables
 
-If you plan to deploy the MCP AutoML server to OpenShift (`make deploy-mcp`), set these in your `.env`:
+If you plan to deploy the MCP AutoML server to OpenShift (`make deploy-mcp`) with tools that call an ML model serving endpoint (e.g. churn prediction via KServe/AutoML), set these in your `.env`:
 
 ```ini
-CONTAINER_IMAGE_MCP=quay.io/your-username/mcp-automl:latest
-DEPLOYMENT_URL=https://your-model-serving-endpoint.com
-DEPLOYMENT_TOKEN=your-model-serving-token
+DEPLOYMENT_URL=https://your-model-serving-endpoint.com/v1/models/your-model:predict
+DEPLOYMENT_TOKEN=your-model-serving-bearer-token
 ```
 
-- `CONTAINER_IMAGE_MCP` — Full image path for the MCP server container
-- `DEPLOYMENT_URL` — URL of the model serving endpoint used by MCP tools (e.g. churn prediction model)
-- `DEPLOYMENT_TOKEN` — Authentication token for the model serving endpoint
+- `DEPLOYMENT_URL` — URL of the ML model serving endpoint called by MCP tools at runtime
+- `DEPLOYMENT_TOKEN` — Bearer token for authenticating with the model serving endpoint
 
 ### Running the Agent
 
@@ -157,14 +158,14 @@ make interact-mcp
 
 ### Step 1: Deploy the MCP server
 
-The MCP AutoML server must be deployed before the agent. Make sure `CONTAINER_IMAGE_MCP`, `DEPLOYMENT_URL`, and
+The MCP AutoML server must be deployed before the agent. Make sure `DEPLOYMENT_URL` and
 `DEPLOYMENT_TOKEN` are set in your `.env`, then run:
 
 ```bash
 make deploy-mcp
 ```
 
-This builds and deploys the MCP server to your OpenShift cluster. See `mcp_automl_template/README.md` for details.
+This builds the MCP server image in-cluster via OpenShift BuildConfig and deploys it using the shared Helm chart. The Route URL is printed on success. See `mcp_automl_template/README.md` for details.
 
 ### Step 2: Build the agent container image
 
@@ -214,10 +215,11 @@ CONTAINER_IMAGE=quay.io/your-username/autogen-mcp-agent:latest
     - Docker Hub: `docker.io/your-username/autogen-mcp-agent:latest`
     - GHCR: `ghcr.io/your-org/autogen-mcp-agent:latest`
 
-#### Preview manifests (`make dry-run`)
+#### Preview manifests
 
 ```bash
-make dry-run          # preview rendered Helm manifests (secrets redacted)
+make dry-run          # preview agent Helm manifests (secrets redacted)
+make dry-run-mcp      # preview MCP server Helm manifests
 ```
 
 #### Deploy (`make deploy`)
@@ -245,8 +247,10 @@ oc get route autogen-mcp-agent -o jsonpath='{.spec.host}'
 make undeploy
 ```
 
-> **Note:** `make undeploy` removes only the agent deployment. The MCP AutoML server is managed separately and must
-> be removed independently if needed.
+> **Note:** `make undeploy` removes only the agent. To also remove the MCP server:
+> ```bash
+> make undeploy-mcp
+> ```
 
 ## API Endpoints
 

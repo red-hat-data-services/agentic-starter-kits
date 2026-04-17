@@ -14,6 +14,7 @@ from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from human_in_the_loop.agent import get_graph_closure
+from human_in_the_loop.tracing import enable_tracing
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +131,8 @@ checkpointer = None
 async def lifespan(app: FastAPI):
     """Initialize the HITL agent graph on startup and clear it on shutdown."""
     global agent_graph_closure, checkpointer
+
+    enable_tracing()
 
     base_url = getenv("BASE_URL")
     model_id = getenv("MODEL_ID")

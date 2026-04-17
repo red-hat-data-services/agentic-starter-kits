@@ -1,32 +1,41 @@
-# MCP AutoML Server - OpenShift-ready image (uv)
-# Build from mcp_agent: docker build -f mcp_automl_template/Dockerfile -t <image> mcp_automl_template/
+# Use Red Hat UBI9 Python 3.12 image (no Docker Hub rate limits on OpenShift)
+# To update: docker pull registry.access.redhat.com/ubi9/python-312:latest
+#            docker inspect --format='{{index .RepoDigests 0}}' registry.access.redhat.com/ubi9/python-312:latest
+FROM registry.access.redhat.com/ubi9/python-312@sha256:e95978812895b9abb2bdc109b501078da2a47c8dbb9fa23758af40ed50ab6023
+WORKDIR /opt/app-root/src
 
-FROM python:3.12-slim
+# Switch to root for installing dependencies
+USER 0
 
-WORKDIR /app
-
-# Non-privileged user for OpenShift (UID 1001)
-RUN groupadd -r appuser && useradd -r -u 1001 -g appuser appuser
-
-# Install uv for fast dependency management
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Install uv for fast dependency management (v0.11.1)
+# To update: docker pull ghcr.io/astral-sh/uv:latest
+#            docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/astral-sh/uv:latest
+COPY --from=ghcr.io/astral-sh/uv@sha256:fc93e9ecd7218e9ec8fba117af89348eef8fd2463c50c13347478769aaedd0ce /uv /usr/local/bin/uv
 
 # Copy project files for dependency installation
 COPY pyproject.toml .
 COPY mcp_server.py register_tools.py utils.py ./
 
 # Install the project and its dependencies using uv
-RUN uv pip install --system --no-cache .
+RUN uv pip install --no-cache .
 
 # Copy config and data files (not needed for install)
 COPY tools_config.yaml churn_schema.json ./
 
-# Change ownership to non-privileged user
-RUN chown -R appuser:appuser /app
+# Make everything group-writable (GID 0) for OpenShift arbitrary UID support
+RUN chown -R 1001:0 /opt/app-root/src \
+    && chmod -R g=u /opt/app-root/src
 
-USER appuser
+# Switch back to default non-root user
+USER 1001
 
+# Expose port 8080 (OpenShift standard)
 EXPOSE 8080
-ENV PORT=8080
 
+# Set environment variables
+ENV PORT=8080
+ENV HOME=/opt/app-root
+ENV PYTHONPATH=/opt/app-root/src
+
+# Run the MCP server
 CMD ["python", "mcp_server.py"]

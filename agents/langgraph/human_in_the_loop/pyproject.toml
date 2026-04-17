@@ -25,6 +25,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+tracing = [
+    "mlflow>=3.10.0",
+]
 dev = [
     "pytest>=9.0.2",
 ]

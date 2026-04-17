@@ -73,17 +73,17 @@ run-app: ## Run agent locally with hot-reload
 	    echo "  Change PORT in .env or run: make run-app-fresh" && \
 	    exit 1; \
 	  fi && \
-	  uv run uvicorn main:app --host 0.0.0.0 --port $${PORT:-8000} --reload --reload-exclude .venv
+	  uv run $${MLFLOW_TRACKING_URI:+--extra tracing} uvicorn main:app --host 0.0.0.0 --port $${PORT:-8000} --reload --reload-exclude .venv
 
 run-app-fresh: ## Kill existing process on port and run agent with hot-reload
 	@source .venv/bin/activate && set -a && source .env && set +a && \
 	  echo "==> Killing existing process on port $${PORT:-8000}..." && \
 	  lsof -ti:$${PORT:-8000} | xargs kill -9 2>/dev/null; true && \
-	  uv run uvicorn main:app --host 0.0.0.0 --port $${PORT:-8000} --reload --reload-exclude .venv
+	  uv run $${MLFLOW_TRACKING_URI:+--extra tracing} uvicorn main:app --host 0.0.0.0 --port $${PORT:-8000} --reload --reload-exclude .venv
 
 run-cli: ## Run interactive CLI chat (no web server)
 	@source .venv/bin/activate && set -a && source .env && set +a && \
-	  cd examples && uv run python execute_ai_service_locally.py
+	  cd examples && uv run $${MLFLOW_TRACKING_URI:+--extra tracing} python execute_ai_service_locally.py
 
 build: ## Build container image locally (podman/docker)
 	@[ -n "$(CONTAINER_CLI)" ] || { echo "ERROR: neither podman nor docker found in PATH"; exit 1; } && \
