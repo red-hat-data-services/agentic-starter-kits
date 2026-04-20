@@ -2,6 +2,7 @@
 
 ![Agentic Starter Kits](/images/ask_logo.png)
 # Agentic Starter Kits
+<!-- test: verify PR template auto-populates -->
 
 </div>
 
