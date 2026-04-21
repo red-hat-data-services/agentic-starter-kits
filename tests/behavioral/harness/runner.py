@@ -27,7 +27,7 @@ class TaskConfig:
 
 
 @dataclass
-class EvalResult:
+class TaskResult:
     """Result of running a single eval task."""
 
     response: str
@@ -186,7 +186,7 @@ async def _run_streaming(
 async def run_task(
     config: TaskConfig,
     client: httpx.AsyncClient | None = None,
-) -> EvalResult:
+) -> TaskResult:
     """Execute a single eval task against an agent endpoint.
 
     Sends the query to the agent's /chat/completions endpoint,
@@ -223,7 +223,7 @@ async def run_task(
         response_text = _extract_response_text(response_data)
         tokens_used = _extract_token_usage(response_data)
 
-        return EvalResult(
+        return TaskResult(
             response=response_text,
             tool_calls=tool_calls,
             latency_seconds=latency,
@@ -234,7 +234,7 @@ async def run_task(
 
     except httpx.HTTPStatusError as exc:
         latency = time.monotonic() - start
-        return EvalResult(
+        return TaskResult(
             response="",
             tool_calls=[],
             latency_seconds=latency,
@@ -245,7 +245,7 @@ async def run_task(
         )
     except (json.JSONDecodeError, ValueError) as exc:
         latency = time.monotonic() - start
-        return EvalResult(
+        return TaskResult(
             response="",
             tool_calls=[],
             latency_seconds=latency,
@@ -256,7 +256,7 @@ async def run_task(
         )
     except (httpx.RequestError, TimeoutError) as exc:
         latency = time.monotonic() - start
-        return EvalResult(
+        return TaskResult(
             response="",
             tool_calls=[],
             latency_seconds=latency,

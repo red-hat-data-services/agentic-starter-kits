@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 
-from harness.runner import EvalResult
+from harness.runner import TaskResult
 from harness.scorers import Score
 
 
-def score_tool_sequence(result: EvalResult, expected_tools: list[str]) -> Score:
+def score_tool_sequence(result: TaskResult, expected_tools: list[str]) -> Score:
     """Check if tools were called in the expected order.
 
     Uses longest common subsequence to measure how well the actual
@@ -67,7 +67,7 @@ def _lcs_length(a: list[str], b: list[str]) -> int:
     return dp[m][n]
 
 
-def score_tool_selection(result: EvalResult, expected_tools: list[str]) -> Score:
+def score_tool_selection(result: TaskResult, expected_tools: list[str]) -> Score:
     """Check if the correct tools were selected, regardless of order.
 
     Measures set overlap between expected and actual tools.
@@ -111,7 +111,7 @@ def score_tool_selection(result: EvalResult, expected_tools: list[str]) -> Score
     )
 
 
-def score_tool_call_validity(result: EvalResult) -> Score:
+def score_tool_call_validity(result: TaskResult) -> Score:
     """Check that all tool calls have valid JSON arguments."""
     if not result.tool_calls:
         return Score(
@@ -156,7 +156,7 @@ def score_tool_call_validity(result: EvalResult) -> Score:
 
 
 def score_hallucinated_tools(
-    result: EvalResult, known_tools: list[str]
+    result: TaskResult, known_tools: list[str]
 ) -> Score:
     """Detect tool calls to tools that do not exist in the agent's schema."""
     if not result.tool_calls:

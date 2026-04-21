@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import math
 
-from harness.runner import EvalResult
+from harness.runner import TaskResult
 from harness.scorers import Score
 
 
-def score_latency(result: EvalResult, max_seconds: float) -> Score:
+def score_latency(result: TaskResult, max_seconds: float) -> Score:
     """Pass/fail check on response latency against a threshold."""
     if max_seconds <= 0:
         return Score(

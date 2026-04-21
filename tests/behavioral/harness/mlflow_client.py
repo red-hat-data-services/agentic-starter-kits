@@ -219,7 +219,7 @@ class MLflowTraceClient:
     def enrich_eval_result(
         self, result, since_ms: int | None = None, wait_seconds: float | None = None
     ):
-        """Enrich an EvalResult with MLflow trace data.
+        """Enrich an TaskResult with MLflow trace data.
 
         If tool_calls or tokens_used are missing from the HTTP response,
         fills them in from the MLflow trace.

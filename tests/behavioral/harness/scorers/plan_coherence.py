@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import re
 
-from harness.runner import EvalResult
+from harness.runner import TaskResult
 from harness.scorers import Score
 
 
-def score_plan_coherence(result: EvalResult) -> Score:
+def score_plan_coherence(result: TaskResult) -> Score:
     """Basic heuristic check for response quality.
 
     Checks that the response:
@@ -73,7 +73,7 @@ def score_plan_coherence(result: EvalResult) -> Score:
 
 
 def score_completeness(
-    result: EvalResult, required_elements: list[str]
+    result: TaskResult, required_elements: list[str]
 ) -> Score:
     """Check that the response contains all required elements.
 

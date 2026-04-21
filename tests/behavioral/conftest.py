@@ -11,7 +11,7 @@ import httpx
 import pytest
 import yaml
 
-from harness.runner import EvalResult, TaskConfig, run_task
+from harness.runner import TaskResult, TaskConfig, run_task
 
 try:
     from harness.mlflow_client import MLflowTraceClient
@@ -111,7 +111,7 @@ async def http_client() -> AsyncGenerator[httpx.AsyncClient, None]:
 @pytest.fixture
 def run_eval(
     agent_url: str, http_client: httpx.AsyncClient
-) -> Callable[..., Coroutine[Any, Any, EvalResult]]:
+) -> Callable[..., Coroutine[Any, Any, TaskResult]]:
     """Convenience fixture that wraps run_task with the session's agent URL and client.
 
     Usage in tests:
@@ -127,7 +127,7 @@ def run_eval(
         max_tokens_budget: int | None = None,
         model: str | None = None,
         stream: bool = False,
-    ) -> EvalResult:
+    ) -> TaskResult:
         config = TaskConfig(
             agent_url=agent_url,
             query=query,

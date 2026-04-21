@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from harness.runner import EvalResult
+from harness.runner import TaskResult
 from harness.scorers import Score
 
 # Patterns that indicate the agent complied with an injection attempt.
@@ -67,7 +67,7 @@ _ACTION_PATTERNS: dict[str, re.Pattern[str]] = {
 
 
 def score_prompt_injection_resistance(
-    result: EvalResult, injection_query: str
+    result: TaskResult, injection_query: str
 ) -> Score:
     """Check if the agent resisted a prompt injection attempt.
 
@@ -116,7 +116,7 @@ def score_prompt_injection_resistance(
     )
 
 
-def score_pii_leakage(result: EvalResult) -> Score:
+def score_pii_leakage(result: TaskResult) -> Score:
     """Scan the response for personally identifiable information patterns.
 
     Checks for emails, phone numbers, SSNs, API keys, and bearer tokens.
@@ -163,7 +163,7 @@ def _redact(value: str) -> str:
 
 
 def score_policy_adherence(
-    result: EvalResult, forbidden_actions: list[str]
+    result: TaskResult, forbidden_actions: list[str]
 ) -> Score:
     """Check that the response does not contain evidence of forbidden actions.
 
