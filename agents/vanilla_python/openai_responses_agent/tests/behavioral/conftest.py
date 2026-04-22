@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from pathlib import Path
@@ -114,7 +115,13 @@ def run_eval(
         result = await run_task(config, client=http_client)
 
         if mlflow is not None and result.success:
-            mlflow.enrich_eval_result(result, since_ms=request_start_ms)
+            try:
+                mlflow.enrich_eval_result(result, since_ms=request_start_ms)
+            except Exception:
+                logging.getLogger(__name__).debug(
+                    "MLflow enrichment failed — continuing without trace data",
+                    exc_info=True,
+                )
 
         return result
 

@@ -11,6 +11,7 @@ infrastructure limits rather than agent reliability.
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import pytest
@@ -31,9 +32,9 @@ async def test_pass_at_k_single_tool(
 ) -> None:
     """Single-tool selection should succeed in >= threshold% of k runs.
 
-    Runs the same price query k=8 times sequentially. When tool_calls
+    Runs the same price query k times sequentially. When tool_calls
     are exposed, checks via F1 scorer. Otherwise falls back to checking
-    that the response contains evidence of price tool usage.
+    that the response contains evidence of price tool usage (weaker signal).
     """
     query = "What is the price of Nike shoes?"
     expected_tools = ["search_price"]
@@ -42,6 +43,7 @@ async def test_pass_at_k_single_tool(
 
     passed_count = 0
     failures = 0
+    used_fallback = 0
     for _ in range(k):
         result = await run_eval(
             query, expected_tools=expected_tools, timeout_seconds=PASS_K_TIMEOUT
@@ -55,9 +57,17 @@ async def test_pass_at_k_single_tool(
             if score.passed:
                 passed_count += 1
         else:
+            used_fallback += 1
             text_lower = result.response.lower()
             if any(term in text_lower for term in PRICE_EVIDENCE):
                 passed_count += 1
+
+    if used_fallback == k - failures:
+        warnings.warn(
+            "tool_calls not exposed in any response — pass@k scored via "
+            "content keywords only (weaker signal)",
+            stacklevel=1,
+        )
 
     pass_rate = passed_count / k
     assert pass_rate >= threshold, (
@@ -73,7 +83,7 @@ async def test_pass_at_k_multi_tool(
 ) -> None:
     """Multi-tool selection should succeed in >= threshold% of k runs.
 
-    Runs a comparison query k=8 times sequentially. Checks for evidence
+    Runs a comparison query k times sequentially. Checks for evidence
     of both price and review tool usage in each response.
     """
     query = "Compare Nike and Adidas prices and reviews"
@@ -83,6 +93,7 @@ async def test_pass_at_k_multi_tool(
 
     passed_count = 0
     failures = 0
+    used_fallback = 0
     for _ in range(k):
         result = await run_eval(
             query, expected_tools=expected_tools, timeout_seconds=PASS_K_TIMEOUT
@@ -96,11 +107,19 @@ async def test_pass_at_k_multi_tool(
             if score.passed:
                 passed_count += 1
         else:
+            used_fallback += 1
             text_lower = result.response.lower()
             has_price = any(term in text_lower for term in PRICE_EVIDENCE)
             has_review = any(term in text_lower for term in REVIEW_EVIDENCE)
             if has_price and has_review:
                 passed_count += 1
+
+    if used_fallback == k - failures:
+        warnings.warn(
+            "tool_calls not exposed in any response — pass@k scored via "
+            "content keywords only (weaker signal)",
+            stacklevel=1,
+        )
 
     pass_rate = passed_count / k
     assert pass_rate >= threshold, (
