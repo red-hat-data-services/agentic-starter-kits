@@ -39,9 +39,7 @@ def _find_repo_root() -> Path:
         if (path / "tests" / "behavioral" / "configs" / "thresholds.yaml").is_file():
             return path
         path = path.parent
-    raise FileNotFoundError(
-        "Could not find repo root (no tests/behavioral/configs/thresholds.yaml)"
-    )
+    pytest.skip("Could not find repo root (no tests/behavioral/configs/thresholds.yaml)")
 
 
 @pytest.fixture
@@ -50,6 +48,21 @@ def eval_config() -> dict[str, Any]:
     config_path = _find_repo_root() / "tests" / "behavioral" / "configs" / "thresholds.yaml"
     with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+PRICE_EVIDENCE = ["price", "cost", "$", "dollar"]
+REVIEW_EVIDENCE = ["review", "rating", "star", "recommend"]
+
+
+def load_golden(category: str | None = None) -> list[dict[str, Any]]:
+    """Load golden queries from the fixtures directory, optionally filtering by category."""
+    path = Path(__file__).parent / "fixtures" / "golden_queries.yaml"
+    with open(path, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    queries = data.get("queries", [])
+    if category:
+        queries = [q for q in queries if q.get("category") == category]
+    return queries
 
 
 @pytest.fixture

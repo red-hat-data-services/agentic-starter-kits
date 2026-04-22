@@ -7,32 +7,19 @@ and that responses contain all expected elements.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
 
+from conftest import PRICE_EVIDENCE, REVIEW_EVIDENCE, load_golden
 from harness.scorers.plan_coherence import score_completeness, score_plan_coherence
 
 pytestmark = pytest.mark.vanilla_python
 
 
-_PRICE_EVIDENCE = ["price", "cost", "$", "dollar"]
-_REVIEW_EVIDENCE = ["review", "rating", "star", "recommend"]
-
-
-def _load_golden() -> list[dict[str, Any]]:
-    """Load all golden queries."""
-    path = Path(__file__).parent / "fixtures" / "golden_queries.yaml"
-    with open(path) as f:
-        data = yaml.safe_load(f)
-    return data.get("queries", [])
-
-
 def _queries_with_expected_elements() -> list[dict[str, Any]]:
     """Return golden queries that have non-empty expected_elements."""
-    return [q for q in _load_golden() if q.get("expected_elements")]
+    return [q for q in load_golden() if q.get("expected_elements")]
 
 
 @pytest.mark.asyncio
@@ -65,8 +52,8 @@ async def test_response_synthesizes_multi_tool_data(run_eval: Any) -> None:
     assert result.success, f"Agent request failed: {result.error}"
 
     text_lower = result.response.lower()
-    has_price = any(term in text_lower for term in _PRICE_EVIDENCE)
-    has_review = any(term in text_lower for term in _REVIEW_EVIDENCE)
+    has_price = any(term in text_lower for term in PRICE_EVIDENCE)
+    has_review = any(term in text_lower for term in REVIEW_EVIDENCE)
     assert has_price, (
         f"Response lacks price data — search_price may not have been called. "
         f"Response: {result.response[:300]}"

@@ -17,12 +17,11 @@ we also verify tool selection accuracy via scorers.
 from __future__ import annotations
 
 import warnings
-from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
 
+from conftest import PRICE_EVIDENCE, REVIEW_EVIDENCE, load_golden
 from harness.scorers.tool_sequence import (
     score_hallucinated_tools,
     score_tool_call_validity,
@@ -32,29 +31,14 @@ from harness.scorers.tool_sequence import (
 pytestmark = pytest.mark.vanilla_python
 
 
-def _load_golden(category: str | None = None) -> list[dict[str, Any]]:
-    """Load golden queries, optionally filtering by category."""
-    path = Path(__file__).parent / "fixtures" / "golden_queries.yaml"
-    with open(path) as f:
-        data = yaml.safe_load(f)
-    queries = data.get("queries", [])
-    if category:
-        queries = [q for q in queries if q.get("category") == category]
-    return queries
-
-
 def _single_tool_queries() -> list[dict[str, Any]]:
     """Return golden queries that should trigger exactly one tool call."""
-    return [q for q in _load_golden() if len(q.get("expected_tools", [])) == 1]
+    return [q for q in load_golden() if len(q.get("expected_tools", [])) == 1]
 
 
 def _multi_tool_queries() -> list[dict[str, Any]]:
     """Return golden queries that should trigger multiple tool calls."""
-    return [q for q in _load_golden() if len(q.get("expected_tools", [])) > 1]
-
-
-_PRICE_EVIDENCE = ["price", "cost", "$", "dollar"]
-_REVIEW_EVIDENCE = ["review", "rating", "star", "recommend"]
+    return [q for q in load_golden() if len(q.get("expected_tools", [])) > 1]
 
 
 @pytest.mark.asyncio
@@ -124,11 +108,11 @@ async def test_multi_tool_selection(
     assert result.success, f"Agent request failed: {result.error}"
 
     text_lower = result.response.lower()
-    has_price = any(term in text_lower for term in _PRICE_EVIDENCE)
-    has_review = any(term in text_lower for term in _REVIEW_EVIDENCE)
-    assert has_price or has_review, (
-        f"Response lacks evidence of tool usage. "
-        f"Expected price or review content. "
+    has_price = any(term in text_lower for term in PRICE_EVIDENCE)
+    has_review = any(term in text_lower for term in REVIEW_EVIDENCE)
+    assert has_price and has_review, (
+        f"Response lacks evidence of both tools. "
+        f"has_price={has_price}, has_review={has_review}. "
         f"Response: {result.response[:300]}"
     )
 
@@ -204,8 +188,8 @@ async def test_tool_not_called_for_greeting(run_eval: Any) -> None:
         )
 
     text_lower = result.response.lower()
-    has_price = any(term in text_lower for term in _PRICE_EVIDENCE)
-    has_review = any(term in text_lower for term in _REVIEW_EVIDENCE)
+    has_price = any(term in text_lower for term in PRICE_EVIDENCE)
+    has_review = any(term in text_lower for term in REVIEW_EVIDENCE)
     assert not has_price, (
         "Greeting response appears to contain price tool output — "
         "agent may have called search_price for a simple greeting"

@@ -15,16 +15,14 @@ from typing import Any
 
 import pytest
 
+from conftest import PRICE_EVIDENCE, REVIEW_EVIDENCE
 from harness.scorers.plan_coherence import score_plan_coherence
 from harness.scorers.tool_sequence import score_tool_selection
 
 pytestmark = [pytest.mark.vanilla_python, pytest.mark.slow]
 
-K = 8  # Number of iterations for pass@k
-PASS_K_TIMEOUT = 60.0  # Per-request timeout for pass@k (longer than default)
-
-_PRICE_EVIDENCE = ["price", "cost", "$", "dollar"]
-_REVIEW_EVIDENCE = ["review", "rating", "star", "recommend"]
+DEFAULT_K = 8
+PASS_K_TIMEOUT = 60.0
 
 
 @pytest.mark.asyncio
@@ -40,10 +38,11 @@ async def test_pass_at_k_single_tool(
     query = "What is the price of Nike shoes?"
     expected_tools = ["search_price"]
     threshold = vanilla_python_thresholds.get("tool_selection_accuracy", 0.85)
+    k = vanilla_python_thresholds.get("pass_at_k", DEFAULT_K)
 
     passed_count = 0
     failures = 0
-    for _ in range(K):
+    for _ in range(k):
         result = await run_eval(
             query, expected_tools=expected_tools, timeout_seconds=PASS_K_TIMEOUT
         )
@@ -57,13 +56,13 @@ async def test_pass_at_k_single_tool(
                 passed_count += 1
         else:
             text_lower = result.response.lower()
-            if any(term in text_lower for term in _PRICE_EVIDENCE):
+            if any(term in text_lower for term in PRICE_EVIDENCE):
                 passed_count += 1
 
-    pass_rate = passed_count / K
+    pass_rate = passed_count / k
     assert pass_rate >= threshold, (
-        f"pass@{K} single-tool selection = {pass_rate:.2f} "
-        f"(threshold={threshold:.2f}, passed={passed_count}/{K}, "
+        f"pass@{k} single-tool selection = {pass_rate:.2f} "
+        f"(threshold={threshold:.2f}, passed={passed_count}/{k}, "
         f"errors={failures})"
     )
 
@@ -80,10 +79,11 @@ async def test_pass_at_k_multi_tool(
     query = "Compare Nike and Adidas prices and reviews"
     expected_tools = ["search_price", "search_reviews"]
     threshold = vanilla_python_thresholds.get("multi_tool_accuracy", 0.75)
+    k = vanilla_python_thresholds.get("pass_at_k", DEFAULT_K)
 
     passed_count = 0
     failures = 0
-    for _ in range(K):
+    for _ in range(k):
         result = await run_eval(
             query, expected_tools=expected_tools, timeout_seconds=PASS_K_TIMEOUT
         )
@@ -97,15 +97,15 @@ async def test_pass_at_k_multi_tool(
                 passed_count += 1
         else:
             text_lower = result.response.lower()
-            has_price = any(term in text_lower for term in _PRICE_EVIDENCE)
-            has_review = any(term in text_lower for term in _REVIEW_EVIDENCE)
+            has_price = any(term in text_lower for term in PRICE_EVIDENCE)
+            has_review = any(term in text_lower for term in REVIEW_EVIDENCE)
             if has_price and has_review:
                 passed_count += 1
 
-    pass_rate = passed_count / K
+    pass_rate = passed_count / k
     assert pass_rate >= threshold, (
-        f"pass@{K} multi-tool selection = {pass_rate:.2f} "
-        f"(threshold={threshold:.2f}, passed={passed_count}/{K}, "
+        f"pass@{k} multi-tool selection = {pass_rate:.2f} "
+        f"(threshold={threshold:.2f}, passed={passed_count}/{k}, "
         f"errors={failures})"
     )
 
@@ -121,10 +121,11 @@ async def test_pass_at_k_response_quality(
     """
     query = "Which brand offers the best value - Nike or Adidas?"
     threshold = vanilla_python_thresholds.get("response_coherence_accuracy", 0.75)
+    k = vanilla_python_thresholds.get("pass_at_k", DEFAULT_K)
 
     passed_count = 0
     failures = 0
-    for _ in range(K):
+    for _ in range(k):
         result = await run_eval(query, timeout_seconds=PASS_K_TIMEOUT)
         if not result.success:
             failures += 1
@@ -133,9 +134,9 @@ async def test_pass_at_k_response_quality(
         if score.passed:
             passed_count += 1
 
-    pass_rate = passed_count / K
+    pass_rate = passed_count / k
     assert pass_rate >= threshold, (
-        f"pass@{K} coherence = {pass_rate:.2f} "
-        f"(threshold={threshold:.2f}, passed={passed_count}/{K}, "
+        f"pass@{k} coherence = {pass_rate:.2f} "
+        f"(threshold={threshold:.2f}, passed={passed_count}/{k}, "
         f"errors={failures})"
     )
