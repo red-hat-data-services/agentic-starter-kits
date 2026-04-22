@@ -47,9 +47,6 @@ def _factual_queries() -> list[dict[str, Any]]:
     return [q for q in _load_golden() if q.get("expected_tools")]
 
 
-_SEARCH_TOOL_MARKERS = ["openshift ai", "openshift", "red hat"]
-
-
 @pytest.mark.parametrize(
     "golden",
     _factual_queries(),
