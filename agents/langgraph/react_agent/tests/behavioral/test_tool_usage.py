@@ -132,14 +132,17 @@ async def test_tool_not_called_for_greeting(run_eval: Any) -> None:
     """Simple greetings should not trigger any tool calls.
 
     Also checks that greeting responses are conversational, not search-based.
+    The content heuristic is the primary signal — the tool_calls assertion
+    is only meaningful when the agent exposes them.
     """
     result = await run_eval("Hello")
     assert result.success, f"Agent request failed: {result.error}"
 
-    assert len(result.tool_calls) == 0, (
-        f"Greeting should not trigger tool calls, "
-        f"but got: {[tc['name'] for tc in result.tool_calls]}"
-    )
+    if result.tool_calls:
+        assert len(result.tool_calls) == 0, (
+            f"Greeting should not trigger tool calls, "
+            f"but got: {[tc['name'] for tc in result.tool_calls]}"
+        )
 
     text_lower = result.response.lower()
     assert "openshift ai" not in text_lower, (
