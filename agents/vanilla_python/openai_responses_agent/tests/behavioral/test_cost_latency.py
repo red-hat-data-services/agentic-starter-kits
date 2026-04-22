@@ -11,9 +11,9 @@ from typing import Any
 
 import pytest
 
-pytestmark = pytest.mark.vanilla_python
-
 from harness.scorers.latency import score_latency
+
+pytestmark = pytest.mark.vanilla_python
 
 
 @pytest.mark.asyncio

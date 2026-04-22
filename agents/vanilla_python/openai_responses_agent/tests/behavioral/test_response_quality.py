@@ -11,11 +11,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
-pytestmark = pytest.mark.vanilla_python
 import yaml
 
 from harness.scorers.plan_coherence import score_completeness, score_plan_coherence
+
+pytestmark = pytest.mark.vanilla_python
 
 
 _PRICE_EVIDENCE = ["price", "cost", "$", "dollar"]

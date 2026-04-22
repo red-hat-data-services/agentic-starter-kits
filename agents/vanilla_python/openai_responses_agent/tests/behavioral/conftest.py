@@ -32,11 +32,23 @@ async def http_client() -> AsyncGenerator[httpx.AsyncClient, None]:
         yield client
 
 
+def _find_repo_root() -> Path:
+    """Walk up from this file to find the repository root."""
+    path = Path(__file__).resolve().parent
+    while path.parent != path:
+        if (path / "tests" / "behavioral" / "configs" / "thresholds.yaml").is_file():
+            return path
+        path = path.parent
+    raise FileNotFoundError(
+        "Could not find repo root (no tests/behavioral/configs/thresholds.yaml)"
+    )
+
+
 @pytest.fixture
 def eval_config() -> dict[str, Any]:
     """Load threshold configuration from the shared configs directory."""
-    config_path = Path(__file__).resolve().parents[5] / "tests" / "behavioral" / "configs" / "thresholds.yaml"
-    with open(config_path) as f:
+    config_path = _find_repo_root() / "tests" / "behavioral" / "configs" / "thresholds.yaml"
+    with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
