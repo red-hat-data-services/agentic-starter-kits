@@ -20,6 +20,30 @@ from evalhub_adapter.benchmarks import QuerySpec
 
 pytestmark = pytest.mark.integration
 
+_DUMMY_JOB_SPEC = {
+    "id": "test-job-001",
+    "provider_id": "agentic",
+    "benchmark_id": "agentic-tool-use",
+    "benchmark_index": 0,
+    "model": {"name": "test-model", "url": "http://fake-agent:8080"},
+    "parameters": {"known_tools": ["search"], "timeout_seconds": 5.0, "verify_ssl": False},
+    "callback_url": "http://localhost:8080",
+    "tags": [],
+}
+
+
+def _write_job_spec(tmp_path: Path, overrides: dict | None = None) -> Path:
+    """Write a JobSpec JSON file and return its path."""
+    spec = {**_DUMMY_JOB_SPEC, **(overrides or {})}
+    path = tmp_path / "job.json"
+    path.write_text(json.dumps(spec))
+    return path
+
+
+def _make_adapter(job_spec_path: Path) -> AgenticEvalAdapter:
+    """Create an adapter pointing at a specific job spec file."""
+    return AgenticEvalAdapter(job_spec_path=str(job_spec_path))
+
 
 def _make_job_spec(
     benchmark_id: str = "agentic-tool-use",
@@ -70,8 +94,8 @@ class TestRunAsyncHappyPath:
     """Verify the full orchestration loop with mocked HTTP responses."""
 
     @pytest.fixture()
-    def adapter(self):
-        return AgenticEvalAdapter()
+    def adapter(self, tmp_path):
+        return _make_adapter(_write_job_spec(tmp_path))
 
     def test_full_pipeline_completes_all_phases(self, adapter, fixtures_dir: Path):
         """_run_async reports all 5 phases and returns populated JobResults."""
@@ -146,7 +170,7 @@ class TestRunAsyncHappyPath:
 class TestAsyncioNestingGuard:
     """Verify the thread-pool fallback when called from an existing event loop."""
 
-    def test_works_from_existing_event_loop(self, fixtures_dir: Path):
+    def test_works_from_existing_event_loop(self, tmp_path, fixtures_dir: Path):
         """run_benchmark_job succeeds when called from inside an async context."""
         yaml_content = textwrap.dedent("""\
             queries:
@@ -155,7 +179,7 @@ class TestAsyncioNestingGuard:
         """)
         (fixtures_dir / "tool_use.yaml").write_text(yaml_content)
 
-        adapter = AgenticEvalAdapter()
+        adapter = _make_adapter(_write_job_spec(tmp_path))
         job_spec = _make_job_spec()
         callbacks = _make_callbacks()
 
@@ -183,8 +207,8 @@ class TestErrorPaths:
     """Verify adapter error handling and failure reporting."""
 
     @pytest.fixture()
-    def adapter(self):
-        return AgenticEvalAdapter()
+    def adapter(self, tmp_path):
+        return _make_adapter(_write_job_spec(tmp_path))
 
     def test_unknown_benchmark_reports_failed(self, adapter):
         """An unknown benchmark_id reports FAILED status and raises ValueError."""

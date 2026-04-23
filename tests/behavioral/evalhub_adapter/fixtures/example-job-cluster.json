@@ -1,5 +1,6 @@
 {
   "id": "agentic-tool-use-cluster-001",
+  "provider_id": "agentic",
   "benchmark_id": "agentic-tool-use",
   "benchmark_index": 0,
   "model": {
@@ -11,5 +12,7 @@
     "timeout_seconds": 30.0,
     "max_latency_seconds": 8.0,
     "verify_ssl": true
-  }
+  },
+  "callback_url": "http://localhost:8080",
+  "tags": []
 }

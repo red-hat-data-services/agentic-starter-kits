@@ -1,5 +1,6 @@
 {
   "id": "agentic-tool-use-local-001",
+  "provider_id": "agentic",
   "benchmark_id": "agentic-tool-use",
   "benchmark_index": 0,
   "model": {
@@ -13,5 +14,7 @@
     "verify_ssl": false,
     "mlflow_tracking_uri": "https://rh-ai.apps.rosa.agentic-mcp.jolf.p3.openshiftapps.com/mlflow",
     "mlflow_experiment_name": "adonheis-btest1"
-  }
+  },
+  "callback_url": "http://localhost:8080",
+  "tags": []
 }

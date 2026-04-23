@@ -13,6 +13,7 @@ import time
 import httpx
 
 from evalhub.adapter import (
+    AdapterSettings,
     DefaultCallbacks,
     ErrorInfo,
     EvaluationResult,
@@ -135,8 +136,6 @@ class AgenticEvalAdapter(FrameworkAdapter):
         all_scores: list[tuple[QuerySpec, list[Score]]] = []
         failed_count = 0
 
-        # TODO: queries run sequentially; switch to asyncio.gather with a
-        # semaphore for concurrent execution once we validate on-cluster.
         async with httpx.AsyncClient(
             verify=params.verify_ssl, timeout=httpx.Timeout(params.timeout_seconds)
         ) as client:
@@ -203,7 +202,6 @@ class AgenticEvalAdapter(FrameworkAdapter):
                     f"Evaluated {i + 1}/{len(queries)} queries",
                 )
 
-        # If ALL queries failed, report failure
         if failed_count == len(queries):
             _report_fatal(callbacks, "All queries failed — agent may be unreachable")
             raise RuntimeError("All queries failed")
@@ -221,7 +219,6 @@ class AgenticEvalAdapter(FrameworkAdapter):
             "Persisting results",
         )
 
-        # Log metrics to MLflow as a run (for dashboards/charts)
         if params.mlflow_tracking_uri and params.mlflow_experiment_name:
             _log_mlflow_run(
                 params.mlflow_tracking_uri,
@@ -306,10 +303,7 @@ def _run_scorer(
 def _aggregate_scores(
     all_scores: list[tuple[QuerySpec, list[Score]]],
 ) -> list[EvaluationResult]:
-    """Aggregate per-query scores into per-metric EvaluationResults.
-
-    For each metric, computes the mean value across all queries that produced it.
-    """
+    """Aggregate per-query scores into per-metric EvaluationResults."""
     metric_values: dict[str, list[float]] = {}
     metric_passed: dict[str, list[bool]] = {}
 
@@ -370,7 +364,7 @@ def _report(
             status=status,
             phase=phase,
             progress=progress,
-            message=MessageInfo(message=message, message_code=phase),
+            message=MessageInfo(message=message, message_code=phase.value),
         )
     )
 
@@ -444,19 +438,27 @@ def _log_mlflow_run(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    """Entry point for the agentic-eval-adapter CLI.
+    """Entry point for the agentic-eval-adapter.
 
-    JobSpec loading is handled by EvalHub's FrameworkAdapter base class.
-    See evalhub.adapter.FrameworkAdapter for configuration details.
+    Uses AdapterSettings to load env-based config and JobSpec from the
+    ConfigMap mounted at /meta/job.json (on-cluster) or from the path
+    in EVALHUB_JOB_SPEC_PATH (local/dev).
     """
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
-    adapter = AgenticEvalAdapter()
-    callbacks = DefaultCallbacks.from_adapter(adapter)
+    settings = AdapterSettings.from_env()
+    adapter = AgenticEvalAdapter(settings=settings)
     job_spec = adapter.job_spec
+
+    callbacks = DefaultCallbacks(
+        job_id=job_spec.id,
+        benchmark_id=job_spec.benchmark_id,
+        benchmark_index=job_spec.benchmark_index,
+        sidecar_url=job_spec.callback_url,
+    )
 
     logger.info(
         "Starting agentic eval: benchmark=%s model=%s url=%s",

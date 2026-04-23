@@ -28,7 +28,7 @@ COPY tests/behavioral/fixtures/         ./fixtures/
 # PyYAML: benchmark fixture loading (benchmarks.py)
 # evalhub: EvalHub SDK types and base adapter
 # mlflow: optional run logging and trace enrichment
-RUN uv pip install --no-cache httpx PyYAML "evalhub>=0.3,<0.4" mlflow
+RUN uv pip install --no-cache httpx PyYAML "eval-hub-sdk[adapter]" mlflow
 
 # Build-time assertion: fixture paths must resolve inside the container
 RUN python -c "from evalhub_adapter.benchmarks import _FIXTURES_DIR; assert _FIXTURES_DIR.exists(), f'Missing: {_FIXTURES_DIR}'"
