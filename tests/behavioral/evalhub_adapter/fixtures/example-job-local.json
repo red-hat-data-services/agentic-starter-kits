@@ -1,0 +1,17 @@
+{
+  "id": "agentic-tool-use-local-001",
+  "benchmark_id": "agentic-tool-use",
+  "benchmark_index": 0,
+  "model": {
+    "name": "langgraph-react-agent",
+    "url": "https://langgraph-react-agent-adonheis-btest1.apps.rosa.agentic-mcp.jolf.p3.openshiftapps.com"
+  },
+  "parameters": {
+    "known_tools": ["search"],
+    "timeout_seconds": 30.0,
+    "max_latency_seconds": 12.0,
+    "verify_ssl": false,
+    "mlflow_tracking_uri": "https://rh-ai.apps.rosa.agentic-mcp.jolf.p3.openshiftapps.com/mlflow",
+    "mlflow_experiment_name": "adonheis-btest1"
+  }
+}

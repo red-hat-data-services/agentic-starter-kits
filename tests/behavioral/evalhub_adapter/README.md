@@ -48,11 +48,67 @@ loop is the target state; see **What works now** for current scope.
   tool_call_validity, plan_coherence, completeness, latency, pii_leakage,
   policy_adherence, injection_resistance.
 
+## Running locally
+
+Set `EVALHUB_JOB_SPEC_PATH` to an example JobSpec and run the adapter
+directly. The base class reads the file and invokes `run_benchmark_job`:
+
+```bash
+# Use the external-route JobSpec for local-to-cluster validation
+EVALHUB_JOB_SPEC_PATH=tests/behavioral/evalhub_adapter/fixtures/example-job-local.json \
+  python -m evalhub_adapter.adapter
+```
+
+The adapter reports 5 phases: INITIALIZING → LOADING_DATA →
+RUNNING_EVALUATION → POST_PROCESSING → PERSISTING_ARTIFACTS, then exits.
+
+For MLflow logging, export the standard env vars before running:
+
+```bash
+export MLFLOW_TRACKING_URI=https://rh-ai.apps.rosa.agentic-mcp.jolf.p3.openshiftapps.com/mlflow
+export MLFLOW_TRACKING_TOKEN=$(oc whoami -t)
+export MLFLOW_TRACKING_INSECURE_TLS=true
+```
+
+## Container image
+
+Build from the repo root using the provided Containerfile (UBI9 + PYTHONPATH
+source layout so fixture paths resolve correctly):
+
+```bash
+IMAGE_TAG=$(git rev-parse --short HEAD)
+podman build -t quay.io/adonheis/evalhub-agentic-adapter:${IMAGE_TAG} \
+  -f tests/behavioral/evalhub_adapter/Containerfile .
+
+# Verify fixture path resolution inside the container
+podman run --rm quay.io/adonheis/evalhub-agentic-adapter:${IMAGE_TAG} \
+  python -c "from evalhub_adapter.benchmarks import _FIXTURES_DIR; print(_FIXTURES_DIR); assert _FIXTURES_DIR.exists()"
+
+podman push quay.io/adonheis/evalhub-agentic-adapter:${IMAGE_TAG}
+```
+
 ## Running on-cluster
 
 EvalHub invokes `main()` in `adapter.py`. JobSpec loading is handled by
 EvalHub's `FrameworkAdapter` base class (reads from `/meta/job.json` or
 `EVALHUB_JOB_SPEC_PATH`).
+
+### K8s manifests
+
+| File | Purpose |
+|------|---------|
+| `k8s/evalhub-provider-agentic.yaml` | Provider ConfigMap for EvalHub registration |
+| `fixtures/example-job-local.json` | JobSpec for local CLI runs (external route, `verify_ssl: false`) |
+| `fixtures/example-job-cluster.json` | JobSpec for on-cluster EvalHub jobs (internal svc URL) |
+
+Register the provider on an OpenShift cluster:
+
+```bash
+oc create configmap evalhub-provider-agentic \
+  --from-file=agentic.yaml=tests/behavioral/evalhub_adapter/k8s/evalhub-provider-agentic.yaml \
+  -n gpt-oss
+oc rollout restart deploy/evalhub -n gpt-oss
+```
 
 ## JobSpec parameters
 
@@ -96,7 +152,12 @@ importable for trace enrichment):
   (tool_selection, tool_sequence, hallucinated_tools, tool_call_validity)
 - Config translation from EvalHub `JobSpec` → harness `TaskConfig`
 - MLflow integration (trace enrichment + run logging)
-- Unit tests for config, benchmarks, and adapter modules
+- Containerfile for building the adapter image (UBI9, PYTHONPATH layout)
+- Example JobSpec files for local and cluster runs
+- EvalHub provider ConfigMap for cluster registration
+- asyncio nesting guard (thread-pool fallback for async callers)
+- Unit tests (48) + integration tests (10) for adapter, config, benchmarks,
+  and orchestration pipeline
 
 ## What's planned
 
@@ -105,8 +166,7 @@ importable for trace enrichment):
 - Additional benchmarks: coherence, safety, latency, full suite (previously
   spiked, query files not yet populated)
 - Vanilla Python agent query files
-- End-to-end validation on OpenShift
-- GitHub Actions workflow for CI / EvalHub integration
+- GitHub Actions workflow for CI / EvalHub integration (RHAIENG-4158)
 - Regression dashboard
 
 ## Dependencies
@@ -125,12 +185,19 @@ uv pip install .[evalhub]              # core adapter deps
 uv pip install .[evalhub,test-mlflow]  # + MLflow support
 ```
 
-## Running unit tests
+## Running tests
 
 Tests stub `evalhub` imports if the package isn't installed (bootstrap
 lives in `conftest.py` so it runs before any test module, regardless of
 which files are selected). `uv pip install .[test]` alone is sufficient.
 
 ```bash
+# Unit tests only (fast, no network)
 pytest tests/behavioral/evalhub_adapter/tests/ -m unit -v
+
+# Integration tests (mocked HTTP, exercises full orchestration pipeline)
+pytest tests/behavioral/evalhub_adapter/tests/ -m integration -v
+
+# All adapter tests
+pytest tests/behavioral/evalhub_adapter/tests/ -v
 ```

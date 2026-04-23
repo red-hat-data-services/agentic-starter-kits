@@ -1,0 +1,46 @@
+# EvalHub Agentic Adapter — container image
+#
+# Uses PYTHONPATH-based source layout (not pip-installed packages) so that
+# benchmarks.py can resolve fixture paths via __file__ relative lookups.
+#
+# Build from repo root:
+#   podman build -t quay.io/adonheis/evalhub-agentic-adapter:$(git rev-parse --short HEAD) \
+#     -f tests/behavioral/evalhub_adapter/Containerfile .
+
+FROM registry.access.redhat.com/ubi9/python-312@sha256:e95978812895b9abb2bdc109b501078da2a47c8dbb9fa23758af40ed50ab6023
+WORKDIR /opt/app-root/src
+
+USER 0
+
+COPY --from=ghcr.io/astral-sh/uv@sha256:fc93e9ecd7218e9ec8fba117af89348eef8fd2463c50c13347478769aaedd0ce /uv /usr/local/bin/uv
+
+# Preserve the tests/behavioral/ tree so _BEHAVIORAL_ROOT resolves correctly.
+# benchmarks.py: _BEHAVIORAL_ROOT = Path(__file__).resolve().parent.parent
+#   -> /opt/app-root/src/  (parent of evalhub_adapter/)
+# _FIXTURES_DIR = _BEHAVIORAL_ROOT / "fixtures" / "benchmarks"
+#   -> /opt/app-root/src/fixtures/benchmarks/
+COPY tests/behavioral/evalhub_adapter/ ./evalhub_adapter/
+COPY tests/behavioral/harness/          ./harness/
+COPY tests/behavioral/fixtures/         ./fixtures/
+
+# Install runtime deps only — NOT the project itself, to keep __file__ paths intact.
+# httpx: HTTP client (runner.py, adapter.py)
+# PyYAML: benchmark fixture loading (benchmarks.py)
+# evalhub: EvalHub SDK types and base adapter
+# mlflow: optional run logging and trace enrichment
+RUN uv pip install --no-cache httpx PyYAML "evalhub>=0.3,<0.4" mlflow
+
+# Build-time assertion: fixture paths must resolve inside the container
+RUN python -c "from evalhub_adapter.benchmarks import _FIXTURES_DIR; assert _FIXTURES_DIR.exists(), f'Missing: {_FIXTURES_DIR}'"
+
+RUN chown -R 1001:0 /opt/app-root/src \
+    && chmod -R g=u /opt/app-root/src
+
+USER 1001
+
+EXPOSE 8080
+
+ENV PYTHONPATH=/opt/app-root/src
+ENV HOME=/opt/app-root
+
+ENTRYPOINT ["python", "-m", "evalhub_adapter.adapter"]

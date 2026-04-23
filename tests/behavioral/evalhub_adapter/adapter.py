@@ -59,7 +59,22 @@ class AgenticEvalAdapter(FrameworkAdapter):
     def run_benchmark_job(
         self, config: JobSpec, callbacks: JobCallbacks
     ) -> JobResults:
-        """Entry point called by EvalHub. Bridges sync→async."""
+        """Entry point called by EvalHub. Bridges sync→async.
+
+        Uses a thread-pool fallback when called from within an existing event
+        loop (e.g. if EvalHub's orchestrator is itself async).
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, self._run_async(config, callbacks))
+                return future.result()
         return asyncio.run(self._run_async(config, callbacks))
 
     async def _run_async(
@@ -355,7 +370,7 @@ def _report(
             status=status,
             phase=phase,
             progress=progress,
-            message=MessageInfo(message=message, message_code=phase.value),
+            message=MessageInfo(message=message, message_code=phase),
         )
     )
 

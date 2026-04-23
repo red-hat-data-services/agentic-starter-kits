@@ -1,0 +1,41 @@
+# EvalHub provider registration for the agentic behavioral eval adapter.
+#
+# Register on-cluster:
+#   oc create configmap evalhub-provider-agentic \
+#     --from-file=agentic.yaml=tests/behavioral/evalhub_adapter/k8s/evalhub-provider-agentic.yaml \
+#     -n gpt-oss
+#
+# NOTE: You may need to add labels matching the existing provider ConfigMaps
+# for EvalHub to discover this provider. Check:
+#   oc get configmap evalhub-provider-lm-evaluation-harness -n gpt-oss -o yaml | head -20
+id: agentic
+name: Agentic Behavioral Evaluation
+runtime:
+  k8s:
+    image: quay.io/adonheis/evalhub-agentic-adapter:latest
+    entrypoint:
+    - python
+    - -m
+    - evalhub_adapter.adapter
+    cpu_request: 100m
+    memory_request: 256Mi
+    cpu_limit: 500m
+    memory_limit: 2Gi
+    env:
+    - name: MLFLOW_TRACKING_URI
+      value: "https://mlflow.redhat-ods-applications.svc.cluster.local:8443"
+    - name: MLFLOW_TRACKING_INSECURE_TLS
+      value: "true"
+    - name: MLFLOW_TRACKING_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: evalhub-mlflow-token
+          key: token
+          optional: true
+benchmarks:
+- id: agentic-tool-use
+  name: Agentic Tool Use
+  metrics: [tool_selection, tool_sequence, hallucinated_tools, tool_call_validity]
+  primary_score:
+    metric: tool_selection
+    lower_is_better: false

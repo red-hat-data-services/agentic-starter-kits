@@ -55,6 +55,7 @@ markers = [
     "model_baseline: Model-level tests (prompt injection resistance) - not agent-specific",
     "slow: Tests that run multiple iterations (pass@k, repeated queries)",
     "unit: Fast unit tests for adapter/config packages (no network, no agent required)",
+    "integration: Integration tests for adapter orchestration (mocked HTTP, no live agent)",
 ]
 
 [tool.setuptools.packages.find]

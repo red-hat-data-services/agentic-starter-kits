@@ -1,0 +1,15 @@
+{
+  "id": "agentic-tool-use-cluster-001",
+  "benchmark_id": "agentic-tool-use",
+  "benchmark_index": 0,
+  "model": {
+    "name": "langgraph-react-agent",
+    "url": "http://langgraph-react-agent.adonheis-btest1.svc.cluster.local:8080"
+  },
+  "parameters": {
+    "known_tools": ["search"],
+    "timeout_seconds": 30.0,
+    "max_latency_seconds": 8.0,
+    "verify_ssl": true
+  }
+}
