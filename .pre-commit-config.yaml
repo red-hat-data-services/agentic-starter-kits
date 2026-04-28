@@ -8,20 +8,14 @@ default_install_hook_types:
 
 repos:
   # Enforce Conventional Commits in commit messages
-  - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v4.4.0
+  - repo: https://github.com/espressif/conventional-precommit-linter
+    rev: v1.11.0
     hooks:
-      - id: conventional-pre-commit
+      - id: conventional-precommit-linter
         stages: [commit-msg]
         args:
-          - feat
-          - fix
-          - docs
-          - chore
-          - test
-          - perf
-          - refactor
-          - ci
-          - build
-          - style
-          - revert
+          - --types=feat,fix,docs,chore,test,perf,refactor,ci,build,style,revert
+          - --subject-min-length=10
+          - --subject-max-length=72
+          - --body-max-line-length=100
+          - --allow-breaking
