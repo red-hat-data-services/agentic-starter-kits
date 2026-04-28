@@ -12,9 +12,6 @@ import logging
 from os import getenv
 
 import uvicorn
-from crewai import Agent, Crew, LLM, Task
-from dotenv import load_dotenv
-
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.events import EventQueue
@@ -22,6 +19,8 @@ from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2a.utils import new_agent_text_message
+from crewai import LLM, Agent, Crew, Task
+from dotenv import load_dotenv
 
 from .custom_tool import DummyWebSearchTool
 

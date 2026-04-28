@@ -4,6 +4,7 @@ AI service for OpenAI Responses Agent: run the agent on request payload and retu
 Uses OpenAI client and Responses API. Both generate and generate_stream accept a context
 whose get_json() returns the request payload (e.g. {"messages": [...]}).
 """
+
 import asyncio
 from typing import Generator
 
@@ -36,7 +37,11 @@ def ai_stream_service(context, base_url=None, model_id=None):
         agent = get_agent()
         result = asyncio.run(agent.run(input=messages))
         # result["messages"] includes history + last assistant message
-        last_msg = result["messages"][-1] if result["messages"] else {"role": "assistant", "content": ""}
+        last_msg = (
+            result["messages"][-1]
+            if result["messages"]
+            else {"role": "assistant", "content": ""}
+        )
         content = last_msg.get("content", "")
         return {
             "headers": {"Content-Type": "application/json"},
@@ -56,7 +61,11 @@ def ai_stream_service(context, base_url=None, model_id=None):
         messages = payload.get("messages", [])
         agent = get_agent()
         result = asyncio.run(agent.run(input=messages))
-        last_msg = result["messages"][-1] if result["messages"] else {"role": "assistant", "content": ""}
+        last_msg = (
+            result["messages"][-1]
+            if result["messages"]
+            else {"role": "assistant", "content": ""}
+        )
         content = last_msg.get("content", "")
         yield {
             "choices": [

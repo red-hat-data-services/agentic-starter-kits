@@ -20,7 +20,6 @@ import warnings
 from typing import Any
 
 import pytest
-
 from conftest import PRICE_EVIDENCE, REVIEW_EVIDENCE, load_golden
 from harness.scorers.tool_sequence import (
     score_hallucinated_tools,
@@ -47,9 +46,7 @@ def _multi_tool_queries() -> list[dict[str, Any]]:
     _single_tool_queries(),
     ids=lambda q: q["query"][:60],
 )
-async def test_single_tool_selection(
-    run_eval: Any, golden: dict[str, Any]
-) -> None:
+async def test_single_tool_selection(run_eval: Any, golden: dict[str, Any]) -> None:
     """Correct single tool should be selected for targeted queries.
 
     Primary check: response contains expected elements from the tool's output.
@@ -92,9 +89,7 @@ async def test_single_tool_selection(
     _multi_tool_queries(),
     ids=lambda q: q["query"][:60],
 )
-async def test_multi_tool_selection(
-    run_eval: Any, golden: dict[str, Any]
-) -> None:
+async def test_multi_tool_selection(run_eval: Any, golden: dict[str, Any]) -> None:
     """Multiple tools should be selected for queries needing both price and review data.
 
     Primary check: response contains evidence from both tools.
@@ -132,9 +127,7 @@ async def test_multi_tool_selection(
 
 
 @pytest.mark.asyncio
-async def test_no_hallucinated_tools(
-    run_eval: Any, known_tools: list[str]
-) -> None:
+async def test_no_hallucinated_tools(run_eval: Any, known_tools: list[str]) -> None:
     """Agent must only call tools that exist in its schema.
 
     When tool_calls are not exposed, this test passes trivially (no calls
@@ -165,9 +158,7 @@ async def test_tool_call_has_valid_args(run_eval: Any) -> None:
         pytest.skip("tool_calls not exposed in response — cannot verify")
 
     score = score_tool_call_validity(result)
-    assert score.passed, (
-        f"Invalid tool call arguments: {score.details.get('invalid')}"
-    )
+    assert score.passed, f"Invalid tool call arguments: {score.details.get('invalid')}"
 
 
 @pytest.mark.asyncio

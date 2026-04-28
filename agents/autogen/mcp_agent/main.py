@@ -8,6 +8,8 @@ from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
 
+from autogen_agent_base.agent import get_agent_chat
+from autogen_agent_base.tracing import enable_tracing
 from autogen_agentchat.base._task import TaskResult
 from autogen_agentchat.messages import (
     ModelClientStreamingChunkEvent,
@@ -24,11 +26,13 @@ from autogen_ext.tools.mcp import (
 )
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    StreamingResponse,
+)
 from pydantic import BaseModel, Field, model_validator
-
-from autogen_agent_base.agent import get_agent_chat
-from autogen_agent_base.tracing import enable_tracing
 
 load_dotenv()
 
@@ -227,9 +231,7 @@ def _invocation_row(call, res) -> dict:
     """Pair FunctionCall + FunctionExecutionResult for API / playground."""
     args_raw = getattr(call, "arguments", "") or ""
     try:
-        args_out: str | dict | list = (
-            json.loads(args_raw) if args_raw.strip() else {}
-        )
+        args_out: str | dict | list = json.loads(args_raw) if args_raw.strip() else {}
     except json.JSONDecodeError:
         args_out = args_raw
     content = (getattr(res, "content", None) or "") or ""

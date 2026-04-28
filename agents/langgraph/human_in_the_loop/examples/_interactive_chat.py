@@ -1,5 +1,5 @@
-import textwrap
 import json
+import textwrap
 from collections.abc import Generator
 from typing import Callable
 
@@ -28,7 +28,10 @@ class InteractiveChat:
         self._last_role = None  # Tracks role changes to split headers
 
         self.questions = (
-            ("Hi! How are you?", "Create a markdown file called report.md with a summary of OpenShift AI")
+            (
+                "Hi! How are you?",
+                "Create a markdown file called report.md with a summary of OpenShift AI",
+            )
             if questions is None
             else questions
         )
@@ -130,9 +133,11 @@ class InteractiveChat:
 
                         if pending and thread_id:
                             print("\n")
-                            approval = input(
-                                ">>> Approve this tool call? (yes/no): "
-                            ).strip().lower()
+                            approval = (
+                                input(">>> Approve this tool call? (yes/no): ")
+                                .strip()
+                                .lower()
+                            )
                             resume_payload = {
                                 "messages": [],
                                 "thread_id": thread_id,
@@ -159,9 +164,11 @@ class InteractiveChat:
 
                         if pending and thread_id:
                             print("\n")
-                            approval = input(
-                                ">>> Approve this tool call? (yes/no): "
-                            ).strip().lower()
+                            approval = (
+                                input(">>> Approve this tool call? (yes/no): ")
+                                .strip()
+                                .lower()
+                            )
                             resume_payload = {
                                 "messages": [],
                                 "thread_id": thread_id,
@@ -169,7 +176,9 @@ class InteractiveChat:
                             }
                             self._last_role = None
                             resume_resp = self.ai_service_invoke(resume_payload)
-                            resume_choices = resume_resp.get("body", {}).get("choices", [])
+                            resume_choices = resume_resp.get("body", {}).get(
+                                "choices", []
+                            )
                             for c in resume_choices:
                                 self._print_message(c)
 

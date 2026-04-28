@@ -6,7 +6,7 @@ No LlamaStack, LangChain, LlamaIndex, etc. Compatible with OpenAI and OpenAI-com
 """
 
 from openai_responses_agent.agent import AIAgent, get_agent_closure
-from openai_responses_agent.tools import search_reviews, search_price
+from openai_responses_agent.tools import search_price, search_reviews
 
 __all__ = [
     "get_agent_closure",

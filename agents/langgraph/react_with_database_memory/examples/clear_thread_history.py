@@ -2,11 +2,12 @@
 Clear conversation history from PostgreSQL.
 Set mode below: delete a single thread or wipe all threads.
 """
-from dotenv import load_dotenv
-load_dotenv()
 
+from dotenv import load_dotenv
 from langgraph.checkpoint.postgres import PostgresSaver
 from react_with_database_memory.utils import get_database_uri
+
+load_dotenv()
 
 # ============================================
 # SET YOUR THREAD ID HERE

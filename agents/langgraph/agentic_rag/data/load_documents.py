@@ -7,6 +7,7 @@ its ID is printed and written back into the .env file.
 """
 
 import uuid
+from os import getenv
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -14,8 +15,6 @@ from langchain_community.document_loaders import TextLoader
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from llama_stack_client import LlamaStackClient
-
-from os import getenv
 
 load_dotenv(verbose=True)
 
@@ -133,7 +132,9 @@ def load_and_index_documents(
     embeddings = OpenAIEmbeddings(
         model=embedding_model,
         api_key=api_key or "not-needed-for-local-development",
-        base_url=base_url if base_url.rstrip("/").endswith("/v1") else base_url.rstrip("/") + "/v1",
+        base_url=base_url
+        if base_url.rstrip("/").endswith("/v1")
+        else base_url.rstrip("/") + "/v1",
         check_embedding_ctx_length=False,  # prevent fail if embedding model is not registered in OpenAI Registry
     )
 

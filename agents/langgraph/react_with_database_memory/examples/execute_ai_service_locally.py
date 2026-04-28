@@ -1,7 +1,8 @@
-from ai_service import ai_stream_service
-from os import getenv
-from _interactive_chat import InteractiveChat
 import uuid
+from os import getenv
+
+from _interactive_chat import InteractiveChat
+from ai_service import ai_stream_service
 
 
 class SimpleContext:

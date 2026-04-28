@@ -7,14 +7,19 @@ from os import getenv
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    StreamingResponse,
+)
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from pydantic import BaseModel, Field
 from react_agent.agent import get_graph_closure
+from react_agent.tracing import enable_tracing
 
 logger = logging.getLogger(__name__)
 
-from react_agent.tracing import enable_tracing
 
 # OpenAI-compatible request/response models
 class ChatMessage(BaseModel):
@@ -385,7 +390,10 @@ async def _handle_stream(messages: list[HumanMessage], model_id: str):
 )
 async def health():
     initialized = agent_graph is not None
-    body = {"status": "healthy" if initialized else "not_ready", "agent_initialized": initialized}
+    body = {
+        "status": "healthy" if initialized else "not_ready",
+        "agent_initialized": initialized,
+    }
     if not initialized:
         return JSONResponse(status_code=503, content=body)
     return body

@@ -1,0 +1,21 @@
+target-version = "py312"
+line-length = 88
+
+[lint]
+select = ["E", "F", "I"]
+# E501: line-length is enforced by the formatter, not the linter
+ignore = ["E501"]
+
+[format]
+quote-style = "double"
+line-ending = "auto"
+
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "build",
+    "__pycache__",
+    "site-packages",
+    "*.egg-info",
+]

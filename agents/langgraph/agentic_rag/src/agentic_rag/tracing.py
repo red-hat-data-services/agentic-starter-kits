@@ -1,21 +1,22 @@
-from os import getenv
+import logging
 import time
-from dotenv import load_dotenv
+from os import getenv
 from typing import Optional
 
-import logging
+from dotenv import load_dotenv
 
 logger = logging.getLogger("tracing")
 logger.setLevel(logging.INFO)
 if not logger.handlers:
     handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-    "[%(asctime)s] [%(levelname)s] %(message)s"
-)
+    formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s")
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
-def check_mlflow_health(mlflow_tracking_uri: str, max_wait_time: int = 5, retry_interval: int = 1) -> None:
+
+def check_mlflow_health(
+    mlflow_tracking_uri: str, max_wait_time: int = 5, retry_interval: int = 1
+) -> None:
     """
     Check MLflow health by trying the /health endpoint. If it fails, retry for a certain duration before giving up.
     args:
@@ -24,6 +25,7 @@ def check_mlflow_health(mlflow_tracking_uri: str, max_wait_time: int = 5, retry_
         retry_interval: time to wait between retries (in seconds)
     """
     import requests
+
     mlflow_health_endpoint = "/health"
     mlflow_url = f"{mlflow_tracking_uri.rstrip('/')}{mlflow_health_endpoint}"
     start_time = time.time()
@@ -31,13 +33,19 @@ def check_mlflow_health(mlflow_tracking_uri: str, max_wait_time: int = 5, retry_
     while True:
         remaining = max_wait_time - (time.time() - start_time)
         if remaining <= 0:
-            logger.error(f"MLflow server is unavailable after {max_wait_time} seconds of checking.")
-            raise RuntimeError("MLflow server is unavailable. Please start the server or check the URI.")
+            logger.error(
+                f"MLflow server is unavailable after {max_wait_time} seconds of checking."
+            )
+            raise RuntimeError(
+                "MLflow server is unavailable. Please start the server or check the URI."
+            )
 
         try:
             response = requests.get(mlflow_url, timeout=min(5, remaining))
             if response.status_code == 200:
-                logger.info(f"MLflow health check passed at {mlflow_url} with status code {response.status_code}.")
+                logger.info(
+                    f"MLflow health check passed at {mlflow_url} with status code {response.status_code}."
+                )
                 return  # Success, exit the function without error
             else:
                 logger.warning(
@@ -51,6 +59,7 @@ def check_mlflow_health(mlflow_tracking_uri: str, max_wait_time: int = 5, retry_
 
         logger.warning(f"Retrying in {retry_interval} seconds...")
         time.sleep(retry_interval)
+
 
 def enable_tracing() -> None:
     """
@@ -75,7 +84,9 @@ def enable_tracing() -> None:
             health_check_timeout = int(getenv("MLFLOW_HEALTH_CHECK_TIMEOUT", "5"))
         except ValueError:
             health_check_timeout = 5
-        check_mlflow_health(mlflow_tracking_uri=tracking_uri, max_wait_time=health_check_timeout)
+        check_mlflow_health(
+            mlflow_tracking_uri=tracking_uri, max_wait_time=health_check_timeout
+        )
         logger.info(f"[Tracing] MLflow server is reachable at {tracking_uri}")
     except (RuntimeError, ModuleNotFoundError) as e:
         logger.warning(
@@ -90,17 +101,19 @@ def enable_tracing() -> None:
         import mlflow.langchain
 
         mlflow.set_tracking_uri(tracking_uri)
-        experiment_name: str = getenv("MLFLOW_EXPERIMENT_NAME", "default-agent-experiment")
+        experiment_name: str = getenv(
+            "MLFLOW_EXPERIMENT_NAME", "default-agent-experiment"
+        )
         mlflow.set_experiment(experiment_name)
         mlflow.config.enable_async_logging()
 
         mlflow.langchain.autolog()
 
-        logger.info(f"[Tracing Enabled] MLflow -> {tracking_uri}, Experiment: {experiment_name}")
-    except ModuleNotFoundError:
-        logger.warning(
-            "[Tracing] MLflow not installed. Skipping tracing."
+        logger.info(
+            f"[Tracing Enabled] MLflow -> {tracking_uri}, Experiment: {experiment_name}"
         )
+    except ModuleNotFoundError:
+        logger.warning("[Tracing] MLflow not installed. Skipping tracing.")
     except Exception as e:
         logger.warning(
             f"[Tracing] Failed to configure MLflow tracing at {tracking_uri}. "

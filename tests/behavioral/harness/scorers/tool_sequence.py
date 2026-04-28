@@ -155,9 +155,7 @@ def score_tool_call_validity(result: TaskResult) -> Score:
     )
 
 
-def score_hallucinated_tools(
-    result: TaskResult, known_tools: list[str]
-) -> Score:
+def score_hallucinated_tools(result: TaskResult, known_tools: list[str]) -> Score:
     """Detect tool calls to tools that do not exist in the agent's schema."""
     if not result.tool_calls:
         return Score(

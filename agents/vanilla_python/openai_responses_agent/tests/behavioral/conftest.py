@@ -11,8 +11,7 @@ from typing import Any, AsyncGenerator, Callable, Coroutine
 import httpx
 import pytest
 import yaml
-
-from harness.runner import TaskResult, TaskConfig, run_task
+from harness.runner import TaskConfig, TaskResult, run_task
 
 try:
     from harness.mlflow_client import MLflowTraceClient
@@ -40,13 +39,17 @@ def _find_repo_root() -> Path:
         if (path / "tests" / "behavioral" / "configs" / "thresholds.yaml").is_file():
             return path
         path = path.parent
-    pytest.skip("Could not find repo root (no tests/behavioral/configs/thresholds.yaml)")
+    pytest.skip(
+        "Could not find repo root (no tests/behavioral/configs/thresholds.yaml)"
+    )
 
 
 @pytest.fixture
 def eval_config() -> dict[str, Any]:
     """Load threshold configuration from the shared configs directory."""
-    config_path = _find_repo_root() / "tests" / "behavioral" / "configs" / "thresholds.yaml"
+    config_path = (
+        _find_repo_root() / "tests" / "behavioral" / "configs" / "thresholds.yaml"
+    )
     with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 

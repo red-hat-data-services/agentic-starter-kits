@@ -8,7 +8,7 @@ requires-python = ">=3.12,<3.14"
 dependencies = [
     "fastapi>=0.135.1",
     "uvicorn[standard]>=0.41.0",
-    "crewai[litellm]>=1.11.0",    
+    "crewai[litellm]>=1.11.0",
     "litellm!=1.82.7,!=1.82.8", # Block compromised PyPI releases
     "python-dotenv>=1.1.1,<1.2.0",  # CrewAI pins ~=1.1.1
     "setuptools>=80.9.0,<82.0.0",

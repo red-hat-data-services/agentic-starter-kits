@@ -41,7 +41,9 @@ def get_agent(
         model_id = getenv("MODEL_ID")
 
     if not base_url:
-        raise ValueError("BASE_URL is required. Set it via argument or BASE_URL env var.")
+        raise ValueError(
+            "BASE_URL is required. Set it via argument or BASE_URL env var."
+        )
 
     if not base_url.endswith("/v1"):
         base_url = base_url.rstrip("/") + "/v1"

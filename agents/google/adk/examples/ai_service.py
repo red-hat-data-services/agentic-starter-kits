@@ -2,9 +2,8 @@ import asyncio
 import json
 from collections.abc import Generator
 
+from adk_agent.agent import APP_NAME, get_runner
 from google.genai import types
-
-from adk_agent.agent import get_runner, APP_NAME
 
 USER_ID = "local_user"
 
@@ -68,7 +67,11 @@ def ai_stream_service(context, base_url=None, model_id=None):
                     "content": f"Calling tool '{part.function_call.name}' with args: {json.dumps(dict(part.function_call.args) if part.function_call.args else {})}",
                 }
             if part.function_response:
-                response_data = dict(part.function_response.response) if part.function_response.response else {}
+                response_data = (
+                    dict(part.function_response.response)
+                    if part.function_response.response
+                    else {}
+                )
                 return {
                     "role": "tool",
                     "content": f"\nTool Output:\n {json.dumps(response_data)}",
@@ -121,9 +124,7 @@ def ai_stream_service(context, base_url=None, model_id=None):
             message = _format_event(event)
             if message:
                 yield {
-                    "choices": [
-                        {"index": 0, "delta": message, "finish_reason": None}
-                    ]
+                    "choices": [{"index": 0, "delta": message, "finish_reason": None}]
                 }
 
     return generate, generate_stream

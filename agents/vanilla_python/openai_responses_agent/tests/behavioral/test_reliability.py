@@ -15,7 +15,6 @@ import warnings
 from typing import Any
 
 import pytest
-
 from conftest import PRICE_EVIDENCE, REVIEW_EVIDENCE
 from harness.scorers.plan_coherence import score_plan_coherence
 from harness.scorers.tool_sequence import score_tool_selection

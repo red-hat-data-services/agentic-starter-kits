@@ -7,14 +7,18 @@ from os import getenv
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    StreamingResponse,
+)
+from human_in_the_loop.agent import get_graph_closure
+from human_in_the_loop.tracing import enable_tracing
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 from pydantic import BaseModel, Field
-
-from human_in_the_loop.agent import get_graph_closure
-from human_in_the_loop.tracing import enable_tracing
 
 logger = logging.getLogger(__name__)
 
@@ -328,9 +332,7 @@ async def _handle_chat(
 
     except Exception:
         logger.exception("Error processing chat completion request")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 async def _handle_stream(
@@ -539,7 +541,10 @@ async def _handle_stream(
 )
 async def health():
     initialized = agent_graph_closure is not None
-    body = {"status": "healthy" if initialized else "not_ready", "agent_initialized": initialized}
+    body = {
+        "status": "healthy" if initialized else "not_ready",
+        "agent_initialized": initialized,
+    }
     if not initialized:
         return JSONResponse(status_code=503, content=body)
     return body

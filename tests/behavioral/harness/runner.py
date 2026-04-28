@@ -8,9 +8,9 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -117,9 +117,7 @@ async def _run_streaming(
     parsed_any_chunk = False
     malformed_count = 0
 
-    async with client.stream(
-        "POST", url, json=payload, timeout=timeout
-    ) as resp:
+    async with client.stream("POST", url, json=payload, timeout=timeout) as resp:
         resp.raise_for_status()
         async for line in resp.aiter_lines():
             if not line.startswith("data: "):
@@ -132,7 +130,9 @@ async def _run_streaming(
                 parsed_any_chunk = True
             except json.JSONDecodeError:
                 malformed_count += 1
-                logger.warning("Malformed SSE chunk (not valid JSON): %s", data_str[:200])
+                logger.warning(
+                    "Malformed SSE chunk (not valid JSON): %s", data_str[:200]
+                )
                 continue
 
             if not model_name:
@@ -157,7 +157,9 @@ async def _run_streaming(
                     if "arguments" in fn and fn["arguments"] is not None:
                         arg_chunk = fn["arguments"]
                         collected_tool_calls[idx]["function"]["arguments"] += (
-                            arg_chunk if isinstance(arg_chunk, str) else json.dumps(arg_chunk)
+                            arg_chunk
+                            if isinstance(arg_chunk, str)
+                            else json.dumps(arg_chunk)
                         )
 
     if not parsed_any_chunk and malformed_count > 0:
@@ -212,9 +214,7 @@ async def run_task(
                 client, url, payload, config.timeout_seconds
             )
         else:
-            resp = await client.post(
-                url, json=payload, timeout=config.timeout_seconds
-            )
+            resp = await client.post(url, json=payload, timeout=config.timeout_seconds)
             resp.raise_for_status()
             response_data = resp.json()
 

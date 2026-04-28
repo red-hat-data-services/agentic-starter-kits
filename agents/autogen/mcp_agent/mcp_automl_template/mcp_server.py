@@ -4,8 +4,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
-
 from register_tools import register_tools_from_config
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 load_dotenv()
 
@@ -25,9 +26,6 @@ mcp = FastMCP(
     host=_host,
     transport_security=_transport_security,
 )
-
-from starlette.requests import Request
-from starlette.responses import JSONResponse
 
 
 @mcp.custom_route("/health", methods=["GET"])

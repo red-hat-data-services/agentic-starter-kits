@@ -1,9 +1,9 @@
 from os import getenv
 from typing import Callable
 
+from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ModelFamily
 from autogen_ext.models.openai import OpenAIChatCompletionClient
-from autogen_agentchat.agents import AssistantAgent
 
 from autogen_agent_base import TOOLS
 

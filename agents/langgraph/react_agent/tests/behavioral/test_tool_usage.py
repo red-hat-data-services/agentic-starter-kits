@@ -20,15 +20,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
-pytestmark = pytest.mark.langgraph_react
 import yaml
-
 from harness.scorers.tool_sequence import (
     score_hallucinated_tools,
     score_tool_call_validity,
     score_tool_selection,
 )
+
+pytestmark = pytest.mark.langgraph_react
 
 
 def _load_golden(category: str | None = None) -> list[dict[str, Any]]:
@@ -52,9 +51,7 @@ def _factual_queries() -> list[dict[str, Any]]:
     _factual_queries(),
     ids=lambda q: q["query"][:60],
 )
-async def test_tool_selection_accuracy(
-    run_eval: Any, golden: dict[str, Any]
-) -> None:
+async def test_tool_selection_accuracy(run_eval: Any, golden: dict[str, Any]) -> None:
     """Correct tool should be selected for information-seeking queries.
 
     Primary check: response contains content from the search tool's output.
@@ -91,9 +88,7 @@ async def test_tool_selection_accuracy(
         )
 
 
-async def test_no_hallucinated_tools(
-    run_eval: Any, known_tools: list[str]
-) -> None:
+async def test_no_hallucinated_tools(run_eval: Any, known_tools: list[str]) -> None:
     """Agent must only call tools that exist in its schema.
 
     When tool_calls are not exposed, this test passes trivially (no calls
@@ -123,9 +118,7 @@ async def test_tool_call_has_valid_args(run_eval: Any) -> None:
         pytest.skip("tool_calls not exposed in response — cannot verify")
 
     score = score_tool_call_validity(result)
-    assert score.passed, (
-        f"Invalid tool call arguments: {score.details.get('invalid')}"
-    )
+    assert score.passed, f"Invalid tool call arguments: {score.details.get('invalid')}"
 
 
 async def test_tool_not_called_for_greeting(run_eval: Any) -> None:

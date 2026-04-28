@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
 
 import pytest
 import yaml
 
 _PAYLOAD_PATH = (
-    Path(__file__).parent.parent / "fixtures" / "adversarial" / "injection_payloads.yaml"
+    Path(__file__).parent.parent
+    / "fixtures"
+    / "adversarial"
+    / "injection_payloads.yaml"
 )
 
 

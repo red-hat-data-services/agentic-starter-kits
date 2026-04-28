@@ -1,16 +1,15 @@
 from typing import Generator
 
+from human_in_the_loop.agent import get_graph_closure
 from langchain_core.messages import (
     AIMessage,
-    SystemMessage,
-    HumanMessage,
     BaseMessage,
+    HumanMessage,
+    SystemMessage,
     ToolMessage,
 )
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
-
-from human_in_the_loop.agent import get_graph_closure
 
 
 def ai_stream_service(context, base_url=None, model_id=None):
@@ -73,7 +72,10 @@ def ai_stream_service(context, base_url=None, model_id=None):
                 else:
                     resume_value = {
                         "decisions": [
-                            {"type": "reject", "message": "User rejected the tool call."}
+                            {
+                                "type": "reject",
+                                "message": "User rejected the tool call.",
+                            }
                         ]
                     }
                 result = agent.invoke(
@@ -139,7 +141,10 @@ def ai_stream_service(context, base_url=None, model_id=None):
                 else:
                     resume_value = {
                         "decisions": [
-                            {"type": "reject", "message": "User rejected the tool call."}
+                            {
+                                "type": "reject",
+                                "message": "User rejected the tool call.",
+                            }
                         ]
                     }
                 input_data = Command(resume=resume_value)
@@ -182,7 +187,11 @@ def ai_stream_service(context, base_url=None, model_id=None):
                         if message:
                             yield {
                                 "choices": [
-                                    {"index": 0, "delta": message, "finish_reason": None}
+                                    {
+                                        "index": 0,
+                                        "delta": message,
+                                        "finish_reason": None,
+                                    }
                                 ]
                             }
 

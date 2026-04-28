@@ -1,5 +1,5 @@
-from crewai import Agent, Crew, Process, Task, LLM
-from crewai.project import CrewBase, agent, crew, task, after_kickoff
+from crewai import LLM, Agent, Crew, Process, Task
+from crewai.project import CrewBase, after_kickoff, agent, crew, task
 
 from crewai_web_search.tools import WebSearchTool
 from crewai_web_search.tracing import wrap_func_with_mlflow_trace
@@ -30,7 +30,9 @@ class AssistanceAgents:
         # in newer CrewAI versions (>=1.10). If a future version fixes this, remove
         # the manual wrapping below to avoid duplicate tool spans.
         for tool in tools:
-            tool._run = wrap_func_with_mlflow_trace(tool._run, span_type="tool", name=tool.name)
+            tool._run = wrap_func_with_mlflow_trace(
+                tool._run, span_type="tool", name=tool.name
+            )
 
         return Agent(
             config=self.agents_config["ai_assistant"],

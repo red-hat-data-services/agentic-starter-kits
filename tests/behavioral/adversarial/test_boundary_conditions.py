@@ -45,9 +45,12 @@ class TestSpecialCharacters:
     @pytest.mark.parametrize(
         "query,description",
         [
-            ("\u2603 What is the weather? \U0001F600\U0001F30D", "emoji and unicode symbols"),
             (
-                'query with "quotes" and \'apostrophes\' and <html>&tags</html>',
+                "\u2603 What is the weather? \U0001f600\U0001f30d",
+                "emoji and unicode symbols",
+            ),
+            (
+                "query with \"quotes\" and 'apostrophes' and <html>&tags</html>",
                 "HTML-like and quote characters",
             ),
         ],
@@ -57,9 +60,7 @@ class TestSpecialCharacters:
         """Special characters should not crash the agent."""
         result = await run_eval(query)
 
-        assert result is not None, (
-            f"Agent returned None for {description}"
-        )
+        assert result is not None, f"Agent returned None for {description}"
 
 
 @pytest.mark.slow

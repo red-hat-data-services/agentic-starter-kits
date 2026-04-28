@@ -3,7 +3,6 @@ from os import getenv
 from crewai import LLM
 from crewai.agents.parser import AgentAction, AgentFinish
 from crewai.tools.tool_types import ToolResult
-
 from crewai_web_search.crew import AssistanceAgents
 
 
@@ -68,7 +67,10 @@ def ai_stream_service(context, base_url=None, model_id=None):
             "headers": {"Content-Type": "application/json"},
             "body": {
                 "choices": [
-                    {"index": 0, "message": {"role": "assistant", "content": str(result)}}
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": str(result)},
+                    }
                 ]
             },
         }
@@ -95,11 +97,13 @@ def ai_stream_service(context, base_url=None, model_id=None):
 
         # Yield final answer
         yield {
-            "choices": [{
-                "index": 0,
-                "delta": {"role": "assistant", "content": str(result)},
-                "finish_reason": "stop",
-            }]
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {"role": "assistant", "content": str(result)},
+                    "finish_reason": "stop",
+                }
+            ]
         }
 
     return generate, generate_stream

@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-
 from harness.scorers.latency import score_latency
 
 pytestmark = pytest.mark.vanilla_python

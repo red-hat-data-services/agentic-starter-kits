@@ -234,7 +234,9 @@ class AIAgent:
         )
         return _get_output_text_from_response(response)
 
-    def query(self, question: str, max_turns: int = 10, on_event: Optional[Callable] = None) -> Optional[str]:
+    def query(
+        self, question: str, max_turns: int = 10, on_event: Optional[Callable] = None
+    ) -> Optional[str]:
         """
         Process a question through multiple turns until getting final answer.
 
@@ -280,7 +282,9 @@ class AIAgent:
                     observation = tool(*action_inputs)
 
                     if on_event:
-                        on_event("tool_result", {"name": action, "output": str(observation)})
+                        on_event(
+                            "tool_result", {"name": action, "output": str(observation)}
+                        )
 
                     next_prompt = f"Observation: {observation}"
                 else:

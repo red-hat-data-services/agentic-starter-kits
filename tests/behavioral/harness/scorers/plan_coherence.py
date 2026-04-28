@@ -72,9 +72,7 @@ def score_plan_coherence(result: TaskResult) -> Score:
     )
 
 
-def score_completeness(
-    result: TaskResult, required_elements: list[str]
-) -> Score:
+def score_completeness(result: TaskResult, required_elements: list[str]) -> Score:
     """Check that the response contains all required elements.
 
     Each element is checked case-insensitively as a substring of the response.

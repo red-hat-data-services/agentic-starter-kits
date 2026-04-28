@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-
 from conftest import PRICE_EVIDENCE, REVIEW_EVIDENCE, load_golden
 from harness.scorers.plan_coherence import score_completeness, score_plan_coherence
 
@@ -32,8 +31,7 @@ async def test_plan_coherence(run_eval: Any) -> None:
     assert result.success, f"Agent request failed: {result.error}"
     score = score_plan_coherence(result)
     assert score.passed, (
-        f"Plan coherence check failed (score={score.value:.2f}): "
-        f"{score.details}"
+        f"Plan coherence check failed (score={score.value:.2f}): {score.details}"
     )
 
 
@@ -70,9 +68,7 @@ async def test_response_synthesizes_multi_tool_data(run_eval: Any) -> None:
     _queries_with_expected_elements(),
     ids=lambda q: q["query"][:60],
 )
-async def test_response_completeness(
-    run_eval: Any, golden: dict[str, Any]
-) -> None:
+async def test_response_completeness(run_eval: Any, golden: dict[str, Any]) -> None:
     """Response should contain all expected elements from the golden dataset."""
     result = await run_eval(
         golden["query"],

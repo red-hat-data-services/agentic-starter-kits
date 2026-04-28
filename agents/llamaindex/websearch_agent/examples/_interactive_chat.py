@@ -1,5 +1,5 @@
-import textwrap
 import json
+import textwrap
 from collections.abc import Generator
 from typing import Callable
 

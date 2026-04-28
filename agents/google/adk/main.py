@@ -6,14 +6,18 @@ from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
 
+from adk_agent.agent import APP_NAME, get_runner
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    StreamingResponse,
+)
 from google.genai import types
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
-
-from adk_agent.agent import get_runner, APP_NAME
 
 
 # OpenAI-compatible request/response models
@@ -228,7 +232,9 @@ async def _handle_chat(user_content: str, model_id: str):
                                         "function": {
                                             "name": part.function_call.name,
                                             "arguments": json.dumps(
-                                                dict(part.function_call.args) if part.function_call.args else {}
+                                                dict(part.function_call.args)
+                                                if part.function_call.args
+                                                else {}
                                             ),
                                         },
                                     }
@@ -241,14 +247,19 @@ async def _handle_chat(user_content: str, model_id: str):
                                 "role": "tool",
                                 "name": part.function_response.name,
                                 "content": json.dumps(
-                                    dict(part.function_response.response) if part.function_response.response else {}
+                                    dict(part.function_response.response)
+                                    if part.function_response.response
+                                    else {}
                                 ),
                             }
                         )
                     elif part.text:
                         role = event.content.role or "model"
                         context_messages.append(
-                            {"role": "assistant" if role == "model" else role, "content": part.text}
+                            {
+                                "role": "assistant" if role == "model" else role,
+                                "content": part.text,
+                            }
                         )
                         if role == "model":
                             final_text = part.text
@@ -274,9 +285,7 @@ async def _handle_chat(user_content: str, model_id: str):
 
     except Exception:
         logger.exception("Error processing chat completion request")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 async def _handle_stream(user_content: str, model_id: str):
@@ -323,7 +332,9 @@ async def _handle_stream(user_content: str, model_id: str):
                                                 "function": {
                                                     "name": part.function_call.name,
                                                     "arguments": json.dumps(
-                                                        dict(part.function_call.args) if part.function_call.args else {}
+                                                        dict(part.function_call.args)
+                                                        if part.function_call.args
+                                                        else {}
                                                     ),
                                                 },
                                             }
@@ -347,7 +358,9 @@ async def _handle_stream(user_content: str, model_id: str):
                                     "delta": {
                                         "role": "tool",
                                         "content": json.dumps(
-                                            dict(part.function_response.response) if part.function_response.response else {}
+                                            dict(part.function_response.response)
+                                            if part.function_response.response
+                                            else {}
                                         ),
                                         "name": part.function_response.name,
                                     },
@@ -412,7 +425,10 @@ async def _handle_stream(user_content: str, model_id: str):
 )
 async def health():
     initialized = runner is not None
-    body = {"status": "healthy" if initialized else "not_ready", "agent_initialized": initialized}
+    body = {
+        "status": "healthy" if initialized else "not_ready",
+        "agent_initialized": initialized,
+    }
     if not initialized:
         return JSONResponse(status_code=503, content=body)
     return body

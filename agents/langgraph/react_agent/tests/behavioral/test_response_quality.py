@@ -8,10 +8,9 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from harness.scorers.plan_coherence import score_plan_coherence
 
 pytestmark = pytest.mark.langgraph_react
-
-from harness.scorers.plan_coherence import score_plan_coherence
 
 
 async def test_plan_coherence(run_eval: Any) -> None:
@@ -22,6 +21,5 @@ async def test_plan_coherence(run_eval: Any) -> None:
     assert result.success, f"Agent request failed: {result.error}"
     score = score_plan_coherence(result)
     assert score.passed, (
-        f"Plan coherence check failed (score={score.value:.2f}): "
-        f"{score.details}"
+        f"Plan coherence check failed (score={score.value:.2f}): {score.details}"
     )

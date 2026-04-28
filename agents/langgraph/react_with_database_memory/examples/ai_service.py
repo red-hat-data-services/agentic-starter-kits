@@ -1,12 +1,13 @@
 from typing import Generator
-from langgraph.checkpoint.postgres import PostgresSaver
-from react_with_database_memory.agent import get_graph_closure
+
 from langchain_core.messages import (
+    AIMessage,
     BaseMessage,
     HumanMessage,
-    AIMessage,
     SystemMessage,
 )
+from langgraph.checkpoint.postgres import PostgresSaver
+from react_with_database_memory.agent import get_graph_closure
 from react_with_database_memory.utils import get_database_uri
 
 
@@ -95,7 +96,6 @@ def ai_stream_service(
         return HumanMessage(content=content)
 
     def generate(context) -> dict:
-
         payload = context.get_json()
         raw_messages = payload.get("messages", [])
         thread_id = payload.get("thread_id")

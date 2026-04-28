@@ -28,6 +28,6 @@ If applicable, add screenshots to help explain your problem.
 
 **Libs and packages (please complete the following information):**
 `uv pip list`
- 
+
 **Additional context**
 Add any other context about the problem here.

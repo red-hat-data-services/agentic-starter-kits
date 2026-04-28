@@ -6,11 +6,11 @@ from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.tools import ToolSelection
 from llama_index.core.tools.types import BaseTool
 from llama_index.core.workflow import (
-    Workflow,
-    StartEvent,
-    StopEvent,
     Context,
     Event,
+    StartEvent,
+    StopEvent,
+    Workflow,
     step,
 )
 
@@ -46,7 +46,6 @@ class FunctionCallingAgent(Workflow):
 
     @step
     async def prepare_chat_history(self, ctx: Context, ev: StartEvent) -> InputEvent:
-
         ctx.write_event_to_stream(ev)
 
         self.sources = []
@@ -68,7 +67,6 @@ class FunctionCallingAgent(Workflow):
     async def handle_llm_input(
         self, ctx: Context, ev: InputEvent
     ) -> ToolCallEvent | StopEvent:
-
         ctx.write_event_to_stream(ev)
 
         chat_history = ev.input
@@ -90,7 +88,6 @@ class FunctionCallingAgent(Workflow):
 
     @step
     async def handle_tool_calls(self, ctx: Context, ev: ToolCallEvent) -> InputEvent:
-
         ctx.write_event_to_stream(ev)
 
         tool_calls = ev.tool_calls

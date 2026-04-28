@@ -1,12 +1,12 @@
 import asyncio
 import textwrap
 from os import getenv
-from utils import get_chat_from_env
-from mcp import ClientSession
-from mcp.client.sse import sse_client
 
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langgraph.prebuilt import create_react_agent
+from mcp import ClientSession
+from mcp.client.sse import sse_client
+from utils import get_chat_from_env
 
 # LLM from .env: BASE_URL, MODEL_ID, API_KEY (see repo template.env; Ollama example there)
 chat_openai = get_chat_from_env()

@@ -14,11 +14,10 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-
-pytestmark = [pytest.mark.langgraph_react, pytest.mark.slow]
-
 from harness.scorers.plan_coherence import score_plan_coherence
 from harness.scorers.tool_sequence import score_tool_selection
+
+pytestmark = [pytest.mark.langgraph_react, pytest.mark.slow]
 
 PASS_K_TIMEOUT = 60.0  # Per-request timeout for pass@k (longer than default)
 

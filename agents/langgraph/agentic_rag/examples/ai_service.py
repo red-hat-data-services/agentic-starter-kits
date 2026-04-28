@@ -1,12 +1,13 @@
 from typing import Generator
+
+from agentic_rag.agent import get_graph_closure
 from langchain_core.messages import (
     AIMessage,
-    SystemMessage,
-    HumanMessage,
     BaseMessage,
+    HumanMessage,
+    SystemMessage,
     ToolMessage,
 )
-from agentic_rag.agent import get_graph_closure
 
 
 def ai_stream_service(

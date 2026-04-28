@@ -48,8 +48,8 @@ def get_graph_closure(
         base_url=base_url,
     )
 
-    system_prompt = """You are a helpful assistant. When you receive a result from a tool, 
-        use that information to provide a FINAL answer to the user immediately. 
+    system_prompt = """You are a helpful assistant. When you receive a result from a tool,
+        use that information to provide a FINAL answer to the user immediately.
         Do NOT call tools repeatedly for the same question."""
     agent = create_agent(model=chat, tools=tools, system_prompt=system_prompt)
 

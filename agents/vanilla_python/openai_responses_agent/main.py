@@ -8,8 +8,13 @@ from os import getenv
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
-from openai_responses_agent.agent import get_agent_closure, AIAgent
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    StreamingResponse,
+)
+from openai_responses_agent.agent import AIAgent, get_agent_closure
 from openai_responses_agent.tracing import enable_tracing, wrap_func_with_mlflow_trace
 from pydantic import BaseModel, Field
 
@@ -254,7 +259,9 @@ async def _handle_stream(user_message: str, model_id: str):
                 for name, func in adapter._tools:
                     func = wrap_func_with_mlflow_trace(func, span_type="tool")
                     agent.register_tool(name, func)
-                agent.query = wrap_func_with_mlflow_trace(agent.query, span_type="agent")
+                agent.query = wrap_func_with_mlflow_trace(
+                    agent.query, span_type="agent"
+                )
                 return agent.query(user_message, on_event=on_event)
 
             task = asyncio.get_event_loop().run_in_executor(None, run_agent)
@@ -389,7 +396,10 @@ def _map_event_to_chunk(
 )
 async def health():
     initialized = get_agent is not None
-    body = {"status": "healthy" if initialized else "not_ready", "agent_initialized": initialized}
+    body = {
+        "status": "healthy" if initialized else "not_ready",
+        "agent_initialized": initialized,
+    }
     if not initialized:
         return JSONResponse(status_code=503, content=body)
     return body

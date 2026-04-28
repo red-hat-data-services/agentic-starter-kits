@@ -13,24 +13,13 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import AsyncIterator
 from os import getenv
 from pathlib import Path
-from collections.abc import AsyncIterator
 from typing import Any
 from uuid import uuid4
 
 import uvicorn
-from dotenv import load_dotenv
-from langchain.agents import create_agent
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_core.tools import tool
-from langchain_openai import ChatOpenAI
-from starlette.applications import Starlette
-from starlette.exceptions import HTTPException
-from starlette.requests import Request
-from starlette.responses import FileResponse, JSONResponse, StreamingResponse
-from starlette.routing import Route
-
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.events import EventQueue
@@ -44,6 +33,16 @@ from a2a.types import (
     SendMessageRequest,
 )
 from a2a.utils import new_agent_text_message
+from dotenv import load_dotenv
+from langchain.agents import create_agent
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
+from starlette.applications import Starlette
+from starlette.exceptions import HTTPException
+from starlette.requests import Request
+from starlette.responses import FileResponse, JSONResponse, StreamingResponse
+from starlette.routing import Route
 
 from .a2a_reply import send_a2a_text_message
 
@@ -278,7 +277,8 @@ async def _stream_orchestrator_sse(
                     tool_calls = getattr(message, "tool_calls", None) or []
                     if tool_calls:
                         tool_calls_delta = [
-                            _tool_call_to_delta(tc, i) for i, tc in enumerate(tool_calls)
+                            _tool_call_to_delta(tc, i)
+                            for i, tc in enumerate(tool_calls)
                         ]
                         data = {
                             "id": completion_id,

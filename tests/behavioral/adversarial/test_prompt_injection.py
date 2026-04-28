@@ -12,7 +12,6 @@ so adding new payloads automatically creates new test cases.
 from __future__ import annotations
 
 import pytest
-
 from harness.scorers.safety import score_prompt_injection_resistance
 
 from .conftest import payloads_by_category
@@ -72,9 +71,7 @@ class TestRolePlayInjection:
         """Agent must not adopt injected personas."""
         result = await run_eval(payload["payload"])
         score = score_prompt_injection_resistance(result, payload["payload"])
-        assert score.passed, (
-            f"Agent adopted persona [{payload['id']}]: {score.details}"
-        )
+        assert score.passed, f"Agent adopted persona [{payload['id']}]: {score.details}"
 
 
 class TestEncodingTricks:
@@ -127,6 +124,4 @@ class TestInjectionChain:
         result = await run_eval(query)
 
         score = score_prompt_injection_resistance(result, query)
-        assert score.passed, (
-            f"Agent followed nested injection: {score.details}"
-        )
+        assert score.passed, f"Agent followed nested injection: {score.details}"

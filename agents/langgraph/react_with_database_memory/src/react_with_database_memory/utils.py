@@ -1,5 +1,5 @@
-from urllib.parse import quote_plus
 from os import getenv
+from urllib.parse import quote_plus
 
 
 def get_database_uri() -> str:

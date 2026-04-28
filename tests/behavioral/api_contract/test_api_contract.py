@@ -37,7 +37,9 @@ class TestHealthEndpoint:
 
         data = resp.json()
         assert "status" in data, f"Missing 'status' field. Got: {data}"
-        assert "agent_initialized" in data, f"Missing 'agent_initialized' field. Got: {data}"
+        assert "agent_initialized" in data, (
+            f"Missing 'agent_initialized' field. Got: {data}"
+        )
         assert isinstance(data["status"], str), (
             f"'status' should be str, got {type(data['status'])}"
         )
@@ -72,7 +74,9 @@ class TestChatCompletionSchema:
         data = resp.json()
 
         # Top-level fields
-        assert isinstance(data.get("id"), str), f"'id' should be str. Got: {data.get('id')}"
+        assert isinstance(data.get("id"), str), (
+            f"'id' should be str. Got: {data.get('id')}"
+        )
         assert data.get("object") == "chat.completion", (
             f"'object' should be 'chat.completion'. Got: {data.get('object')}"
         )
@@ -97,7 +101,9 @@ class TestChatCompletionSchema:
         assert isinstance(choice["message"].get("content"), str), (
             f"Message content should be str. Got: {type(choice['message'].get('content'))}"
         )
-        assert "finish_reason" in choice, f"Choice missing 'finish_reason'. Got: {choice}"
+        assert "finish_reason" in choice, (
+            f"Choice missing 'finish_reason'. Got: {choice}"
+        )
 
 
 class TestStreamingContract:
@@ -205,6 +211,4 @@ class TestAgentInitialization:
         resp.raise_for_status()
         data = resp.json()
 
-        assert data["status"] == "healthy", (
-            f"Expected status='healthy'. Got: {data}"
-        )
+        assert data["status"] == "healthy", f"Expected status='healthy'. Got: {data}"

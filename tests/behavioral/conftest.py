@@ -10,8 +10,7 @@ from typing import Any, AsyncGenerator, Callable, Coroutine
 import httpx
 import pytest
 import yaml
-
-from harness.runner import TaskResult, TaskConfig, run_task
+from harness.runner import TaskConfig, TaskResult, run_task
 
 try:
     from harness.mlflow_client import MLflowTraceClient

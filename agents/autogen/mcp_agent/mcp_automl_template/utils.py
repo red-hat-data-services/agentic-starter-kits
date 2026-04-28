@@ -1,10 +1,10 @@
-from typing import Literal
-from pydantic import BaseModel, create_model
 import json
 from os import getenv
-import pandas as pd
+from typing import Literal
 
+import pandas as pd
 from dotenv import load_dotenv
+from pydantic import BaseModel, create_model
 
 load_dotenv()
 

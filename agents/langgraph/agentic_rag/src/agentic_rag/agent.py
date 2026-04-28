@@ -1,13 +1,14 @@
 from os import getenv
-from typing import Callable, Annotated, Sequence
+from typing import Annotated, Callable, Sequence
 
-from langchain_core.messages import BaseMessage, SystemMessage, AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
-from langgraph.graph import END, StateGraph, START
+from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
-from .tools import retriever_tool
 from typing_extensions import TypedDict
+
+from .tools import retriever_tool
 
 
 def get_graph_closure(

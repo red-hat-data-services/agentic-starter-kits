@@ -21,11 +21,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from os import getenv
 
+from human_in_the_loop.agent import get_graph_closure
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
-
-from human_in_the_loop.agent import get_graph_closure
 
 
 def main():

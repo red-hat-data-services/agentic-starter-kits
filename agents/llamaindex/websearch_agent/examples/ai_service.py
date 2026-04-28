@@ -1,17 +1,16 @@
 import asyncio
 import json
 import threading
-from typing import Generator, AsyncGenerator
+from typing import AsyncGenerator, Generator
 
 import nest_asyncio
 from llama_index.core.base.llms.types import ChatMessage
-
 from websearch_agent.agent import get_workflow_closure
 from websearch_agent.workflow import (
-    ToolCallEvent,
-    StopEvent,
     InputEvent,
     StartEvent,
+    StopEvent,
+    ToolCallEvent,
 )
 
 
@@ -69,7 +68,6 @@ def ai_stream_service(context, base_url=None, model_id=None):
     def get_formatted_message_stream(
         resp: ChatMessage, is_assistant: bool = False
     ) -> list | None:
-
         if isinstance(resp, StartEvent):
             return
 
@@ -161,7 +159,6 @@ def ai_stream_service(context, base_url=None, model_id=None):
             return [to_queue]
 
     async def generate_async(context) -> dict:
-
         workflow = get_workflow_closure(model_id=model_id, base_url=base_url)
 
         payload = context.get_json()
@@ -176,7 +173,6 @@ def ai_stream_service(context, base_url=None, model_id=None):
         return await agent.run(input=messages)
 
     async def generate_async_stream(context) -> AsyncGenerator:
-
         workflow = get_workflow_closure(model_id=model_id, base_url=base_url)
 
         payload = context.get_json()
@@ -232,7 +228,6 @@ def ai_stream_service(context, base_url=None, model_id=None):
         await handler
 
     def generate(context) -> dict:
-
         future = asyncio.run_coroutine_threadsafe(
             generate_async(context), persistent_loop
         )

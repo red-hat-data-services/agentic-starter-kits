@@ -127,7 +127,7 @@ See: [Model Deployment](https://github.com/red-hat-data-services/red-hat-ai-exam
 
 - Open the **deployment details**. Under **Inference endpoint**, copy the **external** URL (only if you enabled the external route).
 - **Deployment URL** for the MCP server is the **predict** endpoint, for example:
-  - `<EXTERNAL_BASE_URL>/v1/models/<MODEL_NAME>:predict`  
+  - `<EXTERNAL_BASE_URL>/v1/models/<MODEL_NAME>:predict`
   where `<MODEL_NAME>` is the deployment’s **Resource name** (lowercase, no spaces). Example: `https://my-model-myproject.apps.example.com/v1/models/my-churn-model:predict`
 - **Token** (if you enabled token auth): **Projects** → *your project* → **Deployments** → expand the deployment → use the **Token secret** value as `DEPLOYMENT_TOKEN`.
 

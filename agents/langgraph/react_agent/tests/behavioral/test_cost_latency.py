@@ -9,10 +9,9 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from harness.scorers.latency import score_latency
 
 pytestmark = pytest.mark.langgraph_react
-
-from harness.scorers.latency import score_latency
 
 
 async def test_latency_under_threshold(
