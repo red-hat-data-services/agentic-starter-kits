@@ -25,7 +25,7 @@ fields:
 
 ## Expected Artifacts
 
-[Check the expected outputs of this investigation.]
+[List the expected outputs of this investigation.]
 
 1. Design document or technical plan
 2. Proof of Concept (POC) or Draft PR
