@@ -81,16 +81,24 @@ def _make_tool_handler_flat(
             token = getenv(deployment_token_env)
             if url and token:
                 payload = instance.model_dump()
+                # KServe-compatible format: each value wrapped in a list
                 data = {"instances": [{key: [val] for key, val in payload.items()}]}
-                res = httpx.post(
-                    url,
-                    json=data,
-                    verify=True,
-                    follow_redirects=True,
-                    headers={"Authorization": f"Bearer {token}"},
-                )
-                out = res.json()
-                if "predictions" in out:
+                try:
+                    res = httpx.post(
+                        url,
+                        json=data,
+                        verify=True,
+                        follow_redirects=True,
+                        headers={"Authorization": f"Bearer {token}"},
+                        timeout=30.0,
+                    )
+                    res.raise_for_status()
+                    out = res.json()
+                except httpx.RequestError as e:
+                    return f"Deployment request failed: {e}"
+                except httpx.HTTPStatusError as e:
+                    return f"Deployment returned HTTP {e.response.status_code}: {e.response.text[:500]}"
+                if "predictions" in out and out["predictions"]:
                     return str(out["predictions"][0])
                 return str(out)
         return instance.model_dump()

@@ -1,0 +1,64 @@
+[project]
+name = "agentic-starter-kits"
+version = "0.0.0"
+description = "Example agentic AI starter kits for Red Hat OpenShift AI"
+requires-python = ">=3.12"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
+    "rich>=13.0",
+]
+test-mlflow = ["mlflow>=2.0"]
+
+# --------------------------------------------------------------------------
+# Pytest configuration
+#
+# Test suites are organized by directory under tests/:
+#   tests/behavioral/   Behavioral evals — test agent responses over HTTP
+#   agents/*/tests/     Agent-specific tests co-located with each agent
+#
+# Agents must be deployed and reachable. Set AGENT_URL (and agent-specific
+# URL env vars) at the pipeline/job level before running tests.
+#
+# CI usage:
+#   pytest tests/behavioral/ -v                          # all cross-agent tests
+#   pytest tests/behavioral/api_contract/ -v             # API contract only
+#   pytest tests/behavioral/ -m adversarial -v           # safety tests only
+#   pytest tests/behavioral/ -m "not slow" -v            # skip pass@k
+#   pytest agents/langgraph/react_agent/tests/behavioral/ -v  # one agent's tests
+#   pytest -m langgraph_react --include-cross-agent -v  # agent + cross-agent tests
+#
+# Agent-specific tests live under agents/ and must be invoked explicitly
+# (not via bare `pytest`) to avoid importing framework-specific dependencies.
+# Use --include-cross-agent to auto-include api_contract + adversarial tests
+# when selecting an agent marker.
+# --------------------------------------------------------------------------
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests/behavioral"]
+pythonpath = ["tests/behavioral"]
+python_files = "test_*.py"
+markers = [
+    # --- Behavioral test suite (tests/behavioral/, agents/*/tests/behavioral/) ---
+    # Agent markers — select which agent is under test
+    "langgraph_react: LangGraph React agent (dummy web search tool)",
+    "vanilla_python: Vanilla Python OpenAI Responses agent (search_price + search_reviews)",
+    # Test category markers — select what capability is being tested
+    "api_contract: FastAPI endpoint schema, validation, streaming (tests repo code, not the model)",
+    "adversarial: Agent-level security/safety tests (PII, API keys, dangerous ops)",
+    "model_baseline: Model-level tests (prompt injection resistance) - not agent-specific",
+    "slow: Tests that run multiple iterations (pass@k, repeated queries)",
+]
+
+[tool.setuptools.packages.find]
+where = ["tests/behavioral"]
+include = ["harness*"]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"

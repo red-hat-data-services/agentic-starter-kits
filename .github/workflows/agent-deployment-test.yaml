@@ -1,0 +1,80 @@
+# QG4: Agent Deployment Health Checks
+#
+# Foundation workflow: validates that the GitHub Actions runner can connect
+# to the OpenShift cluster. Agent deployment and health checks will be
+# wired up in follow-up tickets.
+
+name: "QG4: Agent Deployment Health Checks"
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 11 PM EDT / 10 PM EST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-cluster-connection:
+    name: "Verify Cluster Connection"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+
+      - name: Install OpenShift CLI and Helm
+        uses: redhat-actions/openshift-tools-installer@144527c7d98999f2652264c048c7a9bd103f8a82 # v1.13.1
+        with:
+          oc: "4"
+          helm: "3"
+
+      - name: Verify installed tools
+        run: |
+          echo "--- oc ---"
+          oc version --client
+          echo ""
+          echo "--- helm ---"
+          helm version --short
+          echo ""
+          echo "--- python ---"
+          python3 --version
+          echo ""
+          echo "--- uv ---"
+          uv --version
+
+      - name: Login to OpenShift
+        env:
+          OC_TOKEN: ${{ secrets.OC_TOKEN }}
+          CLUSTER_API_URL: ${{ secrets.CLUSTER_API_URL }}
+        run: |
+          oc login \
+            --token="$OC_TOKEN" \
+            --server="$CLUSTER_API_URL" \
+            --namespace=ci-testing
+
+      - name: Verify cluster connection
+        run: |
+          set -o pipefail
+          echo "--- Logged in as ---"
+          oc whoami
+          echo ""
+          echo "--- Current project ---"
+          oc project
+          echo ""
+          echo "--- Namespace resources ---"
+          oc get all -n ci-testing --no-headers | head -10
+          echo ""
+          echo "Cluster connection verified successfully."
+
+      - name: Logout
+        if: always()
+        run: oc logout || true

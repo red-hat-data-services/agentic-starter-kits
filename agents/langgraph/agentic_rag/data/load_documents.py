@@ -69,7 +69,7 @@ def load_and_index_documents(
         base_url = getenv("BASE_URL")
 
     if not api_key:
-        api_key = getenv("API_KEY") or "not-needed"
+        api_key = getenv("API_KEY") or "not-needed-for-local-development"
 
     if not docs_to_load:
         docs_to_load = getenv("DOCS_TO_LOAD")
@@ -132,7 +132,7 @@ def load_and_index_documents(
     print("\nInitializing embeddings...")
     embeddings = OpenAIEmbeddings(
         model=embedding_model,
-        api_key=api_key or "not-needed",
+        api_key=api_key or "not-needed-for-local-development",
         base_url=base_url if base_url.rstrip("/").endswith("/v1") else base_url.rstrip("/") + "/v1",
         check_embedding_ctx_length=False,  # prevent fail if embedding model is not registered in OpenAI Registry
     )

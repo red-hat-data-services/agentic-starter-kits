@@ -6,7 +6,7 @@ authors = [{ name = "Your Name", email = "you@example.com" }]
 license = { text = "MIT" }
 requires-python = ">=3.12, <3.14"
 dependencies = [
-    "fastapi>=0.132.0",
+    "fastapi>=0.135.1",
     "uvicorn[standard]>=0.41.0",
     "langchain>=1.2.10",
     "langchain-openai>=1.1.10",

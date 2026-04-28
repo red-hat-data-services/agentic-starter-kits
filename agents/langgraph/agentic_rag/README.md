@@ -20,48 +20,74 @@ Supports Milvus Lite (local) and pgvector (OpenShift) as vector store backends.
 
 - [uv](https://docs.astral.sh/uv/) — Python package manager
 - [Podman](https://podman.io/) or [Docker](https://www.docker.com/) — for local container builds (Option A)
-- [oc](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) — for OpenShift deployment
+- [oc](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) — for
+  OpenShift deployment
 - [Helm](https://helm.sh/) — for deploying to Kubernetes/OpenShift
-- [GNU Make](https://www.gnu.org/software/make/) and a bash-compatible shell — on Windows, use [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) (recommended) or [Git Bash](https://git-scm.com/downloads)
+- [GNU Make](https://www.gnu.org/software/make/) and a bash-compatible shell — on Windows,
+  use [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) (recommended)
+  or [Git Bash](https://git-scm.com/downloads)
 
-## Deploying Locally
+## Local Development
 
-### Setup
+#### Initiating base
+
+`make init` creates a `.env` file from `.env.example`. Set your environment variables in the `.env` file.
 
 ```bash
 cd agents/langgraph/agentic_rag
-make init        # creates .env from .env.example
+make init
 ```
 
-### Configuration
+#### Tracing (optional)
 
-#### Pointing to a locally hosted model
+Tracing is optional. If MLflow tracing is required, enable it by uncommenting and setting the following environment variables in the `.env` file.
+
+##### Tracing with a local MLflow server
 
 ```ini
-API_KEY=not-needed
-BASE_URL=http://localhost:8321/v1
-MODEL_ID=ollama/llama3.2:3b
+MLFLOW_TRACKING_URI="http://localhost:5000"
+MLFLOW_EXPERIMENT_NAME="langgraph-agentic-rag"
+MLFLOW_HTTP_REQUEST_TIMEOUT=2
+MLFLOW_HTTP_REQUEST_MAX_RETRIES=0
 ```
 
-See [Local Development](../../../docs/local-development.md) for Ollama + Llama Stack setup for local model serving.
+Then start the MLflow server in a separate terminal:
 
-#### Pointing to a remotely hosted model
+```bash
+# Start the MLflow server
+uv run --extra tracing mlflow server --port 5000
+```
+
+When `MLFLOW_TRACKING_URI` is set, `make run-app` and `make run-cli` will automatically install the tracing dependency.
+
+##### Tracing with an OpenShift MLflow server
+
+To enable tracing and logging with MLflow on your OpenShift cluster, add the following environment variables to your `.env` file:
 
 ```ini
-API_KEY=your-api-key-here
-BASE_URL=https://your-model-endpoint.com/v1
-MODEL_ID=llama-3.1-8b-instruct
+MLFLOW_TRACKING_URI="https://<openshift-dashboard-url>/mlflow"
+MLFLOW_TRACKING_TOKEN="<your-openshift-token>"
+MLFLOW_EXPERIMENT_NAME="langgraph-agentic-rag"
+MLFLOW_TRACKING_INSECURE_TLS="true"
+MLFLOW_WORKSPACE="default"
 ```
 
 **Notes:**
+- `MLFLOW_TRACKING_URI` - URL of your MLflow server. For local development, use `http://localhost:5000`. If using MLflow on an OpenShift cluster, replace `<openshift-dashboard-url>` with your cluster's data science gateway URL.
+- `MLFLOW_TRACKING_TOKEN` - Required for OpenShift only. Your OpenShift authentication token, obtained from the OpenShift console.
+- `MLFLOW_EXPERIMENT_NAME` - A descriptive name for your experiment (e.g., "LangGraph Agentic RAG Demo")
+- `MLFLOW_TRACKING_INSECURE_TLS` - Required for OpenShift only. Set to `"true"` if your cluster does not use trusted certificates.
+- `MLFLOW_WORKSPACE` - Required for OpenShift only. Project name.
 
-- `API_KEY` - your API key or contact your cluster administrator
-- `BASE_URL` - should end with `/v1`
-- `MODEL_ID` - model identifier available on your endpoint
+- Tracing is optional; if you do not set `MLFLOW_TRACKING_URI`, the application will run without MLflow logging.
 
-### RAG Configuration
+- If `MLFLOW_TRACKING_URI` is set, the application will attempt to connect to the MLflow server at startup. If the server is unreachable, the application will log a warning and continue running without tracing.
 
-In addition to the model configuration above, this agent requires RAG-specific settings in your `.env` file:
+- You can control how long the application waits for the MLflow server by setting `MLFLOW_HEALTH_CHECK_TIMEOUT` (in seconds, default: `5`).
+
+#### RAG Configuration
+
+In addition to the model configuration, this agent requires RAG-specific settings in your `.env` file:
 
 ```ini
 EMBEDDING_MODEL=ollama/embeddinggemma:latest
@@ -78,17 +104,46 @@ DOCS_TO_LOAD=./data/sample_knowledge.txt
 - `EMBEDDING_DIMENSION` - Dimension of the embedding vectors (default: `768`). Must match the embedding model's output dimension.
 - `VECTOR_STORE_ID` - Identifier for the vector store collection. If left empty, a new collection will be created when loading documents.
 - `VECTOR_STORE_PROVIDER` - Vector store backend: `milvus` for local development (default), `pgvector` for OpenShift deployments.
-- `VECTOR_STORE_PATH` - Absolute path where the Milvus Lite database will be stored. For local development, use a path on your machine. In containers, this defaults to `/opt/app-root/src/data/vector_store`. Not used when `VECTOR_STORE_PROVIDER=pgvector`.
+- `VECTOR_STORE_PATH` - Absolute path where the Milvus Lite database will be stored. Not used when `VECTOR_STORE_PROVIDER=pgvector`.
 - `DOCS_TO_LOAD` - Path to the text file containing documents to load into the vector store. A sample file is provided at `./data/sample_knowledge.txt`.
 
-### Loading Documents into the Vector Store
+#### Creating environment
+
+Now you will remove old .venv and create new. Next dependencies will be installed.
+
+```bash
+make env
+```
+
+#### Setup Ollama
+
+This will install ollama if it is not installed already. Then pull needed models for local work.
+The default model is `llama3.1:8b`. To use a different model, pass `MODEL=`:
+`make ollama MODEL=llama3.2:3b`
+
+This also pulls the embedding model (`embeddinggemma:latest`) required for RAG.
+
+```bash
+make ollama
+```
+
+#### Run llama server
+
+> **Keep this terminal open** – the server needs to keep running.
+> You should see output indicating the server started on `http://localhost:8321`.
+
+```bash
+make llama-server
+```
+
+#### Load documents into vector store
 
 Before running the agent, you need to load documents into the vector store.
 
-If you do not have a `VECTOR_STORE_ID`, you can create one by running the document loader script:
+If you do not have a `VECTOR_STORE_ID`, you can create one by running the document loader:
 
 ```bash
-uv run python data/load_documents.py
+make load-docs
 ```
 
 This will:
@@ -100,105 +155,35 @@ This will:
 - Store chunks in the vector store
 - Automatically write the new `VECTOR_STORE_ID` back to your `.env` file
 
-### Tracing (optional)
+#### Run the interactive web application
 
-#### Tracing with a local MLflow server
-
-To enable MLflow tracing, add the following to your `.env`:
-
-```ini
-MLFLOW_TRACKING_URI="http://localhost:5000"
-MLFLOW_EXPERIMENT_NAME="langgraph-agentic-rag"
-MLFLOW_HTTP_REQUEST_TIMEOUT=2
-MLFLOW_HTTP_REQUEST_MAX_RETRIES=0
-```
-
-Then start the MLflow server in a separate terminal:
+> **Keep this terminal open** – the app needs to keep running.
+> You should see output indicating the app started on `http://localhost:8000`.
 
 ```bash
-# Start the MLflow server
-uv run --extra tracing mlflow server --port 5000
+cd agents/langgraph/agentic_rag
+make run-app           # fails if port is already in use and print steps TO-DO
 ```
 
-When `MLFLOW_TRACKING_URI` is set, `make run` and `make run-cli` will automatically install the tracing dependency.
-
-#### Tracing with an OpenShift MLflow server
-
-To enable tracing and logging with MLflow on your OpenShift cluster, add the following environment variables to your `.env` file:
-
-```ini
-MLFLOW_TRACKING_URI="https://<openshift-dashboard-url>/mlflow"
-MLFLOW_TRACKING_TOKEN="<your-openshift-token>"
-MLFLOW_EXPERIMENT_NAME="langgraph-agentic-rag"
-MLFLOW_TRACKING_INSECURE_TLS="true"
-MLFLOW_WORKSPACE="default"
-```
-
-**Notes:**
-- `MLFLOW_TRACKING_URI` - Replace `<openshift-dashboard-url>` with your OpenShift cluster's data science gateway URL
-- `MLFLOW_TRACKING_TOKEN` - Your openshift authentication token. It can be obtained from the openshift console.
-- `MLFLOW_EXPERIMENT_NAME` - A descriptive name for your experiment (e.g., "LangGraph Agentic RAG Demo")
-- `MLFLOW_TRACKING_INSECURE_TLS` - Set to `"true"` if your OpenShift cluster does not use trusted certificates
-- `MLFLOW_WORKSPACE` - Project name
-
-- Tracing is optional; if you do not set `MLFLOW_TRACKING_URI`, the application will run without MLflow logging.
-
-- If `MLFLOW_TRACKING_URI` is set, the application will attempt to connect to the MLflow server at startup. If the server is unreachable, the application will log a warning and continue running without tracing.
-
-- You can control how long the application waits for the MLflow server by setting `MLFLOW_HEALTH_CHECK_TIMEOUT` (in seconds, default: `5`).
-
-### Running the Agent
-
-#### Web Playground (`make run`)
-
-```bash
-make run
-```
-
-Open [http://localhost:8000](http://localhost:8000) in your browser. A green dot in the header means the agent is connected and ready.
-
-#### Interactive CLI (`make run-cli`)
+#### Interactive CLI
 
 For terminal-based testing without a browser:
 
 ```bash
+cd agents/langgraph/agentic_rag
 make run-cli
 ```
 
-This launches an interactive prompt where you can pick predefined questions or type your own. Tool calls and results are displayed inline with colored output.
-
-#### Standalone Flask Playground (alternative)
-
-You can also run the playground as a separate Flask app that proxies to the agent:
-
-```bash
-# Terminal 1: Start the agent
-make run
-
-# Terminal 2: Open in the same directory as Terminal 1
-uv run flask --app playground.app run --port 5050
-```
-
-| Variable    | Default                  | Description                     |
-|-------------|--------------------------|---------------------------------|
-| `AGENT_URL` | `http://localhost:8000`  | URL of the running agent API    |
-
-If the agent runs on a different host or port:
-
-```bash
-AGENT_URL=https://your-agent-url uv run flask --app playground.app run --port 5050
-```
+This launches an interactive prompt where you can pick predefined questions or type your own. Tool calls and results are
+displayed inline with colored output.
 
 ## Deploying to OpenShift
-
-> **Before you begin:** Log in to OpenShift (`oc login`) and, if using local build + push, your container registry (`podman login`).
-> See [OpenShift Deployment](../../../docs/openshift-deployment.md) for full prerequisites and step-by-step instructions.
 
 ### Setup
 
 ```bash
 cd agents/langgraph/agentic_rag
-make init        # creates .env from .env.example
+make init
 ```
 
 ### Configuration
@@ -212,7 +197,7 @@ external route URL so both LLM and vector store operations go through LlamaStack
 
 ```ini
 API_KEY=not-needed
-BASE_URL=https://<llamastack-route-host>/v1
+BASE_URL=https://llamastack-route-host/v1
 MODEL_ID=vllm//mnt/models
 CONTAINER_IMAGE=quay.io/your-username/langgraph-agentic-rag:latest
 
@@ -237,9 +222,9 @@ curl -s https://<route-host>/v1/models | python3 -m json.tool
 **Notes:**
 
 - `API_KEY` - your API key or contact your cluster administrator. Use `not-needed` for LlamaStack servers that don't require auth.
-- `BASE_URL` - should end with `/v1`. For LlamaStack on the cluster, use the external route URL (e.g., `https://<llamastack-route-host>/v1`).
+- `BASE_URL` - should end with `/v1`. For LlamaStack on the cluster, use the external route URL.
 - `MODEL_ID` - model identifier available on your endpoint
-- `VECTOR_STORE_PROVIDER` - vector store backend configured in your LlamaStack server. Use `pgvector` or `milvus` (default in `values.yaml`) depending on your LlamaStack deployment.
+- `VECTOR_STORE_PROVIDER` - vector store backend configured in your LlamaStack server. Use `pgvector` or `milvus` depending on your LlamaStack deployment.
 - `CONTAINER_IMAGE` -- full image path where the agent container will be pushed and pulled from. The image is built
   locally, pushed to this registry, and then deployed to OpenShift.
 
@@ -250,6 +235,10 @@ curl -s https://<route-host>/v1/models | python3 -m json.tool
     - Quay.io: `quay.io/your-username/langgraph-agentic-rag:latest`
     - Docker Hub: `docker.io/your-username/langgraph-agentic-rag:latest`
     - GHCR: `ghcr.io/your-org/langgraph-agentic-rag:latest`
+
+  > **Note:** OpenShift must be able to pull the container image. Make the image **public**, or configure
+  an [image pull secret](https://docs.openshift.com/container-platform/latest/openshift_images/managing_images/using-image-pull-secrets.html)
+  for private registries.
 
 ### Loading Documents into the Vector Store (OpenShift)
 
@@ -263,6 +252,18 @@ uv run python data/load_documents.py
 The script creates a new vector store, prints its ID, and writes the `VECTOR_STORE_ID` back to your `.env` file automatically.
 
 ### Building the Container Image
+
+Login to OC
+
+```bash
+oc login -u "login" -p "password" https://super-link-to-cluster:111
+```
+
+Login ex. Docker
+
+```bash
+docker login -u='login' -p='password' quay.io
+```
 
 #### Option A: Build locally and push to a registry
 
@@ -313,6 +314,14 @@ oc get route langgraph-agentic-rag -o jsonpath='{.spec.host}'
 make undeploy
 ```
 
+See [OpenShift Deployment](../../../docs/openshift-deployment.md) for more details.
+
+## Tests
+
+```bash
+make test
+```
+
 ## API Endpoints
 
 ### POST /chat/completions
@@ -348,8 +357,6 @@ curl -sN -X POST http://localhost:8000/chat/completions \
 curl http://localhost:8000/health
 ```
 
----
-
 ## How It Works
 
 This agent implements a Retrieval-Augmented Generation (RAG) pattern:
@@ -361,36 +368,6 @@ This agent implements a Retrieval-Augmented Generation (RAG) pattern:
 3. **Augmented Generation**: The retrieved chunks are provided as context to the LLM, which generates an answer grounded in the relevant documents. This reduces hallucination and allows the model to answer questions about your specific data.
 
 The agent uses LangGraph to orchestrate the retrieval and generation steps, LangChain for the LLM integration, and LlamaStack for vector store operations.
-
----
-
-## OpenAI SDK for Llama-stack Connectivity
-
-This agent uses the **OpenAI SDK** (via LangChain's `ChatOpenAI`) to connect to Llama-stack or any OpenAI-compatible
-endpoint:
-
-- **`base_url`**: Points to Llama-stack server endpoint (e.g., `http://localhost:8321/v1`)
-- **`model`**: Uses Llama-stack's model identifier (e.g., `ollama/llama3.2:3b`)
-- **`api_key`**: Can be "not-needed" for local Llama-stack, required for remote OpenAI
-
-The OpenAI-compatible API allows **switching between providers** without code changes:
-just update `BASE_URL`, `MODEL_ID`, and `API_KEY` in your `.env` file.
-
-### Supported Providers:
-
-- **Local**: Ollama via Llama-stack (`http://localhost:8321/v1`)
-- **OpenAI**: OpenAI API (`https://api.openai.com/v1`)
-- **Azure OpenAI**: Azure endpoints
-- **vLLM**: Self-hosted vLLM servers
-- **Any OpenAI-compatible API**
-
----
-
-## Tests
-
-```bash
-make test
-```
 
 ## Resources
 

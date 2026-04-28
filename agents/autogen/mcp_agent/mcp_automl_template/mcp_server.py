@@ -26,6 +26,15 @@ mcp = FastMCP(
     transport_security=_transport_security,
 )
 
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health(request: Request) -> JSONResponse:
+    """Health check for Kubernetes liveness/readiness probes."""
+    return JSONResponse({"status": "healthy"})
+
 
 # Simple example tools
 @mcp.tool()

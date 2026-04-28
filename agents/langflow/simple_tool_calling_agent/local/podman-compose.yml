@@ -12,7 +12,7 @@ services:
       LANGFLOW_SKIP_AUTH_AUTO_LOGIN: "true"
       # Model endpoint — points to Ollama running on the host machine (not in a container)
       OPENAI_API_BASE: "http://host.containers.internal:11434/v1"
-      OPENAI_API_KEY: "not-needed"
+      OPENAI_API_KEY: "not-needed-for-local-development"
       OLLAMA_BASE_URL: "http://host.containers.internal:11434"
       # Langfuse tracing
       LANGFUSE_HOST: "http://langfuse-web:3000"
@@ -37,7 +37,7 @@ services:
       - postgres_data:/var/lib/postgresql/data:Z
       - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:Z
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-langflow}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-langflow}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -140,7 +140,7 @@ services:
     volumes:
       - minio_data:/data:Z
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: [ "CMD", "mc", "ready", "local" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -156,7 +156,7 @@ services:
     volumes:
       - redis_data:/data:Z
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "localredis", "ping"]
+      test: [ "CMD", "redis-cli", "-a", "localredis", "ping" ]
       interval: 3s
       timeout: 10s
       retries: 10

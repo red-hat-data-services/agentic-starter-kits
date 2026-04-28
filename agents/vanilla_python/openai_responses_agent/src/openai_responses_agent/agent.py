@@ -34,10 +34,7 @@ def get_agent_closure(
     if not model_id:
         model_id = getenv("MODEL_ID")
     if not api_key:
-        try:
-            api_key = getenv("API_KEY")
-        except (EnvironmentError, ValueError):
-            api_key = None
+        api_key = getenv("API_KEY")
 
     def get_agent() -> "_AIAgentAdapter":
         return _AIAgentAdapter(
@@ -162,10 +159,7 @@ class AIAgent:
         if model is None:
             model = getenv("MODEL_ID")
         if api_key is None:
-            try:
-                api_key = getenv("API_KEY")
-            except (EnvironmentError, ValueError):
-                api_key = None
+            api_key = getenv("API_KEY")
 
         # OpenAI client: works with api.openai.com or any OpenAI-compatible API (base_url)
         client_kwargs: Dict[str, Any] = {}

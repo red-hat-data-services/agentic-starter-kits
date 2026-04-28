@@ -4,20 +4,45 @@ CHART_DIR      := ../../../charts/agent
 VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 
-.PHONY: init run run-cli build push build-openshift deploy undeploy test dry-run help
+.PHONY: init re-init env run-app run-app-fresh run-cli build push build-openshift deploy undeploy test dry-run help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
+re-init: ## Activate venv and reload .env variables
+	@source .venv/bin/activate && set -a && source .env && set +a && \
+	  echo "Venv activated and .env variables loaded."
+
 init: ## Copy .env.example to .env for configuration
 	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from .env.example — edit it with your configuration"; else echo ".env already exists — skipping"; fi
 
-run: ## Run agent locally with hot-reload
-	@set -a && source .env && set +a && \
-	  uv run $${MLFLOW_TRACKING_URI:+--extra tracing} uvicorn main:app --host 0.0.0.0 --port $${PORT:-8000} --reload --reload-exclude .venv
+env: ## Create venv, load .env, and install dependencies
+	@echo "==> Creating virtual environment and installing dependencies..." && \
+	  rm -rf .venv && \
+	  uv sync --python 3.12 && \
+	  echo "==> Load .env variables..." && \
+	  source .venv/bin/activate && set -a && source .env && set +a && \
+	  echo "" && \
+	  echo "Done. Next steps:" && \
+	  echo "  make run-app   # start the agent"
+
+run-app: ## Run agent locally with hot-reload
+	@source .venv/bin/activate && set -a && source .env && set +a && \
+	  if lsof -ti:$${PORT:-8000} >/dev/null 2>&1; then \
+	    echo "ERROR: Port $${PORT:-8000} is already in use." && \
+	    echo "  Change PORT in .env or run: make run-app-fresh" && \
+	    exit 1; \
+	  fi && \
+	  uv run $${MLFLOW_TRACKING_URI:+--extra tracing} uvicorn main:app --host 127.0.0.1 --port $${PORT:-8000} --reload --reload-exclude .venv
+
+run-app-fresh: ## Kill existing process on port and run agent with hot-reload
+	@source .venv/bin/activate && set -a && source .env && set +a && \
+	  echo "==> Killing existing process on port $${PORT:-8000}..." && \
+	  lsof -ti:$${PORT:-8000} | xargs kill -9 2>/dev/null; true && \
+	  uv run $${MLFLOW_TRACKING_URI:+--extra tracing} uvicorn main:app --host 127.0.0.1 --port $${PORT:-8000} --reload --reload-exclude .venv
 
 run-cli: ## Run interactive CLI chat (no web server)
-	@set -a && source .env && set +a && \
+	@source .venv/bin/activate && set -a && source .env && set +a && \
 	  cd examples && uv run $${MLFLOW_TRACKING_URI:+--extra tracing} python execute_ai_service_locally.py
 
 build: ## Build container image locally (podman/docker)

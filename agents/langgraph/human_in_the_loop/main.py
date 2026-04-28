@@ -7,13 +7,14 @@ from os import getenv
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from human_in_the_loop.agent import get_graph_closure
+from human_in_the_loop.tracing import enable_tracing
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +131,8 @@ checkpointer = None
 async def lifespan(app: FastAPI):
     """Initialize the HITL agent graph on startup and clear it on shutdown."""
     global agent_graph_closure, checkpointer
+
+    enable_tracing()
 
     base_url = getenv("BASE_URL")
     model_id = getenv("MODEL_ID")
@@ -535,7 +538,11 @@ async def _handle_stream(
     "/health", response_model=HealthResponse, summary="Health check", tags=["Health"]
 )
 async def health():
-    return {"status": "healthy", "agent_initialized": agent_graph_closure is not None}
+    initialized = agent_graph_closure is not None
+    body = {"status": "healthy" if initialized else "not_ready", "agent_initialized": initialized}
+    if not initialized:
+        return JSONResponse(status_code=503, content=body)
+    return body
 
 
 # ── Playground UI ────────────────────────────────────────────────────────────

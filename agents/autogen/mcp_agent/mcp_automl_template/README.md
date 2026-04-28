@@ -111,6 +111,37 @@ tools:
 
 Standard JSON Schema with `properties` and `required`. Field types and `required` are respected: required parameters have no default; optional ones default to `None` when not provided. The server also coerces the string `"null"` to `None` for optional fields.
 
+## Deploying to OpenShift
+
+The MCP AutoML server deploys to OpenShift using the shared Helm chart. From the parent `mcp_agent/` directory:
+
+### Prerequisites
+
+- `oc` CLI installed and logged in to your OpenShift cluster
+- [Helm 3](https://helm.sh/docs/intro/install/) installed
+- `DEPLOYMENT_URL` and `DEPLOYMENT_TOKEN` set in `.env` (see `.env.example`)
+
+### Deploy
+
+```bash
+cd agents/autogen/mcp_agent
+make deploy-mcp
+```
+
+This builds the container image in-cluster via OpenShift BuildConfig and deploys using `helm upgrade --install`. The Route URL is printed on success.
+
+### Preview rendered manifests
+
+```bash
+make dry-run-mcp
+```
+
+### Remove
+
+```bash
+make undeploy-mcp
+```
+
 ## Running the MCP server
 
 From the project root (or the directory containing `mcp_server.py`):

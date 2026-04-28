@@ -1,0 +1,60 @@
+# Path-based label mappings for actions/labeler@v6
+# Uses any-glob-to-any-file: a single file match triggers the label
+
+area/langgraph:
+  - changed-files:
+    - any-glob-to-any-file: 'agents/langgraph/**'
+
+area/crewai:
+  - changed-files:
+    - any-glob-to-any-file: 'agents/crewai/**'
+
+area/autogen:
+  - changed-files:
+    - any-glob-to-any-file: 'agents/autogen/**'
+
+area/llamaindex:
+  - changed-files:
+    - any-glob-to-any-file: 'agents/llamaindex/**'
+
+area/langflow:
+  - changed-files:
+    - any-glob-to-any-file: 'agents/langflow/**'
+
+area/google-adk:
+  - changed-files:
+    - any-glob-to-any-file: 'agents/google/**'
+
+area/a2a:
+  - changed-files:
+    - any-glob-to-any-file: 'agents/a2a/**'
+
+area/vanilla-python:
+  - changed-files:
+    - any-glob-to-any-file: 'agents/vanilla_python/**'
+
+area/helm:
+  - changed-files:
+    - any-glob-to-any-file: 'charts/**'
+
+area/docs:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'docs/**'
+      - '*.md'
+
+area/ci:
+  - changed-files:
+    - any-glob-to-any-file: '.github/**'
+
+area/tests:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tests/**'
+      - 'eval/**'
+
+area/tracing:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/tracing.py'
+      - 'tracing.md'

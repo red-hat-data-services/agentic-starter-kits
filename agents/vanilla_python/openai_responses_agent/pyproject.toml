@@ -10,7 +10,7 @@ dependencies = [
     "openai>=2.24.0",
     "setuptools>=80.9.0,<82.0.0",
     "flask>=3.1.0",
-    "fastapi>=0.129.0",
+    "fastapi>=0.135.1",
     "uvicorn[standard]>=0.41.0",
 ]
 

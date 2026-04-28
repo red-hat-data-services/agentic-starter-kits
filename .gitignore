@@ -13,7 +13,7 @@ config.toml
 milvus_data/
 *.egg-info/
 uv.lock
-.helm-secrets.yaml
+.helm-secrets*.yaml
 agents/langflow/simple_tool_calling_agent/local/.ollama-enabled
 *.db
-CLAUDE.md
+CLAUDE.local.md

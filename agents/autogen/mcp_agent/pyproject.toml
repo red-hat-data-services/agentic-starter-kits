@@ -9,7 +9,7 @@ dependencies = [
     "autogen-agentchat",
     "autogen-ext[openai,mcp]",
     "openai",
-    "fastapi>=0.129.0",
+    "fastapi>=0.135.1",
     "uvicorn[standard]>=0.41.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.2.0",
@@ -18,8 +18,20 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+tracing = [
+    "mlflow>=3.10.0",
+]
 dev = [
     "pytest>=9.0.2",
+]
+llama = [
+    "llama-stack>=0.7.1",
+    "llama-stack-api>=0.7.1",
+    "ollama>=0.4.0",
+    "milvus-lite>=2.5.1",
+    "pymilvus>=2.6.9",
+    "chardet>=7.1.0",
+    "pypdf>=6.9.0",
 ]
 [tool.setuptools.packages.find]
 where = ["src"]

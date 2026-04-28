@@ -5,7 +5,7 @@ VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
 
-.PHONY: init re-init env ollama llama run-app run-app-fresh run-cli build push build-openshift deploy undeploy test dry-run help
+.PHONY: init re-init env ollama llama-server run-app run-app-fresh run-cli build push build-openshift deploy undeploy test dry-run help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -38,8 +38,18 @@ ollama: ## Install Ollama, start it, and pull models
 	fi && \
 	  echo "==> Starting Ollama service..." && \
 	  ollama serve &>/dev/null & \
-	  echo "Waiting for Ollama to be ready..." && \
-	  until ollama list >/dev/null 2>&1; do sleep 1; done && \
+	  OLLAMA_PID=$$! && \
+	  echo "Waiting for Ollama to be ready (max 30s)..." && \
+	  OLLAMA_WAIT=0 && \
+	  until ollama list >/dev/null 2>&1; do \
+	    OLLAMA_WAIT=$$((OLLAMA_WAIT + 1)); \
+	    if [ $$OLLAMA_WAIT -ge 30 ]; then \
+	      echo "ERROR: Ollama failed to start within 30 seconds." && \
+	      kill $$OLLAMA_PID 2>/dev/null; \
+	      exit 1; \
+	    fi; \
+	    sleep 1; \
+	  done && \
 	  echo "==> Pulling $(MODEL)..." && \
 	  ollama pull $(MODEL) && \
 	  echo "==> Creating Milvus dir..." && \
@@ -63,13 +73,13 @@ run-app: ## Run agent locally with hot-reload
 	    echo "  Change PORT in .env or run: make run-app-fresh" && \
 	    exit 1; \
 	  fi && \
-	  uv run uvicorn main:app --host 0.0.0.0 --port $${PORT:-8000} --reload --reload-exclude .venv
+	  uv run uvicorn main:app --host 127.0.0.1 --port $${PORT:-8000} --reload --reload-exclude .venv
 
 run-app-fresh: ## Kill existing process on port and run agent with hot-reload
 	@source .venv/bin/activate && set -a && source .env && set +a && \
 	  echo "==> Killing existing process on port $${PORT:-8000}..." && \
 	  lsof -ti:$${PORT:-8000} | xargs kill -9 2>/dev/null; true && \
-	  uv run uvicorn main:app --host 0.0.0.0 --port $${PORT:-8000} --reload --reload-exclude .venv
+	  uv run uvicorn main:app --host 127.0.0.1 --port $${PORT:-8000} --reload --reload-exclude .venv
 
 run-cli: ## Run interactive CLI chat (no web server)
 	@source .venv/bin/activate && set -a && source .env && set +a && \

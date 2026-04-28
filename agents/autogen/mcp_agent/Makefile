@@ -3,19 +3,84 @@ AGENT_NAME     := $(shell python3 -c "import re; print(re.search(r'^name:\s*(.+)
 CHART_DIR      := ../../../charts/agent
 VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
+MODEL          ?= llama3.1:8b
 
-.PHONY: init run run-mcp interact-mcp build push build-openshift deploy deploy-mcp undeploy test dry-run help
+.PHONY: init env ollama llama-server run-app run-app-fresh run-mcp interact-mcp build push build-openshift deploy deploy-mcp undeploy undeploy-mcp test dry-run dry-run-mcp help
 
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
 init: ## Copy .env.example to .env for configuration
 	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from .env.example — edit it with your configuration"; else echo ".env already exists — skipping"; fi
 
-run: ## Run agent locally with hot-reload (port 8000)
-	@set -a && source .env && set +a && \
+env: ## Create venv and install dependencies
+	@echo "==> Creating virtual environment and installing dependencies..." && \
+	  rm -rf .venv && \
+	  uv sync --python 3.12 && \
+	  echo "" && \
+	  echo "Done. Next steps:" && \
+	  echo "  make ollama       # install Ollama and pull models" && \
+	  echo "  make llama-server # start Llama Stack server"
+
+ollama: ## Install Ollama, start it, and pull models
+	@if command -v ollama >/dev/null 2>&1; then \
+	  echo "==> Ollama already installed, skipping..."; \
+	else \
+	  echo "==> Installing Ollama..." && \
+	  curl -fsSL https://ollama.com/install.sh | sh; \
+	fi && \
+	  echo "==> Starting Ollama service..." && \
+	  ollama serve &>/dev/null & \
+	  OLLAMA_PID=$$! && \
+	  echo "Waiting for Ollama to be ready (max 30s)..." && \
+	  OLLAMA_WAIT=0 && \
+	  until ollama list >/dev/null 2>&1; do \
+	    OLLAMA_WAIT=$$((OLLAMA_WAIT + 1)); \
+	    if [ $$OLLAMA_WAIT -ge 30 ]; then \
+	      echo "ERROR: Ollama failed to start within 30 seconds." && \
+	      kill $$OLLAMA_PID 2>/dev/null; \
+	      exit 1; \
+	    fi; \
+	    sleep 1; \
+	  done && \
+	  echo "==> Pulling $(MODEL)..." && \
+	  ollama pull $(MODEL) && \
+	  echo "" && \
+	  echo "Done. Run 'make llama-server' to start the Llama Stack server."
+
+llama-server: ## Install llama-stack and start Llama Stack server
+	@[ -f .env ] || { echo "ERROR: .env not found — run 'make init' first"; exit 1; }
+	@[ -d .venv ] || { echo "ERROR: .venv not found — run 'make env' first"; exit 1; }
+	@source .venv/bin/activate && \
+	  echo "==> Installing llama-stack dependencies..." && \
+	  uv sync --extra llama && \
+	  set -a && source .env && set +a && \
+	  mkdir -p ../../../milvus_data && \
+	  echo "==> Killing any existing process on port 8321..." && \
+	  lsof -ti:8321 | xargs kill -9 2>/dev/null; true && \
+	  echo "==> Starting Llama Stack server on port 8321..." && \
+	  llama stack run ../../../run_llama_server.yaml
+
+run-app: ## Run agent locally with hot-reload
+	@[ -f .env ] || { echo "ERROR: .env not found — run 'make init' first"; exit 1; }
+	@[ -d .venv ] || { echo "ERROR: .venv not found — run 'make env' first"; exit 1; }
+	@source .venv/bin/activate && set -a && source .env && set +a && \
+	  if lsof -ti:$${PORT:-8000} >/dev/null 2>&1; then \
+	    echo "ERROR: Port $${PORT:-8000} is already in use." && \
+	    echo "  Change PORT in .env or run: make run-app-fresh" && \
+	    exit 1; \
+	  fi && \
 	  MCP_SERVER_URL="$${MCP_SERVER_URL:-http://127.0.0.1:8080/sse}" \
-	  uv run uvicorn main:app --host 127.0.0.1 --port $${PORT:-8000} --reload --reload-exclude .venv
+	  uv run $${MLFLOW_TRACKING_URI:+--extra tracing} uvicorn main:app --host 127.0.0.1 --port $${PORT:-8000} --reload --reload-exclude .venv
+
+run-app-fresh: ## Kill existing process on port and run agent with hot-reload
+	@[ -f .env ] || { echo "ERROR: .env not found — run 'make init' first"; exit 1; }
+	@[ -d .venv ] || { echo "ERROR: .venv not found — run 'make env' first"; exit 1; }
+	@source .venv/bin/activate && set -a && source .env && set +a && \
+	  echo "==> Killing existing process on port $${PORT:-8000}..." && \
+	  lsof -ti:$${PORT:-8000} | xargs kill -9 2>/dev/null; true && \
+	  MCP_SERVER_URL="$${MCP_SERVER_URL:-http://127.0.0.1:8080/sse}" \
+	  uv run $${MLFLOW_TRACKING_URI:+--extra tracing} uvicorn main:app --host 127.0.0.1 --port $${PORT:-8000} --reload --reload-exclude .venv
 
 interact-mcp: ## Chat with MCP tools directly via LangGraph (no AutoGen agent)
 	@set -a && source .env && set +a && \
@@ -23,7 +88,7 @@ interact-mcp: ## Chat with MCP tools directly via LangGraph (no AutoGen agent)
 
 run-mcp: ## Start MCP AutoML server locally (port 8080)
 	@set -a && source .env && set +a && \
-	  cd mcp_automl_template && PORT=8080 uv run python mcp_server.py
+	  cd mcp_automl_template && PORT=8080 DISABLE_DNS_REBINDING_PROTECTION=true uv run python mcp_server.py
 
 build: ## Build container image locally (podman/docker)
 	@[ -n "$(CONTAINER_CLI)" ] || { echo "ERROR: neither podman nor docker found in PATH"; exit 1; } && \
@@ -83,8 +148,42 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	    fi; \
 	  fi
 
-deploy-mcp: ## Deploy MCP AutoML server to OpenShift
-	@./mcp_automl_template/deploy_mcp.sh
+deploy-mcp: ## Build MCP AutoML server in-cluster and deploy via Helm
+	@source .env 2>/dev/null || true && \
+	  echo "--- Building MCP AutoML server in-cluster ---" && \
+	  oc new-build --strategy=docker --binary --name=mcp-automl --to=mcp-automl:latest 2>/dev/null || true && \
+	  oc start-build mcp-automl --from-dir=mcp_automl_template --follow && \
+	  NS=$$(oc project -q) && \
+	  MCP_IMAGE="image-registry.openshift-image-registry.svc:5000/$$NS/mcp-automl:latest" && \
+	  echo "--- Deploying MCP AutoML server via Helm ---" && \
+	  trap 'rm -f .helm-secrets-mcp.yaml' EXIT && \
+	  umask 077 && \
+	  printf 'extraSecrets:\n  DEPLOYMENT_TOKEN: "%s"\n' "$${DEPLOYMENT_TOKEN}" > .helm-secrets-mcp.yaml && \
+	  helm upgrade --install mcp-automl $(CHART_DIR) \
+	    -f mcp_automl_template/values.yaml \
+	    -f .helm-secrets-mcp.yaml \
+	    --set image.repository="$${MCP_IMAGE%:*}" \
+	    --set image.tag="latest" \
+	    $${DEPLOYMENT_URL:+--set env.DEPLOYMENT_URL="$${DEPLOYMENT_URL}"} && \
+	  echo "" && echo "Waiting for rollout..." && \
+	  if oc rollout status deployment/mcp-automl --timeout=120s; then \
+	    ROUTE=$$(oc get route mcp-automl -o jsonpath='{.spec.host}' 2>/dev/null || true); \
+	    if [ -n "$$ROUTE" ]; then echo "" && echo "MCP server deployed. The agent connects via in-cluster DNS (http://mcp-automl:8080/sse)." && echo "External URL (for debugging): https://$$ROUTE"; fi; \
+	  fi
+
+undeploy-mcp: ## Remove MCP AutoML server from cluster
+	@helm uninstall mcp-automl || true
+	@if command -v oc >/dev/null 2>&1; then \
+	  oc delete buildconfig/mcp-automl imagestream/mcp-automl --ignore-not-found=true; \
+	fi
+
+dry-run-mcp: ## Preview MCP AutoML server Helm templates
+	@source .env 2>/dev/null || true && \
+	  helm template mcp-automl $(CHART_DIR) \
+	    -f mcp_automl_template/values.yaml \
+	    --set image.repository="placeholder" \
+	    --set extraSecrets.DEPLOYMENT_TOKEN="REDACTED" \
+	    $${DEPLOYMENT_URL:+--set env.DEPLOYMENT_URL="$${DEPLOYMENT_URL}"}
 
 dry-run: _check-env ## Render Helm templates without deploying
 	@source .env && \

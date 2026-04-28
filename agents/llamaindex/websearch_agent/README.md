@@ -18,54 +18,33 @@ Agent built on LlamaIndex that uses a web search tool to query the internet and 
 
 - [uv](https://docs.astral.sh/uv/) — Python package manager
 - [Podman](https://podman.io/) or [Docker](https://www.docker.com/) — for local container builds (Option A)
-- [oc](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) — for OpenShift deployment
+- [oc](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) — for
+  OpenShift deployment
 - [Helm](https://helm.sh/) — for deploying to Kubernetes/OpenShift
-- [GNU Make](https://www.gnu.org/software/make/) and a bash-compatible shell — on Windows, use [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) (recommended) or [Git Bash](https://git-scm.com/downloads)
+- [GNU Make](https://www.gnu.org/software/make/) and a bash-compatible shell — on Windows,
+  use [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) (recommended)
+  or [Git Bash](https://git-scm.com/downloads)
 
-## Deploying Locally
+## Local Development
 
-### Setup
+#### Initiating base
+
+`make init` creates a `.env` file from `.env.example`. Set your environment variables in the `.env` file.
 
 ```bash
 cd agents/llamaindex/websearch_agent
-make init        # creates .env from .env.example
+make init
 ```
 
-### Configuration
+#### Tracing (optional)
 
-#### Pointing to a locally hosted model
+Tracing is optional. If MLflow tracing is required, enable it by uncommenting and setting the following environment variables in the `.env` file.
 
-```ini
-API_KEY=not-needed
-BASE_URL=http://localhost:8321/v1
-MODEL_ID=ollama/llama3.2:3b
-```
-
-See [Local Development](../../../docs/local-development.md) for Ollama + Llama Stack setup for local model serving.
-
-#### Pointing to a remotely hosted model
-
-```ini
-API_KEY=your-api-key-here
-BASE_URL=https://your-model-endpoint.com/v1
-MODEL_ID=llama-3.1-8b-instruct
-```
-
-**Notes:**
-
-- `API_KEY` - your API key or contact your cluster administrator
-- `BASE_URL` - should end with `/v1`
-- `MODEL_ID` - model identifier available on your endpoint
-
-### Tracing (optional)
-
-#### Tracing with a local MLflow server
-
-To enable MLflow tracing, add the following to your `.env`:
+##### Tracing with a local MLflow server
 
 ```ini
 MLFLOW_TRACKING_URI="http://localhost:5000"
-MLFLOW_EXPERIMENT_NAME="LlamaIndex Local Experiment"
+MLFLOW_EXPERIMENT_NAME="llamaindex-websearch-agent"
 MLFLOW_HTTP_REQUEST_TIMEOUT=2
 MLFLOW_HTTP_REQUEST_MAX_RETRIES=0
 ```
@@ -77,26 +56,26 @@ Then start the MLflow server in a separate terminal:
 uv run --extra tracing mlflow server --port 5000
 ```
 
-When `MLFLOW_TRACKING_URI` is set, `make run` and `make run-cli` will automatically install the tracing dependency.
+When `MLFLOW_TRACKING_URI` is set, `make run-app` and `make run-cli` will automatically install the tracing dependency.
 
-#### Tracing with an OpenShift MLflow server
+##### Tracing with an OpenShift MLflow server
 
 To enable tracing and logging with MLflow on your OpenShift cluster, add the following environment variables to your `.env` file:
 
 ```ini
 MLFLOW_TRACKING_URI="https://<openshift-dashboard-url>/mlflow"
 MLFLOW_TRACKING_TOKEN="<your-openshift-token>"
-MLFLOW_EXPERIMENT_NAME="<your-experiment-name>"
+MLFLOW_EXPERIMENT_NAME="llamaindex-websearch-agent"
 MLFLOW_TRACKING_INSECURE_TLS="true"
 MLFLOW_WORKSPACE="default"
 ```
 
 **Notes:**
-- `MLFLOW_TRACKING_URI` - Replace `<openshift-dashboard-url>` with your OpenShift cluster's data science gateway URL
-- `MLFLOW_TRACKING_TOKEN` - Your openshift authentication token. It can be obtained from the openshift console.
-- `MLFLOW_EXPERIMENT_NAME` - A descriptive name for your experiment (e.g., "LlamaIndex Cluster Demo")
-- `MLFLOW_TRACKING_INSECURE_TLS` - Set to `"true"` if your OpenShift cluster does not use trusted certificates
-- `MLFLOW_WORKSPACE` - Project name
+- `MLFLOW_TRACKING_URI` - URL of your MLflow server. For local development, use `http://localhost:5000`. If using MLflow on an OpenShift cluster, replace `<openshift-dashboard-url>` with your cluster's data science gateway URL.
+- `MLFLOW_TRACKING_TOKEN` - Required for OpenShift only. Your OpenShift authentication token, obtained from the OpenShift console.
+- `MLFLOW_EXPERIMENT_NAME` - A descriptive name for your experiment (e.g., "LlamaIndex WebSearch Demo")
+- `MLFLOW_TRACKING_INSECURE_TLS` - Required for OpenShift only. Set to `"true"` if your cluster does not use trusted certificates.
+- `MLFLOW_WORKSPACE` - Required for OpenShift only. Project name.
 
 - Tracing is optional; if you do not set `MLFLOW_TRACKING_URI`, the application will run without MLflow logging.
 
@@ -104,58 +83,62 @@ MLFLOW_WORKSPACE="default"
 
 - You can control how long the application waits for the MLflow server by setting `MLFLOW_HEALTH_CHECK_TIMEOUT` (in seconds, default: `5`).
 
-### Running the Agent
+#### Creating environment
 
-#### Web Playground (`make run`)
+Now you will remove old .venv and create new. Next dependencies will be installed.
 
 ```bash
-make run
+make env
 ```
 
-Open [http://localhost:8000](http://localhost:8000) in your browser. A green dot in the header means the agent is connected and ready.
+#### Setup Ollama
 
-#### Interactive CLI (`make run-cli`)
+This will install ollama if it is not installed already. Then pull needed models for local work.
+The default model is `llama3.1:8b`. To use a different model, pass `MODEL=`:
+`make ollama MODEL=llama3.2:3b`
+
+```bash
+make ollama
+```
+
+#### Run llama server
+
+> **Keep this terminal open** – the server needs to keep running.
+> You should see output indicating the server started on `http://localhost:8321`.
+
+```bash
+make llama-server
+```
+
+#### Run the interactive web application
+
+> **Keep this terminal open** – the app needs to keep running.
+> You should see output indicating the app started on `http://localhost:8000`.
+
+```bash
+cd agents/llamaindex/websearch_agent
+make run-app           # fails if port is already in use and print steps TO-DO
+```
+
+#### Interactive CLI
 
 For terminal-based testing without a browser:
 
 ```bash
+cd agents/llamaindex/websearch_agent
 make run-cli
 ```
 
-This launches an interactive prompt where you can pick predefined questions or type your own. Tool calls and results are displayed inline with colored output.
-
-#### Standalone Flask Playground (alternative)
-
-You can also run the playground as a separate Flask app that proxies to the agent:
-
-```bash
-# Terminal 1: Start the agent
-make run
-
-# Terminal 2: Open in the same directory as Terminal 1
-uv run flask --app playground.app run --port 5050
-```
-
-| Variable    | Default                  | Description                     |
-|-------------|--------------------------|---------------------------------|
-| `AGENT_URL` | `http://localhost:8000`  | URL of the running agent API    |
-
-If the agent runs on a different host or port:
-
-```bash
-AGENT_URL=https://your-agent-url uv run flask --app playground.app run --port 5050
-```
+This launches an interactive prompt where you can pick predefined questions or type your own. Tool calls and results are
+displayed inline with colored output.
 
 ## Deploying to OpenShift
-
-> **Before you begin:** Log in to OpenShift (`oc login`) and, if using local build + push, your container registry (`podman login`).
-> See [OpenShift Deployment](../../../docs/openshift-deployment.md) for full prerequisites and step-by-step instructions.
 
 ### Setup
 
 ```bash
 cd agents/llamaindex/websearch_agent
-make init        # creates .env from .env.example
+make init
 ```
 
 ### Configuration
@@ -163,10 +146,10 @@ make init        # creates .env from .env.example
 Edit `.env` with your model endpoint and container image:
 
 ```ini
-API_KEY=your-api-key-here
-BASE_URL=https://your-model-endpoint.com/v1
-MODEL_ID=llama-3.1-8b-instruct
-CONTAINER_IMAGE=quay.io/your-username/llamaindex-websearch-agent:latest
+API_KEY = your-api-key-here
+BASE_URL = https://your-model-endpoint.com/v1
+MODEL_ID = llama-3.1-8b-instruct
+CONTAINER_IMAGE = quay.io/your-username/llamaindex-websearch-agent:latest
 ```
 
 **Notes:**
@@ -185,9 +168,23 @@ CONTAINER_IMAGE=quay.io/your-username/llamaindex-websearch-agent:latest
     - Docker Hub: `docker.io/your-username/llamaindex-websearch-agent:latest`
     - GHCR: `ghcr.io/your-org/llamaindex-websearch-agent:latest`
 
-  > **Note:** OpenShift must be able to pull the container image. Make the image **public**, or configure an [image pull secret](https://docs.openshift.com/container-platform/latest/openshift_images/managing_images/using-image-pull-secrets.html) for private registries.
+  > **Note:** OpenShift must be able to pull the container image. Make the image **public**, or configure
+  an [image pull secret](https://docs.openshift.com/container-platform/latest/openshift_images/managing_images/using-image-pull-secrets.html)
+  for private registries.
 
 ### Building the Container Image
+
+Login to OC
+
+```bash
+oc login -u "login" -p "password" https://super-link-to-cluster:111
+```
+
+Login ex. Docker
+
+```bash
+docker login -u='login' -p='password' quay.io
+```
 
 #### Option A: Build locally and push to a registry
 
@@ -238,6 +235,14 @@ oc get route llamaindex-websearch-agent -o jsonpath='{.spec.host}'
 make undeploy
 ```
 
+See [OpenShift Deployment](../../../docs/openshift-deployment.md) for more details.
+
+## Tests
+
+```bash
+make test
+```
+
 ## API Endpoints
 
 ### POST /chat/completions
@@ -273,14 +278,9 @@ curl -sN -X POST http://localhost:8000/chat/completions \
 curl http://localhost:8000/health
 ```
 
-## Tests
-
-```bash
-make test
-```
-
 ## Resources
 
 - [LlamaIndex Documentation](https://docs.llamaindex.ai/)
 - [LlamaIndex Workflows](https://docs.llamaindex.ai/en/stable/module_guides/workflow/)
 - [Llama Stack Documentation](https://llama-stack.readthedocs.io/)
+- [Ollama Documentation](https://ollama.com/docs)

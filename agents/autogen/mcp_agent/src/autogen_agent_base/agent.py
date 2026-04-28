@@ -1,3 +1,4 @@
+from os import getenv
 from typing import Callable
 
 from autogen_core.models import ModelFamily
@@ -39,12 +40,22 @@ def get_agent_chat(
 
     def get_agent(system_prompt: str = default_system_prompt) -> AssistantAgent:
         """Get AssistantAgent with overwritten system prompt, if provided."""
+        # Streaming is enabled by default for playground compatibility.
+        # When MLFLOW_TRACKING_URI is set, streaming is disabled to ensure
+        # complete traces (mlflow.autogen.autolog() doesn't support streaming).
+        # MODEL_CLIENT_STREAM can always be set explicitly to override.
+        explicit = getenv("MODEL_CLIENT_STREAM")
+        if explicit is not None:
+            stream = explicit.lower() == "true"
+        else:
+            stream = not bool(getenv("MLFLOW_TRACKING_URI"))
+
         return AssistantAgent(
             name="assistant",
             model_client=model_client,
             tools=effective_tools,
             system_message=system_prompt,
-            model_client_stream=True,
+            model_client_stream=stream,
             reflect_on_tool_use=True,
         )
 

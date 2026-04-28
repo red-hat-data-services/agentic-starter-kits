@@ -30,99 +30,132 @@ User Input → LLM decides tool → Is it sensitive?
 
 - [uv](https://docs.astral.sh/uv/) — Python package manager
 - [Podman](https://podman.io/) or [Docker](https://www.docker.com/) — for local container builds (Option A)
-- [oc](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) — for OpenShift deployment
+- [oc](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) — for
+  OpenShift deployment
 - [Helm](https://helm.sh/) — for deploying to Kubernetes/OpenShift
-- [GNU Make](https://www.gnu.org/software/make/) and a bash-compatible shell — on Windows, use [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) (recommended) or [Git Bash](https://git-scm.com/downloads)
+- [GNU Make](https://www.gnu.org/software/make/) and a bash-compatible shell — on Windows,
+  use [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) (recommended)
+  or [Git Bash](https://git-scm.com/downloads)
 
-## Deploying Locally
+## Local Development
 
-### Setup
+### Initiating base
+
+`make init` creates a `.env` file from `.env.example`. Set your environment variables in the `.env` file.
 
 ```bash
 cd agents/langgraph/human_in_the_loop
-make init        # creates .env from .env.example
+make init
 ```
 
-### Configuration
+### Tracing (optional)
 
-#### Pointing to a locally hosted model
+Tracing is optional. If MLflow tracing is required, enable it by uncommenting and setting the following environment variables in the `.env` file.
+
+#### Tracing with a local MLflow server
 
 ```ini
-API_KEY=not-needed
-BASE_URL=http://localhost:8321/v1
-MODEL_ID=ollama/llama3.2:3b
+MLFLOW_TRACKING_URI="http://localhost:5000"
+MLFLOW_EXPERIMENT_NAME="langgraph-hitl-agent"
+MLFLOW_HTTP_REQUEST_TIMEOUT=2
+MLFLOW_HTTP_REQUEST_MAX_RETRIES=0
 ```
 
-See [Local Development](../../../docs/local-development.md) for Ollama + Llama Stack setup for local model serving.
+Then start the MLflow server in a separate terminal:
 
-#### Pointing to a remotely hosted model
+```bash
+# Start the MLflow server
+uv run --extra tracing mlflow server --port 5000
+```
+
+When `MLFLOW_TRACKING_URI` is set, `make run-app` and `make run-cli` will automatically install the tracing dependency.
+
+#### Tracing with an OpenShift MLflow server
+
+To enable tracing and logging with MLflow on your OpenShift cluster, add the following environment variables to your `.env` file:
 
 ```ini
-API_KEY=your-api-key-here
-BASE_URL=https://your-model-endpoint.com/v1
-MODEL_ID=llama-3.1-8b-instruct
+MLFLOW_TRACKING_URI="https://<openshift-dashboard-url>/mlflow"
+MLFLOW_TRACKING_TOKEN="<your-openshift-token>"
+MLFLOW_EXPERIMENT_NAME="langgraph-hitl-agent"
+MLFLOW_TRACKING_INSECURE_TLS="true"
+MLFLOW_WORKSPACE="default"
 ```
 
 **Notes:**
+- `MLFLOW_TRACKING_URI` - URL of your MLflow server. For local development, use `http://localhost:5000`. If using MLflow on an OpenShift cluster, replace `<openshift-dashboard-url>` with your cluster's data science gateway URL.
+- `MLFLOW_TRACKING_TOKEN` - Required for OpenShift only. Your OpenShift authentication token, obtained from the OpenShift console.
+- `MLFLOW_EXPERIMENT_NAME` - A descriptive name for your experiment (e.g., "LangGraph HITL Demo")
+- `MLFLOW_TRACKING_INSECURE_TLS` - Required for OpenShift only. Set to `"true"` if your cluster does not use trusted certificates.
+- `MLFLOW_WORKSPACE` - Required for OpenShift only. Project name.
 
-- `API_KEY` - your API key or contact your cluster administrator
-- `BASE_URL` - should end with `/v1`
-- `MODEL_ID` - model identifier available on your endpoint
+- Tracing is optional; if you do not set `MLFLOW_TRACKING_URI`, the application will run without MLflow logging.
 
-### Running the Agent
+- If `MLFLOW_TRACKING_URI` is set, the application will attempt to connect to the MLflow server at startup. If the server is unreachable, the application will log a warning and continue running without tracing.
 
-#### Web Playground (`make run`)
+- You can control how long the application waits for the MLflow server by setting `MLFLOW_HEALTH_CHECK_TIMEOUT` (in seconds, default: `5`).
+
+### Creating environment
+
+Now you will remove old .venv and create new. Next dependencies will be installed.
 
 ```bash
-make run
+make env
 ```
 
-Open [http://localhost:8000](http://localhost:8000) in your browser. A green dot in the header means the agent is connected and ready.
+### Setup Ollama
+
+This will install ollama if it is not installed already. Then pull needed models for local work.
+The default model is `llama3.1:8b`. To use a different model, pass `MODEL=`:
+`make ollama MODEL=llama3.2:3b`
+
+```bash
+make ollama
+```
+
+### Run llama server
+
+> **Keep this terminal open** – the server needs to keep running.
+> You should see output indicating the server started on `http://localhost:8321`.
+
+```bash
+make llama-server
+```
+
+### Run the interactive web application
+
+> **Keep this terminal open** – the app needs to keep running.
+> You should see output indicating the app started on `http://localhost:8000`.
+
+```bash
+cd agents/langgraph/human_in_the_loop
+make run-app           # fails if port is already in use and print steps TO-DO
+```
+
+Open [http://localhost:8000](http://localhost:8000) in your browser. A green dot in the header means the agent is
+connected and ready.
 
 When the agent pauses for approval, an **Approve / Reject** banner appears directly in the chat.
 
-#### Interactive CLI (`make run-cli`)
+### Interactive CLI
 
 For terminal-based testing without a browser:
 
 ```bash
+cd agents/langgraph/human_in_the_loop
 make run-cli
 ```
 
-This launches an interactive prompt where you can pick predefined questions or type your own. Tool calls and results are displayed inline with colored output.
-
-#### Standalone Flask Playground (alternative)
-
-You can also run the playground as a separate Flask app that proxies to the agent:
-
-```bash
-# Terminal 1: Start the agent
-make run
-
-# Terminal 2: Open in the same directory as Terminal 1
-uv run flask --app playground.app run --port 5050
-```
-
-| Variable    | Default                  | Description                     |
-|-------------|--------------------------|---------------------------------|
-| `AGENT_URL` | `http://localhost:8000`  | URL of the running agent API    |
-
-If the agent runs on a different host or port:
-
-```bash
-AGENT_URL=https://your-agent-url uv run flask --app playground.app run --port 5050
-```
+This launches an interactive prompt where you can pick predefined questions or type your own. Tool calls and results are
+displayed inline with colored output.
 
 ## Deploying to OpenShift
-
-> **Before you begin:** Log in to OpenShift (`oc login`) and, if using local build + push, your container registry (`podman login`).
-> See [OpenShift Deployment](../../../docs/openshift-deployment.md) for full prerequisites and step-by-step instructions.
 
 ### Setup
 
 ```bash
 cd agents/langgraph/human_in_the_loop
-make init        # creates .env from .env.example
+make init
 ```
 
 ### Configuration
@@ -130,10 +163,10 @@ make init        # creates .env from .env.example
 Edit `.env` with your model endpoint and container image:
 
 ```ini
-API_KEY=your-api-key-here
-BASE_URL=https://your-model-endpoint.com/v1
-MODEL_ID=llama-3.1-8b-instruct
-CONTAINER_IMAGE=quay.io/your-username/langgraph-hitl-agent:latest
+API_KEY = your-api-key-here
+BASE_URL = https://your-model-endpoint.com/v1
+MODEL_ID = llama-3.1-8b-instruct
+CONTAINER_IMAGE = quay.io/your-username/langgraph-hitl-agent:latest
 ```
 
 **Notes:**
@@ -152,7 +185,23 @@ CONTAINER_IMAGE=quay.io/your-username/langgraph-hitl-agent:latest
     - Docker Hub: `docker.io/your-username/langgraph-hitl-agent:latest`
     - GHCR: `ghcr.io/your-org/langgraph-hitl-agent:latest`
 
+  > **Note:** OpenShift must be able to pull the container image. Make the image **public**, or configure
+  an [image pull secret](https://docs.openshift.com/container-platform/latest/openshift_images/managing_images/using-image-pull-secrets.html)
+  for private registries.
+
 ### Building the Container Image
+
+Login to OC
+
+```bash
+oc login -u "login" -p "password" https://super-link-to-cluster:111
+```
+
+Login ex. Docker
+
+```bash
+docker login -u='login' -p='password' quay.io
+```
 
 #### Option A: Build locally and push to a registry
 
@@ -203,6 +252,8 @@ oc get route langgraph-hitl-agent -o jsonpath='{.spec.host}'
 make undeploy
 ```
 
+See [OpenShift Deployment](../../../docs/openshift-deployment.md) for more details.
+
 ### Testing on OpenShift
 
 Replace `http://localhost:8000` with `https://<YOUR_ROUTE_URL>` in the examples below.
@@ -246,6 +297,12 @@ curl -X POST https://<YOUR_ROUTE_URL>/chat/completions \
 ```
 
 The agent resumes, executes `create_file`, and returns the final result.
+
+## Tests
+
+```bash
+make test
+```
 
 ## API Endpoints
 
@@ -393,16 +450,6 @@ User Input → Agent Node (LLM) → Route Decision
                                                           └── resume("no") → Rejection Message → END
 ```
 
-### Key Differences from Base ReAct Agent
-
-This agent extends the base LangGraph ReAct agent with:
-
-1. **Human-in-the-Loop**: Sensitive tool calls require explicit human approval
-2. **Interrupt Mechanism**: Uses LangGraph's `interrupt()` / `Command(resume=...)` pattern
-3. **Tool Classification**: Tools are categorized as safe or sensitive
-4. **Thread-Based State**: Checkpointer preserves graph state across approval requests
-5. **Custom Routing**: Conditional edges route to approval node only for sensitive tools
-
 ### Troubleshooting
 
 **Error: "No user message found in messages list"**
@@ -418,36 +465,6 @@ This agent extends the base LangGraph ReAct agent with:
 
 - The default `MemorySaver` is in-memory only
 - For production, use `PostgresSaver` (see `react_with_database_memory` agent for reference)
-
----
-
-## OpenAI SDK for Llama-stack Connectivity
-
-This agent uses the **OpenAI SDK** (via LangChain's `ChatOpenAI`) to connect to Llama-stack or any OpenAI-compatible
-endpoint:
-
-- **`base_url`**: Points to Llama-stack server endpoint (e.g., `http://localhost:8321/v1`)
-- **`model`**: Uses Llama-stack's model identifier (e.g., `ollama/llama3.2:3b`)
-- **`api_key`**: Can be "not-needed" for local Llama-stack, required for remote OpenAI
-
-The OpenAI-compatible API allows **switching between providers** without code changes:
-just update `BASE_URL`, `MODEL_ID`, and `API_KEY` in your `.env` file.
-
-### Supported Providers:
-
-- **Local**: Ollama via Llama-stack (`http://localhost:8321/v1`)
-- **OpenAI**: OpenAI API (`https://api.openai.com/v1`)
-- **Azure OpenAI**: Azure endpoints
-- **vLLM**: Self-hosted vLLM servers
-- **Any OpenAI-compatible API**
-
----
-
-## Tests
-
-```bash
-make test
-```
 
 ## Resources
 

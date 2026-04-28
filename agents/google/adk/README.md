@@ -30,7 +30,7 @@ connector to route inference through a LlamaStack server's OpenAI-compatible API
 
 #### Initiating base
 
-Here you copy .env.template file into .env
+Here you copy .env.example file into .env
 
 ```bash
 cd agents/google/adk
@@ -262,12 +262,12 @@ User Input -> ADK LlmAgent -> LiteLLM -> LlamaStack (OpenAI API)
 
 **Environment Variables:**
 
-| Variable          | Description        | Example                                |
-|-------------------|--------------------|----------------------------------------|
-| `BASE_URL`        | LLM API endpoint   | `http://localhost:8321/v1`             |
-| `MODEL_ID`        | Model identifier   | `ollama/llama3.2:3b`                   |
-| `API_KEY`         | API authentication | `not-needed` (local) or API key        |
-| `CONTAINER_IMAGE` | Container registry | `quay.io/user/google-adk-agent:latest` |
+| Variable          | Description        | Example                                               |
+|-------------------|--------------------|-------------------------------------------------------|
+| `BASE_URL`        | LLM API endpoint   | `http://localhost:8321/v1`                            |
+| `MODEL_ID`        | Model identifier   | `ollama/llama3.1:8b`                                  |
+| `API_KEY`         | API authentication | `not-needed-for-local-development` (local) or API key |
+| `CONTAINER_IMAGE` | Container registry | `quay.io/user/google-adk-agent:latest`                |
 
 **Customization:**
 

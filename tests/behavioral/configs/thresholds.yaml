@@ -1,0 +1,12 @@
+langgraph_react:
+  tool_selection_accuracy: 0.90
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 8.0
+  pass_at_k: 8
+
+vanilla_python:
+  tool_selection_accuracy: 0.85
+  multi_tool_accuracy: 0.75
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 15.0
+  pass_at_k: 8

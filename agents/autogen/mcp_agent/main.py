@@ -28,6 +28,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Streamin
 from pydantic import BaseModel, Field, model_validator
 
 from autogen_agent_base.agent import get_agent_chat
+from autogen_agent_base.tracing import enable_tracing
 
 load_dotenv()
 
@@ -171,6 +172,8 @@ async def _mcp_agent_holder(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Connect to MCP server, build AutoGen agent with MCP tools, keep connection until shutdown."""
+    enable_tracing()
+
     app.state.mcp_agent = None
     app.state.mcp_agent_error = None
     shutdown_event = asyncio.Event()

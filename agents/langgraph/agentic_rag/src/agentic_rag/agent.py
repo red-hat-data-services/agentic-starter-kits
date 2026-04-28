@@ -50,7 +50,7 @@ def get_graph_closure(
     chat = ChatOpenAI(
         model=model_id,
         temperature=0.3,  # Higher temperature for better rephrasing
-        api_key=api_key or "not-needed",
+        api_key=api_key or "not-needed-for-local-development",
         base_url=base_url,
     )
 

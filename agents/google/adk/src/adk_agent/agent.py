@@ -40,7 +40,10 @@ def get_agent(
     if not model_id:
         model_id = getenv("MODEL_ID")
 
-    if base_url and not base_url.endswith("/v1"):
+    if not base_url:
+        raise ValueError("BASE_URL is required. Set it via argument or BASE_URL env var.")
+
+    if not base_url.endswith("/v1"):
         base_url = base_url.rstrip("/") + "/v1"
 
     is_local = any(host in base_url for host in ["localhost", "127.0.0.1"])
@@ -49,7 +52,7 @@ def get_agent(
 
     # Configure LiteLLM's OpenAI provider environment for LlamaStack
     os.environ["OPENAI_API_BASE"] = base_url
-    os.environ["OPENAI_API_KEY"] = api_key or "not-needed"
+    os.environ["OPENAI_API_KEY"] = api_key or "not-needed-for-local-development"
 
     model = LiteLlm(model=f"openai/{model_id}")
 

@@ -11,6 +11,8 @@ spec:
       {{- include "agent.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
       labels:
         {{- include "agent.selectorLabels" . | nindent 8 }}
     spec:
@@ -18,7 +20,7 @@ spec:
         runAsNonRoot: true
       containers:
         - name: {{ include "agent.name" . }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ required "image.repository is required — set CONTAINER_IMAGE in .env" .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             allowPrivilegeEscalation: false
@@ -55,6 +57,15 @@ spec:
                 secretKeyRef:
                   name: {{ include "agent.fullname" . }}-secret
                   key: mlflow-tracking-token
+            {{- end }}
+            {{- range $key, $value := .Values.extraSecrets }}
+            {{- if $value }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent.fullname" $ }}-secret
+                  key: {{ $key }}
+            {{- end }}
             {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

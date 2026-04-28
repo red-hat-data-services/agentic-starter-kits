@@ -75,7 +75,6 @@ def wrap_func_with_mlflow_trace(func: Callable, span_type: Literal["tool", "agen
         raise ValueError(f"Unsupported trace type: {span_type}")
 
 def enable_tracing() -> None:
-    global _TRACING_ENABLED
     """
     Enable MLflow tracing if MLFLOW_TRACKING_URI is set.
 
@@ -86,6 +85,7 @@ def enable_tracing() -> None:
        - If the server is reachable: tracing is enabled.
        - If the server is unreachable: log a warning and continue without tracing.
     """
+    global _TRACING_ENABLED
     load_dotenv()
     tracking_uri: Optional[str] = getenv("MLFLOW_TRACKING_URI")
     if not tracking_uri:

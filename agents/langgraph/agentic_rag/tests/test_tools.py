@@ -64,7 +64,7 @@ def test_retriever_tool_invoke_with_string_query(mock_get_components):
 
     # Verify the client was called correctly
     mock_client.vector_io.query.assert_called_once_with(
-        vector_store_id="test-vector-store-id", query=query, params={"max_chunks": 2}
+        vector_store_id="test-vector-store-id", query=query, params={"max_chunks": 5}
     )
 
 

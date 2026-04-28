@@ -8,7 +8,7 @@ from os import getenv
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from openai_responses_agent.agent import get_agent_closure, AIAgent
 from openai_responses_agent.tracing import enable_tracing, wrap_func_with_mlflow_trace
 from pydantic import BaseModel, Field
@@ -388,7 +388,11 @@ def _map_event_to_chunk(
     "/health", response_model=HealthResponse, summary="Health check", tags=["Health"]
 )
 async def health():
-    return {"status": "healthy", "agent_initialized": get_agent is not None}
+    initialized = get_agent is not None
+    body = {"status": "healthy" if initialized else "not_ready", "agent_initialized": initialized}
+    if not initialized:
+        return JSONResponse(status_code=503, content=body)
+    return body
 
 
 # ── Playground API aliases (so the same index.html works in both modes) ───────

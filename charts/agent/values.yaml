@@ -57,3 +57,11 @@ healthCheck:
 
 volumes: []
 volumeMounts: []
+
+extraSecrets: {}
+  # Arbitrary secret key-value pairs, injected as env vars.
+  # Keys must use POSIX convention: [A-Za-z_][A-Za-z0-9_]* (e.g. DEPLOYMENT_TOKEN, not deploy-token).
+  # Each key becomes both the Secret data key and the env var name.
+  # Values are base64-encoded automatically.
+  # Example:
+  #   DEPLOYMENT_TOKEN: "my-token"
