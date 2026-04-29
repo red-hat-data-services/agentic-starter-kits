@@ -13,9 +13,10 @@ repos:
     hooks:
       - id: conventional-precommit-linter
         stages: [commit-msg]
+        # more args can be added here to customize the linter behavior
+        # more args can be found here: https://github.com/espressif/conventional-precommit-linter
         args:
           - --types=feat,fix,docs,chore,test,perf,refactor,ci,build,style,revert
           - --subject-min-length=10
           - --subject-max-length=72
-          - --body-max-line-length=100
           - --allow-breaking
