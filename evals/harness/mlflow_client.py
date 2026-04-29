@@ -39,6 +39,7 @@ class MLflowTraceClient:
         wait_seconds: float | None = None,
         max_retries: int | None = None,
     ) -> None:
+        """Initialize the trace client with MLflow connection settings."""
         self.tracking_uri = tracking_uri
         self.experiment_name = experiment_name
         # Configurable via env vars for CI tuning
@@ -66,6 +67,46 @@ class MLflowTraceClient:
             else:
                 logger.warning(f"MLflow experiment '{self.experiment_name}' not found")
         return self._client
+
+    def verify_connection(self) -> bool:
+        """Check that the MLflow server is reachable and auth is valid.
+
+        Returns True if the client initializes without auth errors. A missing
+        experiment is not a failure -- _log_mlflow_run creates it on demand.
+        Logs specific guidance for auth failures and expired tokens.
+        """
+        try:
+            self._get_client()
+            if self._experiment_id is None:
+                logger.info(
+                    "MLflow experiment '%s' does not exist yet — "
+                    "it will be created during run logging.",
+                    self.experiment_name,
+                )
+            return True
+        except Exception as exc:
+            msg = str(exc)
+            if "401" in msg or "403" in msg or "Authorization" in msg:
+                logger.error(
+                    "MLflow auth failed (%s). Ensure MLFLOW_TRACKING_TOKEN is "
+                    "set in the adapter pod environment. EvalHub does not "
+                    "support secretKeyRef — pass the token as a literal value "
+                    "in the provider runtime Env.",
+                    msg,
+                )
+            elif "Expecting value" in msg or "JSONDecodeError" in msg:
+                logger.error(
+                    "MLflow returned non-JSON (likely an OAuth redirect). "
+                    "This usually means MLFLOW_TRACKING_TOKEN is expired or "
+                    "invalid. The RHOAI OAuth proxy redirects to a login page "
+                    "when the token is rejected. Refresh the token: "
+                    "export MLFLOW_TRACKING_TOKEN=$(oc whoami -t) and re-register "
+                    "the provider. Raw error: %s",
+                    msg,
+                )
+            else:
+                logger.error("MLflow connection check failed: %s", msg)
+            return False
 
     def get_latest_trace(
         self,

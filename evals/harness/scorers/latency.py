@@ -47,6 +47,7 @@ class LatencyTracker:
     """
 
     def __init__(self) -> None:
+        """Initialize an empty latency tracker."""
         self._values: list[float] = []
 
     def add(self, latency_seconds: float) -> None:

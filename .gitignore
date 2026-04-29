@@ -17,3 +17,9 @@ uv.lock
 agents/langflow/simple_tool_calling_agent/local/.ollama-enabled
 *.db
 CLAUDE.local.md
+.cursor
+**/REFACTORING.md
+STATUS.md
+.e2e-workdir
+evals/evalhub_adapter/eval-*.yaml
+evals/evalhub_adapter/provider-*.json

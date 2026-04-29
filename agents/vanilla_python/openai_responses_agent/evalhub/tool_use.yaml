@@ -1,0 +1,23 @@
+# Golden queries for agentic tool-use benchmark.
+# Each query defines expected tool calls for the vanilla Python agent
+# (search_price + search_reviews tools).
+queries:
+  - query: "What is the price of Nike shoes?"
+    expected_tools: ["search_price"]
+    expected_elements: ["price", "Nike"]
+
+  - query: "Find reviews for Samsung phones"
+    expected_tools: ["search_reviews"]
+    expected_elements: ["reviews", "Samsung"]
+
+  - query: "What is the price of Adidas and what are the reviews?"
+    expected_tools: ["search_price", "search_reviews"]
+    expected_elements: ["Adidas", "price", "reviews"]
+
+  - query: "Compare the price of Sony and LG products"
+    expected_tools: ["search_price", "search_price"]
+    expected_elements: ["Sony", "LG", "price"]
+
+  - query: "Hello, how are you today?"
+    expected_tools: []
+    expected_elements: []

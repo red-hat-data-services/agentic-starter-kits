@@ -1,0 +1,44 @@
+# EvalHub Agentic Adapter — container image
+#
+# Uses PYTHONPATH-based source layout (not pip-installed packages) so that
+# evaluations.py resolves fixture paths from the fixtures_path parameter.
+#
+# Build from repo root:
+#   IMAGE_TAG=$(git rev-parse --short HEAD)
+#   ADAPTER_IMAGE=quay.io/<your-user>/evalhub-agentic-adapter:${IMAGE_TAG}
+#   podman build -t "${ADAPTER_IMAGE}" \
+#     -f evals/evalhub_adapter/Containerfile .
+#   podman push "${ADAPTER_IMAGE}"
+
+FROM registry.access.redhat.com/ubi9/python-312@sha256:e95978812895b9abb2bdc109b501078da2a47c8dbb9fa23758af40ed50ab6023
+WORKDIR /opt/app-root/src
+
+USER 0
+
+COPY --from=ghcr.io/astral-sh/uv@sha256:fc93e9ecd7218e9ec8fba117af89348eef8fd2463c50c13347478769aaedd0ce /uv /usr/local/bin/uv
+
+COPY evals/evalhub_adapter/ ./evalhub_adapter/
+COPY evals/harness/          ./harness/
+COPY agents/langgraph/react_agent/evalhub/ ./fixtures/langgraph_react/
+COPY agents/vanilla_python/openai_responses_agent/evalhub/ ./fixtures/vanilla_python/
+
+# Install runtime deps only — NOT the project itself, to keep __file__ paths intact.
+# Includes MLflow for trace enrichment and run logging.
+RUN uv pip install --no-cache \
+    "eval-hub-sdk[adapter]>=0.1.4,<0.2" \
+    "httpx>=0.27,<0.28" \
+    "mlflow>=2.0,<3" \
+    "PyYAML>=6.0,<7"
+
+# Build-time assertion: per-agent fixture directories exist
+RUN python -c "from pathlib import Path; assert Path('fixtures/langgraph_react/tool_use.yaml').exists(); assert Path('fixtures/vanilla_python/tool_use.yaml').exists()"
+
+RUN chown -R 1001:0 /opt/app-root/src \
+    && chmod -R g=u /opt/app-root/src
+
+USER 1001
+
+ENV PYTHONPATH=/opt/app-root/src
+ENV HOME=/opt/app-root
+
+ENTRYPOINT ["python", "-m", "evalhub_adapter.adapter"]
