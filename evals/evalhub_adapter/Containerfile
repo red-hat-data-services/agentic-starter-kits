@@ -19,6 +19,7 @@ COPY --from=ghcr.io/astral-sh/uv@sha256:fc93e9ecd7218e9ec8fba117af89348eef8fd246
 
 COPY evals/evalhub_adapter/ ./evalhub_adapter/
 COPY evals/harness/          ./harness/
+# TODO: auto-discover agents/*/evalhub/ dirs instead of hardcoding per agent
 COPY agents/langgraph/react_agent/evalhub/ ./fixtures/langgraph_react/
 COPY agents/vanilla_python/openai_responses_agent/evalhub/ ./fixtures/vanilla_python/
 

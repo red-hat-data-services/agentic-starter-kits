@@ -39,10 +39,21 @@ def _validate_url(url: str, label: str) -> None:
         raise ValueError(f"{label} has no host component: '{url}'")
     hostname = parsed.hostname or ""
     if hostname in _BLOCKED_HOSTS or hostname.startswith("169.254."):
-        raise ValueError(
-            f"{label} targets a blocked host '{hostname}'. "
-            "Cloud metadata endpoints and localhost are not allowed."
-        )
+        import os
+
+        is_localhost = hostname in {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
+        if is_localhost and os.environ.get("EVALHUB_ALLOW_LOCALHOST", "").lower() == "true":
+            logger.warning(
+                "%s targets '%s' — allowed via EVALHUB_ALLOW_LOCALHOST. "
+                "Do not use in production.",
+                label,
+                hostname,
+            )
+        else:
+            raise ValueError(
+                f"{label} targets a blocked host '{hostname}'. "
+                "Cloud metadata endpoints and localhost are not allowed."
+            )
     if parsed.scheme == "http":
         logger.warning(
             "%s uses plain HTTP (%s) — traffic is unencrypted and "

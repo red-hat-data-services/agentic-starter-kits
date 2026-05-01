@@ -66,6 +66,34 @@ class TestValidateUrl:
         with pytest.raises(ValueError, match="blocked host"):
             _validate_url(url, "test_url")
 
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://localhost:8080/api",
+            "http://127.0.0.1:5000",
+            "http://[::1]:8080/api",
+            "http://0.0.0.0:8080",
+        ],
+    )
+    def test_allows_localhost_with_env_var(self, monkeypatch, caplog, url):
+        """Localhost is allowed when EVALHUB_ALLOW_LOCALHOST=true."""
+        monkeypatch.setenv("EVALHUB_ALLOW_LOCALHOST", "true")
+        _validate_url(url, "test_url")
+        assert "EVALHUB_ALLOW_LOCALHOST" in caplog.text
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://169.254.169.254/latest/meta-data/",
+            "http://metadata.google.internal/computeMetadata/v1/",
+        ],
+    )
+    def test_rejects_cloud_metadata_even_with_localhost_allowed(self, monkeypatch, url):
+        """Cloud metadata endpoints stay blocked even when localhost is allowed."""
+        monkeypatch.setenv("EVALHUB_ALLOW_LOCALHOST", "true")
+        with pytest.raises(ValueError, match="blocked host"):
+            _validate_url(url, "test_url")
+
     def test_accepts_valid_https(self):
         """Valid HTTPS URLs pass without error."""
         _validate_url("https://agent.example.com:8080/chat", "test_url")
