@@ -146,6 +146,8 @@ Provider registration is not yet supported by the `evalhub` CLI
 Create `provider-agentic.json` (reuses `ADAPTER_IMAGE` from step 2):
 
 ```bash
+export MLFLOW_TOKEN="$(oc whoami -t)"
+
 cat > provider-agentic.json <<EOF
 {
   "name": "Agentic Behavioral Evaluation",
@@ -327,7 +329,7 @@ EvalHub does not have a results dashboard; use the CLI or REST API to
 retrieve results. The `mlflow_run_id` in the results lets you navigate
 directly to the MLflow run:
 
-```
+```text
 https://<mlflow-route>/#/experiments/<experiment-id>/runs/<mlflow_run_id>
 ```
 

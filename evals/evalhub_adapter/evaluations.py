@@ -107,11 +107,32 @@ def load_queries(benchmark: BenchmarkDef, fixtures_dir: Path) -> list[QuerySpec]
             raise ValueError(
                 f"Query entry {i} missing required 'query' field in {path}"
             )
+        if not isinstance(entry["query"], str):
+            raise ValueError(
+                f"Query entry {i} field 'query' must be a string in {path}"
+            )
+
+        expected_tools = entry.get("expected_tools", [])
+        if not isinstance(expected_tools, list) or not all(
+            isinstance(tool, str) for tool in expected_tools
+        ):
+            raise ValueError(
+                f"Query entry {i} field 'expected_tools' must be a list[str] in {path}"
+            )
+
+        expected_elements = entry.get("expected_elements", [])
+        if not isinstance(expected_elements, list) or not all(
+            isinstance(elem, str) for elem in expected_elements
+        ):
+            raise ValueError(
+                f"Query entry {i} field 'expected_elements' must be a list[str] in {path}"
+            )
+
         queries.append(
             QuerySpec(
                 query=entry["query"],
-                expected_tools=entry.get("expected_tools", []),
-                expected_elements=entry.get("expected_elements", []),
+                expected_tools=expected_tools,
+                expected_elements=expected_elements,
             )
         )
     return queries

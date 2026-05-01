@@ -53,19 +53,18 @@ class MLflowTraceClient:
         self._experiment_id = None
 
     def _get_client(self):
-        """Lazy-init the MLflow client."""
+        """Lazy-init the MLflow client and re-resolve experiment if needed."""
         if self._client is None:
             import mlflow
 
             mlflow.set_tracking_uri(self.tracking_uri)
             self._client = mlflow.MlflowClient(self.tracking_uri)
-
-            # Look up experiment ID
+        if self._experiment_id is None:
             experiment = self._client.get_experiment_by_name(self.experiment_name)
             if experiment:
                 self._experiment_id = experiment.experiment_id
             else:
-                logger.warning(f"MLflow experiment '{self.experiment_name}' not found")
+                logger.warning("MLflow experiment '%s' not found", self.experiment_name)
         return self._client
 
     def verify_connection(self) -> bool:
