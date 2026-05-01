@@ -42,7 +42,10 @@ def _validate_url(url: str, label: str) -> None:
         import os
 
         is_localhost = hostname in {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
-        if is_localhost and os.environ.get("EVALHUB_ALLOW_LOCALHOST", "").lower() == "true":
+        if (
+            is_localhost
+            and os.environ.get("EVALHUB_ALLOW_LOCALHOST", "").lower() == "true"
+        ):
             logger.warning(
                 "%s targets '%s' — allowed via EVALHUB_ALLOW_LOCALHOST. "
                 "Do not use in production.",
