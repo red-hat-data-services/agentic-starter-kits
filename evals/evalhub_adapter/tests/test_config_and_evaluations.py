@@ -363,16 +363,15 @@ class TestLoadQueries:
             load_queries(bm, fixtures_dir)
 
     def test_load_queries_empty(self, fixtures_dir: Path):
-        """An empty queries list produces an empty result."""
+        """An empty queries list raises ValueError."""
         yaml_content = textwrap.dedent("""\
             queries: []
         """)
         (fixtures_dir / "empty.yaml").write_text(yaml_content)
         bm = BenchmarkDef(queries_file="empty.yaml", scorers=[])
 
-        queries = load_queries(bm, fixtures_dir)
-
-        assert queries == []
+        with pytest.raises(ValueError, match="non-empty"):
+            load_queries(bm, fixtures_dir)
 
     def test_load_queries_defaults(self, fixtures_dir: Path):
         """Missing optional fields default to empty lists."""
@@ -391,12 +390,12 @@ class TestLoadQueries:
         assert queries[0].expected_elements == []
 
     def test_load_queries_null_value(self, fixtures_dir: Path):
-        """queries: null (YAML None) returns an empty list, not TypeError."""
+        """queries: null (YAML None) raises ValueError."""
         (fixtures_dir / "null_queries.yaml").write_text("queries:\n")
         bm = BenchmarkDef(queries_file="null_queries.yaml", scorers=[])
 
-        queries = load_queries(bm, fixtures_dir)
-        assert queries == []
+        with pytest.raises(ValueError, match="non-empty"):
+            load_queries(bm, fixtures_dir)
 
     def test_load_queries_missing_query_key(self, fixtures_dir: Path):
         """A query entry without 'query' raises ValueError."""

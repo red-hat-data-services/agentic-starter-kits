@@ -97,8 +97,12 @@ def load_queries(benchmark: BenchmarkDef, fixtures_dir: Path) -> list[QuerySpec]
             f"Expected a YAML mapping at top level, got {type(data).__name__} in {path}"
         )
 
+    raw_queries = data.get("queries")
+    if not isinstance(raw_queries, list) or not raw_queries:
+        raise ValueError(f"Expected non-empty 'queries' list in {path}")
+
     queries: list[QuerySpec] = []
-    for i, entry in enumerate(data.get("queries") or []):
+    for i, entry in enumerate(raw_queries):
         if not isinstance(entry, dict):
             raise ValueError(
                 f"Query entry {i} must be a mapping, got {type(entry).__name__} in {path}"

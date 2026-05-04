@@ -137,9 +137,11 @@ podman push "${ADAPTER_IMAGE}"
 ### 3) Configure EvalHub CLI
 
 ```bash
+export OC_NAMESPACE="<your-namespace>"
+
 evalhub config set base_url "https://<evalhub-route>"
 evalhub config set token "$(oc whoami -t)"
-evalhub config set tenant "<your-namespace>"
+evalhub config set tenant "${OC_NAMESPACE}"
 
 evalhub health
 ```
@@ -149,7 +151,8 @@ evalhub health
 Provider registration is not yet supported by the `evalhub` CLI
 (`providers list`/`describe` only). Use the EvalHub REST API directly.
 
-Create `provider-agentic.json` (reuses `ADAPTER_IMAGE` from step 2):
+Create `provider-agentic.json` (reuses `ADAPTER_IMAGE` from step 2 and
+`OC_NAMESPACE` from step 3):
 
 ```bash
 export MLFLOW_TOKEN="$(oc whoami -t)"

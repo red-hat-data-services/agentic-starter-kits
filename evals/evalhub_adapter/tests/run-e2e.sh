@@ -22,7 +22,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/evalhub-e2e.XXXXXX")
 chmod 700 "${WORK_DIR}"
-trap 'rm -rf "${WORK_DIR}"' EXIT
+PROVIDER_ID=""
+
+cleanup() {
+  local exit_code=$?
+  trap - EXIT
+  if [[ -n "${PROVIDER_ID:-}" && -n "${EVALHUB_ROUTE:-}" ]]; then
+    echo "  Cleaning up provider ${PROVIDER_ID}..."
+    curl -s -o /dev/null -X DELETE \
+      "https://${EVALHUB_ROUTE}/api/v1/evaluations/providers/${PROVIDER_ID}" \
+      -H "Authorization: Bearer ${OC_TOKEN}" \
+      -H "X-Tenant: ${OC_NAMESPACE}" || true
+  fi
+  rm -rf "${WORK_DIR}"
+  exit "${exit_code}"
+}
+trap cleanup EXIT
 
 OC_TOKEN=$(oc whoami -t 2>/dev/null || true)
 MLFLOW_INSECURE_TLS="${MLFLOW_INSECURE_TLS:-false}"
@@ -108,7 +123,7 @@ get_route_contains() {
   local needle="$1"
   oc get route -n "${OC_NAMESPACE}" \
     -o custom-columns=NAME:.metadata.name,HOST:.spec.host --no-headers 2>/dev/null \
-    | grep "${needle}" | head -1 | awk '{print $2}' || true
+    | awk -v needle="${needle}" '$1 ~ needle {print $2; exit}' || true
 }
 
 if [[ -z "${EVALHUB_ROUTE:-}" ]]; then
@@ -540,6 +555,7 @@ if [[ -n "${PROVIDER_ID:-}" ]]; then
     echo "  WARNING: Provider deletion returned HTTP ${DELETE_STATUS}."
     echo "  Delete manually: curl -X DELETE \"https://${EVALHUB_ROUTE}/api/v1/evaluations/providers/${PROVIDER_ID}\" -H \"Authorization: Bearer \$(oc whoami -t)\" -H \"X-Tenant: ${OC_NAMESPACE}\""
   fi
+  PROVIDER_ID=""
 else
   echo "  No provider ID captured — skipping provider cleanup."
 fi
