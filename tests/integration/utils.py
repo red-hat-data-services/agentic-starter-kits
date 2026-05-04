@@ -11,6 +11,15 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+
+def load_agent_name(agent_dir: str | Path) -> str:
+    text = (Path(agent_dir) / "agent.yaml").read_text()
+    match = re.search(r"^name:\s*(.+)", text, re.MULTILINE)
+    if not match:
+        raise ValueError(f"No 'name' field in {agent_dir}/agent.yaml")
+    return match.group(1).strip()
+
+
 _REDACT_PATTERNS = [
     re.compile(r"(API_KEY=)\S+"),
     re.compile(r'(apiKey:\s*")[^"]*"'),

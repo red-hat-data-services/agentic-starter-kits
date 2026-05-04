@@ -20,7 +20,7 @@ INTERNAL_REGISTRY = "image-registry.openshift-image-registry.svc:5000"
 
 @pytest.fixture(scope="module")
 def agent_dir(repo_root):
-    return repo_root / "agents" / "langgraph" / "react_agent"
+    return repo_root / "agents" / "langgraph" / "human_in_the_loop"
 
 
 @pytest.fixture(scope="module")
