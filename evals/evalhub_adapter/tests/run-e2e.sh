@@ -349,7 +349,8 @@ cat > "${WORK_DIR}/provider-agentic.json" <<EOF
       "Env": [
         {"name": "MLFLOW_TRACKING_TOKEN", "value": ${MLFLOW_TOKEN_JSON}},
         {"name": "MLFLOW_TRACKING_INSECURE_TLS", "value": "${MLFLOW_INSECURE_TLS}"},
-        {"name": "MLFLOW_WORKSPACE", "value": "${OC_NAMESPACE}"}
+        {"name": "MLFLOW_WORKSPACE", "value": "${OC_NAMESPACE}"},
+        {"name": "EVALHUB_ALLOW_LOCALHOST", "value": "true"}
       ]
     }
   }
@@ -376,12 +377,12 @@ PROVIDER_ID=$(echo "${PROVIDER_RESPONSE}" | python3 -c "import sys,json; d=json.
 if [[ -z "${PROVIDER_ID}" ]]; then
   echo "  WARNING: Could not extract provider ID from response."
   echo "  Run 'evalhub providers list' and set PROVIDER_ID manually, then re-run."
-  evalhub providers list
+  evalhub providers list || echo "  (providers list failed — non-fatal)"
   exit 1
 fi
 echo "  Provider ID: ${PROVIDER_ID}"
 
-evalhub providers list
+evalhub providers list || echo "  (providers list failed — non-fatal, continuing)"
 
 # ---------------------------------------------------------------------------
 # Step 5 — Create eval run configs

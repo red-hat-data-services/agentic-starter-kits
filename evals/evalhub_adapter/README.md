@@ -106,6 +106,12 @@ the agent templates in this repo.
 
 ### 1) Prerequisites
 
+- **EvalHub server >= 0.3.0** — the BYOF (Bring Your Own Framework) provider
+  path this adapter uses requires server 0.3.0+. The operator-shipped image in
+  RHOAI 3.4.0-ea may be 0.2.0 which accepts registrations but fails at job
+  execution time. Workaround: replace the server image with
+  `quay.io/evalhub/evalhub:0.3.0` (scale down the TrustyAI operator first to
+  prevent reconciliation).
 - `oc` login is active (`oc whoami` works)
 - EvalHub is deployed and reachable (route or service URL)
 - Target agent is deployed and reachable (for example, `react_agent`)
