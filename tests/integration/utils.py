@@ -8,16 +8,16 @@ import time
 from pathlib import Path
 
 import httpx
+import yaml
 
 logger = logging.getLogger(__name__)
 
 
 def load_agent_name(agent_dir: str | Path) -> str:
-    text = (Path(agent_dir) / "agent.yaml").read_text()
-    match = re.search(r"^name:\s*(.+)", text, re.MULTILINE)
-    if not match:
+    data = yaml.safe_load((Path(agent_dir) / "agent.yaml").read_text())
+    if not isinstance(data, dict) or "name" not in data:
         raise ValueError(f"No 'name' field in {agent_dir}/agent.yaml")
-    return match.group(1).strip()
+    return str(data["name"]).strip()
 
 
 _REDACT_PATTERNS = [
