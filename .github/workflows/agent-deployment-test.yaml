@@ -39,7 +39,7 @@ jobs:
           oc project
           echo ""
           echo "--- Namespace resources ---"
-          oc get all -n ci-testing --no-headers | head -10
+          oc get all -n ci-testing --no-headers 2>&1 | head -10 || true
           echo ""
           echo "Cluster connection verified successfully."
 
