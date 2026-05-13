@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import time
+import warnings
 from pathlib import Path
 from typing import Any, AsyncGenerator, Callable, Coroutine
 
@@ -109,9 +111,14 @@ def run_eval(
         result = await run_task(config, client=http_client)
 
         if mlflow is not None and result.success:
-            await asyncio.to_thread(
-                mlflow.enrich_eval_result, result, since_ms=request_start_ms
-            )
+            try:
+                await asyncio.to_thread(
+                    mlflow.enrich_eval_result, result, since_ms=request_start_ms
+                )
+            except Exception:
+                msg = "MLflow enrichment failed — tool scoring will degrade to content heuristics"
+                logging.getLogger(__name__).warning(msg, exc_info=True)
+                warnings.warn(msg, stacklevel=2)
 
         return result
 

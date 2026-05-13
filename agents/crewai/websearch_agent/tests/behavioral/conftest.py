@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import time
+import warnings
 from pathlib import Path
 from typing import Any, AsyncGenerator, Callable, Coroutine
 
@@ -40,7 +41,7 @@ def _find_repo_root() -> Path:
         if (path / "tests" / "behavioral" / "configs" / "thresholds.yaml").is_file():
             return path
         path = path.parent
-    pytest.skip(
+    raise FileNotFoundError(
         "Could not find repo root (no tests/behavioral/configs/thresholds.yaml)"
     )
 
@@ -125,10 +126,9 @@ def run_eval(
                     mlflow.enrich_eval_result, result, since_ms=request_start_ms
                 )
             except Exception:
-                logging.getLogger(__name__).debug(
-                    "MLflow enrichment failed — continuing without trace data",
-                    exc_info=True,
-                )
+                msg = "MLflow enrichment failed — tool scoring will degrade to content heuristics"
+                logging.getLogger(__name__).warning(msg, exc_info=True)
+                warnings.warn(msg, stacklevel=2)
 
         return result
 
