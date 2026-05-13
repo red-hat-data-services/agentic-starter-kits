@@ -204,6 +204,26 @@ else
   preflight_ok "MLflow URI (override): ${MLFLOW_TRACKING_URI}"
 fi
 
+# Discover the internal MLflow service URL for in-cluster adapter pods.
+# The adapter pod cannot reach the external route (SSL cert mismatch) and
+# the sidecar proxy doesn't support MLflow API paths.  The EvalHub
+# deployment already uses the internal service URL, so we extract it from
+# there.
+if [[ -z "${MLFLOW_INTERNAL_URI:-}" ]]; then
+  _evalhub_mlflow_uri=$(oc get deployment evalhub -n "${OC_NAMESPACE}" \
+    -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="MLFLOW_TRACKING_URI")].value}' 2>/dev/null || true)
+  if [[ -n "${_evalhub_mlflow_uri}" ]]; then
+    # Strip any path suffix (e.g. /mlflow) — the EvalHub Go code uses it for
+    # its own routing, but the Python MLflow SDK appends /api/... to the base.
+    MLFLOW_INTERNAL_URI=$(python3 -c "from urllib.parse import urlparse, urlunparse; u=urlparse('${_evalhub_mlflow_uri}'); print(urlunparse((u.scheme,u.netloc,'','','','')))")
+    preflight_ok "MLflow internal URI (adapter): ${MLFLOW_INTERNAL_URI}"
+  else
+    preflight_fail "Could not discover internal MLflow URI from EvalHub deployment. Set MLFLOW_INTERNAL_URI manually."
+  fi
+else
+  preflight_ok "MLflow internal URI (override): ${MLFLOW_INTERNAL_URI}"
+fi
+
 # Discover agent-side experiment (where agents write traces)
 MLFLOW_AGENT_EXPERIMENT=$(oc get deployment -n "${OC_NAMESPACE}" -o jsonpath='{.items[*].spec.template.spec.containers[0].env[?(@.name=="MLFLOW_EXPERIMENT_NAME")].value}' 2>/dev/null | awk '{print $1}' || true)
 if [[ -z "${MLFLOW_AGENT_EXPERIMENT}" ]]; then
@@ -405,7 +425,6 @@ cat > "${WORK_DIR}/provider-agentic.json" <<EOF
       "Entrypoint": ["python", "-m", "evalhub_adapter.adapter"],
       "Env": [
         {"name": "MLFLOW_TRACKING_TOKEN", "value": ${MLFLOW_TOKEN_JSON}},
-        {"name": "MLFLOW_TRACKING_INSECURE_TLS", "value": "${MLFLOW_INSECURE_TLS}"},
         {"name": "MLFLOW_WORKSPACE", "value": "${OC_NAMESPACE}"},
         {"name": "MLFLOW_TRACE_WAIT_SECONDS", "value": "5"},
         {"name": "MLFLOW_TRACE_MAX_RETRIES", "value": "6"},
@@ -465,7 +484,7 @@ benchmarks:
       timeout_seconds: 45.0
       verify_ssl: true
       fixtures_path: fixtures/langgraph_react
-      mlflow_tracking_uri: ${MLFLOW_TRACKING_URI}
+      mlflow_tracking_uri: ${MLFLOW_INTERNAL_URI}
       mlflow_experiment_name: ${MLFLOW_EXPERIMENT}
       mlflow_trace_experiment_name: ${MLFLOW_AGENT_EXPERIMENT}
 EOF
@@ -486,7 +505,7 @@ benchmarks:
       timeout_seconds: 45.0
       verify_ssl: true
       fixtures_path: fixtures/vanilla_python
-      mlflow_tracking_uri: ${MLFLOW_TRACKING_URI}
+      mlflow_tracking_uri: ${MLFLOW_INTERNAL_URI}
       mlflow_experiment_name: ${MLFLOW_EXPERIMENT}
       mlflow_trace_experiment_name: ${MLFLOW_AGENT_EXPERIMENT}
 EOF
@@ -507,7 +526,7 @@ benchmarks:
       timeout_seconds: 60.0
       verify_ssl: true
       fixtures_path: fixtures/autogen_mcp
-      mlflow_tracking_uri: ${MLFLOW_TRACKING_URI}
+      mlflow_tracking_uri: ${MLFLOW_INTERNAL_URI}
       mlflow_experiment_name: ${MLFLOW_EXPERIMENT}
       mlflow_trace_experiment_name: ${MLFLOW_AGENT_EXPERIMENT}
 EOF
@@ -528,7 +547,7 @@ benchmarks:
       timeout_seconds: 45.0
       verify_ssl: true
       fixtures_path: fixtures/crewai_websearch
-      mlflow_tracking_uri: ${MLFLOW_TRACKING_URI}
+      mlflow_tracking_uri: ${MLFLOW_INTERNAL_URI}
       mlflow_experiment_name: ${MLFLOW_EXPERIMENT}
       mlflow_trace_experiment_name: ${MLFLOW_AGENT_EXPERIMENT}
 EOF
