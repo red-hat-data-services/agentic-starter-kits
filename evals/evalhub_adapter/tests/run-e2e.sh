@@ -651,9 +651,13 @@ except: print('')
       -H "Authorization: Bearer ${MLFLOW_TOKEN}" \
       "${MLFLOW_TRACKING_URI}/api/2.0/mlflow/experiments/get-by-name?experiment_name=${encoded_experiment}" \
       | python3 -c "import sys,json; print(json.load(sys.stdin)['experiment']['experiment_id'])" \
-      2>/dev/null || echo "${encoded_experiment}")
+      2>/dev/null || true)
     echo ""
-    echo "  MLflow run: ${MLFLOW_TRACKING_URI}/#/experiments/${experiment_id}/runs/${run_id}?workspace=${OC_NAMESPACE}"
+    if [[ -n "${experiment_id}" ]]; then
+      echo "  MLflow run: ${MLFLOW_TRACKING_URI}/#/experiments/${experiment_id}/runs/${run_id}?workspace=${OC_NAMESPACE}"
+    else
+      echo "  MLflow run ${run_id} recorded in experiment '${MLFLOW_EXPERIMENT}' (lookup failed; open MLflow UI and search by experiment name)."
+    fi
   else
     echo ""
     echo "  MLflow run ID not found in results. Check manually:"
