@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "httpx>=0.27",
     "pytest>=9.0.2",
 ]
 tracing = [
