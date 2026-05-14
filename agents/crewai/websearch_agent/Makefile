@@ -170,5 +170,7 @@ undeploy: ## Remove deployment from cluster
 test: ## Run tests
 	uv run --extra dev python -m pytest tests/ --ignore=tests/integration
 
-test-integration: ## Run integration deployment tests
-	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests uv run --extra dev python -m pytest tests/integration/test_deployment.py -v --tb=long --junitxml=results.xml
+test-integration: ## Run integration deployment test
+	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \
+	  uv run --extra dev python -m pytest tests/integration/test_deployment.py \
+	    -v --tb=long --junitxml=results.xml
