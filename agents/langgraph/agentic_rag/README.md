@@ -370,6 +370,27 @@ This agent implements a Retrieval-Augmented Generation (RAG) pattern:
 
 The agent uses LangGraph to orchestrate the retrieval and generation steps, LangChain for the LLM integration, and LlamaStack for vector store operations.
 
+## Behavioral Tests
+
+Behavioral tests validate tool usage, response quality, latency, and reliability against a deployed agent.
+
+```bash
+# Set the deployed agent URL
+export AGENTIC_RAG_AGENT_URL=https://<your-agent-route>
+
+# Optional: enable MLflow trace enrichment for tool_calls extraction
+export MLFLOW_TRACKING_URI=https://<mlflow-route>/mlflow
+export MLFLOW_EXPERIMENT_NAME=<experiment>
+
+# Run all behavioral tests
+pytest agents/langgraph/agentic_rag/tests/behavioral/ -v
+
+# Run specific test categories
+pytest agents/langgraph/agentic_rag/tests/behavioral/ -v -m "agentic_rag and not slow"
+```
+
+See `tests/behavioral/` at the repo root for the shared test harness and threshold configuration.
+
 ## Resources
 
 - [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)

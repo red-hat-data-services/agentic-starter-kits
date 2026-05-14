@@ -24,6 +24,7 @@ COPY agents/langgraph/react_agent/evalhub/ ./fixtures/langgraph_react/
 COPY agents/vanilla_python/openai_responses_agent/evalhub/ ./fixtures/vanilla_python/
 COPY agents/autogen/mcp_agent/evalhub/ ./fixtures/autogen_mcp/
 COPY agents/crewai/websearch_agent/evalhub/ ./fixtures/crewai_websearch/
+COPY agents/langgraph/agentic_rag/evalhub/ ./fixtures/agentic_rag/
 
 # Install runtime deps only — NOT the project itself, to keep __file__ paths intact.
 # Includes MLflow for trace enrichment and run logging.
@@ -34,7 +35,7 @@ RUN uv pip install --no-cache \
     "PyYAML>=6.0,<7"
 
 # Build-time assertion: per-agent fixture directories exist
-RUN python -c "from pathlib import Path; assert Path('fixtures/langgraph_react/tool_use.yaml').exists(); assert Path('fixtures/vanilla_python/tool_use.yaml').exists(); assert Path('fixtures/autogen_mcp/tool_use.yaml').exists(); assert Path('fixtures/crewai_websearch/tool_use.yaml').exists()"
+RUN python -c "from pathlib import Path; assert Path('fixtures/langgraph_react/tool_use.yaml').exists(); assert Path('fixtures/vanilla_python/tool_use.yaml').exists(); assert Path('fixtures/autogen_mcp/tool_use.yaml').exists(); assert Path('fixtures/crewai_websearch/tool_use.yaml').exists(); assert Path('fixtures/agentic_rag/tool_use.yaml').exists()"
 
 RUN chown -R 1001:0 /opt/app-root/src \
     && chmod -R g=u /opt/app-root/src

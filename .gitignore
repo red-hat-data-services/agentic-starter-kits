@@ -24,3 +24,4 @@ STATUS.md
 evals/evalhub_adapter/eval-*.yaml
 evals/evalhub_adapter/provider-*.json
 results.xml
+BTEST_VALIDATION_REPORT.md

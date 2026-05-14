@@ -1,0 +1,23 @@
+# Golden queries for agentic tool-use benchmark.
+# Each query defines expected tool calls for a RAG retriever agent.
+# The agent has one tool: retriever (LlamaStack vector_io search).
+queries:
+  - query: "What is RAG and how does it work?"
+    expected_tools: ["retriever"]
+    expected_elements: ["retrieval", "generation"]
+
+  - query: "What are the best practices for document preparation in RAG systems?"
+    expected_tools: ["retriever"]
+    expected_elements: ["chunk", "preprocess"]
+
+  - query: "What is Milvus and what are its key features?"
+    expected_tools: ["retriever"]
+    expected_elements: ["milvus", "vector"]
+
+  - query: "Explain the different agent architecture patterns"
+    expected_tools: ["retriever"]
+    expected_elements: ["agent"]
+
+  - query: "Hello, how are you today?"
+    expected_tools: []
+    expected_elements: []

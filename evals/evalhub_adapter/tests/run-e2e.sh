@@ -103,6 +103,7 @@ REQUIRED_FILES=(
   "agents/vanilla_python/openai_responses_agent/evalhub/tool_use.yaml"
   "agents/autogen/mcp_agent/evalhub/tool_use.yaml"
   "agents/crewai/websearch_agent/evalhub/tool_use.yaml"
+  "agents/langgraph/agentic_rag/evalhub/tool_use.yaml"
 )
 for f in "${REQUIRED_FILES[@]}"; do
   if [[ -f "${REPO_ROOT}/${f}" ]]; then
@@ -187,6 +188,19 @@ if [[ -z "${CREWAI_WEBSEARCH_ROUTE:-}" ]]; then
   fi
 else
   preflight_ok "CrewAI Websearch agent route (override): ${CREWAI_WEBSEARCH_ROUTE}"
+fi
+
+if [[ -z "${AGENTIC_RAG_AGENT_ROUTE:-}" ]]; then
+  AGENTIC_RAG_AGENT_ROUTE=$(get_route "langgraph-agentic-rag" || true)
+  [[ -z "${AGENTIC_RAG_AGENT_ROUTE}" ]] && AGENTIC_RAG_AGENT_ROUTE=$(get_route "agentic-rag" || true)
+  [[ -z "${AGENTIC_RAG_AGENT_ROUTE}" ]] && AGENTIC_RAG_AGENT_ROUTE=$(get_route_contains "agentic-rag")
+  if [[ -n "${AGENTIC_RAG_AGENT_ROUTE}" ]]; then
+    preflight_ok "Agentic RAG agent route: ${AGENTIC_RAG_AGENT_ROUTE}"
+  else
+    preflight_fail "Could not discover agentic_rag route. Set AGENTIC_RAG_AGENT_ROUTE manually."
+  fi
+else
+  preflight_ok "Agentic RAG agent route (override): ${AGENTIC_RAG_AGENT_ROUTE}"
 fi
 
 if [[ -z "${MLFLOW_TRACKING_URI:-}" ]]; then
@@ -276,6 +290,14 @@ if [[ -n "${CREWAI_WEBSEARCH_ROUTE:-}" ]]; then
   fi
 fi
 
+if [[ -n "${AGENTIC_RAG_AGENT_ROUTE:-}" ]]; then
+  if curl -sf --max-time 10 "https://${AGENTIC_RAG_AGENT_ROUTE}/health" > /dev/null 2>&1; then
+    preflight_ok "agentic_rag /health responded"
+  else
+    preflight_warn "agentic_rag /health not reachable (https://${AGENTIC_RAG_AGENT_ROUTE}/health)"
+  fi
+fi
+
 if [[ -n "${EVALHUB_ROUTE:-}" ]]; then
   if curl -sf --max-time 10 "https://${EVALHUB_ROUTE}/api/v1/health" > /dev/null 2>&1; then
     preflight_ok "EvalHub API healthy"
@@ -353,6 +375,7 @@ echo "  React agent:       ${REACT_AGENT_ROUTE}"
 echo "  OpenAI agent:      ${OPENAI_AGENT_ROUTE}"
 echo "  AutoGen MCP agent: ${AUTOGEN_MCP_AGENT_ROUTE}"
 echo "  CrewAI Websearch:  ${CREWAI_WEBSEARCH_ROUTE}"
+echo "  Agentic RAG agent: ${AGENTIC_RAG_AGENT_ROUTE}"
 echo "  MLflow:            ${MLFLOW_TRACKING_URI}"
 echo "  Experiment:        ${MLFLOW_EXPERIMENT}"
 
@@ -557,6 +580,29 @@ echo "  Created: eval-openai-responses-agent.yaml"
 echo "  Created: eval-autogen-mcp-agent.yaml"
 echo "  Created: eval-crewai-websearch-agent.yaml"
 
+cat > "${WORK_DIR}/eval-agentic-rag-agent.yaml" <<EOF
+name: agentic-tool-use-agentic-rag-agent
+description: EvalHub orchestration run for LangGraph agentic_rag agent
+model:
+  name: langgraph-agentic-rag-agent
+  url: https://${AGENTIC_RAG_AGENT_ROUTE}
+benchmarks:
+  - id: agentic-tool-use
+    provider_id: ${PROVIDER_ID}
+    parameters:
+      known_tools: ["retriever"]
+      forbidden_actions: ["shell execution"]
+      max_latency_seconds: 15.0
+      timeout_seconds: 60.0
+      verify_ssl: true
+      fixtures_path: fixtures/agentic_rag
+      mlflow_tracking_uri: ${MLFLOW_INTERNAL_URI}
+      mlflow_experiment_name: ${MLFLOW_EXPERIMENT}
+      mlflow_trace_experiment_name: ${MLFLOW_AGENT_EXPERIMENT}
+EOF
+
+echo "  Created: eval-agentic-rag-agent.yaml"
+
 # ---------------------------------------------------------------------------
 # Step 6 — Submit jobs and wait
 # ---------------------------------------------------------------------------
@@ -604,6 +650,19 @@ echo "=== Step 6: Submitting crewai_websearch_agent eval ==="
 CREWAI_OUTPUT=$(evalhub eval run --config "${WORK_DIR}/eval-crewai-websearch-agent.yaml" --wait --poll-interval 5 2>&1)
 echo "${CREWAI_OUTPUT}"
 CREWAI_JOB_ID=$(echo "${CREWAI_OUTPUT}" | python3 -c "
+import sys, re
+for line in sys.stdin:
+    m = re.search(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', line)
+    if m:
+        print(m.group())
+        break
+" 2>/dev/null || true)
+
+echo ""
+echo "=== Step 6: Submitting agentic_rag agent eval ==="
+AGENTIC_RAG_OUTPUT=$(evalhub eval run --config "${WORK_DIR}/eval-agentic-rag-agent.yaml" --wait --poll-interval 5 2>&1)
+echo "${AGENTIC_RAG_OUTPUT}"
+AGENTIC_RAG_JOB_ID=$(echo "${AGENTIC_RAG_OUTPUT}" | python3 -c "
 import sys, re
 for line in sys.stdin:
     m = re.search(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', line)
@@ -677,6 +736,8 @@ echo ""
 print_results "autogen_mcp_agent" "${AUTOGEN_JOB_ID:-}"
 echo ""
 print_results "crewai_websearch_agent" "${CREWAI_JOB_ID:-}"
+echo ""
+print_results "agentic_rag_agent" "${AGENTIC_RAG_JOB_ID:-}"
 
 # ---------------------------------------------------------------------------
 # Cleanup

@@ -135,6 +135,7 @@ Tests require a running agent. Set the target URL via environment variables:
 | `VANILLA_PYTHON_AGENT_URL` | Vanilla Python agent tests |
 | `AUTOGEN_MCP_AGENT_URL` | AutoGen MCP agent tests |
 | `CREWAI_WEBSEARCH_AGENT_URL` | CrewAI Websearch agent tests |
+| `AGENTIC_RAG_AGENT_URL` | LangGraph Agentic RAG agent tests |
 
 ```bash
 uv pip install -e ".[test]"

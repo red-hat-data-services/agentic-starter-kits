@@ -44,6 +44,7 @@ Existing fixtures:
 - `agents/langgraph/react_agent/evalhub/tool_use.yaml`
 - `agents/vanilla_python/openai_responses_agent/evalhub/tool_use.yaml`
 - `agents/crewai/websearch_agent/evalhub/tool_use.yaml`
+- `agents/langgraph/agentic_rag/evalhub/tool_use.yaml`
 
 ## 2. Add COPY Line to Containerfile
 
