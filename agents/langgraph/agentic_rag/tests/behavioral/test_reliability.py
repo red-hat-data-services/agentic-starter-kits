@@ -21,7 +21,13 @@ pytestmark = [pytest.mark.agentic_rag, pytest.mark.slow]
 
 PASS_K_TIMEOUT = 60.0
 
-_RETRIEVER_EVIDENCE = ["document", "retrieved", "information", "knowledge base", "relevant"]
+_RETRIEVER_EVIDENCE = [
+    "document",
+    "retrieved",
+    "information",
+    "knowledge base",
+    "relevant",
+]
 
 
 async def test_pass_at_k_tool_usage(

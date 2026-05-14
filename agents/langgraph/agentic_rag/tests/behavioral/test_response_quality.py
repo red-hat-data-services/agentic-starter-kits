@@ -16,9 +16,7 @@ pytestmark = pytest.mark.agentic_rag
 
 async def test_plan_coherence(run_eval: Any) -> None:
     """Response should have structure and substance (not a bare one-liner)."""
-    result = await run_eval(
-        "Explain how RAG works and what are its key components"
-    )
+    result = await run_eval("Explain how RAG works and what are its key components")
     assert result.success, f"Agent request failed: {result.error}"
     score = score_plan_coherence(result)
     assert score.passed, (

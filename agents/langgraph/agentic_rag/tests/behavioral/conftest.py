@@ -20,6 +20,7 @@ try:
 except ImportError:
     MLflowTraceClient = None  # type: ignore[misc,assignment]
 
+
 def _find_repo_root() -> Path:
     """Walk up from this file to find the repository root.
 
