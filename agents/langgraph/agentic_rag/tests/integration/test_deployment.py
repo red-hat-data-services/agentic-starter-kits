@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 INTERNAL_REGISTRY = "image-registry.openshift-image-registry.svc:5000"
 
+# Optional per agent.yaml but required here to ensure RAG-capable deployment.
 _REQUIRED_ENV = ("BASE_URL", "MODEL_ID", "EMBEDDING_MODEL", "VECTOR_STORE_ID")
 
 
