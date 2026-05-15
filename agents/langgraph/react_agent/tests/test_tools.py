@@ -54,7 +54,7 @@ def test_dummy_web_search_return_format():
     # Should be a string, not a list
     assert isinstance(result, str)
     assert "FINAL ANSWER:" in result
-    assert "best company" in result.lower()
+    assert "RedHat" in result
 
 
 def test_dummy_web_search_with_empty_query():

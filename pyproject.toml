@@ -51,6 +51,7 @@ markers = [
     "langgraph_react: LangGraph React agent (dummy web search tool)",
     "vanilla_python: Vanilla Python OpenAI Responses agent (search_price + search_reviews)",
     "autogen_mcp: AutoGen MCP agent (add + sub via MCP)",
+    "crewai_websearch: CrewAI web search agent (Web Search tool)",
     # Test category markers — select what capability is being tested
     "api_contract: FastAPI endpoint schema, validation, streaming (tests repo code, not the model)",
     "adversarial: Agent-level security/safety tests (PII, API keys, dangerous ops)",

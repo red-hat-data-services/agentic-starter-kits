@@ -1,17 +1,17 @@
-from unittest.mock import patch
-
 import pytest
 from fastapi.testclient import TestClient
 
 
 @pytest.fixture
 def client():
-    """Create a test client with a mocked agent."""
-    with patch("main.get_agent_closure") as mock_closure:
-        mock_closure.return_value = lambda: None
-        from main import app
+    """Create a test client with the agent global set to a mock factory."""
+    import main
 
-        yield TestClient(app)
+    original = main.get_agent
+    main.get_agent = lambda: None
+    with TestClient(main.app, raise_server_exceptions=False) as c:
+        yield c
+    main.get_agent = original
 
 
 def test_health_endpoint(client):

@@ -59,6 +59,7 @@ jobs:
         agent:
           - { name: langgraph-react-agent, dir: agents/langgraph/react_agent }
           - { name: langgraph-hitl-agent, dir: agents/langgraph/human_in_the_loop }
+          - { name: crewai-websearch-agent, dir: agents/crewai/websearch_agent }
     env:
       API_KEY: ${{ vars.API_KEY }}
       BASE_URL: ${{ vars.BASE_URL }}

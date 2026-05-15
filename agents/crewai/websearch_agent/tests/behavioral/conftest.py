@@ -1,4 +1,4 @@
-"""Fixtures for AutoGen MCP agent evals."""
+"""Fixtures for CrewAI Websearch agent evals."""
 
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ except ImportError:
 
 @pytest.fixture
 def agent_url() -> str:
-    """AutoGen MCP agent URL from AUTOGEN_MCP_AGENT_URL env var or default localhost:8000."""
-    return os.environ.get("AUTOGEN_MCP_AGENT_URL", "http://localhost:8000")
+    """CrewAI Websearch agent URL from env var or default localhost:8000."""
+    return os.environ.get("CREWAI_WEBSEARCH_AGENT_URL", "http://localhost:8000")
 
 
 @pytest.fixture
@@ -56,6 +56,9 @@ def eval_config() -> dict[str, Any]:
         return yaml.safe_load(f)
 
 
+SEARCH_EVIDENCE = ["openshift ai"]
+
+
 def load_golden(category: str | None = None) -> list[dict[str, Any]]:
     """Load golden queries from the fixtures directory, optionally filtering by category."""
     path = Path(__file__).parent / "fixtures" / "golden_queries.yaml"
@@ -69,14 +72,14 @@ def load_golden(category: str | None = None) -> list[dict[str, Any]]:
 
 @pytest.fixture
 def known_tools() -> list[str]:
-    """Tools available on the AutoGen MCP agent (excluding invoke_churn)."""
-    return ["add", "sub"]
+    """Tools available on the CrewAI Websearch agent."""
+    return ["web_search"]
 
 
 @pytest.fixture
-def autogen_mcp_thresholds(eval_config: dict[str, Any]) -> dict[str, Any]:
-    """Load the autogen_mcp section from the shared thresholds config."""
-    return eval_config["autogen_mcp"]
+def crewai_websearch_thresholds(eval_config: dict[str, Any]) -> dict[str, Any]:
+    """Load the crewai_websearch section from the shared thresholds config."""
+    return eval_config["crewai_websearch"]
 
 
 @pytest.fixture
@@ -85,10 +88,10 @@ def run_eval(
 ) -> Callable[..., Coroutine[Any, Any, TaskResult]]:
     """Run eval with automatic MLflow enrichment when available.
 
-    Overrides the root run_eval fixture to add MLflow trace data
-    (tool calls, token usage) after each request.
-    Always uses stream=False — the AutoGen MCP agent exposes tool_invocations
-    in non-streaming JSON but not in standard SSE delta.tool_calls.
+    MLflow trace enrichment is the primary mechanism for extracting
+    tool_calls — CrewAI does not expose them in the HTTP response body.
+    The MLflowTraceClient pulls SpanType.TOOL spans from traces into
+    TaskResult.tool_calls, enabling full scorer coverage.
     """
     mlflow = None
     if MLflowTraceClient is not None:
@@ -103,6 +106,7 @@ def run_eval(
         timeout_seconds: float = 30.0,
         max_tokens_budget: int | None = None,
         model: str | None = None,
+        stream: bool = False,
     ) -> TaskResult:
         config = TaskConfig(
             agent_url=agent_url,
@@ -111,7 +115,7 @@ def run_eval(
             timeout_seconds=timeout_seconds,
             max_tokens_budget=max_tokens_budget,
             model=model,
-            stream=False,
+            stream=stream,
         )
         request_start_ms = int(time.time() * 1000)
         result = await run_task(config, client=http_client)

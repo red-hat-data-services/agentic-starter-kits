@@ -1,0 +1,61 @@
+# Network Policies for llm-d on OpenShift AI
+#
+# The default RHOAI network policy blocks port 8000, which vLLM uses for serving.
+# These additional policies allow traffic to reach the vLLM and scheduler pods.
+#
+# Before applying, replace the following placeholder with your value:
+#
+#   <SERVICE_NAME>  - Must match the LLMInferenceService name (e.g., my-model-llmd)
+#
+# Usage:
+#   oc apply -f network-policies.yaml
+
+# Policy 1: Allow ingress to vLLM pods (port 8000) and scheduler pods (ports 9002-9090)
+# Without this, the gateway cannot route traffic to the vLLM inference endpoints.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-llmd-ingress
+  namespace: redhat-ods-applications
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: <SERVICE_NAME>
+  ingress:
+  - ports:
+    - port: 8000
+      protocol: TCP
+    - port: 9002
+      protocol: TCP
+    - port: 9003
+      protocol: TCP
+    - port: 9090
+      protocol: TCP
+  policyTypes:
+  - Ingress
+---
+# Policy 2: Allow ingress to Llama Stack from the OpenShift router
+# Only needed if you deploy Llama Stack in the same namespace and expose it
+# via an OpenShift Route. The Llama Stack operator creates its own network
+# policy that restricts ingress to the same namespace, which blocks the
+# OpenShift router (running in openshift-ingress namespace).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-llamastack-from-router
+  namespace: redhat-ods-applications
+spec:
+  podSelector:
+    matchLabels:
+      app: llama-stack
+      app.kubernetes.io/instance: llamastack-distribution
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-ingress
+    ports:
+    - port: 8321
+      protocol: TCP
+  policyTypes:
+  - Ingress

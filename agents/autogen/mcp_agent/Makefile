@@ -201,5 +201,5 @@ dry-run: _check-env ## Render Helm templates without deploying
 undeploy: ## Remove agent deployment from cluster (does NOT remove MCP server)
 	helm uninstall $(AGENT_NAME)
 
-test: ## Run tests
-	uv run --extra dev python -m pytest tests/
+test: ## Run unit tests
+	uv run --extra dev python -m pytest tests/ --ignore=tests/integration --ignore=tests/behavioral $(PYTEST_ARGS)

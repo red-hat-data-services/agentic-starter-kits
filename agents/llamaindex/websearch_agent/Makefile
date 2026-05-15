@@ -167,5 +167,5 @@ dry-run: _check-env ## Render Helm templates without deploying
 undeploy: ## Remove deployment from cluster
 	helm uninstall $(AGENT_NAME)
 
-test: ## Run tests
-	uv run --extra dev python -m pytest tests/
+test: ## Run unit tests
+	uv run --extra dev python -m pytest tests/ --ignore=tests/integration --ignore=tests/behavioral $(PYTEST_ARGS)

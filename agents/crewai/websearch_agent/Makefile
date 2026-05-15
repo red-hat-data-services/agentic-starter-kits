@@ -5,7 +5,7 @@ VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
 
-.PHONY: init re-init env ollama llama-server run-app run-app-fresh run-cli build push build-openshift deploy undeploy test dry-run help
+.PHONY: init re-init env ollama llama-server run-app run-app-fresh run-cli build push build-openshift deploy undeploy test test-integration dry-run help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -167,5 +167,10 @@ dry-run: _check-env ## Render Helm templates without deploying
 undeploy: ## Remove deployment from cluster
 	helm uninstall $(AGENT_NAME)
 
-test: ## Run tests
-	uv run --extra dev python -m pytest tests/
+test: ## Run unit tests
+	uv run --extra dev python -m pytest tests/ --ignore=tests/integration --ignore=tests/behavioral $(PYTEST_ARGS)
+
+test-integration: ## Run integration deployment test
+	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \
+	  uv run --extra dev python -m pytest tests/integration/test_deployment.py \
+	    -v --tb=long --junitxml=results.xml
