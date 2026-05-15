@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# End-to-end EvalHub walkthrough — runs all four agent profiles.
+# End-to-end EvalHub walkthrough — runs all five agent profiles.
 # Preflight covers README step 1 (prerequisites); steps 2-7 follow the README.
 #
 # Cluster: agentic-mcp (ROSA HCP)

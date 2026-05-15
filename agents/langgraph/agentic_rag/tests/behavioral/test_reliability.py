@@ -11,23 +11,17 @@ infrastructure limits rather than agent reliability.
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import pytest
+from conftest import RETRIEVER_EVIDENCE
 from harness.scorers.plan_coherence import score_plan_coherence
 from harness.scorers.tool_sequence import score_tool_selection
 
 pytestmark = [pytest.mark.agentic_rag, pytest.mark.slow]
 
 PASS_K_TIMEOUT = 60.0
-
-_RETRIEVER_EVIDENCE = [
-    "document",
-    "retrieved",
-    "information",
-    "knowledge base",
-    "relevant",
-]
 
 
 async def test_pass_at_k_tool_usage(
@@ -46,6 +40,7 @@ async def test_pass_at_k_tool_usage(
 
     passed_count = 0
     failures = 0
+    used_fallback = 0
     for _ in range(k):
         result = await run_eval(
             query, expected_tools=expected_tools, timeout_seconds=PASS_K_TIMEOUT
@@ -59,9 +54,17 @@ async def test_pass_at_k_tool_usage(
             if score.passed:
                 passed_count += 1
         else:
+            used_fallback += 1
             text_lower = result.response.lower()
-            if any(term in text_lower for term in _RETRIEVER_EVIDENCE):
+            if any(term in text_lower for term in RETRIEVER_EVIDENCE):
                 passed_count += 1
+
+    if used_fallback == k - failures:
+        warnings.warn(
+            "tool_calls not exposed in any response — pass@k scored via "
+            "content keywords only (weaker signal)",
+            stacklevel=1,
+        )
 
     pass_rate = passed_count / k
     assert pass_rate >= threshold, (

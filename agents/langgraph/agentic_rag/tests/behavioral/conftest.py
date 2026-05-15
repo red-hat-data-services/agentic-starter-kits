@@ -21,6 +21,15 @@ except ImportError:
     MLflowTraceClient = None  # type: ignore[misc,assignment]
 
 
+RETRIEVER_EVIDENCE = [
+    "document",
+    "retrieved",
+    "information",
+    "knowledge base",
+    "relevant",
+]
+
+
 def _find_repo_root() -> Path:
     """Walk up from this file to find the repository root.
 

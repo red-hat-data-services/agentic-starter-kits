@@ -23,6 +23,7 @@ _AGENT_URL_MAP = {
     "vanilla_python": "VANILLA_PYTHON_AGENT_URL",
     "langgraph_react": "REACT_AGENT_URL",
     "crewai_websearch": "CREWAI_WEBSEARCH_AGENT_URL",
+    "agentic_rag": "AGENTIC_RAG_AGENT_URL",
 }
 
 
@@ -74,6 +75,7 @@ def pytest_report_header(config: pytest.Config) -> list[str]:
         "REACT_AGENT_URL",
         "VANILLA_PYTHON_AGENT_URL",
         "CREWAI_WEBSEARCH_AGENT_URL",
+        "AGENTIC_RAG_AGENT_URL",
     ):
         val = os.environ.get(var)
         if val:

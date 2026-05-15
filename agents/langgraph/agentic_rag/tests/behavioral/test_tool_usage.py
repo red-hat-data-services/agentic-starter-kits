@@ -14,11 +14,10 @@ enrichment), we also verify tool selection accuracy via scorers.
 from __future__ import annotations
 
 import warnings
-from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
+from conftest import RETRIEVER_EVIDENCE, load_golden
 from harness.scorers.tool_sequence import (
     score_hallucinated_tools,
     score_tool_call_validity,
@@ -28,20 +27,9 @@ from harness.scorers.tool_sequence import (
 pytestmark = pytest.mark.agentic_rag
 
 
-def _load_golden(category: str | None = None) -> list[dict[str, Any]]:
-    """Load golden queries, optionally filtering by category."""
-    path = Path(__file__).parent / "fixtures" / "golden_queries.yaml"
-    with open(path, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    queries = data.get("queries", [])
-    if category:
-        queries = [q for q in queries if q.get("category") == category]
-    return queries
-
-
 def _factual_queries() -> list[dict[str, Any]]:
     """Return golden queries that should trigger tool calls."""
-    return [q for q in _load_golden() if q.get("expected_tools")]
+    return [q for q in load_golden() if q.get("expected_tools")]
 
 
 @pytest.mark.parametrize(
@@ -133,7 +121,7 @@ async def test_tool_not_called_for_greeting(run_eval: Any) -> None:
         )
 
     text_lower = result.response.lower()
-    assert "based on provided documents" not in text_lower, (
+    assert not any(term in text_lower for term in RETRIEVER_EVIDENCE), (
         "Greeting response appears to contain retriever output — "
         "agent may have called the retriever tool for a simple greeting"
     )
