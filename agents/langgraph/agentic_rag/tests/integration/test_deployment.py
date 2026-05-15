@@ -46,7 +46,7 @@ def _write_env_file(agent_dir, container_image):
         f"MODEL_ID={os.environ['MODEL_ID']}\n"
         f"CONTAINER_IMAGE={container_image}\n"
         f"EMBEDDING_MODEL={os.environ['EMBEDDING_MODEL']}\n"
-        f"EMBEDDING_DIMENSION={os.environ.get('EMBEDDING_DIMENSION', '768')}\n"
+        f"EMBEDDING_DIMENSION={int(os.environ.get('EMBEDDING_DIMENSION', '768'))}\n"
         f"VECTOR_STORE_ID={os.environ['VECTOR_STORE_ID']}\n"
         f"VECTOR_STORE_PROVIDER={os.environ.get('VECTOR_STORE_PROVIDER', 'milvus')}\n"
     )

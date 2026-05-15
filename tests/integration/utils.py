@@ -26,6 +26,7 @@ _REDACT_PATTERNS = [
     re.compile(r'(--set\s+secrets\.apiKey=")[^"]*"'),
     re.compile(r"(--set\s+secrets\.apiKey=)\S+"),
     re.compile(r"(VECTOR_STORE_ID=)\S+"),
+    re.compile(r'(--set\s+env\.VECTOR_STORE_ID=")[^"]*"'),
     re.compile(r"(--set\s+env\.VECTOR_STORE_ID=)\S+"),
 ]
 
