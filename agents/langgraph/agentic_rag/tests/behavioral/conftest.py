@@ -22,11 +22,11 @@ except ImportError:
 
 
 RETRIEVER_EVIDENCE = [
-    "document",
-    "retrieved",
-    "information",
+    "retrieved context",
+    "retrieved document",
     "knowledge base",
-    "relevant",
+    "based on retrieved",
+    "from the retrieved",
 ]
 
 
