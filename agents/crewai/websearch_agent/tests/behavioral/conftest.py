@@ -13,6 +13,7 @@ from typing import Any, AsyncGenerator, Callable, Coroutine
 import httpx
 import pytest
 import yaml
+from harness.fixtures import load_golden as _load_golden_from
 from harness.runner import TaskConfig, TaskResult, run_task
 
 try:
@@ -58,16 +59,12 @@ def eval_config() -> dict[str, Any]:
 
 SEARCH_EVIDENCE = ["openshift ai"]
 
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
 
 def load_golden(category: str | None = None) -> list[dict[str, Any]]:
     """Load golden queries from the fixtures directory, optionally filtering by category."""
-    path = Path(__file__).parent / "fixtures" / "golden_queries.yaml"
-    with open(path, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    queries = data.get("queries", [])
-    if category:
-        queries = [q for q in queries if q.get("category") == category]
-    return queries
+    return _load_golden_from(FIXTURES_DIR, category)
 
 
 @pytest.fixture

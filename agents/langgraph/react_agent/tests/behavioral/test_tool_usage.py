@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
+from harness.fixtures import load_golden as _load_golden_from
 from harness.scorers.tool_sequence import (
     score_hallucinated_tools,
     score_tool_call_validity,
@@ -29,16 +29,12 @@ from harness.scorers.tool_sequence import (
 
 pytestmark = pytest.mark.langgraph_react
 
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
 
 def _load_golden(category: str | None = None) -> list[dict[str, Any]]:
     """Load golden queries, optionally filtering by category."""
-    path = Path(__file__).parent / "fixtures" / "golden_queries.yaml"
-    with open(path, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    queries = data.get("queries", [])
-    if category:
-        queries = [q for q in queries if q.get("category") == category]
-    return queries
+    return _load_golden_from(FIXTURES_DIR, category)
 
 
 def _factual_queries() -> list[dict[str, Any]]:
