@@ -22,11 +22,11 @@ except ImportError:
 
 
 RETRIEVER_EVIDENCE = [
-    "retrieved context",
-    "retrieved document",
-    "knowledge base",
-    "based on retrieved",
-    "from the retrieved",
+    "langchain",
+    "langgraph",
+    "milvus",
+    "vector database",
+    "embedding",
 ]
 
 
