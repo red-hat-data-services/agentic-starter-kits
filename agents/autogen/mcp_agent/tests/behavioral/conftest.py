@@ -101,6 +101,7 @@ def run_eval(
         timeout_seconds: float = 30.0,
         max_tokens_budget: int | None = None,
         model: str | None = None,
+        stream: bool = False,
     ) -> TaskResult:
         config = TaskConfig(
             agent_url=agent_url,
