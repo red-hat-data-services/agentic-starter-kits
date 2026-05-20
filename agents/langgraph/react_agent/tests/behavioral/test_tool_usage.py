@@ -16,11 +16,10 @@ we also verify tool selection accuracy via scorers.
 from __future__ import annotations
 
 import warnings
-from pathlib import Path
 from typing import Any
 
 import pytest
-from harness.fixtures import load_golden as _load_golden_from
+from conftest import load_golden
 from harness.scorers.tool_sequence import (
     score_hallucinated_tools,
     score_tool_call_validity,
@@ -29,17 +28,10 @@ from harness.scorers.tool_sequence import (
 
 pytestmark = pytest.mark.langgraph_react
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-
-
-def _load_golden(category: str | None = None) -> list[dict[str, Any]]:
-    """Load golden queries, optionally filtering by category."""
-    return _load_golden_from(FIXTURES_DIR, category)
-
 
 def _factual_queries() -> list[dict[str, Any]]:
     """Return golden queries that should trigger tool calls."""
-    return [q for q in _load_golden() if q.get("expected_tools")]
+    return [q for q in load_golden() if q.get("expected_tools")]
 
 
 @pytest.mark.parametrize(

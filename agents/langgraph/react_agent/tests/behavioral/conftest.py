@@ -13,6 +13,7 @@ from typing import Any, AsyncGenerator, Callable, Coroutine
 import httpx
 import pytest
 import yaml
+from harness.fixtures import load_golden as _load_golden_from
 from harness.runner import TaskConfig, TaskResult, run_task
 
 try:
@@ -37,6 +38,14 @@ def _find_repo_root() -> Path:
     raise FileNotFoundError(
         "Could not find repo root (no tests/behavioral/configs/thresholds.yaml)"
     )
+
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+
+def load_golden(category: str | None = None) -> list[dict[str, Any]]:
+    """Load golden queries from the fixtures directory, optionally filtering by category."""
+    return _load_golden_from(FIXTURES_DIR, category)
 
 
 @pytest.fixture
