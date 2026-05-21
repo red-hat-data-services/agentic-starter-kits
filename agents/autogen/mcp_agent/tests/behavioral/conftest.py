@@ -58,6 +58,7 @@ def eval_config() -> dict[str, Any]:
 
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+# AutoGen MCP exposes tool_invocations only in non-streaming JSON responses.
 STREAM = False
 
 

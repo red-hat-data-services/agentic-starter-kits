@@ -50,6 +50,7 @@ def _find_repo_root() -> Path:
 
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+# Agentic RAG does not expose tool_calls in streaming; MLflow traces are the only source.
 STREAM = False
 
 
