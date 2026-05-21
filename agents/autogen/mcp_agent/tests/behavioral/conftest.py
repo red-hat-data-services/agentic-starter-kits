@@ -58,6 +58,7 @@ def eval_config() -> dict[str, Any]:
 
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+STREAM = False
 
 
 def load_golden(category: str | None = None) -> list[dict[str, Any]]:
@@ -85,8 +86,6 @@ def run_eval(
 
     Overrides the root run_eval fixture to add MLflow trace data
     (tool calls, token usage) after each request.
-    Always uses stream=False — the AutoGen MCP agent exposes tool_invocations
-    in non-streaming JSON but not in standard SSE delta.tool_calls.
     """
     mlflow = None
     if MLflowTraceClient is not None:
@@ -101,7 +100,6 @@ def run_eval(
         timeout_seconds: float = 30.0,
         max_tokens_budget: int | None = None,
         model: str | None = None,
-        stream: bool = False,
     ) -> TaskResult:
         config = TaskConfig(
             agent_url=agent_url,
@@ -110,7 +108,7 @@ def run_eval(
             timeout_seconds=timeout_seconds,
             max_tokens_budget=max_tokens_budget,
             model=model,
-            stream=False,
+            stream=STREAM,
         )
         request_start_ms = int(time.time() * 1000)
         result = await run_task(config, client=http_client)

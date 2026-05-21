@@ -60,6 +60,7 @@ def eval_config() -> dict[str, Any]:
 SEARCH_EVIDENCE = ["openshift ai"]
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+STREAM = False
 
 
 def load_golden(category: str | None = None) -> list[dict[str, Any]]:
@@ -103,7 +104,6 @@ def run_eval(
         timeout_seconds: float = 30.0,
         max_tokens_budget: int | None = None,
         model: str | None = None,
-        stream: bool = False,
     ) -> TaskResult:
         config = TaskConfig(
             agent_url=agent_url,
@@ -112,7 +112,7 @@ def run_eval(
             timeout_seconds=timeout_seconds,
             max_tokens_budget=max_tokens_budget,
             model=model,
-            stream=stream,
+            stream=STREAM,
         )
         request_start_ms = int(time.time() * 1000)
         result = await run_task(config, client=http_client)
