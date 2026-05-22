@@ -1,10 +1,17 @@
-# Claude Code Deployment for OpenShift
+# Claude Code Deployment for OpenShift - vLLM Direct Connection
 #
-# This file contains all resources needed to deploy Claude Code on OpenShift.
+# This deployment connects Claude Code directly to a vLLM server that supports
+# the Anthropic Messages API (/v1/messages endpoint).
 #
-# Before applying this manifest, create the credentials secret:
-#   oc create secret generic claude-credentials \
-#     --from-literal=ANTHROPIC_API_KEY="sk-ant-api03-YOUR_KEY_HERE"
+# Prerequisites:
+# 1. A vLLM server with /v1/messages endpoint support
+# 2. The vLLM model must have a context window >= 32K tokens
+#    (Claude Code's system prompt is ~14K tokens)
+#
+# Before applying this manifest:
+# 1. Update the ANTHROPIC_BASE_URL to point to your vLLM server
+# 2. Update the model ID in the claude-vllm-settings ConfigMap
+# 3. Update the ANTHROPIC_CUSTOM_MODEL_OPTION env var
 
 ---
 # ImageStream to hold the built image
@@ -13,7 +20,7 @@ kind: ImageStream
 metadata:
   name: claude-code
   labels:
-    app: claude-code
+    app: claude-code-vllm
 spec:
   lookupPolicy:
     local: true
@@ -25,7 +32,7 @@ kind: BuildConfig
 metadata:
   name: claude-code
   labels:
-    app: claude-code
+    app: claude-code-vllm
 spec:
   source:
     type: Binary
@@ -40,13 +47,28 @@ spec:
   triggers: []
 
 ---
+# ConfigMap for Claude Code settings (sets default model)
+# IMPORTANT: The model ID here should be the bare model name (no provider prefix)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-vllm-settings
+  labels:
+    app: claude-code-vllm
+data:
+  settings.json: |
+    {
+      "model": "YOUR_MODEL_ID"
+    }
+
+---
 # ConfigMap for optional MCP configuration
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: claude-mcp-config
+  name: claude-vllm-mcp-config
   labels:
-    app: claude-code
+    app: claude-code-vllm
 data:
   config.json: |
     {
@@ -54,55 +76,23 @@ data:
     }
 
 ---
-# ConfigMap for skills
-# Skills are injected at deploy time
-# Each skill needs a subdirectory with a SKILL.md file.
-# Modify this ConfigMap to add your own skills.
+# ConfigMap for skills (empty by default)
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: claude-skills
+  name: claude-vllm-skills
   labels:
-    app: claude-code
-data:
-  SKILL.md: |
-    # Code Review
-
-    When reviewing code, analyze for:
-
-    1. **Correctness** - Logic errors, edge cases, off-by-one errors
-    2. **Security** - Input validation, injection risks, hardcoded secrets
-    3. **Performance** - Unnecessary loops, N+1 queries, missing indexes
-    4. **Readability** - Clear naming, appropriate comments, consistent style
-    5. **Maintainability** - DRY violations, tight coupling, missing error handling
-
-    Provide feedback as:
-    - **Must Fix** - Bugs or security issues
-    - **Should Fix** - Performance or maintainability concerns
-    - **Consider** - Style suggestions or minor improvements
-
----
-# ConfigMap for Claude Code settings
-# Settings are injected at deploy time
-# Modify this ConfigMap to override Claude Code settings.
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: claude-settings
-  labels:
-    app: claude-code
-data:
-  settings.json: |
-    {}
+    app: claude-code-vllm
+data: {}
 
 ---
 # PVC for workspace persistence (optional)
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: claude-workspace
+  name: claude-vllm-workspace
   labels:
-    app: claude-code
+    app: claude-code-vllm
 spec:
   accessModes:
     - ReadWriteOnce
@@ -115,22 +105,21 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: claude-code
+  name: claude-code-vllm
   labels:
-    app: claude-code
+    app: claude-code-vllm
 spec:
   replicas: 1
-  # Recreate strategy required for ReadWriteOnce PVC - prevents Multi-Attach errors
-  # during rolling updates (old pod must release PVC before new pod can mount it)
+  # Recreate strategy required for ReadWriteOnce PVC
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app: claude-code
+      app: claude-code-vllm
   template:
     metadata:
       labels:
-        app: claude-code
+        app: claude-code-vllm
     spec:
       securityContext:
         runAsNonRoot: true
@@ -143,24 +132,32 @@ spec:
           command: ["entrypoint.sh"]
           args: ["sleep", "infinity"]  # Keep container running for exec access
           env:
-            # HOME must be set for the entrypoint to create ~/.claude/
+            # ===========================================
+            # Runtime Environment
+            # ===========================================
             - name: HOME
               value: "/home/claude-agent"
+            # ===========================================
+            # vLLM Connection
+            # ===========================================
+            # vLLM server URL - UPDATE THIS
+            # For internal service: http://vllm-service.namespace.svc.cluster.local
+            # For external route: https://vllm-route.apps.cluster.domain
+            - name: ANTHROPIC_BASE_URL
+              value: "https://YOUR_VLLM_ENDPOINT"
+            # vLLM doesn't validate API keys, but Claude Code requires one
             - name: ANTHROPIC_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: claude-credentials
-                  key: ANTHROPIC_API_KEY
-            # Uncomment for custom endpoint:
-            # - name: ANTHROPIC_BASE_URL
-            #   value: "https://your-endpoint/v1"
-            # - name: CLAUDE_MODEL
-            #   value: "your-model"
+              value: "fake"
+            # Adds model to the Claude Code model picker menu
+            # Use bare model ID (no provider prefix) for direct vLLM connection
+            - name: ANTHROPIC_CUSTOM_MODEL_OPTION
+              value: "YOUR_MODEL_ID"
+            # ===========================================
+            # Claude Code Configuration
+            # ===========================================
             - name: MCP_CONFIG_FILE
               value: "/etc/mcp/config.json"
             # WARNING: Setting SKIP_PERMISSIONS=true disables all Claude permission checks.
-            # This bypasses file-system write confirmations. Only use in fully sandboxed
-            # environments where the container has no access to sensitive host resources.
             - name: SKIP_PERMISSIONS
               value: "true"
           volumeMounts:
@@ -172,6 +169,7 @@ spec:
             - name: mcp-config
               mountPath: /etc/mcp
               readOnly: true
+            # Mount settings.json to set default model
             - name: claude-settings
               mountPath: /home/claude-agent/.claude/settings.json
               subPath: settings.json
@@ -193,18 +191,15 @@ spec:
       volumes:
         - name: workspace
           persistentVolumeClaim:
-            claimName: claude-workspace
+            claimName: claude-vllm-workspace
         - name: skills
           configMap:
-            name: claude-skills
+            name: claude-vllm-skills
             optional: true
-            items:
-              - key: SKILL.md
-                path: code-review/SKILL.md
         - name: mcp-config
           configMap:
-            name: claude-mcp-config
+            name: claude-vllm-mcp-config
             optional: true
         - name: claude-settings
           configMap:
-            name: claude-settings
+            name: claude-vllm-settings
