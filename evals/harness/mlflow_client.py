@@ -58,7 +58,7 @@ class MLflowTraceClient:
             import mlflow
 
             mlflow.set_tracking_uri(self.tracking_uri)
-            self._client = mlflow.MlflowClient(self.tracking_uri)
+            self._client = mlflow.MlflowClient()
         if self._experiment_id is None:
             experiment = self._client.get_experiment_by_name(self.experiment_name)
             if experiment:

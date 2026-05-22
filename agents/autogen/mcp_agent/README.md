@@ -401,6 +401,26 @@ until initialization completes.
 
 ---
 
+## Testing
+
+### Behavioral tests
+
+Behavioral tests validate tool usage, response quality, latency, and reliability against a live deployed agent.
+
+```bash
+AUTOGEN_MCP_AGENT_URL=https://<agent-route> \
+MLFLOW_TRACKING_URI=https://<mlflow-url>/mlflow \
+MLFLOW_EXPERIMENT_NAME=<experiment> \
+MLFLOW_TRACKING_TOKEN=$(oc whoami -t) \
+pytest agents/autogen/mcp_agent/tests/behavioral/ -v
+```
+
+The tests cover only the `add` and `sub` tools. The `invoke_churn` tool is registered on the MCP server but behavioral tests exclude it because the churn prediction backend requires an external AutoGluon model deployment (trained artifact in S3 + KServe InferenceService + AutoGluon ServingRuntime) that is not in this repo or on the test cluster. See `mcp_automl_template/AUTOML_DEPLOYMENT.md` for full setup.
+
+All behavioral tests use `stream=False` because the agent's non-streaming `ChatResponse` includes `tool_invocations[]` and `messages[]` explicitly. The streaming mode emits tool usage via a custom `mcp.tool_usage` SSE event that the shared harness does not parse.
+
+---
+
 ## Architecture
 
 This agent is built on:

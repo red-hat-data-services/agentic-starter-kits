@@ -58,3 +58,19 @@ repos:
     hooks:
       - id: markdownlint-cli2
         args: [--fix]
+
+  # Gitleaks — secret scanning
+  # Keep version in sync with the gitleaks version in .github/workflows/code-quality.yml
+  # Allowlist rules are defined in .gitleaks.toml at the repo root
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  # Actionlint — GitHub Actions workflow validation
+  # Keep version in sync with raven-actions/actionlint in .github/workflows/code-quality.yml
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+        files: ^\.github/workflows/

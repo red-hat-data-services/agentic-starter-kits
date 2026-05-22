@@ -9,18 +9,23 @@ from integration.utils import (
     RouteNotFoundError,
     get_route,
     health_check,
+    load_agent_name,
     run_make,
 )
 
 logger = logging.getLogger(__name__)
 
-AGENT_NAME = "langgraph-react-agent"
 INTERNAL_REGISTRY = "image-registry.openshift-image-registry.svc:5000"
 
 
 @pytest.fixture(scope="module")
 def agent_dir(repo_root):
     return repo_root / "agents" / "langgraph" / "react_agent"
+
+
+@pytest.fixture(scope="module")
+def agent_name(agent_dir):
+    return load_agent_name(agent_dir)
 
 
 def _write_env_file(agent_dir, container_image):
@@ -42,9 +47,9 @@ def _write_env_file(agent_dir, container_image):
 
 
 @pytest.fixture(scope="module")
-def deployed_agent(cluster_auth, agent_dir):
+def deployed_agent(cluster_auth, agent_dir, agent_name):
     namespace = cluster_auth["namespace"]
-    container_image = f"{INTERNAL_REGISTRY}/{namespace}/{AGENT_NAME}:latest"
+    container_image = f"{INTERNAL_REGISTRY}/{namespace}/{agent_name}:latest"
     env_path = _write_env_file(agent_dir, container_image)
 
     deployed = False
@@ -56,7 +61,7 @@ def deployed_agent(cluster_auth, agent_dir):
         run_make("deploy", cwd=agent_dir, timeout=300)
         deployed = True
 
-        route_url = get_route(AGENT_NAME, namespace=namespace)
+        route_url = get_route(agent_name, namespace=namespace)
         logger.info("Agent deployed at %s", route_url)
 
         yield route_url

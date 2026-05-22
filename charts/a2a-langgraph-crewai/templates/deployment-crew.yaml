@@ -5,6 +5,7 @@ metadata:
   name: a2a-crew-agent
   labels:
     app: a2a-crew-agent
+    protocol.kagenti.io/a2a: "true"
     {{- include "a2a.labels" . | nindent 4 }}
 spec:
   replicas: 1

@@ -1,0 +1,5 @@
+# Gitleaks configuration for agentic-starter-kits
+# https://github.com/gitleaks/gitleaks
+
+[extend]
+useDefault = true

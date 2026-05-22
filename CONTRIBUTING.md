@@ -69,33 +69,15 @@ General-purpose checks from [pre-commit/pre-commit-hooks](https://github.com/pre
 | `no-commit-to-branch` | Blocks direct commits to `main` |
 | `detect-private-key` | Catches accidentally committed private keys |
 
+### GitHub Actions workflow validation (actionlint)
+
+Validates `.github/workflows/` files using [actionlint](https://github.com/rhysd/actionlint). Only runs when workflow files are staged.
+
 ## Linting and formatting
 
-This project uses [ruff](https://docs.astral.sh/ruff/) for Python linting and formatting, and [markdownlint](https://github.com/DavidAnson/markdownlint) for Markdown linting. Both run as blocking CI checks on all pull requests via the `Code Quality` workflow.
+This project uses [ruff](https://docs.astral.sh/ruff/) for Python linting and formatting, [markdownlint](https://github.com/DavidAnson/markdownlint) for Markdown linting, and [actionlint](https://github.com/rhysd/actionlint) for GitHub Actions workflow validation. All three run as blocking CI checks on every pull request via the `Code Quality` workflow, and locally via the [pre-commit hooks](#pre-commit-hooks) described above.
 
-### Python (ruff)
-
-Run locally before pushing:
-
-```bash
-uv tool install ruff==0.15.11
-ruff check .          # lint
-ruff format --check . # format check
-ruff format .         # auto-format
-```
-
-Configuration is in [`ruff.toml`](ruff.toml) at the repo root.
-
-### Markdown (markdownlint)
-
-Run locally before pushing:
-
-```bash
-npx markdownlint-cli2@0.22.1 "**/*.md"          # lint
-npx markdownlint-cli2@0.22.1 --fix "**/*.md"    # auto-fix
-```
-
-Configuration is in [`.markdownlint.jsonc`](.markdownlint.jsonc) (rules) and [`.markdownlint-cli2.yaml`](.markdownlint-cli2.yaml) (ignored paths) at the repo root.
+Configuration files: [`ruff.toml`](ruff.toml) (Python rules), [`.markdownlint.jsonc`](.markdownlint.jsonc) (Markdown rules), [`.markdownlint-cli2.yaml`](.markdownlint-cli2.yaml) (ignored paths).
 
 ## Commit message conventions
 

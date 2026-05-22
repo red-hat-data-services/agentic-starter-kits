@@ -8,7 +8,7 @@ A step-by-step guide to build, test, and deploy the Claude Code container image.
 
 ## Prerequisites
 
-- `podman` installed locally
+- `podman` installed locally (on macOS, you also need to run `podman machine init` and `podman machine start` before building)
 - `oc` CLI installed and logged into your OpenShift cluster
 - An Anthropic API key OR a GCP service account key for Vertex AI
 - The Containerfile and entrypoint.sh files
@@ -178,6 +178,12 @@ gcloud iam service-accounts keys create ~/claude-vertex-key.json \
 
 **Note**: Creating service accounts requires **IAM Admin** or **Service Account Admin** permissions in the GCP project.
 
+**Alternative: Application Default Credentials (ADC)**
+
+If you already have credentials via `gcloud auth application-default login`, you can use your ADC file (typically at `~/.config/gcloud/application_default_credentials.json`) in place of a service account key. Substitute this path wherever the instructions reference your service account key file.
+
+**Important:** ADC credentials are user-scoped and typically carry broader permissions than a dedicated service account. Use ADC for local development and testing only. For shared or production clusters, create a least-privilege service account with only the **Vertex AI User** role as described above.
+
 ### 1. Build and test locally
 
 ```bash
@@ -211,26 +217,32 @@ oc create secret generic claude-vertex-credentials \
   --from-file=key.json=/path/to/your-service-account-key.json
 ```
 
-### 4. Apply the Vertex AI deployment manifest
+### 4. Apply the Vertex AI deployment manifest and update the ConfigMap
+
+Apply the manifest first to create all the resources, then immediately patch the ConfigMap with your actual project details before the pod starts using them:
 
 ```bash
 oc apply -f deployment-vertex.yaml
 ```
-
-### 5. Update the ConfigMap with your project details
 
 ```bash
 oc patch configmap claude-vertex-config \
   -p '{"data":{"ANTHROPIC_VERTEX_PROJECT_ID":"your-gcp-project-id","CLOUD_ML_REGION":"global"}}'
 ```
 
-### 6. Build the image on OpenShift
+Restart the deployment so pods pick up the patched ConfigMap values:
+
+```bash
+oc rollout restart deployment/claude-code-vertex
+```
+
+### 5. Build the image on OpenShift
 
 ```bash
 oc start-build claude-code --from-dir=. --follow
 ```
 
-### 7. Wait for deployment and test
+### 6. Wait for deployment and test
 
 ```bash
 oc rollout status deployment/claude-code-vertex
@@ -252,7 +264,12 @@ oc exec deployment/claude-code-vertex -- bash -c '
 '
 ```
 
-### 8. Interactive mode
+### 7. Interactive mode
+**Note on model selection:** On Vertex AI (and Bedrock/Foundry), the default `sonnet` model alias may resolve to an older model than on the direct Anthropic API. If you want a specific model version, set the `CLAUDE_MODEL` environment variable in your deployment manifest or patch it directly:
+
+```bash
+oc set env deployment/claude-code-vertex CLAUDE_MODEL=claude-sonnet-4-6
+```
 
 For a full interactive Claude Code experience with multi-turn conversations:
 
@@ -286,7 +303,7 @@ oc exec -it deployment/claude-code-vertex -- bash -c '
 
 **Note**: Interactive mode requires a TTY, so use `-it` flags with podman and `oc exec`.
 
-### 9. Debug mode
+### 8. Debug mode
 
 To see detailed logging of Claude Code activity, use the `--debug` flag:
 

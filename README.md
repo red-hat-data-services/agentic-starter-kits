@@ -79,6 +79,8 @@ agentic-starter-kits/
 ├── charts/
 │   ├── agent/                       # Shared Helm chart for all standard agents
 │   └── a2a-langgraph-crewai/        # Dedicated Helm chart for A2A agent
+├── infrastructure/
+│   └── llm-d/                       # llm-d deployment manifests and test tooling
 ├── docs/                            # Guides: local dev, deployment, contributing
 ├── pyproject.toml                   # Test deps & pytest config
 └── README.md
@@ -131,6 +133,9 @@ Tests require a running agent. Set the target URL via environment variables:
 | `AGENT_URL` | Cross-agent tests (api_contract, adversarial) |
 | `REACT_AGENT_URL` | LangGraph ReAct agent tests |
 | `VANILLA_PYTHON_AGENT_URL` | Vanilla Python agent tests |
+| `AUTOGEN_MCP_AGENT_URL` | AutoGen MCP agent tests |
+| `CREWAI_WEBSEARCH_AGENT_URL` | CrewAI Websearch agent tests |
+| `AGENTIC_RAG_AGENT_URL` | LangGraph Agentic RAG agent tests |
 
 ```bash
 uv pip install -e ".[test]"
@@ -148,6 +153,7 @@ See `tests/behavioral/` for full details.
 - [Adding a New Agent](./docs/adding-a-new-agent.md) — How to contribute a new agent template
 - [Adding Behavioral Tests](./docs/adding-behavioral-tests.md) — How to add test coverage for an agent
 - [Adding an EvalHub Agent Integration](./docs/adding-evalhub-agent-integration.md) — How to integrate a new agent into the EvalHub evaluation pipeline
+- [llm-d Deployment](./docs/llm-d-deployment.md) — Deploy llm-d for intelligent LLM inference routing on OpenShift AI
 
 ## Additional Resources
 

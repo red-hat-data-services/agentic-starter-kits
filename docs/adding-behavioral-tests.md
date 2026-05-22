@@ -38,10 +38,27 @@ The conftest defines fixtures specific to your agent. Because agent tests live u
 - `agent_thresholds` — pulls from the shared `eval_config` fixture
 - `run_eval` — overrides the root fixture to add MLflow trace enrichment
 
+**`load_golden()` helper:** Import the shared loader from `harness.fixtures` and create a thin wrapper that binds `fixtures_dir` to `Path(__file__).parent / "fixtures"`:
+
+```python
+from pathlib import Path
+from typing import Any
+
+from harness.fixtures import load_golden as _load_golden_from
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+def load_golden(category: str | None = None) -> list[dict[str, Any]]:
+    return _load_golden_from(FIXTURES_DIR, category)
+```
+
 See existing agent implementations for working examples:
 
 - `agents/langgraph/react_agent/tests/behavioral/conftest.py`
 - `agents/vanilla_python/openai_responses_agent/tests/behavioral/conftest.py`
+- `agents/autogen/mcp_agent/tests/behavioral/conftest.py`
+- `agents/crewai/websearch_agent/tests/behavioral/conftest.py`
+- `agents/langgraph/agentic_rag/tests/behavioral/conftest.py`
 
 ## 3. Add Thresholds
 
@@ -89,6 +106,9 @@ See the existing implementations for reference:
 
 - `agents/langgraph/react_agent/tests/behavioral/` (single tool: `search`)
 - `agents/vanilla_python/openai_responses_agent/tests/behavioral/` (two tools: `search_price`, `search_reviews`)
+- `agents/autogen/mcp_agent/tests/behavioral/` (two tools via MCP: `add`, `sub`)
+- `agents/crewai/websearch_agent/tests/behavioral/` (single tool: `Web Search`)
+- `agents/langgraph/agentic_rag/tests/behavioral/` (single tool: `retriever`)
 
 ## 6. Register the Agent Marker
 

@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openclaw-config
+data:
+  openclaw.json: |
+    {
+      "gateway": {
+        "port": 18789,
+        "bind": "0.0.0.0",
+        "mode": "local",
+        "auth": {
+          "mode": "token"
+        }
+      },
+      "channels": {},
+      "agents": {
+        "defaults": {
+          "heartbeat": {},
+          "model": "openai-compat/my-model",
+          "sandbox": {
+            "mode": "off"
+          }
+        }
+      },
+      "models": {
+        "mode": "replace",
+        "providers": {
+          "openai-compat": {
+            "baseUrl": "https://my-vllm-endpoint.apps.my-cluster.example.com/v1",
+            "api": "openai-completions",
+            "apiKey": "not-needed",
+            "models": [
+              {
+                "id": "my-model",
+                "name": "my-model",
+                "reasoning": false,
+                "input": ["text"],
+                "contextWindow": 32768,
+                "maxTokens": 4096
+              }
+            ]
+          }
+        }
+      },
+      "plugins": {},
+      "tools": {
+        "deny": [
+          "group:web",
+          "browser"
+        ]
+      }
+    }

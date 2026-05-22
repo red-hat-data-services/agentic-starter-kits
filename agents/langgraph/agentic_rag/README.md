@@ -38,6 +38,14 @@ cd agents/langgraph/agentic_rag
 make init
 ```
 
+### Creating environment
+
+Now you will remove old .venv and create new. Next dependencies will be installed.
+
+```bash
+make env
+```
+
 ### Tracing (optional)
 
 Tracing is optional. If MLflow tracing is required, enable it by uncommenting and setting the following environment variables in the `.env` file.
@@ -107,14 +115,6 @@ DOCS_TO_LOAD=./data/sample_knowledge.txt
 - `VECTOR_STORE_PROVIDER` - Vector store backend: `milvus` for local development (default), `pgvector` for OpenShift deployments.
 - `VECTOR_STORE_PATH` - Absolute path where the Milvus Lite database will be stored. Not used when `VECTOR_STORE_PROVIDER=pgvector`.
 - `DOCS_TO_LOAD` - Path to the text file containing documents to load into the vector store. A sample file is provided at `./data/sample_knowledge.txt`.
-
-### Creating environment
-
-Now you will remove old .venv and create new. Next dependencies will be installed.
-
-```bash
-make env
-```
 
 ### Setup Ollama
 
@@ -369,6 +369,27 @@ This agent implements a Retrieval-Augmented Generation (RAG) pattern:
 3. **Augmented Generation**: The retrieved chunks are provided as context to the LLM, which generates an answer grounded in the relevant documents. This reduces hallucination and allows the model to answer questions about your specific data.
 
 The agent uses LangGraph to orchestrate the retrieval and generation steps, LangChain for the LLM integration, and LlamaStack for vector store operations.
+
+## Behavioral Tests
+
+Behavioral tests validate tool usage, response quality, latency, and reliability against a deployed agent.
+
+```bash
+# Set the deployed agent URL
+export AGENTIC_RAG_AGENT_URL=https://<your-agent-route>
+
+# Optional: enable MLflow trace enrichment for tool_calls extraction
+export MLFLOW_TRACKING_URI=https://<mlflow-route>/mlflow
+export MLFLOW_EXPERIMENT_NAME=<experiment>
+
+# Run all behavioral tests
+pytest agents/langgraph/agentic_rag/tests/behavioral/ -v
+
+# Run specific test categories
+pytest agents/langgraph/agentic_rag/tests/behavioral/ -v -m "agentic_rag and not slow"
+```
+
+See `tests/behavioral/` at the repo root for the shared test harness and threshold configuration.
 
 ## Resources
 

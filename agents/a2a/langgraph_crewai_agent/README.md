@@ -203,6 +203,32 @@ make deploy
 
 The LangGraph pod uses in-cluster **`CREW_A2A_URL=http://a2a-crew-agent:8080`**.
 
+#### Manage Agents using Kagenti (Optional)
+
+Register agents with [Kagenti](https://github.com/kagenti/kagenti) for unified discovery and management.
+
+**Prerequisites:**
+
+- Kagenti installed: `oc get pods -n kagenti-system`
+- Namespace labeled: `oc label namespace <your-namespace> kagenti-enabled=true`
+
+**Apply AgentRuntime:**
+
+NOTE: The `AgentRuntime.yaml` file will be applied
+Apply:
+
+   ```bash
+   oc apply -f AgentRuntime.yaml
+   ```
+
+**Verify:**
+
+```bash
+oc get agentcard -n <your-namespace>
+```
+
+AgentCards for both LangGraph and CrewAI will appear in Kagenti UI.
+
 #### Verify deployment
 
 After deploying, the application may take about a minute to become available while the pods start.

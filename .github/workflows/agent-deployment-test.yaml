@@ -39,7 +39,7 @@ jobs:
           oc project
           echo ""
           echo "--- Namespace resources ---"
-          oc get all -n ci-testing --no-headers | head -10
+          oc get all -n ci-testing --no-headers 2>&1 | head -10 || true
           echo ""
           echo "Cluster connection verified successfully."
 
@@ -58,6 +58,8 @@ jobs:
       matrix:
         agent:
           - { name: langgraph-react-agent, dir: agents/langgraph/react_agent }
+          - { name: langgraph-hitl-agent, dir: agents/langgraph/human_in_the_loop }
+          - { name: crewai-websearch-agent, dir: agents/crewai/websearch_agent }
     env:
       API_KEY: ${{ vars.API_KEY }}
       BASE_URL: ${{ vars.BASE_URL }}

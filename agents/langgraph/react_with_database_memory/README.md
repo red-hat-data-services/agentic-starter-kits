@@ -47,6 +47,14 @@ cd agents/langgraph/react_with_database_memory
 make init
 ```
 
+### Creating environment
+
+Now you will remove old .venv and create new. Next dependencies will be installed.
+
+```bash
+make env
+```
+
 ### Tracing (optional)
 
 Tracing is optional. If MLflow tracing is required, enable it by uncommenting and setting the following environment variables in the `.env` file.
@@ -136,14 +144,6 @@ createdb agent_memory
 ```
 
 The database tables are created automatically on first run -- no manual schema setup is needed.
-
-### Creating environment
-
-Now you will remove old .venv and create new. Next dependencies will be installed.
-
-```bash
-make env
-```
 
 ### Setup Ollama
 

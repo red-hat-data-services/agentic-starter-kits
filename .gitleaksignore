@@ -1,0 +1,4 @@
+# False positive: deleted README with a curl | sed streaming example
+# that gitleaks misidentifies as curl -u (curl-auth-user rule).
+# Commit: 15a4a06, file: agents/base/crewai_websearch_agent/README.md
+15a4a062e618093eb9d4fe3baa8e865cde7a8f50:agents/base/crewai_websearch_agent/README.md:curl-auth-user:194

@@ -96,7 +96,7 @@ class AgenticEvalParams:
     timeout_seconds: float = 30.0
     verify_ssl: bool = True
     fixtures_path: str = "fixtures"
-    stream: bool = True
+    stream: bool = False
 
     # MLflow trace enrichment (reads tool calls from agent-side traces)
     mlflow_tracking_uri: str | None = None

@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import time
+import warnings
 from pathlib import Path
 from typing import Any, AsyncGenerator, Callable, Coroutine
 
 import httpx
 import pytest
 import yaml
+from harness.fixtures import load_golden as _load_golden_from
 from harness.runner import TaskConfig, TaskResult, run_task
 
 try:
@@ -35,6 +38,15 @@ def _find_repo_root() -> Path:
     raise FileNotFoundError(
         "Could not find repo root (no tests/behavioral/configs/thresholds.yaml)"
     )
+
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+STREAM = False
+
+
+def load_golden(category: str | None = None) -> list[dict[str, Any]]:
+    """Load golden queries from the fixtures directory, optionally filtering by category."""
+    return _load_golden_from(FIXTURES_DIR, category)
 
 
 @pytest.fixture
@@ -94,7 +106,6 @@ def run_eval(
         timeout_seconds: float = 30.0,
         max_tokens_budget: int | None = None,
         model: str | None = None,
-        stream: bool = False,
     ) -> TaskResult:
         config = TaskConfig(
             agent_url=agent_url,
@@ -103,15 +114,20 @@ def run_eval(
             timeout_seconds=timeout_seconds,
             max_tokens_budget=max_tokens_budget,
             model=model,
-            stream=stream,
+            stream=STREAM,
         )
         request_start_ms = int(time.time() * 1000)
         result = await run_task(config, client=http_client)
 
         if mlflow is not None and result.success:
-            await asyncio.to_thread(
-                mlflow.enrich_eval_result, result, since_ms=request_start_ms
-            )
+            try:
+                await asyncio.to_thread(
+                    mlflow.enrich_eval_result, result, since_ms=request_start_ms
+                )
+            except Exception:
+                msg = "MLflow enrichment failed — tool scoring will degrade to content heuristics"
+                logging.getLogger(__name__).warning(msg, exc_info=True)
+                warnings.warn(msg, stacklevel=2)
 
         return result
 

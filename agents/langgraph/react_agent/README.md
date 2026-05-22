@@ -37,6 +37,14 @@ cd agents/langgraph/react_agent
 make init
 ```
 
+### Creating environment
+
+Now you will remove old .venv and create new. Next dependencies will be installed.
+
+```bash
+make env
+```
+
 ### Tracing (optional)
 
 Tracing is optional. If MLflow tracing is required, enable it by uncommenting and setting the following environment variables in the `.env` file.
@@ -84,14 +92,6 @@ MLFLOW_WORKSPACE="default"
 - If `MLFLOW_TRACKING_URI` is set, the application will attempt to connect to the MLflow server at startup. If the server is unreachable, the application will log a warning and continue running without tracing.
 
 - You can control how long the application waits for the MLflow server by setting `MLFLOW_HEALTH_CHECK_TIMEOUT` (in seconds, default: `5`).
-
-### Creating environment
-
-Now you will remove old .venv and create new. Next dependencies will be installed.
-
-```bash
-make env
-```
 
 ### Setup Ollama
 

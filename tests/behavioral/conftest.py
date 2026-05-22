@@ -22,6 +22,8 @@ except ImportError:
 _AGENT_URL_MAP = {
     "vanilla_python": "VANILLA_PYTHON_AGENT_URL",
     "langgraph_react": "REACT_AGENT_URL",
+    "crewai_websearch": "CREWAI_WEBSEARCH_AGENT_URL",
+    "agentic_rag": "AGENTIC_RAG_AGENT_URL",
 }
 
 
@@ -68,7 +70,13 @@ def pytest_report_header(config: pytest.Config) -> list[str]:
     """Display the target agent URL and MLflow experiment at the top of the test session."""
     lines = []
     urls = []
-    for var in ("AGENT_URL", "REACT_AGENT_URL", "VANILLA_PYTHON_AGENT_URL"):
+    for var in (
+        "AGENT_URL",
+        "REACT_AGENT_URL",
+        "VANILLA_PYTHON_AGENT_URL",
+        "CREWAI_WEBSEARCH_AGENT_URL",
+        "AGENTIC_RAG_AGENT_URL",
+    ):
         val = os.environ.get(var)
         if val:
             urls.append(f"{var}={val}")
@@ -107,6 +115,9 @@ async def http_client() -> AsyncGenerator[httpx.AsyncClient, None]:
         yield client
 
 
+STREAM = False
+
+
 @pytest.fixture
 def run_eval(
     agent_url: str, http_client: httpx.AsyncClient
@@ -125,7 +136,6 @@ def run_eval(
         timeout_seconds: float = 30.0,
         max_tokens_budget: int | None = None,
         model: str | None = None,
-        stream: bool = False,
     ) -> TaskResult:
         config = TaskConfig(
             agent_url=agent_url,
@@ -134,7 +144,7 @@ def run_eval(
             timeout_seconds=timeout_seconds,
             max_tokens_budget=max_tokens_budget,
             model=model,
-            stream=stream,
+            stream=STREAM,
         )
         return await run_task(config, client=http_client)
 

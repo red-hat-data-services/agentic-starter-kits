@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
+import warnings
 from pathlib import Path
 from typing import Any, AsyncGenerator, Callable, Coroutine
 
 import httpx
 import pytest
 import yaml
+from harness.fixtures import load_golden as _load_golden_from
 from harness.runner import TaskConfig, TaskResult, run_task
 
 try:
@@ -39,7 +42,7 @@ def _find_repo_root() -> Path:
         if (path / "tests" / "behavioral" / "configs" / "thresholds.yaml").is_file():
             return path
         path = path.parent
-    pytest.skip(
+    raise FileNotFoundError(
         "Could not find repo root (no tests/behavioral/configs/thresholds.yaml)"
     )
 
@@ -57,16 +60,13 @@ def eval_config() -> dict[str, Any]:
 PRICE_EVIDENCE = ["price", "cost", "$", "dollar"]
 REVIEW_EVIDENCE = ["review", "rating", "star", "recommend"]
 
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+STREAM = False
+
 
 def load_golden(category: str | None = None) -> list[dict[str, Any]]:
     """Load golden queries from the fixtures directory, optionally filtering by category."""
-    path = Path(__file__).parent / "fixtures" / "golden_queries.yaml"
-    with open(path, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    queries = data.get("queries", [])
-    if category:
-        queries = [q for q in queries if q.get("category") == category]
-    return queries
+    return _load_golden_from(FIXTURES_DIR, category)
 
 
 @pytest.fixture
@@ -103,7 +103,6 @@ def run_eval(
         timeout_seconds: float = 30.0,
         max_tokens_budget: int | None = None,
         model: str | None = None,
-        stream: bool = False,
     ) -> TaskResult:
         config = TaskConfig(
             agent_url=agent_url,
@@ -112,19 +111,20 @@ def run_eval(
             timeout_seconds=timeout_seconds,
             max_tokens_budget=max_tokens_budget,
             model=model,
-            stream=stream,
+            stream=STREAM,
         )
         request_start_ms = int(time.time() * 1000)
         result = await run_task(config, client=http_client)
 
         if mlflow is not None and result.success:
             try:
-                mlflow.enrich_eval_result(result, since_ms=request_start_ms)
-            except Exception:
-                logging.getLogger(__name__).debug(
-                    "MLflow enrichment failed — continuing without trace data",
-                    exc_info=True,
+                await asyncio.to_thread(
+                    mlflow.enrich_eval_result, result, since_ms=request_start_ms
                 )
+            except Exception:
+                msg = "MLflow enrichment failed — tool scoring will degrade to content heuristics"
+                logging.getLogger(__name__).warning(msg, exc_info=True)
+                warnings.warn(msg, stacklevel=2)
 
         return result
 

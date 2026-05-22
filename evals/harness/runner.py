@@ -59,10 +59,11 @@ def _parse_tool_call(tc: dict[str, Any]) -> dict[str, Any]:
 def _extract_tool_calls(response_data: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract tool calls from an OpenAI-compatible chat completion response.
 
-    Checks two locations:
+    Checks three locations:
     1. Standard OpenAI format: choices[].message.tool_calls
     2. Agent context field: context[] messages with role=assistant and tool_calls
        (used by agentic-starter-kits agents that expose the full message history)
+    3. Flat tool_invocations array with name + arguments
     """
     tool_calls: list[dict[str, Any]] = []
 
@@ -83,16 +84,43 @@ def _extract_tool_calls(response_data: dict[str, Any]) -> list[dict[str, Any]]:
             for tc in msg["tool_calls"]:
                 tool_calls.append(_parse_tool_call(tc))
 
+    if tool_calls:
+        return tool_calls
+
+    # 3. Flat tool_invocations array (e.g. AutoGen MCP non-streaming responses)
+    for inv in response_data.get("tool_invocations", []):
+        name = inv.get("name", "")
+        args = inv.get("arguments")
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except json.JSONDecodeError:
+                args = {"_raw": args}
+        tool_calls.append({"name": name, "arguments": args})
+
     return tool_calls
 
 
 def _extract_response_text(response_data: dict[str, Any]) -> str:
-    """Extract the final assistant message text from the response."""
+    """Extract the final assistant message text from the response.
+
+    Checks two locations:
+    1. Standard OpenAI format: choices[0].message.content
+    2. Top-level messages array with role=assistant (last match)
+    """
     choices = response_data.get("choices", [])
-    if not choices:
-        return ""
-    message = choices[0].get("message", {})
-    return message.get("content", "") or ""
+    if choices:
+        message = choices[0].get("message", {})
+        content = message.get("content", "") or ""
+        if content:
+            return content
+
+    # Top-level messages array (e.g. AutoGen MCP non-streaming responses)
+    messages = response_data.get("messages", [])
+    for msg in reversed(messages):
+        if msg.get("role") == "assistant" and msg.get("content"):
+            return msg["content"]
+    return ""
 
 
 def _extract_token_usage(response_data: dict[str, Any]) -> int | None:

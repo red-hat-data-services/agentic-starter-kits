@@ -5,7 +5,7 @@ VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
 
-.PHONY: init re-init env ollama llama-server run-app run-app-fresh run-cli build push build-openshift deploy undeploy test dry-run help
+.PHONY: init re-init env ollama llama-server run-app run-app-fresh run-cli build push build-openshift deploy undeploy test test-integration dry-run help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -58,7 +58,8 @@ ollama: ## Install Ollama, start it, and pull models
 llama-server: ## Install llama-stack and start Llama Stack server
 	@source .venv/bin/activate && set -a && source .env && set +a && \
 	  echo "==> Installing llama-stack..." && \
-	  uv pip install "llama-stack==0.5.0" "llama-stack-api==0.5.0" ollama && \
+	  uv pip install "llama-stack==0.5.0" "llama-stack-api==0.5.0" ollama "pymilvus==2.6.9" "milvus-lite>=2.5.1" "setuptools>=80.9.0,<82.0.0" && \
+	  mkdir -p ../../../milvus_data && \
 	  echo "==> Killing any existing process on port 8321..." && \
 	  lsof -ti:8321 | xargs kill -9 2>/dev/null; true && \
 	  echo "==> Starting Llama Stack server on port 8321..." && \
@@ -166,5 +167,10 @@ dry-run: _check-env ## Render Helm templates without deploying
 undeploy: ## Remove deployment from cluster
 	helm uninstall $(AGENT_NAME)
 
-test: ## Run tests
-	uv run --extra dev python -m pytest tests/
+test: ## Run unit tests
+	uv run --extra dev python -m pytest tests/ --ignore=tests/integration --ignore=tests/behavioral $(PYTEST_ARGS)
+
+test-integration: ## Run integration deployment test
+	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \
+	  uv run --extra dev python -m pytest tests/integration/test_deployment.py \
+	    -v --tb=long --junitxml=results.xml
