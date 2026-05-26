@@ -23,7 +23,7 @@ queries:
     category: factual
 
   # --- Medium ---
-  - query: "Search online and compare different approaches to deploying ML models in production"
+  - query: "Search the web for which company leads in enterprise Kubernetes solutions"
     expected_tools: ["dummy_web_search"]
     expected_elements: ["red"]
     difficulty: medium
