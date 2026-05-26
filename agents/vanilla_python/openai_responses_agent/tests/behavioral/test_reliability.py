@@ -25,7 +25,6 @@ DEFAULT_K = 8
 PASS_K_TIMEOUT = 60.0
 
 
-@pytest.mark.asyncio
 async def test_pass_at_k_single_tool(
     run_eval: Any, vanilla_python_thresholds: dict[str, Any]
 ) -> None:
@@ -76,7 +75,6 @@ async def test_pass_at_k_single_tool(
     )
 
 
-@pytest.mark.asyncio
 async def test_pass_at_k_multi_tool(
     run_eval: Any, vanilla_python_thresholds: dict[str, Any]
 ) -> None:
@@ -128,7 +126,6 @@ async def test_pass_at_k_multi_tool(
     )
 
 
-@pytest.mark.asyncio
 async def test_pass_at_k_response_quality(
     run_eval: Any, vanilla_python_thresholds: dict[str, Any]
 ) -> None:

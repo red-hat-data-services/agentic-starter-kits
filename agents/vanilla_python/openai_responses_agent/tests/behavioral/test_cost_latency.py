@@ -15,7 +15,6 @@ from harness.scorers.latency import score_latency
 pytestmark = pytest.mark.vanilla_python
 
 
-@pytest.mark.asyncio
 async def test_latency_single_tool(
     run_eval: Any, vanilla_python_thresholds: dict[str, Any]
 ) -> None:
@@ -31,7 +30,6 @@ async def test_latency_single_tool(
     )
 
 
-@pytest.mark.asyncio
 async def test_latency_multi_tool(
     run_eval: Any, vanilla_python_thresholds: dict[str, Any]
 ) -> None:

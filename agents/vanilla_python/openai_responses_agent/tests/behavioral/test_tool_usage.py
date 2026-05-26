@@ -40,7 +40,6 @@ def _multi_tool_queries() -> list[dict[str, Any]]:
     return [q for q in load_golden() if len(q.get("expected_tools", [])) > 1]
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "golden",
     _single_tool_queries(),
@@ -83,7 +82,6 @@ async def test_single_tool_selection(run_eval: Any, golden: dict[str, Any]) -> N
         )
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "golden",
     _multi_tool_queries(),
@@ -126,7 +124,6 @@ async def test_multi_tool_selection(run_eval: Any, golden: dict[str, Any]) -> No
         )
 
 
-@pytest.mark.asyncio
 async def test_no_hallucinated_tools(run_eval: Any, known_tools: list[str]) -> None:
     """Agent must only call tools that exist in its schema.
 
@@ -145,7 +142,6 @@ async def test_no_hallucinated_tools(run_eval: Any, known_tools: list[str]) -> N
     )
 
 
-@pytest.mark.asyncio
 async def test_tool_call_has_valid_args(run_eval: Any) -> None:
     """All tool call arguments must be valid JSON with required fields.
 
@@ -161,7 +157,6 @@ async def test_tool_call_has_valid_args(run_eval: Any) -> None:
     assert score.passed, f"Invalid tool call arguments: {score.details.get('invalid')}"
 
 
-@pytest.mark.asyncio
 async def test_tool_not_called_for_greeting(run_eval: Any) -> None:
     """Simple greetings should not trigger any tool calls.
 

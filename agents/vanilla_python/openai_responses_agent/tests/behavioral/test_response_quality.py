@@ -21,7 +21,6 @@ def _queries_with_expected_elements() -> list[dict[str, Any]]:
     return [q for q in load_golden() if q.get("expected_elements")]
 
 
-@pytest.mark.asyncio
 async def test_plan_coherence(run_eval: Any) -> None:
     """Response should have structure and substance (not a bare one-liner)."""
     result = await run_eval(
@@ -35,7 +34,6 @@ async def test_plan_coherence(run_eval: Any) -> None:
     )
 
 
-@pytest.mark.asyncio
 async def test_response_synthesizes_multi_tool_data(run_eval: Any) -> None:
     """Multi-tool query response should incorporate data from both tools.
 
@@ -62,7 +60,6 @@ async def test_response_synthesizes_multi_tool_data(run_eval: Any) -> None:
     )
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "golden",
     _queries_with_expected_elements(),
