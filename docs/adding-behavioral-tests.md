@@ -109,6 +109,7 @@ See the existing implementations for reference:
 - `agents/autogen/mcp_agent/tests/behavioral/` (two tools via MCP: `add`, `sub`)
 - `agents/crewai/websearch_agent/tests/behavioral/` (single tool: `Web Search`)
 - `agents/langgraph/agentic_rag/tests/behavioral/` (single tool: `retriever`)
+- `agents/llamaindex/websearch_agent/tests/behavioral/` (single tool: `dummy_web_search`)
 
 ## 6. Register the Agent Marker
 

@@ -279,6 +279,29 @@ curl -sN -X POST http://localhost:8000/chat/completions \
 curl http://localhost:8000/health
 ```
 
+## Behavioral Tests
+
+Behavioral eval suite that validates tool usage, response quality, latency, and reliability over HTTP.
+
+```bash
+# From the repo root (not the agent directory)
+cd /path/to/agentic-starter-kits
+
+# Collect tests
+uv run --extra test python -m pytest agents/llamaindex/websearch_agent/tests/behavioral/ --collect-only
+
+# Run against a deployed agent (with MLflow tracing)
+LLAMAINDEX_WEBSEARCH_AGENT_URL=https://<route> \
+MLFLOW_TRACKING_URI=<uri> \
+MLFLOW_EXPERIMENT_NAME=<experiment> \
+MLFLOW_TRACKING_TOKEN=$(oc whoami -t) \
+MLFLOW_WORKSPACE=<namespace> \
+MLFLOW_TRACKING_INSECURE_TLS=true \
+uv run --extra test python -m pytest agents/llamaindex/websearch_agent/tests/behavioral/ -v
+```
+
+Tests must run from the repo root because test dependencies (`pytest-asyncio`, harness package) are declared in the root `pyproject.toml`.
+
 ## Resources
 
 - [LlamaIndex Documentation](https://docs.llamaindex.ai/)

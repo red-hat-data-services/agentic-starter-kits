@@ -213,7 +213,11 @@ class MLflowTraceClient:
             # Extract tool calls from TOOL-type spans
             if "TOOL" in str(span_type).upper():
                 inputs = getattr(span, "inputs", None)
-                tool_call = {"name": span_name}
+                attrs = getattr(span, "attributes", {}) or {}
+                # Prefer the 'name' attribute (actual tool name) over span.name
+                # which may be a class method (e.g. LlamaIndex "FunctionTool.__call__")
+                tool_name = attrs.get("name", span_name)
+                tool_call = {"name": tool_name}
                 if inputs:
                     # Inputs may be a dict or string
                     if isinstance(inputs, dict):

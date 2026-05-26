@@ -238,6 +238,7 @@ There are two different YAMLs in this flow:
   - `agents/vanilla_python/openai_responses_agent/evalhub/tool_use.yaml`
   - `agents/crewai/websearch_agent/evalhub/tool_use.yaml`
   - `agents/langgraph/agentic_rag/evalhub/tool_use.yaml`
+  - `agents/llamaindex/websearch_agent/evalhub/tool_use.yaml`
   - These contain golden queries (`queries`, `expected_tools`,
     `expected_elements`) used by the adapter scorers
   - At image build time, these are copied into the adapter container under
@@ -246,6 +247,7 @@ There are two different YAMLs in this flow:
     - `agents/vanilla_python/openai_responses_agent/evalhub/*` -> `fixtures/vanilla_python/`
     - `agents/crewai/websearch_agent/evalhub/*` -> `fixtures/crewai_websearch/`
     - `agents/langgraph/agentic_rag/evalhub/*` -> `fixtures/agentic_rag/`
+    - `agents/llamaindex/websearch_agent/evalhub/*` -> `fixtures/llamaindex_websearch/`
   - You select which fixture set to use via `parameters.fixtures_path`
 
 Create one file per agent. To evaluate both agents, submit two jobs.
@@ -302,6 +304,7 @@ Notes:
   - `openai_responses_agent` -> `fixtures/vanilla_python`
   - `crewai_websearch_agent` -> `fixtures/crewai_websearch`
   - `agentic_rag` -> `fixtures/agentic_rag`
+  - `llamaindex_websearch` -> `fixtures/llamaindex_websearch`
   - These are relative to the container WORKDIR (`/opt/app-root/src`)
 - `known_tools` should match the tools your target agent is allowed to use
 - See [JobSpec parameters](#jobspec-parameters) for the full field reference
@@ -471,7 +474,8 @@ sets this automatically from the namespace.
 - Provider registration via EvalHub REST API
 - asyncio nesting guard (thread-pool fallback for async callers)
 - Agent-specific query files (LangGraph `search` tool, vanilla Python
-  `search_price` + `search_reviews` tools, CrewAI `Web Search` tool)
+  `search_price` + `search_reviews` tools, CrewAI `Web Search` tool,
+  LlamaIndex `dummy_web_search` tool)
 - Unit tests (50) + integration tests (11) for adapter, config, evaluations,
   and orchestration pipeline
 
