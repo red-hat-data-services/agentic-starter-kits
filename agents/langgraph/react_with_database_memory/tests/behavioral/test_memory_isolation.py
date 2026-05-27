@@ -57,9 +57,7 @@ async def test_threads_do_not_leak(run_eval: Any) -> None:
     )
     assert r4.success, f"Thread B recall failed: {r4.error}"
     text_b = r4.response.lower()
-    assert "bob" in text_b, (
-        f"Thread B should recall 'Bob' but got: {r4.response[:300]}"
-    )
+    assert "bob" in text_b, f"Thread B should recall 'Bob' but got: {r4.response[:300]}"
     assert "alice" not in text_b, (
         f"Thread B leaked context from thread A — 'Alice' found in response. "
         f"Response: {r4.response[:300]}"

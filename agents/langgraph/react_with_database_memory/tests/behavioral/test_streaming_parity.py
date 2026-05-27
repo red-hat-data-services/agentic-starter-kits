@@ -21,9 +21,7 @@ pytestmark = pytest.mark.langgraph_db_memory
 _PARITY_QUERY = "What is Red Hat OpenShift AI?"
 
 
-async def test_streaming_parity_content(
-    agent_url: str, http_client: Any
-) -> None:
+async def test_streaming_parity_content(agent_url: str, http_client: Any) -> None:
     """Both streaming and non-streaming should produce non-empty content."""
     config_sync = TaskConfig(
         agent_url=agent_url,
@@ -50,9 +48,7 @@ async def test_streaming_parity_content(
     assert result_stream.response.strip(), "Streaming response is empty"
 
 
-async def test_streaming_parity_tool_calls(
-    agent_url: str, http_client: Any
-) -> None:
+async def test_streaming_parity_tool_calls(agent_url: str, http_client: Any) -> None:
     """When tool_calls are available, both modes should report the same tool set."""
     config_sync = TaskConfig(
         agent_url=agent_url,
