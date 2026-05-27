@@ -19,9 +19,7 @@ PARITY_QUERY = "Search the web for the best AI platform"
 PARITY_TIMEOUT = 45.0
 
 
-async def _run_query(
-    agent_url: str, client: Any, stream: bool
-) -> TaskResult:
+async def _run_query(agent_url: str, client: Any, stream: bool) -> TaskResult:
     config = TaskConfig(
         agent_url=agent_url,
         query=PARITY_QUERY,
@@ -32,9 +30,7 @@ async def _run_query(
     return await run_task(config, client=client)
 
 
-async def test_streaming_parity(
-    agent_url: str, http_client: Any
-) -> None:
+async def test_streaming_parity(agent_url: str, http_client: Any) -> None:
     """Streaming and non-streaming should produce equivalent responses."""
     result_sync = await _run_query(agent_url, http_client, stream=False)
     result_stream = await _run_query(agent_url, http_client, stream=True)
