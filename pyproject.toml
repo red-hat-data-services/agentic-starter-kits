@@ -53,6 +53,7 @@ markers = [
     "autogen_mcp: AutoGen MCP agent (add + sub via MCP)",
     "crewai_websearch: CrewAI web search agent (Web Search tool)",
     "agentic_rag: LangGraph Agentic RAG agent (retriever tool via LlamaStack)",
+    "langgraph_db_memory: LangGraph DB Memory agent (search + PostgreSQL conversation memory)",
     # Test category markers — select what capability is being tested
     "api_contract: FastAPI endpoint schema, validation, streaming (tests repo code, not the model)",
     "adversarial: Agent-level security/safety tests (PII, API keys, dangerous ops)",

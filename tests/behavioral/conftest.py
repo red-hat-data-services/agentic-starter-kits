@@ -24,6 +24,7 @@ _AGENT_URL_MAP = {
     "langgraph_react": "REACT_AGENT_URL",
     "crewai_websearch": "CREWAI_WEBSEARCH_AGENT_URL",
     "agentic_rag": "AGENTIC_RAG_AGENT_URL",
+    "langgraph_db_memory": "DB_MEMORY_AGENT_URL",
 }
 
 
@@ -76,6 +77,7 @@ def pytest_report_header(config: pytest.Config) -> list[str]:
         "VANILLA_PYTHON_AGENT_URL",
         "CREWAI_WEBSEARCH_AGENT_URL",
         "AGENTIC_RAG_AGENT_URL",
+        "DB_MEMORY_AGENT_URL",
     ):
         val = os.environ.get(var)
         if val:
@@ -136,6 +138,7 @@ def run_eval(
         timeout_seconds: float = 30.0,
         max_tokens_budget: int | None = None,
         model: str | None = None,
+        thread_id: str | None = None,
     ) -> TaskResult:
         config = TaskConfig(
             agent_url=agent_url,
@@ -145,6 +148,7 @@ def run_eval(
             max_tokens_budget=max_tokens_budget,
             model=model,
             stream=STREAM,
+            thread_id=thread_id,
         )
         return await run_task(config, client=http_client)
 

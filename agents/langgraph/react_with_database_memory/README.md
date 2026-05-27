@@ -302,9 +302,25 @@ See [OpenShift Deployment](../../../docs/openshift-deployment.md) for more detai
 
 ## Tests
 
+### Unit tests
+
 ```bash
 make test
 ```
+
+### Behavioral tests
+
+Behavioral tests validate tool selection, response quality, latency, and reliability against a live agent. They require MLflow tracing to extract tool_calls from trace spans.
+
+```bash
+DB_MEMORY_AGENT_URL=https://<agent-route> \
+MLFLOW_TRACKING_URI=<mlflow-uri> \
+MLFLOW_EXPERIMENT_NAME=<experiment> \
+MLFLOW_TRACKING_TOKEN=$(oc whoami -t) \
+pytest tests/behavioral/ -v
+```
+
+Skip slow pass@k tests with `-m "not slow"`.
 
 ## API Endpoints
 

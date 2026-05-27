@@ -59,6 +59,7 @@ See existing agent implementations for working examples:
 - `agents/autogen/mcp_agent/tests/behavioral/conftest.py`
 - `agents/crewai/websearch_agent/tests/behavioral/conftest.py`
 - `agents/langgraph/agentic_rag/tests/behavioral/conftest.py`
+- `agents/langgraph/react_with_database_memory/tests/behavioral/conftest.py`
 
 ## 3. Add Thresholds
 
@@ -109,6 +110,7 @@ See the existing implementations for reference:
 - `agents/autogen/mcp_agent/tests/behavioral/` (two tools via MCP: `add`, `sub`)
 - `agents/crewai/websearch_agent/tests/behavioral/` (single tool: `Web Search`)
 - `agents/langgraph/agentic_rag/tests/behavioral/` (single tool: `retriever`)
+- `agents/langgraph/react_with_database_memory/tests/behavioral/` (single tool: `search` + PostgreSQL memory)
 
 ## 6. Register the Agent Marker
 

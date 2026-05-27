@@ -24,6 +24,7 @@ class TaskConfig:
     max_tokens_budget: int | None = None
     model: str | None = None
     stream: bool = False
+    thread_id: str | None = None
 
 
 @dataclass
@@ -234,6 +235,8 @@ async def run_task(
         payload["model"] = config.model
     if config.stream:
         payload["stream"] = True
+    if config.thread_id:
+        payload["thread_id"] = config.thread_id
 
     start = time.monotonic()
     try:

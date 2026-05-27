@@ -104,6 +104,7 @@ REQUIRED_FILES=(
   "agents/autogen/mcp_agent/evalhub/tool_use.yaml"
   "agents/crewai/websearch_agent/evalhub/tool_use.yaml"
   "agents/langgraph/agentic_rag/evalhub/tool_use.yaml"
+  "agents/langgraph/react_with_database_memory/evalhub/tool_use.yaml"
 )
 for f in "${REQUIRED_FILES[@]}"; do
   if [[ -f "${REPO_ROOT}/${f}" ]]; then
@@ -203,6 +204,19 @@ else
   preflight_ok "Agentic RAG agent route (override): ${AGENTIC_RAG_AGENT_ROUTE}"
 fi
 
+if [[ -z "${DB_MEMORY_AGENT_ROUTE:-}" ]]; then
+  DB_MEMORY_AGENT_ROUTE=$(get_route "langgraph-db-memory-agent" || true)
+  [[ -z "${DB_MEMORY_AGENT_ROUTE}" ]] && DB_MEMORY_AGENT_ROUTE=$(get_route "db-memory-agent" || true)
+  [[ -z "${DB_MEMORY_AGENT_ROUTE}" ]] && DB_MEMORY_AGENT_ROUTE=$(get_route_contains "db-memory")
+  if [[ -n "${DB_MEMORY_AGENT_ROUTE}" ]]; then
+    preflight_ok "DB Memory agent route: ${DB_MEMORY_AGENT_ROUTE}"
+  else
+    preflight_fail "Could not discover db_memory_agent route. Set DB_MEMORY_AGENT_ROUTE manually."
+  fi
+else
+  preflight_ok "DB Memory agent route (override): ${DB_MEMORY_AGENT_ROUTE}"
+fi
+
 if [[ -z "${MLFLOW_TRACKING_URI:-}" ]]; then
   MLFLOW_TRACKING_URI=$(oc get deployment -n "${OC_NAMESPACE}" -o jsonpath='{.items[*].spec.template.spec.containers[0].env[?(@.name=="MLFLOW_TRACKING_URI")].value}' 2>/dev/null | awk '{print $1}' || true)
   if [[ -z "${MLFLOW_TRACKING_URI}" ]]; then
@@ -298,6 +312,14 @@ if [[ -n "${AGENTIC_RAG_AGENT_ROUTE:-}" ]]; then
   fi
 fi
 
+if [[ -n "${DB_MEMORY_AGENT_ROUTE:-}" ]]; then
+  if curl -sf --max-time 10 "https://${DB_MEMORY_AGENT_ROUTE}/health" > /dev/null 2>&1; then
+    preflight_ok "db_memory_agent /health responded"
+  else
+    preflight_warn "db_memory_agent /health not reachable (https://${DB_MEMORY_AGENT_ROUTE}/health)"
+  fi
+fi
+
 if [[ -n "${EVALHUB_ROUTE:-}" ]]; then
   if curl -sf --max-time 10 "https://${EVALHUB_ROUTE}/api/v1/health" > /dev/null 2>&1; then
     preflight_ok "EvalHub API healthy"
@@ -376,6 +398,7 @@ echo "  OpenAI agent:      ${OPENAI_AGENT_ROUTE}"
 echo "  AutoGen MCP agent: ${AUTOGEN_MCP_AGENT_ROUTE}"
 echo "  CrewAI Websearch:  ${CREWAI_WEBSEARCH_ROUTE}"
 echo "  Agentic RAG agent: ${AGENTIC_RAG_AGENT_ROUTE}"
+echo "  DB Memory agent:   ${DB_MEMORY_AGENT_ROUTE}"
 echo "  MLflow:            ${MLFLOW_TRACKING_URI}"
 echo "  Experiment:        ${MLFLOW_EXPERIMENT}"
 
@@ -603,6 +626,29 @@ EOF
 
 echo "  Created: eval-agentic-rag-agent.yaml"
 
+cat > "${WORK_DIR}/eval-db-memory-agent.yaml" <<EOF
+name: agentic-tool-use-db-memory-agent
+description: EvalHub orchestration run for LangGraph DB Memory agent
+model:
+  name: langgraph-db-memory-agent
+  url: https://${DB_MEMORY_AGENT_ROUTE}
+benchmarks:
+  - id: agentic-tool-use
+    provider_id: ${PROVIDER_ID}
+    parameters:
+      known_tools: ["search"]
+      forbidden_actions: ["shell execution"]
+      max_latency_seconds: 15.0
+      timeout_seconds: 45.0
+      verify_ssl: true
+      fixtures_path: fixtures/langgraph_db_memory
+      mlflow_tracking_uri: ${MLFLOW_INTERNAL_URI}
+      mlflow_experiment_name: ${MLFLOW_EXPERIMENT}
+      mlflow_trace_experiment_name: ${MLFLOW_AGENT_EXPERIMENT}
+EOF
+
+echo "  Created: eval-db-memory-agent.yaml"
+
 # ---------------------------------------------------------------------------
 # Step 6 — Submit jobs and wait
 # ---------------------------------------------------------------------------
@@ -663,6 +709,19 @@ echo "=== Step 6: Submitting agentic_rag agent eval ==="
 AGENTIC_RAG_OUTPUT=$(evalhub eval run --config "${WORK_DIR}/eval-agentic-rag-agent.yaml" --wait --poll-interval 5 2>&1)
 echo "${AGENTIC_RAG_OUTPUT}"
 AGENTIC_RAG_JOB_ID=$(echo "${AGENTIC_RAG_OUTPUT}" | python3 -c "
+import sys, re
+for line in sys.stdin:
+    m = re.search(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', line)
+    if m:
+        print(m.group())
+        break
+" 2>/dev/null || true)
+
+echo ""
+echo "=== Step 6: Submitting db_memory_agent eval ==="
+DB_MEMORY_OUTPUT=$(evalhub eval run --config "${WORK_DIR}/eval-db-memory-agent.yaml" --wait --poll-interval 5 2>&1)
+echo "${DB_MEMORY_OUTPUT}"
+DB_MEMORY_JOB_ID=$(echo "${DB_MEMORY_OUTPUT}" | python3 -c "
 import sys, re
 for line in sys.stdin:
     m = re.search(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', line)
@@ -738,6 +797,8 @@ echo ""
 print_results "crewai_websearch_agent" "${CREWAI_JOB_ID:-}"
 echo ""
 print_results "agentic_rag_agent" "${AGENTIC_RAG_JOB_ID:-}"
+echo ""
+print_results "db_memory_agent" "${DB_MEMORY_JOB_ID:-}"
 
 # ---------------------------------------------------------------------------
 # Cleanup

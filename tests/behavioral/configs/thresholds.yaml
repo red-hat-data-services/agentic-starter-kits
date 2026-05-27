@@ -28,3 +28,9 @@ agentic_rag:
   response_coherence_accuracy: 0.75
   max_latency_p95: 15.0
   pass_at_k: 8
+
+langgraph_db_memory:
+  tool_selection_accuracy: 0.85
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 15.0
+  pass_at_k: 8

@@ -238,6 +238,7 @@ There are two different YAMLs in this flow:
   - `agents/vanilla_python/openai_responses_agent/evalhub/tool_use.yaml`
   - `agents/crewai/websearch_agent/evalhub/tool_use.yaml`
   - `agents/langgraph/agentic_rag/evalhub/tool_use.yaml`
+  - `agents/langgraph/react_with_database_memory/evalhub/tool_use.yaml`
   - These contain golden queries (`queries`, `expected_tools`,
     `expected_elements`) used by the adapter scorers
   - At image build time, these are copied into the adapter container under
@@ -246,6 +247,7 @@ There are two different YAMLs in this flow:
     - `agents/vanilla_python/openai_responses_agent/evalhub/*` -> `fixtures/vanilla_python/`
     - `agents/crewai/websearch_agent/evalhub/*` -> `fixtures/crewai_websearch/`
     - `agents/langgraph/agentic_rag/evalhub/*` -> `fixtures/agentic_rag/`
+    - `agents/langgraph/react_with_database_memory/evalhub/*` -> `fixtures/langgraph_db_memory/`
   - You select which fixture set to use via `parameters.fixtures_path`
 
 Create one file per agent. To evaluate both agents, submit two jobs.
