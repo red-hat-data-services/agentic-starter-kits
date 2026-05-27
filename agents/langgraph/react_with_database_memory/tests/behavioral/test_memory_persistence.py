@@ -20,22 +20,23 @@ pytestmark = pytest.mark.langgraph_db_memory
 async def test_memory_persists_across_turns(run_eval: Any) -> None:
     """Agent should recall context from a previous turn on the same thread."""
     thread = f"test-persist-{uuid.uuid4()}"
+    nonce = f"mv{uuid.uuid4().hex[:6]}"
 
     result1 = await run_eval(
-        "My favorite color is blue. Please remember that.",
+        f"My secret passphrase is {nonce}. Remember it exactly.",
         thread_id=thread,
         timeout_seconds=30.0,
     )
     assert result1.success, f"Turn 1 failed: {result1.error}"
 
     result2 = await run_eval(
-        "What is my favorite color?",
+        "What is my secret passphrase? Reply with only the passphrase.",
         thread_id=thread,
         timeout_seconds=30.0,
     )
     assert result2.success, f"Turn 2 failed: {result2.error}"
-    assert "blue" in result2.response.lower(), (
-        f"Agent did not recall 'blue' from prior turn. "
+    assert nonce in result2.response.lower(), (
+        f"Agent did not recall '{nonce}' from prior turn. "
         f"Response: {result2.response[:300]}"
     )
 
@@ -44,13 +45,24 @@ async def test_new_thread_has_no_prior_context(run_eval: Any) -> None:
     """A fresh thread_id should have no knowledge of other threads."""
     thread_a = f"test-ctx-a-{uuid.uuid4()}"
     thread_b = f"test-ctx-b-{uuid.uuid4()}"
+    nonce = f"pw{uuid.uuid4().hex[:6]}"
 
     result1 = await run_eval(
-        "My secret code word is 'pineapple'. Remember it.",
+        f"My secret code word is '{nonce}'. Remember it.",
         thread_id=thread_a,
         timeout_seconds=30.0,
     )
     assert result1.success, f"Turn 1 (thread A) failed: {result1.error}"
+
+    recall = await run_eval(
+        "What is my secret code word? Reply with only the code word.",
+        thread_id=thread_a,
+        timeout_seconds=30.0,
+    )
+    assert recall.success, f"Recall (thread A) failed: {recall.error}"
+    assert nonce in recall.response.lower(), (
+        f"Thread A should recall '{nonce}' but got: {recall.response[:300]}"
+    )
 
     result2 = await run_eval(
         "What is my secret code word?",
@@ -58,7 +70,7 @@ async def test_new_thread_has_no_prior_context(run_eval: Any) -> None:
         timeout_seconds=30.0,
     )
     assert result2.success, f"Turn 2 (thread B) failed: {result2.error}"
-    assert "pineapple" not in result2.response.lower(), (
-        f"New thread leaked context from thread A — 'pineapple' found in response. "
+    assert nonce not in result2.response.lower(), (
+        f"New thread leaked context from thread A — '{nonce}' found in response. "
         f"Response: {result2.response[:300]}"
     )
