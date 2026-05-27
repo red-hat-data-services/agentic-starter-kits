@@ -397,6 +397,7 @@ echo "  OpenAI agent:      ${OPENAI_AGENT_ROUTE}"
 echo "  AutoGen MCP agent: ${AUTOGEN_MCP_AGENT_ROUTE}"
 echo "  CrewAI Websearch:  ${CREWAI_WEBSEARCH_ROUTE}"
 echo "  Agentic RAG agent: ${AGENTIC_RAG_AGENT_ROUTE}"
+echo "  LlamaIndex Websearch: ${LLAMAINDEX_WEBSEARCH_ROUTE}"
 echo "  MLflow:            ${MLFLOW_TRACKING_URI}"
 echo "  Experiment:        ${MLFLOW_EXPERIMENT}"
 

@@ -23,7 +23,7 @@ queries:
     category: factual
 
   # --- Medium ---
-  - query: "Search the web for which company leads in enterprise Kubernetes solutions"
+  - query: "Search the web and compare Kubernetes and OpenShift for enterprise AI workloads"
     expected_tools: ["dummy_web_search"]
     expected_elements: ["red"]
     difficulty: medium
