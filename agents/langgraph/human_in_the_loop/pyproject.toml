@@ -20,7 +20,7 @@ dependencies = [
     "pymilvus==2.5.9", # <-- Downgraded to the proven safe version
     "milvus-lite>=2.4.0", # <-- Matches the safe PyMilvus
     "python-dotenv>=1.2.2",
-    "setuptools>=80.9.0,<82.0.0",
+    "setuptools>=80.9.0,<83.0.0",
     "flask>=3.1.0",
 ]
 

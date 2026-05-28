@@ -14,7 +14,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "python-dotenv>=1.2.0",
     "mcp",
-    "setuptools>=80.9.0,<82.0.0",
+    "setuptools>=80.9.0,<83.0.0",
 ]
 
 [project.optional-dependencies]

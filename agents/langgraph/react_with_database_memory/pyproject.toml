@@ -23,7 +23,7 @@ dependencies = [
     "python-dotenv>=1.2.1",
     "pymilvus==2.5.7", # <-- Downgraded to the proven safe version
     "milvus-lite>=2.4.0", # <-- Matches the safe PyMilvus
-    "setuptools>=80.9.0,<82.0.0",
+    "setuptools>=80.9.0,<83.0.0",
     "typing-extensions>=4.15.0",
     "requests>=2.31.0",
     "chardet>=7.1.0",

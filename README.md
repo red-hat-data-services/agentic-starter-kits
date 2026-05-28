@@ -136,6 +136,7 @@ Tests require a running agent. Set the target URL via environment variables:
 | `AUTOGEN_MCP_AGENT_URL` | AutoGen MCP agent tests |
 | `CREWAI_WEBSEARCH_AGENT_URL` | CrewAI Websearch agent tests |
 | `AGENTIC_RAG_AGENT_URL` | LangGraph Agentic RAG agent tests |
+| `DB_MEMORY_AGENT_URL` | LangGraph DB Memory agent tests |
 | `LLAMAINDEX_WEBSEARCH_AGENT_URL` | LlamaIndex Websearch agent tests |
 
 ```bash

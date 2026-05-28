@@ -16,7 +16,7 @@ dependencies = [
     "milvus-lite>=2.5.1",
     "pymilvus==2.6.9", # <-- 2.6.10 has a bug https://github.com/milvus-io/pymilvus/issues/3317
     "python-dotenv>=1.2.2",
-    "setuptools>=80.9.0,<82.0.0",
+    "setuptools>=80.9.0,<83.0.0",
     "chardet>=7.1.0",
     "pypdf>=6.9.0",
     "flask>=3.1.0",

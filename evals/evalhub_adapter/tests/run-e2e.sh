@@ -104,6 +104,7 @@ REQUIRED_FILES=(
   "agents/autogen/mcp_agent/evalhub/tool_use.yaml"
   "agents/crewai/websearch_agent/evalhub/tool_use.yaml"
   "agents/langgraph/agentic_rag/evalhub/tool_use.yaml"
+  "agents/langgraph/react_with_database_memory/evalhub/tool_use.yaml"
   "agents/llamaindex/websearch_agent/evalhub/tool_use.yaml"
 )
 for f in "${REQUIRED_FILES[@]}"; do
@@ -202,6 +203,19 @@ if [[ -z "${AGENTIC_RAG_AGENT_ROUTE:-}" ]]; then
   fi
 else
   preflight_ok "Agentic RAG agent route (override): ${AGENTIC_RAG_AGENT_ROUTE}"
+fi
+
+if [[ -z "${DB_MEMORY_AGENT_ROUTE:-}" ]]; then
+  DB_MEMORY_AGENT_ROUTE=$(get_route "langgraph-db-memory-agent" || true)
+  [[ -z "${DB_MEMORY_AGENT_ROUTE}" ]] && DB_MEMORY_AGENT_ROUTE=$(get_route "db-memory-agent" || true)
+  [[ -z "${DB_MEMORY_AGENT_ROUTE}" ]] && DB_MEMORY_AGENT_ROUTE=$(get_route_contains "db-memory")
+  if [[ -n "${DB_MEMORY_AGENT_ROUTE}" ]]; then
+    preflight_ok "DB Memory agent route: ${DB_MEMORY_AGENT_ROUTE}"
+  else
+    preflight_fail "Could not discover db_memory_agent route. Set DB_MEMORY_AGENT_ROUTE manually."
+  fi
+else
+  preflight_ok "DB Memory agent route (override): ${DB_MEMORY_AGENT_ROUTE}"
 fi
 
 if [[ -z "${LLAMAINDEX_WEBSEARCH_ROUTE:-}" ]]; then
@@ -311,6 +325,14 @@ if [[ -n "${AGENTIC_RAG_AGENT_ROUTE:-}" ]]; then
   fi
 fi
 
+if [[ -n "${DB_MEMORY_AGENT_ROUTE:-}" ]]; then
+  if curl -sf --max-time 10 "https://${DB_MEMORY_AGENT_ROUTE}/health" > /dev/null 2>&1; then
+    preflight_ok "db_memory_agent /health responded"
+  else
+    preflight_warn "db_memory_agent /health not reachable (https://${DB_MEMORY_AGENT_ROUTE}/health)"
+  fi
+fi
+
 if [[ -n "${LLAMAINDEX_WEBSEARCH_ROUTE:-}" ]]; then
   if curl -sf --max-time 10 "https://${LLAMAINDEX_WEBSEARCH_ROUTE}/health" > /dev/null 2>&1; then
     preflight_ok "llamaindex_websearch_agent /health responded"
@@ -397,6 +419,7 @@ echo "  OpenAI agent:      ${OPENAI_AGENT_ROUTE}"
 echo "  AutoGen MCP agent: ${AUTOGEN_MCP_AGENT_ROUTE}"
 echo "  CrewAI Websearch:  ${CREWAI_WEBSEARCH_ROUTE}"
 echo "  Agentic RAG agent: ${AGENTIC_RAG_AGENT_ROUTE}"
+echo "  DB Memory agent:   ${DB_MEMORY_AGENT_ROUTE}"
 echo "  LlamaIndex Websearch: ${LLAMAINDEX_WEBSEARCH_ROUTE}"
 echo "  MLflow:            ${MLFLOW_TRACKING_URI}"
 echo "  Experiment:        ${MLFLOW_EXPERIMENT}"
@@ -625,6 +648,29 @@ EOF
 
 echo "  Created: eval-agentic-rag-agent.yaml"
 
+cat > "${WORK_DIR}/eval-db-memory-agent.yaml" <<EOF
+name: agentic-tool-use-db-memory-agent
+description: EvalHub orchestration run for LangGraph DB Memory agent
+model:
+  name: langgraph-db-memory-agent
+  url: https://${DB_MEMORY_AGENT_ROUTE}
+benchmarks:
+  - id: agentic-tool-use
+    provider_id: ${PROVIDER_ID}
+    parameters:
+      known_tools: ["search"]
+      forbidden_actions: ["shell execution"]
+      max_latency_seconds: 15.0
+      timeout_seconds: 45.0
+      verify_ssl: true
+      fixtures_path: fixtures/langgraph_db_memory
+      mlflow_tracking_uri: ${MLFLOW_INTERNAL_URI}
+      mlflow_experiment_name: ${MLFLOW_EXPERIMENT}
+      mlflow_trace_experiment_name: ${MLFLOW_AGENT_EXPERIMENT}
+EOF
+
+echo "  Created: eval-db-memory-agent.yaml"
+
 cat > "${WORK_DIR}/eval-llamaindex-websearch-agent.yaml" <<EOF
 name: agentic-tool-use-llamaindex-websearch-agent
 description: EvalHub orchestration run for LlamaIndex websearch_agent
@@ -717,6 +763,19 @@ for line in sys.stdin:
 " 2>/dev/null || true)
 
 echo ""
+echo "=== Step 6: Submitting db_memory_agent eval ==="
+DB_MEMORY_OUTPUT=$(evalhub eval run --config "${WORK_DIR}/eval-db-memory-agent.yaml" --wait --poll-interval 5 2>&1)
+echo "${DB_MEMORY_OUTPUT}"
+DB_MEMORY_JOB_ID=$(echo "${DB_MEMORY_OUTPUT}" | python3 -c "
+import sys, re
+for line in sys.stdin:
+    m = re.search(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', line)
+    if m:
+        print(m.group())
+        break
+" 2>/dev/null || true)
+
+echo ""
 echo "=== Step 6: Submitting llamaindex_websearch_agent eval ==="
 LLAMAINDEX_OUTPUT=$(evalhub eval run --config "${WORK_DIR}/eval-llamaindex-websearch-agent.yaml" --wait --poll-interval 5 2>&1)
 echo "${LLAMAINDEX_OUTPUT}"
@@ -796,6 +855,8 @@ echo ""
 print_results "crewai_websearch_agent" "${CREWAI_JOB_ID:-}"
 echo ""
 print_results "agentic_rag_agent" "${AGENTIC_RAG_JOB_ID:-}"
+echo ""
+print_results "db_memory_agent" "${DB_MEMORY_JOB_ID:-}"
 echo ""
 print_results "llamaindex_websearch_agent" "${LLAMAINDEX_JOB_ID:-}"
 

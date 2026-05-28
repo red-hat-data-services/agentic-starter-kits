@@ -136,6 +136,19 @@ Run **"build me a tetris game"** against all three backends. All three produced 
 
 ---
 
+### Latency Comparison: vLLM Direct vs OGX → vLLM
+
+To measure OGX overhead, the prompt **"What is the capital of France? One word only."** was run 5 times through each path. This prompt was chosen because it produces a deterministic single-token response ("Paris"), eliminating variability from different model outputs. The first run was excluded as a cold start warmup.
+
+| Path | Run 2 | Run 3 | Run 4 | Run 5 | Avg (runs 2–5) |
+|---|---|---|---|---|---|
+| **OGX → vLLM** | 0.326s | 0.357s | 0.356s | 0.438s | **0.369s** |
+| **vLLM direct** | 0.403s | 0.396s | 0.412s | 0.356s | **0.392s** |
+
+No measurable latency difference. OGX acts as a thin passthrough to vLLM's `/v1/messages` endpoint with no transformation overhead.
+
+---
+
 ## Observability Setup Guide & RHOAI 3.5 Recommendation
 
 ### Summary
