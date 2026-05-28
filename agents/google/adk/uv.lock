@@ -34,15 +34,17 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
+    { name = "httpx" },
     { name = "pytest" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "chardet" },
-    { name = "fastapi", specifier = ">=0.129.0" },
+    { name = "fastapi", specifier = ">=0.135.1" },
     { name = "flask", specifier = ">=3.1.0" },
     { name = "google-adk", specifier = ">=2.0.0a1" },
+    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "litellm", specifier = ">=1.50.0,!=1.82.7,!=1.82.8" },
     { name = "milvus-lite", specifier = ">=2.5.1" },
     { name = "openai", specifier = ">=2.24.0" },
@@ -50,7 +52,7 @@ requires-dist = [
     { name = "pypdf" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.2" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
-    { name = "setuptools", specifier = ">=80.9.0,<82.0.0" },
+    { name = "setuptools", specifier = ">=80.9.0,<83.0.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0" },
 ]
 provides-extras = ["dev"]
