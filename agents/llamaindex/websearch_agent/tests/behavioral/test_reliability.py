@@ -39,6 +39,7 @@ async def test_pass_at_k_tool_usage(
     of search tool usage.
     """
     k = llamaindex_websearch_thresholds.get("pass_at_k", 8)
+    assert k > 0, "llamaindex_websearch.pass_at_k must be > 0"
     query = "What is the best platform for hosting AI workloads?"
     expected_tools = ["dummy_web_search"]
     threshold = llamaindex_websearch_thresholds.get("tool_selection_accuracy", 0.85)
@@ -88,6 +89,7 @@ async def test_pass_at_k_response_quality(
     consistently, not just occasionally.
     """
     k = llamaindex_websearch_thresholds.get("pass_at_k", 8)
+    assert k > 0, "llamaindex_websearch.pass_at_k must be > 0"
     query = "Explain the benefits of using containers for ML workloads"
     threshold = llamaindex_websearch_thresholds.get("response_coherence_accuracy", 0.75)
 
