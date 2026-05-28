@@ -43,7 +43,7 @@ async def test_streaming_parity(agent_url: str, http_client: Any) -> None:
 
     sync_tools = {tc["name"] for tc in (result_sync.tool_calls or [])}
     stream_tools = {tc["name"] for tc in (result_stream.tool_calls or [])}
-    if sync_tools and stream_tools:
+    if sync_tools or stream_tools:
         assert sync_tools == stream_tools, (
             f"Tool calls differ: non-streaming={sync_tools}, streaming={stream_tools}"
         )

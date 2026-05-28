@@ -115,11 +115,10 @@ async def test_tool_not_called_for_greeting(run_eval: Any) -> None:
     result = await run_eval("Hello")
     assert result.success, f"Agent request failed: {result.error}"
 
-    if result.tool_calls:
-        assert len(result.tool_calls) == 0, (
-            f"Greeting should not trigger tool calls, "
-            f"but got: {[tc['name'] for tc in result.tool_calls]}"
-        )
+    assert not result.tool_calls, (
+        f"Greeting should not trigger tool calls, "
+        f"but got: {[tc['name'] for tc in (result.tool_calls or [])]}"
+    )
 
     text_lower = result.response.lower()
     search_in_greeting = any(term in text_lower for term in SEARCH_EVIDENCE)
