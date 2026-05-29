@@ -23,6 +23,7 @@ dependencies = [
     "chardet==7.2.0",
     "pypdf==6.9.1",
     "flask>=3.1.0",
+    "starlette>=1.0.1",
 ]
 
 [project.optional-dependencies]
