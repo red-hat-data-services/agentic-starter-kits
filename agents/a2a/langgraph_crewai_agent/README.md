@@ -80,6 +80,96 @@ MODEL_ID=your-model-id
 CONTAINER_IMAGE=quay.io/your-org/a2a-langgraph-crewai:latest
 ```
 
+### Tracing with a local MLflow server (optional)
+
+To enable MLflow tracing, add the following to your `.env`:
+
+```ini
+# Disable CrewAI's built-in tracing (we use MLflow instead)
+CREWAI_TRACING_ENABLED=false
+
+MLFLOW_TRACKING_URI="http://localhost:5000"
+MLFLOW_EXPERIMENT_NAME="a2a-langgraph-crewai"
+MLFLOW_HTTP_REQUEST_TIMEOUT=2
+MLFLOW_HTTP_REQUEST_MAX_RETRIES=0
+```
+
+**Important:** `CREWAI_TRACING_ENABLED=false` disables CrewAI's built-in telemetry system, which can interfere with execution and block the crew from running. We use MLflow for tracing instead.
+
+Then start the MLflow server in a separate terminal:
+
+```bash
+# Start the MLflow server
+uv run --extra tracing mlflow server --port 5000
+```
+
+When `MLFLOW_TRACKING_URI` is set, `make run-app`, `make run-crew`, and `make run-langgraph` will automatically install the tracing dependency.
+
+#### Configuring the LLM provider for tracing (CrewAI only)
+
+The CrewAI server can use different LLM providers. Set `LLM_PROVIDER` to match your provider so MLflow uses the correct autolog integration:
+
+| `LLM_PROVIDER` value | MLflow autolog enabled       | When to use                 |
+|----------------------|------------------------------|-----------------------------|
+| `litellm` (default)  | `mlflow.litellm.autolog()`   | OpenAI-compatible endpoints |
+| `openai`             | `mlflow.openai.autolog()`    | Direct OpenAI API           |
+| `anthropic`          | `mlflow.anthropic.autolog()` | Anthropic API               |
+| `gemini`             | `mlflow.gemini.autolog()`    | Google Gemini API           |
+| `azure`              | `mlflow.openai.autolog()`    | Azure OpenAI                |
+| `bedrock`            | `mlflow.bedrock.autolog()`   | AWS Bedrock                 |
+
+**Note:** The LangGraph server uses `mlflow.langchain.autolog()` which automatically traces LangChain components regardless of the underlying LLM provider, so `LLM_PROVIDER` only affects the CrewAI server.
+
+### Tracing with an OpenShift MLflow server (optional)
+
+To enable tracing and logging with MLflow on your OpenShift cluster, add the following environment variables to your `.env` file:
+
+```ini
+# Disable CrewAI's built-in tracing (we use MLflow instead)
+CREWAI_TRACING_ENABLED=false
+
+MLFLOW_TRACKING_URI="https://<openshift-dashboard-url>/mlflow"
+MLFLOW_TRACKING_TOKEN="<your-openshift-token>"
+MLFLOW_EXPERIMENT_NAME="a2a-langgraph-crewai"
+MLFLOW_TRACKING_INSECURE_TLS="true"  # ⚠️ Development only - use proper certificates in production
+MLFLOW_WORKSPACE="default"
+```
+
+**Notes:**
+
+- `MLFLOW_TRACKING_URI` - Replace `<openshift-dashboard-url>` with your OpenShift cluster's data science gateway URL
+- `MLFLOW_TRACKING_TOKEN` - Your openshift authentication token. It can be obtained from the openshift console.
+- `MLFLOW_EXPERIMENT_NAME` - A descriptive name for your experiment (e.g., "A2A LangGraph CrewAI Demo")
+- `MLFLOW_TRACKING_INSECURE_TLS` - **Development only** - disables certificate verification. Never use in production. Deploy proper TLS certificates instead.
+- `MLFLOW_WORKSPACE` - Project name
+- `LLM_PROVIDER` - (CrewAI only) Which provider autolog to use (default: `litellm`)
+
+- Tracing is optional; if you do not set `MLFLOW_TRACKING_URI`, the application will run without MLflow logging.
+- If `MLFLOW_TRACKING_URI` is set, the application will attempt to connect to the MLflow server at startup. If the server is unreachable, the application will log a warning and continue running without tracing.
+- Both servers (CrewAI and LangGraph) will emit traces to the same MLflow experiment when tracing is enabled.
+
+#### Differentiating traces from each server
+
+By default, both servers emit traces to the same experiment. You can differentiate traces using:
+
+**1. Span names (automatic)** - Each framework produces distinct span names:
+
+- LangGraph traces: `LangGraph`, `ChatOpenAI`, `ask_crew_specialist`
+- CrewAI traces: `CrewAI`, `Task`, `Agent`, `Web Search`
+
+**2. Separate experiments (optional)** - Use different experiments for each server:
+
+```ini
+# Separate experiments
+MLFLOW_EXPERIMENT_NAME_LANGGRAPH="a2a-langgraph-traces"
+MLFLOW_EXPERIMENT_NAME_CREWAI="a2a-crewai-traces"
+
+# Shared experiment (default if above not set)
+MLFLOW_EXPERIMENT_NAME="a2a-langgraph-crewai"
+```
+
+If `MLFLOW_EXPERIMENT_NAME_LANGGRAPH` or `MLFLOW_EXPERIMENT_NAME_CREWAI` are set, they take priority over `MLFLOW_EXPERIMENT_NAME` for their respective servers.
+
 ### Running the agent
 
 Install dependencies and configure `.env`, then either use **Make** (same idea as the Google ADK agent) or run the two Python modules by hand.

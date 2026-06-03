@@ -284,6 +284,75 @@ The `TracerProvider` must be set **before** any ADK components are used (i.e., `
 
 No `LLM_PROVIDER` env var needed — ADK traces LLM calls through its own instrumentation regardless of the underlying model connector (LiteLLM, Gemini, etc.).
 
+### A2A (LangGraph + CrewAI)
+
+**Autolog:** Dual framework — `mlflow.langchain.autolog()` for LangGraph server + `mlflow.crewai.autolog()` + provider-specific autolog for CrewAI server  
+**Manual tracing:** Yes (tool `_run` methods in `crew_a2a_server.py` for CrewAI server only)
+
+This agent runs **two separate server processes** in the same deployment, each requiring its own tracing configuration:
+
+#### LangGraph Server (`langgraph_a2a_server.py`)
+
+**Level A** — Full auto-tracing via `mlflow.langchain.autolog()`. No manual wrapping needed.
+
+- Calls `enable_tracing_langgraph()` at startup
+- Captures all three layers: agent orchestration (LangGraph execution), tool execution (`ask_crew_specialist`), and LLM calls (`ChatOpenAI`)
+- No `LLM_PROVIDER` env var needed — LangChain autolog traces all LangChain components regardless of base_url
+
+#### CrewAI Server (`crew_a2a_server.py`)
+
+**Level B** — Partial autolog via `mlflow.crewai.autolog()` + provider-specific autolog. Manual tool wrapping required.
+
+- Calls `enable_tracing_crewai()` at startup
+- Tool spans manually wrapped in `_run_crew()`:
+
+  ```python
+  tools = [DummyWebSearchTool()]
+  for tool in tools:
+      tool._run = wrap_func_with_mlflow_trace(
+          tool._run, span_type="tool", name=tool.name
+      )
+  ```
+
+- LLM provider autolog controlled by `LLM_PROVIDER` env var (default: `litellm`)
+
+#### Shared Tracing Module
+
+`src/a2a_langgraph_crewai/tracing.py` contains:
+
+- `enable_tracing_langgraph()` — Level A pattern (langchain autolog only)
+- `enable_tracing_crewai()` — Level B pattern (crewai + provider autolog, sets `_TRACING_ENABLED` global)
+- `wrap_func_with_mlflow_trace()` — for CrewAI tool wrapping
+
+Both servers emit traces to the **same MLflow experiment** when `MLFLOW_TRACKING_URI` is set. This creates a unified view of the full A2A interaction: the LangGraph orchestrator trace includes a tool call to `ask_crew_specialist`, which makes an HTTP request to the CrewAI server, and the CrewAI server emits a separate trace for processing that request.
+
+**Differentiating traces:** Traces from each server can be distinguished two ways:
+
+1. **Span names** — Framework-specific span names naturally differentiate traces (e.g., `LangGraph` vs `CrewAI`)
+2. **Separate experiments** — Optional per-server experiment names:
+   - `MLFLOW_EXPERIMENT_NAME_LANGGRAPH` — LangGraph server experiment
+   - `MLFLOW_EXPERIMENT_NAME_CREWAI` — CrewAI server experiment
+   - If not set, both use `MLFLOW_EXPERIMENT_NAME` (unified view)
+
+**Resulting spans (LangGraph server):**
+
+| Span Name | Type | Source |
+|---|---|---|
+| `LangGraph` | CHAIN | `mlflow.langchain.autolog()` |
+| `ChatOpenAI` | CHAT_MODEL | `mlflow.langchain.autolog()` |
+| `tools` | CHAIN | `mlflow.langchain.autolog()` |
+| `ask_crew_specialist` | TOOL | `mlflow.langchain.autolog()` |
+
+**Resulting spans (CrewAI server):**
+
+| Span Name | Type | Source |
+|---|---|---|
+| `CrewAI` | AGENT | `mlflow.crewai.autolog()` |
+| `Task` | CHAIN | `mlflow.crewai.autolog()` |
+| `Agent` | AGENT | `mlflow.crewai.autolog()` |
+| `Web Search` | TOOL | Manual (`wrap_func_with_mlflow_trace` in `crew_a2a_server.py`) |
+| `Completions` or `litellm-completion` | CHAT_MODEL / LLM | Provider-specific autolog |
+
 ---
 
 ## Configuration
@@ -364,6 +433,7 @@ Every agent's traces consist of up to three layers. Which layers are present dep
 | **LlamaIndex** | `mlflow.llama_index.autolog()` | Same autolog | Same autolog |
 | **CrewAI** | Provider-specific autolog | Manual wrapping | `mlflow.crewai.autolog()` |
 | **Google ADK** | ADK OTel auto-tracing | ADK OTel auto-tracing | ADK OTel auto-tracing |
+| **A2A (LangGraph+CrewAI)** | LangGraph: `mlflow.langchain.autolog()`<br>CrewAI: Provider-specific autolog | LangGraph: Same autolog<br>CrewAI: Manual wrapping | LangGraph: Same autolog<br>CrewAI: `mlflow.crewai.autolog()` |
 
 ### Autolog Coverage Levels
 

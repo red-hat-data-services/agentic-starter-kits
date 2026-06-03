@@ -3,19 +3,26 @@ version: "3.8"
 services:
   # ── Langflow (UI + Server) ─────────────────────────────────────────
   langflow:
-    image: docker.io/langflowai/langflow:1.7.1
+    build: .
     ports:
-      - "7860:7860"
+      - "127.0.0.1:7860:7860"
     environment:
       LANGFLOW_DATABASE_URL: "postgresql://${POSTGRES_USER:-langflow}:${POSTGRES_PASSWORD:-langflow}@postgres:5432/${POSTGRES_DB:-langflow}"
       LANGFLOW_CONFIG_DIR: /var/lib/langflow
-      LANGFLOW_SKIP_AUTH_AUTO_LOGIN: "true"
+      LANGFLOW_AUTO_LOGIN: "true"
+      # Allow Langflow to reach host-local services (Ollama, LlamaStack).
+      # SSRF protection is on by default in 1.9+ and blocks private IPs.
+      LANGFLOW_SSRF_PROTECTION_ENABLED: "true"
+      LANGFLOW_SSRF_ALLOWED_HOSTS: "host.containers.internal"
+      # Import these env vars as Langflow Global Variables so flow
+      # components (Agent, KServe vLLM, etc.) can resolve them.
+      LANGFLOW_VARIABLES_TO_GET_FROM_ENVIRONMENT: "OPENAI_API_BASE,OPENAI_API_KEY,OLLAMA_BASE_URL"
       # Model endpoint — points to Ollama running on the host machine (not in a container)
       OPENAI_API_BASE: "http://host.containers.internal:11434/v1"
       OPENAI_API_KEY: "not-needed-for-local-development"
       OLLAMA_BASE_URL: "http://host.containers.internal:11434"
       # Langfuse tracing
-      LANGFUSE_HOST: "http://langfuse-web:3000"
+      LANGFUSE_BASE_URL: "http://langfuse-web:3000"
       LANGFUSE_PUBLIC_KEY: "pk-lf-local-dev"
       LANGFUSE_SECRET_KEY: "sk-lf-local-dev"
     volumes:

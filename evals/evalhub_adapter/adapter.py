@@ -54,6 +54,22 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+async def _get_langflow_token(base_url: str, client: httpx.AsyncClient) -> str:
+    """Obtain an auth token from Langflow's auto_login endpoint."""
+    url = f"{base_url.rstrip('/')}/api/v1/auto_login"
+    resp = await client.get(url, timeout=10.0)
+    resp.raise_for_status()
+    data = resp.json()
+    token = data.get("access_token")
+    if not token:
+        raise ValueError(
+            "Langflow auto_login response missing 'access_token'. "
+            "Ensure the Langflow instance has LANGFLOW_AUTO_LOGIN=true. "
+            f"Response keys: {list(data.keys())}"
+        )
+    return token
+
+
 class AgenticEvalAdapter(FrameworkAdapter):
     """EvalHub adapter that runs our agentic eval harness."""
 
@@ -168,6 +184,11 @@ class AgenticEvalAdapter(FrameworkAdapter):
         async with httpx.AsyncClient(
             verify=params.verify_ssl, timeout=httpx.Timeout(params.timeout_seconds)
         ) as client:
+            langflow_headers: dict[str, str] = {}
+            if params.api_format == "langflow_run":
+                token = await _get_langflow_token(agent_url, client)
+                langflow_headers = {"Authorization": f"Bearer {token}"}
+
             for i, query_spec in enumerate(queries):
                 progress = 30.0 + (50.0 * (i + 1) / len(queries))
                 try:
@@ -177,6 +198,7 @@ class AgenticEvalAdapter(FrameworkAdapter):
                         expected_tools=query_spec.expected_tools,
                         params=params,
                         model_name=config.model.name,
+                        extra_headers=langflow_headers or None,
                     )
                     request_start_ms = int(time.time() * 1000)
                     result = await run_task(task_config, client=client)

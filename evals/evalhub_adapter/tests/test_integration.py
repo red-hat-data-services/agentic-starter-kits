@@ -6,9 +6,8 @@ instance.
 
 Agents serve tool calls only via SSE streaming — their Pydantic
 response_model strips the extra ``context`` field that would otherwise
-carry tool-call history in non-streaming JSON.  The adapter therefore
-uses ``stream=True`` by default so the harness runner can accumulate
-``delta.tool_calls`` from the SSE event stream.
+carry tool-call history in non-streaming JSON.  Tests that need SSE
+streaming set ``stream=True`` explicitly (the default is ``False``).
 """
 
 from __future__ import annotations
@@ -47,6 +46,7 @@ _DUMMY_JOB_SPEC = {
         "known_tools": ["search"],
         "timeout_seconds": 5.0,
         "verify_ssl": False,
+        "stream": True,
         "mlflow_tracking_uri": "http://mlflow:5000",
         "mlflow_experiment_name": "test-exp",
     },
@@ -86,6 +86,7 @@ def _make_job_spec(
         "known_tools": ["search"],
         "timeout_seconds": 5.0,
         "verify_ssl": False,
+        "stream": True,
         "fixtures_path": fixtures_path,
         "mlflow_tracking_uri": "http://mlflow:5000",
         "mlflow_experiment_name": "test-exp",
@@ -307,6 +308,7 @@ class TestRunAsyncHappyPath:
                 "known_tools": ["search"],
                 "timeout_seconds": 5.0,
                 "verify_ssl": False,
+                "stream": True,
                 "fixtures_path": str(fixtures_dir),
                 "mlflow_tracking_uri": "https://mlflow.example.com",
                 "mlflow_experiment_name": "agentic-evals",
@@ -507,6 +509,7 @@ class TestMLflowTraceEnrichment:
                 "known_tools": ["search"],
                 "timeout_seconds": 5.0,
                 "verify_ssl": False,
+                "stream": True,
                 "fixtures_path": str(fixtures_dir),
                 "mlflow_tracking_uri": "https://mlflow.example.com",
                 "mlflow_experiment_name": "test-exp",
@@ -532,6 +535,191 @@ class TestMLflowTraceEnrichment:
 
         assert results.num_examples_evaluated == 2
         assert mock_mlflow_client.enrich_eval_result.call_count == 2
+
+
+class TestLangflowProtocol:
+    """Integration tests for the Langflow /api/v1/run protocol."""
+
+    @pytest.fixture()
+    def adapter(self, tmp_path):
+        return _make_adapter(_write_job_spec(tmp_path))
+
+    @pytest.fixture()
+    def langflow_response(self):
+        return {
+            "session_id": "test-session",
+            "outputs": [
+                {
+                    "outputs": [
+                        {
+                            "results": {
+                                "message": {
+                                    "text": "The forecast is sunny.",
+                                    "content_blocks": [
+                                        {
+                                            "title": "get_forecast",
+                                            "contents": [
+                                                {
+                                                    "type": "tool_use",
+                                                    "name": "get_forecast",
+                                                    "tool_input": {"city": "Boston"},
+                                                }
+                                            ],
+                                        }
+                                    ],
+                                }
+                            },
+                            "artifacts": {"message": "The forecast is sunny."},
+                        }
+                    ]
+                }
+            ],
+        }
+
+    def test_langflow_full_pipeline(
+        self, adapter, fixtures_dir: Path, langflow_response
+    ):
+        """Full pipeline with api_format=langflow_run produces scored results."""
+        yaml_content = textwrap.dedent("""\
+            queries:
+              - query: "What is the weather in Boston?"
+                expected_tools: ["get_forecast"]
+        """)
+        (fixtures_dir / "tool_use.yaml").write_text(yaml_content)
+
+        job_spec = _make_job_spec(
+            fixtures_path=str(fixtures_dir),
+            parameters={
+                "known_tools": ["get_forecast"],
+                "timeout_seconds": 5.0,
+                "verify_ssl": False,
+                "fixtures_path": str(fixtures_dir),
+                "api_format": "langflow_run",
+                "flow_id": "test-flow-uuid",
+                "mlflow_tracking_uri": "http://mlflow:5000",
+                "mlflow_experiment_name": "test-exp",
+            },
+        )
+        callbacks = _make_callbacks()
+
+        auto_login_resp = MagicMock()
+        auto_login_resp.status_code = 200
+        auto_login_resp.raise_for_status = MagicMock()
+        auto_login_resp.json.return_value = {
+            "access_token": "test-jwt-token",
+            "token_type": "bearer",
+        }
+
+        run_resp = MagicMock()
+        run_resp.status_code = 200
+        run_resp.raise_for_status = MagicMock()
+        run_resp.json.return_value = langflow_response
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=auto_login_resp)
+        mock_client.post = AsyncMock(return_value=run_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "evalhub_adapter.adapter.httpx.AsyncClient", return_value=mock_client
+        ):
+            results = asyncio.run(adapter._run_async(job_spec, callbacks))
+
+        assert results.num_examples_evaluated == 1
+        assert results.overall_score > 0
+        assert callbacks.report_results.call_count == 1
+
+        mock_client.get.assert_called_once()
+        get_url = mock_client.get.call_args.args[0]
+        assert "/api/v1/auto_login" in get_url
+
+        post_call = mock_client.post.call_args
+        assert "/api/v1/run/test-flow-uuid" in post_call.args[0]
+
+        headers = post_call.kwargs.get("headers", {})
+        assert headers.get("Authorization") == "Bearer test-jwt-token"
+
+    def test_langflow_auth_failure_raises(self, adapter, fixtures_dir: Path):
+        """When auto_login returns non-200, the pipeline raises."""
+        yaml_content = textwrap.dedent("""\
+            queries:
+              - query: "test"
+                expected_tools: []
+        """)
+        (fixtures_dir / "tool_use.yaml").write_text(yaml_content)
+
+        job_spec = _make_job_spec(
+            fixtures_path=str(fixtures_dir),
+            parameters={
+                "known_tools": [],
+                "timeout_seconds": 5.0,
+                "verify_ssl": False,
+                "fixtures_path": str(fixtures_dir),
+                "api_format": "langflow_run",
+                "flow_id": "test-flow",
+                "mlflow_tracking_uri": "http://mlflow:5000",
+                "mlflow_experiment_name": "test-exp",
+            },
+        )
+        callbacks = _make_callbacks()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(
+            side_effect=httpx.HTTPStatusError(
+                "Unauthorized",
+                request=httpx.Request("GET", "http://fake/api/v1/auto_login"),
+                response=httpx.Response(401),
+            )
+        )
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "evalhub_adapter.adapter.httpx.AsyncClient", return_value=mock_client
+        ):
+            with pytest.raises(httpx.HTTPStatusError):
+                asyncio.run(adapter._run_async(job_spec, callbacks))
+
+    def test_langflow_missing_access_token_raises(self, adapter, fixtures_dir: Path):
+        """When auto_login returns 200 but no access_token, the pipeline raises."""
+        yaml_content = textwrap.dedent("""\
+            queries:
+              - query: "test"
+                expected_tools: []
+        """)
+        (fixtures_dir / "tool_use.yaml").write_text(yaml_content)
+
+        job_spec = _make_job_spec(
+            fixtures_path=str(fixtures_dir),
+            parameters={
+                "known_tools": [],
+                "timeout_seconds": 5.0,
+                "verify_ssl": False,
+                "fixtures_path": str(fixtures_dir),
+                "api_format": "langflow_run",
+                "flow_id": "test-flow",
+                "mlflow_tracking_uri": "http://mlflow:5000",
+                "mlflow_experiment_name": "test-exp",
+            },
+        )
+        callbacks = _make_callbacks()
+
+        auto_login_resp = MagicMock()
+        auto_login_resp.status_code = 200
+        auto_login_resp.raise_for_status = MagicMock()
+        auto_login_resp.json.return_value = {"token_type": "bearer"}
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=auto_login_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "evalhub_adapter.adapter.httpx.AsyncClient", return_value=mock_client
+        ):
+            with pytest.raises(ValueError, match="LANGFLOW_AUTO_LOGIN"):
+                asyncio.run(adapter._run_async(job_spec, callbacks))
 
 
 class TestMain:

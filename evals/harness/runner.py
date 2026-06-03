@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Literal
 
 import httpx
 
@@ -25,6 +26,9 @@ class TaskConfig:
     model: str | None = None
     stream: bool = False
     thread_id: str | None = None
+    api_format: Literal["chat_completions", "langflow_run"] = "chat_completions"
+    flow_id: str | None = None
+    extra_headers: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -132,11 +136,57 @@ def _extract_token_usage(response_data: dict[str, Any]) -> int | None:
     return usage.get("total_tokens")
 
 
+def _get_langflow_output(response_data: dict[str, Any]) -> dict[str, Any] | None:
+    """Navigate to the first output node from a Langflow /api/v1/run response."""
+    try:
+        output = response_data["outputs"][0]["outputs"][0]
+        return output if isinstance(output, dict) else None
+    except (KeyError, IndexError, TypeError):
+        return None
+
+
+def _extract_langflow_response_text(response_data: dict[str, Any]) -> str:
+    """Extract assistant message text from a Langflow /api/v1/run response."""
+    output = _get_langflow_output(response_data)
+    if output is None:
+        return ""
+    text = output.get("results", {}).get("message", {}).get("text")
+    if text:
+        return text
+    return output.get("artifacts", {}).get("message", "") or ""
+
+
+def _extract_langflow_tool_calls(
+    response_data: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Extract tool calls from a Langflow /api/v1/run response.
+
+    Navigates outputs[0].outputs[0].results.message.content_blocks[*].contents[*]
+    and maps Langflow's ``tool_input`` field to ``arguments`` for scorer compatibility.
+    """
+    output = _get_langflow_output(response_data)
+    if output is None:
+        return []
+    tool_calls: list[dict[str, Any]] = []
+    message = output.get("results", {}).get("message", {})
+    for block in message.get("content_blocks", []):
+        for entry in block.get("contents", []):
+            if entry.get("type") == "tool_use":
+                tool_calls.append(
+                    {
+                        "name": entry.get("name", ""),
+                        "arguments": entry.get("tool_input", {}),
+                    }
+                )
+    return tool_calls
+
+
 async def _run_streaming(
     client: httpx.AsyncClient,
     url: str,
     payload: dict[str, Any],
     timeout: float,
+    headers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Handle a streaming chat completion request, accumulating the response."""
     collected_content = ""
@@ -146,7 +196,9 @@ async def _run_streaming(
     parsed_any_chunk = False
     malformed_count = 0
 
-    async with client.stream("POST", url, json=payload, timeout=timeout) as resp:
+    async with client.stream(
+        "POST", url, json=payload, headers=headers, timeout=timeout
+    ) as resp:
         resp.raise_for_status()
         async for line in resp.aiter_lines():
             if not line.startswith("data: "):
@@ -220,39 +272,66 @@ async def run_task(
 ) -> TaskResult:
     """Execute a single eval task against an agent endpoint.
 
-    Sends the query to the agent's /chat/completions endpoint,
-    measures latency, extracts tool calls and token usage.
+    Sends the query to the agent's endpoint (``/chat/completions`` or
+    Langflow ``/api/v1/run/<flow_id>``), measures latency, extracts
+    tool calls and token usage.
     """
     own_client = client is None
     if own_client:
         client = httpx.AsyncClient()
 
-    url = f"{config.agent_url.rstrip('/')}/chat/completions"
-    payload: dict[str, Any] = {
-        "messages": [{"role": "user", "content": config.query}],
-    }
-    if config.model:
-        payload["model"] = config.model
-    if config.stream:
-        payload["stream"] = True
-    if config.thread_id:
-        payload["thread_id"] = config.thread_id
+    is_langflow = config.api_format == "langflow_run"
 
+    if is_langflow:
+        if not config.flow_id:
+            raise ValueError("flow_id is required when api_format is 'langflow_run'")
+        if not re.fullmatch(r"[a-zA-Z0-9_-]+", config.flow_id):
+            raise ValueError(
+                f"flow_id must contain only alphanumeric characters, hyphens, "
+                f"and underscores — got '{config.flow_id}'"
+            )
+        url = f"{config.agent_url.rstrip('/')}/api/v1/run/{config.flow_id}"
+        payload: dict[str, Any] = {
+            "input_value": config.query,
+            "output_type": "chat",
+            "input_type": "chat",
+        }
+    else:
+        url = f"{config.agent_url.rstrip('/')}/chat/completions"
+        payload = {
+            "messages": [{"role": "user", "content": config.query}],
+        }
+        if config.model:
+            payload["model"] = config.model
+        if config.stream:
+            payload["stream"] = True
+        if config.thread_id:
+            payload["thread_id"] = config.thread_id
+
+    headers = config.extra_headers or None
     start = time.monotonic()
     try:
-        if config.stream:
+        if not is_langflow and config.stream:
             response_data = await _run_streaming(
-                client, url, payload, config.timeout_seconds
+                client, url, payload, config.timeout_seconds, headers=headers
             )
         else:
-            resp = await client.post(url, json=payload, timeout=config.timeout_seconds)
+            resp = await client.post(
+                url, json=payload, headers=headers, timeout=config.timeout_seconds
+            )
             resp.raise_for_status()
             response_data = resp.json()
 
         latency = time.monotonic() - start
-        tool_calls = _extract_tool_calls(response_data)
-        response_text = _extract_response_text(response_data)
-        tokens_used = _extract_token_usage(response_data)
+
+        if is_langflow:
+            tool_calls = _extract_langflow_tool_calls(response_data)
+            response_text = _extract_langflow_response_text(response_data)
+            tokens_used = None
+        else:
+            tool_calls = _extract_tool_calls(response_data)
+            response_text = _extract_response_text(response_data)
+            tokens_used = _extract_token_usage(response_data)
 
         return TaskResult(
             response=response_text,

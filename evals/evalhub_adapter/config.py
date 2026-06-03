@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, get_args
 from urllib.parse import urlparse
 
 from harness.runner import TaskConfig
 
 logger = logging.getLogger(__name__)
+
+ApiFormat = Literal["chat_completions", "langflow_run"]
+_VALID_API_FORMATS = get_args(ApiFormat)
 
 _ALLOWED_URL_SCHEMES = {"https", "http"}
 _BLOCKED_HOSTS = {
@@ -97,6 +101,8 @@ class AgenticEvalParams:
     verify_ssl: bool = True
     fixtures_path: str = "fixtures"
     stream: bool = False
+    api_format: ApiFormat = "chat_completions"
+    flow_id: str | None = None
 
     # MLflow trace enrichment (reads tool calls from agent-side traces)
     mlflow_tracking_uri: str | None = None
@@ -106,6 +112,18 @@ class AgenticEvalParams:
 
     def __post_init__(self) -> None:
         """Validate fields and apply defaults after dataclass init."""
+        if self.api_format not in _VALID_API_FORMATS:
+            raise ValueError(
+                f"api_format must be one of {_VALID_API_FORMATS}, "
+                f"got '{self.api_format}'"
+            )
+        if self.api_format == "langflow_run" and not self.flow_id:
+            raise ValueError("flow_id is required when api_format is 'langflow_run'")
+        if self.flow_id and not re.fullmatch(r"[a-zA-Z0-9_-]+", self.flow_id):
+            raise ValueError(
+                f"flow_id must contain only alphanumeric characters, hyphens, "
+                f"and underscores — got '{self.flow_id}'"
+            )
         if not self.mlflow_trace_experiment_name:
             self.mlflow_trace_experiment_name = self.mlflow_experiment_name
         if not isinstance(self.timeout_seconds, (int, float)):
@@ -175,14 +193,19 @@ def job_spec_to_task_config(
     expected_tools: list[str] | None,
     params: AgenticEvalParams,
     model_name: str | None = None,
+    extra_headers: dict[str, str] | None = None,
 ) -> TaskConfig:
     """Translate EvalHub job parameters into our TaskConfig."""
     _validate_url(agent_url, "agent_url")
+    stream = False if params.api_format == "langflow_run" else params.stream
     return TaskConfig(
         agent_url=agent_url,
         query=query,
         expected_tools=expected_tools,
         timeout_seconds=params.timeout_seconds,
         model=model_name,
-        stream=params.stream,
+        stream=stream,
+        api_format=params.api_format,
+        flow_id=params.flow_id,
+        extra_headers=extra_headers or {},
     )

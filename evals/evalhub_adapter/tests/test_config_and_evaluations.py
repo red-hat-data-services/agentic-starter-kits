@@ -178,7 +178,7 @@ class TestAgenticEvalParamsFromDict:
         assert params.max_latency_seconds == 10.0
         assert params.timeout_seconds == 30.0
         assert params.verify_ssl is True
-        assert params.stream is True
+        assert params.stream is False
 
     def test_verify_ssl_false_without_env_raises(self, monkeypatch):
         """verify_ssl=False without EVALHUB_ALLOW_INSECURE_TLS raises ValueError."""
@@ -223,6 +223,81 @@ class TestAgenticEvalParamsFromDict:
             )
 
 
+class TestLangflowApiFormatValidation:
+    """Tests for api_format and flow_id validation in AgenticEvalParams."""
+
+    def test_langflow_run_with_flow_id(self):
+        """api_format='langflow_run' with a valid flow_id succeeds."""
+        params = AgenticEvalParams(
+            api_format="langflow_run",
+            flow_id="abc-123-def",
+            mlflow_tracking_uri="http://mlflow:5000",
+            mlflow_experiment_name="test-exp",
+        )
+        assert params.api_format == "langflow_run"
+        assert params.flow_id == "abc-123-def"
+
+    def test_langflow_run_missing_flow_id_raises(self):
+        """api_format='langflow_run' without flow_id raises ValueError."""
+        with pytest.raises(ValueError, match="flow_id is required"):
+            AgenticEvalParams(
+                api_format="langflow_run",
+                mlflow_tracking_uri="http://mlflow:5000",
+                mlflow_experiment_name="test-exp",
+            )
+
+    def test_invalid_api_format_raises(self):
+        """An unrecognized api_format raises ValueError."""
+        with pytest.raises(ValueError, match="api_format"):
+            AgenticEvalParams(
+                api_format="grpc",
+                mlflow_tracking_uri="http://mlflow:5000",
+                mlflow_experiment_name="test-exp",
+            )
+
+    def test_from_dict_langflow_run(self):
+        """from_dict correctly propagates api_format and flow_id."""
+        raw = {
+            "api_format": "langflow_run",
+            "flow_id": "uuid-here",
+            "mlflow_tracking_uri": "http://mlflow:5000",
+            "mlflow_experiment_name": "test-exp",
+        }
+        params = AgenticEvalParams.from_dict(raw)
+        assert params.api_format == "langflow_run"
+        assert params.flow_id == "uuid-here"
+
+    def test_from_dict_langflow_run_missing_flow_id_raises(self):
+        """from_dict with langflow_run and no flow_id raises ValueError."""
+        raw = {
+            "api_format": "langflow_run",
+            "mlflow_tracking_uri": "http://mlflow:5000",
+            "mlflow_experiment_name": "test-exp",
+        }
+        with pytest.raises(ValueError, match="flow_id is required"):
+            AgenticEvalParams.from_dict(raw)
+
+    def test_flow_id_with_path_traversal_raises(self):
+        """flow_id containing path-unsafe characters raises ValueError."""
+        with pytest.raises(ValueError, match="flow_id must contain only"):
+            AgenticEvalParams(
+                api_format="langflow_run",
+                flow_id="../../admin/delete",
+                mlflow_tracking_uri="http://mlflow:5000",
+                mlflow_experiment_name="test-exp",
+            )
+
+    def test_flow_id_with_slash_raises(self):
+        """flow_id containing slashes raises ValueError."""
+        with pytest.raises(ValueError, match="flow_id must contain only"):
+            AgenticEvalParams(
+                api_format="langflow_run",
+                flow_id="abc/def",
+                mlflow_tracking_uri="http://mlflow:5000",
+                mlflow_experiment_name="test-exp",
+            )
+
+
 class TestJobSpecToTaskConfig:
     """Tests for translating EvalHub job parameters into TaskConfig."""
 
@@ -247,7 +322,41 @@ class TestJobSpecToTaskConfig:
         assert cfg.expected_tools == ["get_weather"]
         assert cfg.timeout_seconds == 45.0
         assert cfg.model == "gpt-4o"
-        assert cfg.stream is True
+        assert cfg.stream is False
+
+    def test_langflow_forces_stream_false(self):
+        """Langflow api_format forces stream=False in TaskConfig."""
+        params = AgenticEvalParams(
+            api_format="langflow_run",
+            flow_id="f-1",
+            stream=True,
+            mlflow_tracking_uri="http://mlflow:5000",
+            mlflow_experiment_name="test-exp",
+        )
+        cfg = job_spec_to_task_config(
+            agent_url="http://agent:8000",
+            query="test",
+            expected_tools=None,
+            params=params,
+        )
+        assert cfg.stream is False
+        assert cfg.api_format == "langflow_run"
+        assert cfg.flow_id == "f-1"
+
+    def test_extra_headers_propagated(self):
+        """extra_headers are passed through to TaskConfig."""
+        params = AgenticEvalParams(
+            mlflow_tracking_uri="http://mlflow:5000",
+            mlflow_experiment_name="test-exp",
+        )
+        cfg = job_spec_to_task_config(
+            agent_url="http://agent:8000",
+            query="test",
+            expected_tools=None,
+            params=params,
+            extra_headers={"Authorization": "Bearer tok123"},
+        )
+        assert cfg.extra_headers == {"Authorization": "Bearer tok123"}
 
 
 EXPECTED_BENCHMARK_IDS = [

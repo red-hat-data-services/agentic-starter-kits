@@ -90,7 +90,7 @@ async def send_a2a_text_message(
         )
         preview = text if len(text) <= 240 else f"{text[:240]}…"
         logger.info(
-            "A2A → peer=%s JSON-RPC message/send id=%s text_len=%d preview=%r",
+            "A2A → peer=%s JSON-RPC message/send id=%s text_len=%d",
             base,
             req.id,
             len(text),

@@ -1,0 +1,52 @@
+{
+  "session_id": "ef9b8cc1-1b6a-4b72-91c9-abc123456789",
+  "outputs": [
+    {
+      "inputs": {
+        "input_value": "What is the weather forecast for Boston?"
+      },
+      "outputs": [
+        {
+          "results": {
+            "message": {
+              "text": "Based on the forecast data, Boston is expected to have partly cloudy skies with a high of 72°F and a low of 58°F.",
+              "sender": "Machine",
+              "sender_name": "AI",
+              "session_id": "ef9b8cc1-1b6a-4b72-91c9-abc123456789",
+              "content_blocks": [
+                {
+                  "title": "get_forecast",
+                  "contents": [
+                    {
+                      "type": "tool_use",
+                      "name": "get_forecast",
+                      "tool_input": {
+                        "city": "Boston",
+                        "days": 1
+                      },
+                      "duration": 1234
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "artifacts": {
+            "message": "Based on the forecast data, Boston is expected to have partly cloudy skies with a high of 72°F and a low of 58°F.",
+            "sender": "Machine",
+            "sender_name": "AI",
+            "type": "object"
+          },
+          "outputs": {
+            "message": {
+              "message": "Based on the forecast data, Boston is expected to have partly cloudy skies with a high of 72°F and a low of 58°F.",
+              "type": "text"
+            }
+          },
+          "logs": {},
+          "messages": []
+        }
+      ]
+    }
+  ]
+}

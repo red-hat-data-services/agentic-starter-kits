@@ -23,9 +23,13 @@ from crewai import LLM, Agent, Crew, Task
 from dotenv import load_dotenv
 
 from .custom_tool import DummyWebSearchTool
+from .tracing import enable_tracing_crewai, wrap_func_with_mlflow_trace
 
 load_dotenv()
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="\033[96m[CREW]\033[0m %(levelname)s:%(name)s:%(message)s",
+)
 logger = logging.getLogger(__name__)
 
 _llm: LLM | None = None
@@ -61,6 +65,15 @@ def _ensure_llm() -> LLM:
 
 def _run_crew(user_prompt: str) -> str:
     llm = _ensure_llm()
+    tools = [DummyWebSearchTool()]
+    # Manual tool tracing: mlflow.crewai.autolog() does not capture tool spans
+    # in newer CrewAI versions (>=1.10). If a future version fixes this, remove
+    # the manual wrapping below to avoid duplicate tool spans.
+    for tool in tools:
+        tool._run = wrap_func_with_mlflow_trace(
+            tool._run, span_type="tool", name=tool.name
+        )
+
     specialist = Agent(
         role="Specialist",
         goal="Answer clearly. For questions needing web facts, use Web Search and ground your answer in its result.",
@@ -69,7 +82,7 @@ def _run_crew(user_prompt: str) -> str:
             "When the user asks for cluster hosting, enterprise Kubernetes, or similar factual look-ups, "
             "call Web Search once and incorporate the snippet faithfully."
         ),
-        tools=[DummyWebSearchTool()],
+        tools=tools,
         llm=llm,
         verbose=False,
         max_iter=5,
@@ -109,6 +122,8 @@ class CrewA2AExecutor(AgentExecutor):
 
 
 def main() -> None:
+    enable_tracing_crewai()
+
     public_base = getenv("CREW_A2A_PUBLIC_URL", "http://127.0.0.1:9100").rstrip("/")
     port = _listen_port()
 

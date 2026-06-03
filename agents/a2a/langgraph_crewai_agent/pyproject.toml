@@ -17,6 +17,11 @@ dependencies = [
     "starlette>=1.0.1",
 ]
 
+[project.optional-dependencies]
+tracing = [
+    "mlflow>=3.11.0",
+]
+
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"

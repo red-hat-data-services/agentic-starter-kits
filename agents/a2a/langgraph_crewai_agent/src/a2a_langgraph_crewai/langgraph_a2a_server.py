@@ -45,6 +45,7 @@ from starlette.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.routing import Route
 
 from .a2a_reply import send_a2a_text_message
+from .tracing import enable_tracing_langgraph
 
 load_dotenv()
 _log_level = getattr(
@@ -52,7 +53,10 @@ _log_level = getattr(
     getenv("LOG_LEVEL", "INFO").upper(),
     logging.INFO,
 )
-logging.basicConfig(level=_log_level)
+logging.basicConfig(
+    level=_log_level,
+    format="\033[92m[LANGGRAPH]\033[0m %(levelname)s:%(name)s:%(message)s",
+)
 logger = logging.getLogger(__name__)
 
 _graph = None
@@ -480,6 +484,8 @@ def _build_starlette_app(
 
 
 def main() -> None:
+    enable_tracing_langgraph()
+
     public_base = getenv("LANGGRAPH_A2A_PUBLIC_URL", "http://127.0.0.1:9200").rstrip(
         "/"
     )

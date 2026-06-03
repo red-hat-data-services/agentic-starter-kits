@@ -30,7 +30,7 @@ run-crew: ## Run CrewAI A2A server only (CREW_A2A_PORT, default 9100)
 	  echo "ERROR: Port $$CREW_PORT is already in use. Change CREW_A2A_PORT or run: make run-app-fresh"; \
 	  exit 1; \
 	fi && \
-	uv run python -m a2a_langgraph_crewai.crew_a2a_server
+	uv run $${MLFLOW_TRACKING_URI:+--extra tracing} python -m a2a_langgraph_crewai.crew_a2a_server
 
 run-langgraph: ## Run LangGraph A2A server only (LANGGRAPH_A2A_PORT, default 9200)
 	@[ -d .venv ] || { echo "ERROR: No .venv — run: make env  (or: uv venv --python 3.12 && uv sync)"; exit 1; }
@@ -40,7 +40,7 @@ run-langgraph: ## Run LangGraph A2A server only (LANGGRAPH_A2A_PORT, default 920
 	  echo "ERROR: Port $$LG_PORT is already in use. Change LANGGRAPH_A2A_PORT or run: make run-app-fresh"; \
 	  exit 1; \
 	fi && \
-	uv run python -m a2a_langgraph_crewai.langgraph_a2a_server
+	uv run $${MLFLOW_TRACKING_URI:+--extra tracing} python -m a2a_langgraph_crewai.langgraph_a2a_server
 
 run-app: ## Run both A2A servers (Crew in background, LangGraph in foreground)
 	@[ -d .venv ] || { echo "ERROR: No .venv — run: make env  (or: uv venv --python 3.12 && uv sync)"; exit 1; }
@@ -54,7 +54,7 @@ run-app: ## Run both A2A servers (Crew in background, LangGraph in foreground)
 	  fi; \
 	fi && \
 	echo "==> Starting Crew A2A on port $$CREW_PORT (background)..." && \
-	uv run python -m a2a_langgraph_crewai.crew_a2a_server & \
+	uv run $${MLFLOW_TRACKING_URI:+--extra tracing} python -m a2a_langgraph_crewai.crew_a2a_server & \
 	CREW_PID=$$! && \
 	trap 'kill $$CREW_PID 2>/dev/null; wait $$CREW_PID 2>/dev/null' EXIT INT TERM && \
 	for _ in $$(seq 1 90); do \
@@ -68,7 +68,7 @@ run-app: ## Run both A2A servers (Crew in background, LangGraph in foreground)
 	  echo "ERROR: Crew did not listen on port $$CREW_PORT in time"; kill $$CREW_PID 2>/dev/null; exit 1; \
 	}; \
 	echo "==> Starting LangGraph A2A on port $$LG_PORT (foreground; Ctrl+C stops both)..." && \
-	uv run python -m a2a_langgraph_crewai.langgraph_a2a_server
+	uv run $${MLFLOW_TRACKING_URI:+--extra tracing} python -m a2a_langgraph_crewai.langgraph_a2a_server
 
 run-app-fresh: ## Free default A2A ports and run both servers (see run-app)
 	@[ -d .venv ] || { echo "ERROR: No .venv — run: make env  (or: uv venv --python 3.12 && uv sync)"; exit 1; }
