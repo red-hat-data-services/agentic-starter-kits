@@ -492,15 +492,17 @@ oc exec deployment/claude-code-vllm -- bash -c 'tail -f /home/claude-agent/.clau
 
 ---
 
-## Option D: Deploy with vLLM via OGX 1.0.2 Gateway (RHOAI 3.5 EA)
+## Option D: Deploy with vLLM via OGX Gateway
 
-This option uses OGX 1.0.2 (from RHOAI 3.5 EA) as an API gateway between Claude Code and vLLM. OGX provides the Anthropic Messages API (`/v1/messages`) with native passthrough to vLLM.
+This option uses OGX (from RHOAI) as an API gateway between Claude Code and vLLM. OGX provides the Anthropic Messages API (`/v1/messages`) with native passthrough to vLLM.
 
-**Architecture**: Claude Code → OGX 1.0.2 (API Gateway) → vLLM (Model Server)
+**Architecture**: Claude Code → OGX (API Gateway) → vLLM (Model Server)
+
+**Note**: This example uses OGX 1.0.2. Adjust image tags and configuration as needed for other versions.
 
 ### Prerequisites
 
-- **OGX 1.0.2 with PostgreSQL**: OGX 1.0.2 requires PostgreSQL as its storage backend. You must deploy OGX 1.0.2 and PostgreSQL before proceeding.
+- **OGX with PostgreSQL**: Some versions of OGX require PostgreSQL as the storage backend. Check your OGX version's requirements and deploy accordingly before proceeding.
 - A vLLM server accessible from OGX
 - The vLLM model must have a **context window of at least 32K tokens** (Claude Code's system prompt is ~23K tokens)
 
@@ -508,22 +510,22 @@ This option uses OGX 1.0.2 (from RHOAI 3.5 EA) as an API gateway between Claude 
 
 ### 1. Update the Claude Code deployment manifest
 
-Edit `deployment-ogx-1.0.2-vllm.yaml` and update:
+Edit `deployment-ogx-vllm.yaml` and update:
 
-- `ANTHROPIC_BASE_URL`: Your OGX 1.0.2 route URL (e.g., `https://ogx-1-0-2-my-claude-project.apps.cluster.domain`)
+- `ANTHROPIC_BASE_URL`: Your OGX route URL (e.g., `https://ogx-my-claude-project.apps.cluster.domain`)
 - `ANTHROPIC_CUSTOM_MODEL_OPTION`: Use `vllm/<model-id>` format (OGX routing prefix)
 - Model alias overrides (required to prevent 404 errors):
   - `ANTHROPIC_DEFAULT_HAIKU_MODEL`: Set to `vllm/<model-id>`
   - `ANTHROPIC_DEFAULT_SONNET_MODEL`: Set to `vllm/<model-id>`
   - `ANTHROPIC_DEFAULT_OPUS_MODEL`: Set to `vllm/<model-id>`
-- `claude-ogx-1-0-2-vllm-settings` ConfigMap: Set the `model` field to `vllm/<model-id>`
+- `claude-ogx-vllm-settings` ConfigMap: Set the `model` field to `vllm/<model-id>`
 
 **Important**: OGX uses the `vllm/` prefix to route requests to the vLLM backend. Always use `vllm/<model-id>` format in this deployment.
 
 ### 2. Apply the deployment manifest
 
 ```bash
-oc apply -f deployment-ogx-1.0.2-vllm.yaml
+oc apply -f deployment-ogx-vllm.yaml
 ```
 
 ### 3. Build the Claude Code image
@@ -536,22 +538,22 @@ oc start-build claude-code --from-dir=. --follow
 
 ```bash
 # Wait for rollout
-oc rollout status deployment/claude-code-ogx-1-0-2-vllm
+oc rollout status deployment/claude-code-ogx-vllm
 
 # Test
-oc exec deployment/claude-code-ogx-1-0-2-vllm -- bash -c '
+oc exec deployment/claude-code-ogx-vllm -- bash -c '
   export HOME=/home/claude-agent
   ~/.claude/claude-run -p "What is 2+2?"
 '
 ```
 
-### 5. Test the OGX 1.0.2 endpoint
+### 5. Test the OGX endpoint
 
-You can verify OGX 1.0.2 is correctly routing to vLLM:
+You can verify OGX is correctly routing to vLLM:
 
 ```bash
 # Get OGX route URL
-OGX_URL=$(oc get route ogx-1-0-2 -o jsonpath='{.spec.host}')
+OGX_URL=$(oc get route ogx -o jsonpath='{.spec.host}')
 
 # Check OGX health
 curl -s "https://$OGX_URL/v1/health"
@@ -593,12 +595,12 @@ curl -s -X POST "https://$OGX_URL/v1/messages" \
   }'
 ```
 
-### 6. Understanding OGX 1.0.2 Logs
+### 6. Understanding OGX Logs
 
-When monitoring OGX 1.0.2 logs, you may see some 404 responses. This is normal:
+When monitoring OGX logs, you may see some 404 responses. This is normal:
 
 ```bash
-oc logs deployment/ogx-1-0-2 --tail=50
+oc logs deployment/ogx --tail=50
 ```
 
 **Normal log pattern:**
@@ -615,7 +617,7 @@ The 404s are caused by Claude Code's HTTP client probing behavior and do not ind
 
 ```bash
 # OpenShift interactive mode
-oc exec -it deployment/claude-code-ogx-1-0-2-vllm -- bash -c '
+oc exec -it deployment/claude-code-ogx-vllm -- bash -c '
   export HOME=/home/claude-agent
   cd /workspace
   ~/.claude/claude-run
@@ -626,14 +628,14 @@ oc exec -it deployment/claude-code-ogx-1-0-2-vllm -- bash -c '
 
 ```bash
 # Enable full debug logging
-oc exec -it deployment/claude-code-ogx-1-0-2-vllm -- bash -c '
+oc exec -it deployment/claude-code-ogx-vllm -- bash -c '
   export HOME=/home/claude-agent
   cd /workspace
   claude --debug
 '
 
 # Enable debug logging for API calls only
-oc exec -it deployment/claude-code-ogx-1-0-2-vllm -- bash -c '
+oc exec -it deployment/claude-code-ogx-vllm -- bash -c '
   export HOME=/home/claude-agent
   cd /workspace
   claude --debug api
@@ -643,13 +645,13 @@ oc exec -it deployment/claude-code-ogx-1-0-2-vllm -- bash -c '
 Debug logs are written to a file. To monitor the logs in real-time, open a second terminal and run:
 
 ```bash
-oc exec deployment/claude-code-ogx-1-0-2-vllm -- bash -c 'tail -f /home/claude-agent/.claude/debug/*.txt'
+oc exec deployment/claude-code-ogx-vllm -- bash -c 'tail -f /home/claude-agent/.claude/debug/*.txt'
 ```
 
-You can also check OGX 1.0.2 logs for request routing information:
+You can also check OGX logs for request routing information:
 
 ```bash
-oc logs deployment/ogx-1-0-2 --tail=50
+oc logs deployment/ogx --tail=50
 ```
 
 ---
@@ -870,15 +872,15 @@ oc delete pvc claude-vllm-workspace
 oc delete project my-claude-project
 ```
 
-### Option D: vLLM via OGX 1.0.2 resources
+### Option D: vLLM via OGX resources
 
 ```bash
-oc delete deployment claude-code-ogx-1-0-2-vllm
+oc delete deployment claude-code-ogx-vllm
 oc delete buildconfig claude-code
 oc delete imagestream claude-code
-oc delete configmap claude-ogx-1-0-2-vllm-settings
-oc delete configmap claude-ogx-1-0-2-vllm-mcp-config
-oc delete configmap claude-ogx-1-0-2-vllm-skills
-oc delete pvc claude-ogx-1-0-2-vllm-workspace
+oc delete configmap claude-ogx-vllm-settings
+oc delete configmap claude-ogx-vllm-mcp-config
+oc delete configmap claude-ogx-vllm-skills
+oc delete pvc claude-ogx-vllm-workspace
 oc delete project my-claude-project
 ```
