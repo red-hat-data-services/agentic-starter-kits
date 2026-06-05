@@ -265,6 +265,7 @@ oc exec deployment/claude-code-vertex -- bash -c '
 ```
 
 ### 7. Interactive mode
+
 **Note on model selection:** On Vertex AI (and Bedrock/Foundry), the default `sonnet` model alias may resolve to an older model than on the direct Anthropic API. If you want a specific model version, set the `CLAUDE_MODEL` environment variable in your deployment manifest or patch it directly:
 
 ```bash
