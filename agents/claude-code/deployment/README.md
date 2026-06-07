@@ -264,13 +264,13 @@ oc exec deployment/claude-code-vertex -- bash -c '
 '
 ```
 
-### 7. Interactive mode
-
-**Note on model selection:** On Vertex AI (and Bedrock/Foundry), the default `sonnet` model alias may resolve to an older model than on the direct Anthropic API. If you want a specific model version, set the `CLAUDE_MODEL` environment variable in your deployment manifest or patch it directly:
+**Note on model selection:** On Vertex AI, the default `sonnet` model alias may resolve to an older model than on the direct Anthropic API. If you want a specific model version, set the `CLAUDE_MODEL` environment variable in your deployment manifest or patch it directly:
 
 ```bash
 oc set env deployment/claude-code-vertex CLAUDE_MODEL=claude-sonnet-4-6
 ```
+
+### 7. Interactive mode
 
 For a full interactive Claude Code experience with multi-turn conversations:
 
@@ -406,7 +406,7 @@ oc exec deployment/claude-code-vllm -- bash -c '
 
 ### 7. Test the vLLM endpoint directly
 
-Before deploying Claude Code, you can verify the vLLM server supports the Anthropic Messages API:
+If you're troubleshooting or want to verify the vLLM server supports the Anthropic Messages API:
 
 ```bash
 # Test /v1/messages endpoint
@@ -702,13 +702,13 @@ Claude Code auto-discovers skills from `~/.claude/skills/`. Each skill is a subd
 **Example: Create a skills ConfigMap**
 
 ```bash
-# Create a ConfigMap with a sample skill
+# Create a ConfigMap with skills
 oc create configmap claude-skills \
-  --from-file=code-review/SKILL.md=./skills/code-review/SKILL.md \
-  --from-file=security-audit/SKILL.md=./skills/security-audit/SKILL.md
+  --from-file=code-review-skill=./skills/code-review/SKILL.md \
+  --from-file=security-audit-skill=./skills/security-audit/SKILL.md
 ```
 
-The deployment manifests already include a skills volume mount. Update the ConfigMap with your skills, and they'll be available in Claude Code.
+The deployment manifests include an `items` projection in the skills volume that maps ConfigMap keys to subdirectory paths. When adding skills, update both the ConfigMap and the volume spec's `items` entries to match. For multi-skill setups, consider using a PVC instead of a ConfigMap.
 
 ### MCP Server Configuration
 
@@ -737,6 +737,19 @@ MCP (Model Context Protocol) servers extend Claude Code with additional tools. M
 }
 ```
 
+**Injecting secrets:** Environment variables like `${API_TOKEN}` can be injected via Kubernetes Secrets in the Deployment env section:
+
+```yaml
+env:
+  - name: API_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: mcp-credentials
+        key: token
+```
+
+Avoid hardcoding credentials directly in the ConfigMap JSON.
+
 **Transport types:**
 
 | Type | Use case | Requirements |
@@ -749,7 +762,7 @@ MCP (Model Context Protocol) servers extend Claude Code with additional tools. M
 
 **Option 1: Mounted config file**
 
-The deployment manifests mount a ConfigMap to `/etc/mcp/config.json`. Update the ConfigMap:
+The deployment manifests mount a ConfigMap to `/etc/mcp/config.json`. Update the ConfigMap (name varies by deployment option: `claude-mcp-config`, `claude-vertex-mcp-config`, `claude-vllm-mcp-config`, or `claude-ogx-vllm-mcp-config`):
 
 ```bash
 oc patch configmap claude-mcp-config -p '{
@@ -759,7 +772,7 @@ oc patch configmap claude-mcp-config -p '{
 }'
 ```
 
-Then restart the deployment to pick up changes:
+Then restart the deployment to pick up changes (use the appropriate deployment name):
 
 ```bash
 oc rollout restart deployment/claude-code
@@ -799,17 +812,17 @@ Claude Code automatically reads CLAUDE.md from the working directory and applies
 
 ### Overriding settings.json
 
-All deployment manifests include a `claude-settings` (or `claude-*-settings`) ConfigMap that mounts to `~/.claude/settings.json`. The default is empty (`{}`), which you can customize at deploy time:
+All deployment manifests include a settings ConfigMap that mounts to `~/.claude/settings.json`. The ConfigMap name varies by deployment option (`claude-settings`, `claude-vertex-settings`, `claude-vllm-settings`, or `claude-ogx-vllm-settings`). The default is empty (`{}`), which you can customize at deploy time:
 
 ```bash
-# Update the settings ConfigMap
+# Update the settings ConfigMap (use the appropriate name for your deployment)
 oc patch configmap claude-settings -p '{
   "data": {
     "settings.json": "{\n  \"model\": \"your-model-id\"\n}"
   }
 }'
 
-# Restart to apply
+# Restart to apply (use the appropriate deployment name)
 oc rollout restart deployment/claude-code
 ```
 

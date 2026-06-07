@@ -253,3 +253,4 @@ spec:
         - name: claude-settings
           configMap:
             name: claude-vertex-settings
+            optional: true

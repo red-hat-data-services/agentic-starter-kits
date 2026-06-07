@@ -6,7 +6,7 @@
 # Prerequisites:
 # 1. A vLLM server with /v1/messages endpoint support
 # 2. The vLLM model must have a context window >= 32K tokens
-#    (Claude Code's system prompt is ~14K tokens)
+#    (Claude Code's system prompt is ~23K tokens)
 #
 # Before applying this manifest:
 # 1. Update the ANTHROPIC_BASE_URL to point to your vLLM server
@@ -153,11 +153,24 @@ spec:
             - name: ANTHROPIC_CUSTOM_MODEL_OPTION
               value: "YOUR_MODEL_ID"
             # ===========================================
+            # Model Alias Overrides (Required)
+            # ===========================================
+            # Claude Code uses internal model aliases (haiku, sonnet, opus)
+            # for certain operations. Override them to prevent 404 errors.
+            - name: ANTHROPIC_DEFAULT_HAIKU_MODEL
+              value: "YOUR_MODEL_ID"
+            - name: ANTHROPIC_DEFAULT_SONNET_MODEL
+              value: "YOUR_MODEL_ID"
+            - name: ANTHROPIC_DEFAULT_OPUS_MODEL
+              value: "YOUR_MODEL_ID"
+            # ===========================================
             # Claude Code Configuration
             # ===========================================
             - name: MCP_CONFIG_FILE
               value: "/etc/mcp/config.json"
             # WARNING: Setting SKIP_PERMISSIONS=true disables all Claude permission checks.
+            # This bypasses file-system write confirmations. Only use in fully sandboxed
+            # environments where the container has no access to sensitive host resources.
             - name: SKIP_PERMISSIONS
               value: "true"
           volumeMounts:
@@ -203,3 +216,4 @@ spec:
         - name: claude-settings
           configMap:
             name: claude-vllm-settings
+            optional: true

@@ -177,8 +177,8 @@ spec:
             - name: MCP_CONFIG_FILE
               value: "/etc/mcp/config.json"
             # WARNING: Setting SKIP_PERMISSIONS=true disables all Claude permission checks.
-            # This is safe in isolated container environments but should be disabled
-            # if mounting sensitive directories.
+            # This bypasses file-system write confirmations. Only use in fully sandboxed
+            # environments where the container has no access to sensitive host resources.
             - name: SKIP_PERMISSIONS
               value: "true"
           volumeMounts:
@@ -224,3 +224,4 @@ spec:
         - name: claude-settings
           configMap:
             name: claude-ogx-vllm-settings
+            optional: true
