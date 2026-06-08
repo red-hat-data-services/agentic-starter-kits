@@ -6,6 +6,8 @@ from urllib.parse import urlparse, urlunparse
 
 from dotenv import load_dotenv
 
+# Only set to True by enable_tracing_crewai() — LangGraph uses Level A autolog
+# and does not need wrap_func_with_mlflow_trace().
 _TRACING_ENABLED: bool = False
 
 logger = logging.getLogger("tracing")
@@ -25,10 +27,12 @@ def sanitize_uri(uri: str) -> str:
     """
     parsed = urlparse(uri)
     # Remove userinfo (username:password) and query params
+    # Handle malformed URIs where hostname is None
+    host = parsed.hostname or ""
     sanitized = urlunparse(
         (
             parsed.scheme,
-            parsed.hostname + (f":{parsed.port}" if parsed.port else ""),
+            host + (f":{parsed.port}" if parsed.port else ""),
             parsed.path,
             "",  # params
             "",  # query
@@ -53,6 +57,12 @@ def check_mlflow_health(
     mlflow_health_endpoint = "/health"
     mlflow_url = f"{mlflow_tracking_uri.rstrip('/')}{mlflow_health_endpoint}"
     redacted_url = sanitize_uri(mlflow_url)
+    # Respect MLFLOW_TRACKING_INSECURE_TLS for self-signed certs (OpenShift, etc.)
+    insecure = getenv("MLFLOW_TRACKING_INSECURE_TLS", "").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
     start_time = time.time()
 
     while True:
@@ -66,7 +76,9 @@ def check_mlflow_health(
             )
 
         try:
-            response = requests.get(mlflow_url, timeout=min(5, remaining))
+            response = requests.get(
+                mlflow_url, timeout=min(5, remaining), verify=not insecure
+            )
             if response.status_code == 200:
                 logger.info(
                     f"MLflow health check passed at {redacted_url} with status code {response.status_code}."

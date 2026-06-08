@@ -55,7 +55,7 @@ _log_level = getattr(
 )
 logging.basicConfig(
     level=_log_level,
-    format="\033[92m[LANGGRAPH]\033[0m %(levelname)s:%(name)s:%(message)s",
+    format="[LANGGRAPH] %(levelname)s:%(name)s:%(message)s",
 )
 logger = logging.getLogger(__name__)
 

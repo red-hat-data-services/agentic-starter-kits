@@ -28,7 +28,7 @@ from .tracing import enable_tracing_crewai, wrap_func_with_mlflow_trace
 load_dotenv()
 logging.basicConfig(
     level=logging.INFO,
-    format="\033[96m[CREW]\033[0m %(levelname)s:%(name)s:%(message)s",
+    format="[CREW] %(levelname)s:%(name)s:%(message)s",
 )
 logger = logging.getLogger(__name__)
 
