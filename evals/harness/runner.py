@@ -13,6 +13,26 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# Flow ID must contain only alphanumeric characters, hyphens, and underscores
+_FLOW_ID_PATTERN = re.compile(r"[a-zA-Z0-9_-]+")
+
+
+def validate_flow_id(flow_id: str) -> None:
+    """
+    Validate that flow_id contains only alphanumeric characters, hyphens, and underscores.
+
+    Args:
+        flow_id: The flow ID to validate
+
+    Raises:
+        ValueError: If flow_id contains invalid characters
+    """
+    if not _FLOW_ID_PATTERN.fullmatch(flow_id):
+        raise ValueError(
+            f"flow_id must contain only alphanumeric characters, hyphens, "
+            f"and underscores — got '{flow_id}'"
+        )
+
 
 @dataclass
 class TaskConfig:
@@ -285,11 +305,7 @@ async def run_task(
     if is_langflow:
         if not config.flow_id:
             raise ValueError("flow_id is required when api_format is 'langflow_run'")
-        if not re.fullmatch(r"[a-zA-Z0-9_-]+", config.flow_id):
-            raise ValueError(
-                f"flow_id must contain only alphanumeric characters, hyphens, "
-                f"and underscores — got '{config.flow_id}'"
-            )
+        validate_flow_id(config.flow_id)
         url = f"{config.agent_url.rstrip('/')}/api/v1/run/{config.flow_id}"
         payload: dict[str, Any] = {
             "input_value": config.query,

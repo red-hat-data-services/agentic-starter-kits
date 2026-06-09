@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, get_args
 from urllib.parse import urlparse
 
-from harness.runner import TaskConfig
+from harness.runner import TaskConfig, validate_flow_id
 
 logger = logging.getLogger(__name__)
 
@@ -119,11 +118,8 @@ class AgenticEvalParams:
             )
         if self.api_format == "langflow_run" and not self.flow_id:
             raise ValueError("flow_id is required when api_format is 'langflow_run'")
-        if self.flow_id and not re.fullmatch(r"[a-zA-Z0-9_-]+", self.flow_id):
-            raise ValueError(
-                f"flow_id must contain only alphanumeric characters, hyphens, "
-                f"and underscores — got '{self.flow_id}'"
-            )
+        if self.flow_id:
+            validate_flow_id(self.flow_id)
         if not self.mlflow_trace_experiment_name:
             self.mlflow_trace_experiment_name = self.mlflow_experiment_name
         if not isinstance(self.timeout_seconds, (int, float)):
