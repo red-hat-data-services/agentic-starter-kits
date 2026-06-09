@@ -1,0 +1,227 @@
+# Claude Code Deployment for OpenShift - OGX Gateway to vLLM
+#
+# This deployment connects Claude Code to a vLLM server through OGX (from RHOAI).
+# OGX provides the Anthropic Messages API (/v1/messages) with native passthrough to vLLM.
+#
+# Architecture:
+#   Claude Code → OGX (API Gateway) → vLLM (Model Server)
+#
+# OGX Requirements:
+# - PostgreSQL database (check your OGX version's requirements)
+#
+# Prerequisites:
+# 1. OGX deployed (with PostgreSQL if required by your version)
+# 2. vLLM server accessible from OGX (context window >= 32K tokens)
+# 3. The vLLM model must have a context window >= 32K tokens
+#    (Claude Code's system prompt is ~23K tokens)
+#
+# Before applying this manifest:
+# 1. Deploy OGX (with PostgreSQL if required by your version)
+# 2. Update the ANTHROPIC_BASE_URL to point to your OGX route
+# 3. Update the model ID in the claude-ogx-vllm-settings ConfigMap
+#    (use "vllm/<model-id>" format for OGX routing)
+
+---
+# ImageStream to hold the built image
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: claude-code
+  labels:
+    app: claude-code-ogx-vllm
+spec:
+  lookupPolicy:
+    local: true
+
+---
+# BuildConfig to build from Containerfile
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: claude-code
+  labels:
+    app: claude-code-ogx-vllm
+spec:
+  source:
+    type: Binary
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Containerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: claude-code:latest
+  triggers: []
+
+---
+# ConfigMap for Claude Code settings (sets default model)
+# IMPORTANT: Use "vllm/<model-id>" format for OGX routing
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-ogx-vllm-settings
+  labels:
+    app: claude-code-ogx-vllm
+data:
+  settings.json: |
+    {
+      "model": "vllm/YOUR_MODEL_ID"
+    }
+
+---
+# ConfigMap for optional MCP configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-ogx-vllm-mcp-config
+  labels:
+    app: claude-code-ogx-vllm
+data:
+  config.json: |
+    {
+      "mcpServers": {}
+    }
+
+---
+# ConfigMap for skills (empty by default)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-ogx-vllm-skills
+  labels:
+    app: claude-code-ogx-vllm
+data: {}
+
+---
+# PVC for workspace persistence (optional)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: claude-ogx-vllm-workspace
+  labels:
+    app: claude-code-ogx-vllm
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: claude-code-ogx-vllm
+  labels:
+    app: claude-code-ogx-vllm
+spec:
+  replicas: 1
+  # Recreate strategy required for ReadWriteOnce PVC
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: claude-code-ogx-vllm
+  template:
+    metadata:
+      labels:
+        app: claude-code-ogx-vllm
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: claude-code
+          image: claude-code:latest
+          imagePullPolicy: Always
+          command: ["entrypoint.sh"]
+          args: ["sleep", "infinity"]  # Keep container running for exec access
+          env:
+            # ===========================================
+            # Runtime Environment
+            # ===========================================
+            - name: HOME
+              value: "/home/claude-agent"
+            # ===========================================
+            # OGX Gateway Connection
+            # ===========================================
+            # OGX gateway URL - UPDATE THIS
+            # For internal service: http://ogx.namespace.svc.cluster.local:8321
+            # For external route: https://ogx-route.apps.cluster.domain
+            - name: ANTHROPIC_BASE_URL
+              value: "https://YOUR_OGX_ENDPOINT"
+            # OGX doesn't validate API keys, but Claude Code requires one
+            - name: ANTHROPIC_API_KEY
+              value: "fake"
+            # Adds model to the Claude Code model picker menu
+            # Use "vllm/<model-id>" format for OGX routing
+            - name: ANTHROPIC_CUSTOM_MODEL_OPTION
+              value: "vllm/YOUR_MODEL_ID"
+            # ===========================================
+            # Model Alias Overrides (Required)
+            # ===========================================
+            # Claude Code uses internal model aliases (haiku, sonnet, opus)
+            # for certain operations. Override them to prevent 404 errors.
+            - name: ANTHROPIC_DEFAULT_HAIKU_MODEL
+              value: "vllm/YOUR_MODEL_ID"
+            - name: ANTHROPIC_DEFAULT_SONNET_MODEL
+              value: "vllm/YOUR_MODEL_ID"
+            - name: ANTHROPIC_DEFAULT_OPUS_MODEL
+              value: "vllm/YOUR_MODEL_ID"
+            # ===========================================
+            # Claude Code Configuration
+            # ===========================================
+            - name: MCP_CONFIG_FILE
+              value: "/etc/mcp/config.json"
+            # WARNING: Setting SKIP_PERMISSIONS=true disables all Claude permission checks.
+            # This bypasses file-system write confirmations. Only use in fully sandboxed
+            # environments where the container has no access to sensitive host resources.
+            - name: SKIP_PERMISSIONS
+              value: "true"
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: skills
+              mountPath: /home/claude-agent/.claude/skills
+              readOnly: true
+            - name: mcp-config
+              mountPath: /etc/mcp
+              readOnly: true
+            # Mount settings.json to set default model
+            - name: claude-settings
+              mountPath: /home/claude-agent/.claude/settings.json
+              subPath: settings.json
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: claude-ogx-vllm-workspace
+        - name: skills
+          configMap:
+            name: claude-ogx-vllm-skills
+            optional: true
+        - name: mcp-config
+          configMap:
+            name: claude-ogx-vllm-mcp-config
+            optional: true
+        - name: claude-settings
+          configMap:
+            name: claude-ogx-vllm-settings
+            optional: true

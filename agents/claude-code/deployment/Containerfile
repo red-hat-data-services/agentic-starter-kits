@@ -69,15 +69,16 @@ RUN useradd -u ${USER_UID} -g ${USER_GID} -d /home/${USER_NAME} -m -s /bin/bash 
 # =============================================================================
 
 # Skills directory - empty, mountable via ConfigMap/PVC
-# Customers inject their skills here at deploy time
-# Each skill should be a subdirectory containing a SKILL.md file
+# Claude Code auto-discovers skills from ~/.claude/skills/
+# Each skill is a subdirectory containing a SKILL.md file
+# Structure: ~/.claude/skills/<skill-name>/SKILL.md
 #
 # Mount at runtime:
-#   podman run -v /path/to/skills:/opt/skills:ro,z ...
-#   Or in OpenShift, mount a ConfigMap or PVC to /opt/skills
-RUN mkdir -p /opt/skills \
-    && chown -R ${USER_UID}:${USER_GID} /opt/skills \
-    && chmod -R 775 /opt/skills
+#   podman run -v /path/to/skills:/home/claude-agent/.claude/skills:ro,z ...
+#   Or in OpenShift, mount a ConfigMap or PVC to /home/claude-agent/.claude/skills
+RUN mkdir -p /home/${USER_NAME}/.claude/skills \
+    && chown -R ${USER_UID}:${USER_GID} /home/${USER_NAME}/.claude/skills \
+    && chmod -R 775 /home/${USER_NAME}/.claude/skills
 
 # Workspace directory - for agent working files
 # Can be mounted with PVC for persistence

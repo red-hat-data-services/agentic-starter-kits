@@ -26,9 +26,6 @@
 #     MCP_CONFIG_FILE          - Path to MCP configuration JSON file
 #     MCP_CONFIG_JSON          - MCP configuration as inline JSON string
 #
-#   Skills Configuration:
-#     SKILLS_DIR               - Path to skills directory (default: /opt/skills)
-#
 #   Permissions:
 #     SKIP_PERMISSIONS         - Set to "true" to bypass permission checks (sandboxed environments only)
 #
@@ -135,22 +132,18 @@ setup_mcp() {
 # -----------------------------------------------------------------------------
 
 setup_skills() {
-    local skills_dir="${SKILLS_DIR:-/opt/skills}"
+    # Claude Code auto-discovers skills from ~/.claude/skills/
+    # Structure: ~/.claude/skills/<skill-name>/SKILL.md
+    local skills_dir="${HOME}/.claude/skills"
 
-    # Check if skills directory exists and has SKILL.md files
-    # Claude Code expects skills as directories containing SKILL.md files
-    # Structure: /opt/skills/<skill-name>/SKILL.md
     if [[ -d "${skills_dir}" ]]; then
         local skill_count
         skill_count=$(find "${skills_dir}" -name "SKILL.md" -type f 2>/dev/null | wc -l)
         if [[ ${skill_count} -gt 0 ]]; then
             log_info "Found ${skill_count} skill(s) in ${skills_dir}"
-            export SKILLS_DIR_FOUND="${skills_dir}"
         else
-            log_info "Skills directory is empty (no SKILL.md files found): ${skills_dir}"
+            log_info "No skills found (mount skills to ${skills_dir})"
         fi
-    else
-        log_info "Skills directory not found: ${skills_dir}"
     fi
 }
 
@@ -170,12 +163,6 @@ build_claude_args() {
     if [[ -n "${MCP_ARGS:-}" ]]; then
         # shellcheck disable=SC2206
         args+=(${MCP_ARGS})
-    fi
-
-    # Skills directory - use --add-dir to make skills discoverable
-    # Claude Code looks for SKILL.md files in added directories
-    if [[ -n "${SKILLS_DIR_FOUND:-}" ]]; then
-        args+=("--add-dir" "${SKILLS_DIR_FOUND}")
     fi
 
     # Permission bypass for sandboxed environments
