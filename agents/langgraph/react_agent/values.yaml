@@ -5,7 +5,7 @@ env:
   BASE_URL: ""
 
 auth:
-  enabled: true
+  enabled: false
   audience: "langgraph-react-agent"
   allowedServiceAccounts: []
   createAuthDelegatorBinding: true

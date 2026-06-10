@@ -27,15 +27,15 @@ Status behavior:
 
 For `react_agent`, consumption is:
 
-1. Add dependency in `pyproject.toml`
-2. Import and register middleware in `main.py`
+1. Add optional auth dependency in `pyproject.toml` (`[project.optional-dependencies].auth`)
+2. Conditionally import and register middleware in `main.py` when `AUTH_ENABLED=true`
 3. Build image with `components/auth` copied into build context
 4. Deploy with auth values (`auth.enabled`, `auth.audience`, `auth.allowedServiceAccounts`)
 
 Environment variables used at runtime:
 
 - `AUTH_ENABLED` (`true`/`false`)
-- `AUTH_AUDIENCE` (example: `langgraph-react-agent`)
+- `AUTH_AUDIENCE` (required when `AUTH_ENABLED=true`, example: `langgraph-react-agent`)
 - `AUTH_ALLOWED_SERVICEACCOUNTS` (comma-separated `namespace:name`)
 - `AUTH_EXCLUDE_PATHS` (default `/health`)
 
@@ -102,13 +102,10 @@ Reason:
 
 Compensation (where coverage moved):
 
-- `agents/langgraph/react_agent/tests/integration/test_auth.py` now owns the auth matrix:
+- `agents/langgraph/react_agent/tests/integration/test_auth.py` owns auth-specific setup and matrix:
   - `401` unauthenticated
   - `200` allowlisted caller
   - `403` non-allowlisted caller
   - `401` wrong audience
-- `agents/langgraph/react_agent/tests/integration/conftest.py` now owns auth-specific setup:
-  - caller SA creation/deletion
-  - token creation for allowed/denied/wrong-audience cases
 
 This split keeps deployment smoke validation simple while making auth behavior explicit and testable.

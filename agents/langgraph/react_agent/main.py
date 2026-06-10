@@ -6,7 +6,6 @@ from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
 
-from agent_auth.middleware import SATokenAuthMiddleware
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import (
     FileResponse,
@@ -148,11 +147,28 @@ app = FastAPI(
         {"name": "Health", "description": "Service health monitoring"},
     ],
 )
-app.add_middleware(SATokenAuthMiddleware)
 
 
 def _auth_enabled() -> bool:
     return getenv("AUTH_ENABLED", "false").strip().lower() == "true"
+
+
+def _configure_auth_middleware() -> None:
+    if not _auth_enabled():
+        return
+
+    try:
+        from agent_auth.middleware import SATokenAuthMiddleware
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "AUTH_ENABLED=true, but auth middleware dependencies are not installed. "
+            "Run `uv sync --extra auth` to enable ServiceAccount token auth locally."
+        ) from exc
+
+    app.add_middleware(SATokenAuthMiddleware)
+
+
+_configure_auth_middleware()
 
 
 def _build_langchain_messages(messages: list[ChatMessage]) -> list[HumanMessage]:

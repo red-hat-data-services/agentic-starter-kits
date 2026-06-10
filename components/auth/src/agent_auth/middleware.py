@@ -17,7 +17,7 @@ class SATokenAuthMiddleware:
     def __init__(self, app: ASGIApp):
         self.app = app
         self.enabled = os.getenv("AUTH_ENABLED", "false").strip().lower() == "true"
-        self.audience = os.getenv("AUTH_AUDIENCE", "langgraph-react-agent").strip()
+        self.audience = os.getenv("AUTH_AUDIENCE", "").strip()
         self.exclude_paths = {
             path.strip()
             for path in os.getenv("AUTH_EXCLUDE_PATHS", "/health").split(",")
@@ -28,6 +28,13 @@ class SATokenAuthMiddleware:
             for value in os.getenv("AUTH_ALLOWED_SERVICEACCOUNTS", "").split(",")
             if value.strip()
         }
+        if self.enabled and not self.audience:
+            raise RuntimeError("AUTH_ENABLED=true requires AUTH_AUDIENCE to be set")
+        if self.enabled and not self.allowed_serviceaccounts:
+            logger.warning(
+                "AUTH_ENABLED=true but AUTH_ALLOWED_SERVICEACCOUNTS is empty; "
+                "all non-excluded requests will be denied"
+            )
         self._auth_api: client.AuthenticationV1Api | None = None
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -94,6 +101,10 @@ class SATokenAuthMiddleware:
         )
         if not getattr(review.status, "authenticated", False):
             return None
+        token_audiences = getattr(review.status, "audiences", None) or []
+        if self.audience not in token_audiences:
+            logger.warning("TokenReview returned no matching audience")
+            return None
         return review
 
     @staticmethod
@@ -104,6 +115,8 @@ class SATokenAuthMiddleware:
         remainder = username.removeprefix(prefix)
         namespace, sep, serviceaccount = remainder.partition(":")
         if not sep or not namespace or not serviceaccount:
+            return None
+        if ":" in namespace or ":" in serviceaccount:
             return None
         return f"{namespace}:{serviceaccount}"
 

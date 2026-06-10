@@ -6,7 +6,6 @@ authors = [{ name = "Your Name", email = "you@example.com" }]
 license = { text = "MIT" }
 requires-python = ">=3.12,<=3.14"
 dependencies = [
-    "agent-auth",
     "fastapi>=0.135.1",
     "uvicorn[standard]>=0.41.0",
     "langchain>=1.2.10",
@@ -25,6 +24,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+auth = [
+    "agent-auth",
+]
 dev = [
     "pytest>=9.0.2",
     "httpx>=0.27",

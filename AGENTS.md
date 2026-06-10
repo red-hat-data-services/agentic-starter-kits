@@ -5,6 +5,7 @@ Collection of production-ready LLM agent templates for Red Hat OpenShift (LangGr
 ## Structure
 
 - `agents/<framework>/<agent_name>/` - self-contained agents (Makefile, Dockerfile, pyproject.toml, src/, tests/)
+- `components/<component_name>/` - shared reusable Python packages (for cross-agent concerns like auth/tracing)
 - `charts/agent/` - shared Helm chart for all standard agents
 - `charts/a2a-langgraph-crewai/` - specialized chart for multi-agent setup
 - `docs/` - guides for local dev, deployment, and adding new agents
@@ -30,6 +31,7 @@ make dry-run    # preview Helm manifests
 - All agents must expose `POST /chat/completions` (JSON + SSE) and `GET /health`
 - Source code in `src/<agent_name>/` within each agent directory
 - Keep agents self-contained -- never import from another agent's `src/`
+- Shared cross-agent code belongs in `components/` and should be consumed as package dependencies (not path imports into agent `src/`)
 
 ## Workflow
 

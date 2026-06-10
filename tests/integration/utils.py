@@ -115,8 +115,8 @@ def _run_oc_command(
     if check and result.returncode != 0:
         raise RuntimeError(
             f"oc {' '.join(args)} failed ({result.returncode})\n"
-            f"stdout: {result.stdout}\n"
-            f"stderr: {result.stderr}"
+            f"stdout: {_redact(result.stdout)}\n"
+            f"stderr: {_redact(result.stderr)}"
         )
     return result
 
@@ -134,8 +134,8 @@ def create_serviceaccount(name: str, namespace: str) -> None:
         return
     raise RuntimeError(
         f"Failed to create service account {namespace}/{name}\n"
-        f"stdout: {result.stdout}\n"
-        f"stderr: {result.stderr}"
+        f"stdout: {_redact(result.stdout)}\n"
+        f"stderr: {_redact(result.stderr)}"
     )
 
 
