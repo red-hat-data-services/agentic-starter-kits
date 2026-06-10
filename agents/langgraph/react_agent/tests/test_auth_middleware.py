@@ -132,7 +132,10 @@ def test_tokenreview_failure_returns_503(monkeypatch: pytest.MonkeyPatch) -> Non
 @pytest.mark.parametrize(
     ("username", "expected"),
     [
-        ("system:serviceaccount:ci-testing:allowed-caller", "ci-testing:allowed-caller"),
+        (
+            "system:serviceaccount:ci-testing:allowed-caller",
+            "ci-testing:allowed-caller",
+        ),
         ("system:serviceaccount:ci-testing:", None),
         ("system:serviceaccount::allowed-caller", None),
         ("system:serviceaccount:ci-testing:allowed:extra", None),
