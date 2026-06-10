@@ -33,7 +33,7 @@ An **A2A (Agent-to-Agent)** example: a **CrewAI** pod exposes an A2A JSON-RPC se
 #### Initiating base
 
 ```bash
-cd agents/a2a/langgraph_crewai_agent
+cd agents/a2a/templates/langgraph_crewai_agent
 make init        # creates .env from template.env if missing
 ```
 
@@ -216,7 +216,7 @@ Uses **[Helm](https://helm.sh/)** + **`Makefile`**. Chart: **`charts/a2a-langgra
 ### Setup
 
 ```bash
-cd agents/a2a/langgraph_crewai_agent
+cd agents/a2a/templates/langgraph_crewai_agent
 make init
 ```
 
@@ -420,4 +420,4 @@ For local runs, use `http://127.0.0.1:9200` instead of `https://<YOUR_ROUTE_URL>
 - [A2A Python SDK](https://pypi.org/project/a2a-sdk/)
 - [Deploying to OpenShift (generic)](../../../docs/openshift-deployment.md)
 - [Local Development](../../../docs/local-development.md)
-- Related patterns: `agents/google/adk/` (Helm + `make build` / `make push` / `make deploy`), `agents/llamaindex/websearch_agent/`, `agents/langgraph/react_agent/`
+- Related patterns: `agents/google/templates/adk/` (Helm + `make build` / `make push` / `make deploy`), `agents/llamaindex/templates/websearch_agent/`, `agents/langgraph/templates/react_agent/`

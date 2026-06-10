@@ -14,7 +14,7 @@ milvus_data/
 *.egg-info/
 poetry.lock
 .helm-secrets*.yaml
-agents/langflow/simple_tool_calling_agent/local/.ollama-enabled
+agents/langflow/templates/simple_tool_calling_agent/local/.ollama-enabled
 *.db
 CLAUDE.local.md
 .cursor

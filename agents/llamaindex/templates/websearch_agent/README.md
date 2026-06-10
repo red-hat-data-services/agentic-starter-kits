@@ -32,7 +32,7 @@ Agent built on LlamaIndex that uses a web search tool to query the internet and 
 `make init` creates a `.env` file from `.env.example`. Set your environment variables in the `.env` file.
 
 ```bash
-cd agents/llamaindex/websearch_agent
+cd agents/llamaindex/templates/websearch_agent
 make init
 ```
 
@@ -117,7 +117,7 @@ make llama-server
 > You should see output indicating the app started on `http://localhost:8000`.
 
 ```bash
-cd agents/llamaindex/websearch_agent
+cd agents/llamaindex/templates/websearch_agent
 make run-app           # fails if port is already in use and print steps TO-DO
 ```
 
@@ -126,7 +126,7 @@ make run-app           # fails if port is already in use and print steps TO-DO
 For terminal-based testing without a browser:
 
 ```bash
-cd agents/llamaindex/websearch_agent
+cd agents/llamaindex/templates/websearch_agent
 make run-cli
 ```
 
@@ -138,7 +138,7 @@ displayed inline with colored output.
 ### Setup
 
 ```bash
-cd agents/llamaindex/websearch_agent
+cd agents/llamaindex/templates/websearch_agent
 make init
 ```
 
@@ -290,7 +290,7 @@ Behavioral eval suite that validates tool usage, response quality, latency, and 
 cd /path/to/agentic-starter-kits
 
 # Collect tests
-uv run --extra test python -m pytest agents/llamaindex/websearch_agent/tests/behavioral/ --collect-only
+uv run --extra test python -m pytest agents/llamaindex/templates/websearch_agent/tests/behavioral/ --collect-only
 
 # Run against a deployed agent (with MLflow tracing)
 LLAMAINDEX_WEBSEARCH_AGENT_URL=https://<route> \
@@ -299,7 +299,7 @@ MLFLOW_EXPERIMENT_NAME=<experiment> \
 MLFLOW_TRACKING_TOKEN=$(oc whoami -t) \
 MLFLOW_WORKSPACE=<namespace> \
 MLFLOW_TRACKING_INSECURE_TLS=true \
-uv run --extra test python -m pytest agents/llamaindex/websearch_agent/tests/behavioral/ -v
+uv run --extra test python -m pytest agents/llamaindex/templates/websearch_agent/tests/behavioral/ -v
 ```
 
 Tests must run from the repo root because test dependencies (`pytest-asyncio`, harness package) are declared in the root `pyproject.toml`.

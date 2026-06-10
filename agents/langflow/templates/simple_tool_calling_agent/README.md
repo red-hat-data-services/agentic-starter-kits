@@ -65,7 +65,7 @@ sudo systemctl start podman     # start the podman service
 Here you copy .env.example file into .env and generate Langfuse secrets
 
 ```bash
-cd agents/langflow/simple_tool_calling_agent
+cd agents/langflow/templates/simple_tool_calling_agent
 make init
 ```
 
@@ -261,15 +261,15 @@ Tests are under `tests/behavioral/` and run from the **repo root** (test deps ar
 cd /path/to/agentic-starter-kits
 
 # Check tests are discovered (no env vars needed — flow_id validated at runtime)
-uv run --extra test python -m pytest agents/langflow/simple_tool_calling_agent/tests/behavioral/ --collect-only
+uv run --extra test python -m pytest agents/langflow/templates/simple_tool_calling_agent/tests/behavioral/ --collect-only
 
 # Run against live agent
 LANGFLOW_AGENT_URL=<langflow-url> \
 LANGFLOW_FLOW_ID=<flow-id> \
-uv run --extra test python -m pytest agents/langflow/simple_tool_calling_agent/tests/behavioral/ -v
+uv run --extra test python -m pytest agents/langflow/templates/simple_tool_calling_agent/tests/behavioral/ -v
 
 # Exclude slow reliability tests
-uv run --extra test python -m pytest agents/langflow/simple_tool_calling_agent/tests/behavioral/ -v -m "not slow"
+uv run --extra test python -m pytest agents/langflow/templates/simple_tool_calling_agent/tests/behavioral/ -v -m "not slow"
 ```
 
 | Env var | Description |

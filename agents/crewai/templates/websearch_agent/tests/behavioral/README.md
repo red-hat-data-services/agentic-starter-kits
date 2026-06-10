@@ -11,7 +11,7 @@ MLFLOW_EXPERIMENT_NAME=<experiment> \
 MLFLOW_TRACKING_TOKEN=$(oc whoami -t) \
 MLFLOW_WORKSPACE=<namespace> \
 MLFLOW_TRACKING_INSECURE_TLS=true \
-pytest agents/crewai/websearch_agent/tests/behavioral/ -m crewai_websearch -v
+pytest agents/crewai/templates/websearch_agent/tests/behavioral/ -m crewai_websearch -v
 ```
 
 ## Known issue: intermittent HTTP 500 ("Invalid response from LLM call")

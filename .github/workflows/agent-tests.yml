@@ -53,8 +53,8 @@ jobs:
         id: run-tests
         run: |
           # Discover agent dirs containing unit-test files
-          discovered=$(find agents/*/*/tests -maxdepth 1 -name 'test_*.py' -type f 2>/dev/null \
-            | cut -d'/' -f1-3 | sort -u)
+          discovered=$(find agents/*/*/*/tests -maxdepth 1 -name 'test_*.py' -type f 2>/dev/null \
+            | cut -d'/' -f1-4 | sort -u)
 
           # On PRs, filter to only agents with changed files
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then

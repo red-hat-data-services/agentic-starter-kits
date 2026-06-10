@@ -35,7 +35,7 @@ questions. Use with any OpenAI-compatible API.
 Here you copy .env.example file into .env
 
 ```bash
-cd agents/crewai/websearch_agent
+cd agents/crewai/templates/websearch_agent
 make init
 ```
 
@@ -90,7 +90,7 @@ make llama-server
 > You should see output indicating the app started on `http://localhost:8000`.
 
 ```bash
-cd agents/crewai/websearch_agent
+cd agents/crewai/templates/websearch_agent
 make run-app           # fails if port is already in use and print steps TO-DO
 ```
 
@@ -99,7 +99,7 @@ make run-app           # fails if port is already in use and print steps TO-DO
 For terminal-based testing without a browser:
 
 ```bash
-cd agents/crewai/websearch_agent
+cd agents/crewai/templates/websearch_agent
 make run-cli
 ```
 
@@ -171,7 +171,7 @@ MLFLOW_WORKSPACE = "default"
 ### Setup
 
 ```bash
-cd agents/crewai/websearch_agent
+cd agents/crewai/templates/websearch_agent
 make init
 ```
 

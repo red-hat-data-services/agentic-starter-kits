@@ -33,7 +33,7 @@ connector to route inference through a LlamaStack server's OpenAI-compatible API
 Here you copy .env.example file into .env
 
 ```bash
-cd agents/google/adk
+cd agents/google/templates/adk
 make init
 ```
 
@@ -72,7 +72,7 @@ make llama-server
 > You should see output indicating the app started on `http://localhost:8000`.
 
 ```bash
-cd agents/google/adk
+cd agents/google/templates/adk
 make run-app           # fails if port is already in use and print steps TO-DO
 ```
 
@@ -81,7 +81,7 @@ make run-app           # fails if port is already in use and print steps TO-DO
 For terminal-based testing without a browser:
 
 ```bash
-cd agents/google/adk
+cd agents/google/templates/adk
 make run-cli
 ```
 
@@ -90,7 +90,7 @@ make run-cli
 ### Setup
 
 ```bash
-cd agents/google/adk
+cd agents/google/templates/adk
 make init
 ```
 

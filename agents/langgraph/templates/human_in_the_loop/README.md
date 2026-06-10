@@ -44,7 +44,7 @@ User Input → LLM decides tool → Is it sensitive?
 `make init` creates a `.env` file from `.env.example`. Set your environment variables in the `.env` file.
 
 ```bash
-cd agents/langgraph/human_in_the_loop
+cd agents/langgraph/templates/human_in_the_loop
 make init
 ```
 
@@ -129,7 +129,7 @@ make llama-server
 > You should see output indicating the app started on `http://localhost:8000`.
 
 ```bash
-cd agents/langgraph/human_in_the_loop
+cd agents/langgraph/templates/human_in_the_loop
 make run-app           # fails if port is already in use and print steps TO-DO
 ```
 
@@ -143,7 +143,7 @@ When the agent pauses for approval, an **Approve / Reject** banner appears direc
 For terminal-based testing without a browser:
 
 ```bash
-cd agents/langgraph/human_in_the_loop
+cd agents/langgraph/templates/human_in_the_loop
 make run-cli
 ```
 
@@ -155,7 +155,7 @@ displayed inline with colored output.
 ### Setup
 
 ```bash
-cd agents/langgraph/human_in_the_loop
+cd agents/langgraph/templates/human_in_the_loop
 make init
 ```
 

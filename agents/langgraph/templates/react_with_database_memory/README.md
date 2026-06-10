@@ -43,7 +43,7 @@ Key features:
 `make init` creates a `.env` file from `.env.example`. Set your environment variables in the `.env` file.
 
 ```bash
-cd agents/langgraph/react_with_database_memory
+cd agents/langgraph/templates/react_with_database_memory
 make init
 ```
 
@@ -170,7 +170,7 @@ make llama-server
 > You should see output indicating the app started on `http://localhost:8000`.
 
 ```bash
-cd agents/langgraph/react_with_database_memory
+cd agents/langgraph/templates/react_with_database_memory
 make run-app           # fails if port is already in use and print steps TO-DO
 ```
 
@@ -179,7 +179,7 @@ make run-app           # fails if port is already in use and print steps TO-DO
 For terminal-based testing without a browser:
 
 ```bash
-cd agents/langgraph/react_with_database_memory
+cd agents/langgraph/templates/react_with_database_memory
 make run-cli
 ```
 
@@ -191,7 +191,7 @@ displayed inline with colored output. Your `thread_id` is shown at startup so yo
 ### Setup
 
 ```bash
-cd agents/langgraph/react_with_database_memory
+cd agents/langgraph/templates/react_with_database_memory
 make init
 ```
 

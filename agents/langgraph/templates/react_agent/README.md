@@ -33,7 +33,7 @@ LangGraph and LangChain.
 `make init` creates a `.env` file from `.env.example`. Set your environment variables in the `.env` file.
 
 ```bash
-cd agents/langgraph/react_agent
+cd agents/langgraph/templates/react_agent
 make init
 ```
 
@@ -118,7 +118,7 @@ make llama-server
 > You should see output indicating the app started on `http://localhost:8000`.
 
 ```bash
-cd agents/langgraph/react_agent
+cd agents/langgraph/templates/react_agent
 make run-app           # fails if port is already in use and print steps TO-DO
 ```
 
@@ -127,7 +127,7 @@ make run-app           # fails if port is already in use and print steps TO-DO
 For terminal-based testing without a browser:
 
 ```bash
-cd agents/langgraph/react_agent
+cd agents/langgraph/templates/react_agent
 make run-cli
 ```
 
@@ -139,7 +139,7 @@ displayed inline with colored output.
 ### Setup
 
 ```bash
-cd agents/langgraph/react_agent
+cd agents/langgraph/templates/react_agent
 make init
 ```
 

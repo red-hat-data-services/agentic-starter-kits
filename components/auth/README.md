@@ -51,7 +51,7 @@ oc -n ci-testing create serviceaccount langgraph-react-agent-caller --dry-run=cl
 
 ### 2) Deploy agent with auth enabled
 
-From `agents/langgraph/react_agent/.env`:
+From `agents/langgraph/templates/react_agent/.env`:
 
 ```dotenv
 AUTH_ENABLED=true
@@ -92,7 +92,7 @@ Expected high-level outcomes:
 
 ## Why `test_deployment.py` Changed
 
-`agents/langgraph/react_agent/tests/integration/test_deployment.py` is now intentionally
+`agents/langgraph/templates/react_agent/tests/integration/test_deployment.py` is now intentionally
 focused on deployment health only (`/health` smoke check).
 
 Reason:
@@ -102,7 +102,7 @@ Reason:
 
 Compensation (where coverage moved):
 
-- `agents/langgraph/react_agent/tests/integration/test_auth.py` owns auth-specific setup and matrix:
+- `agents/langgraph/templates/react_agent/tests/integration/test_auth.py` owns auth-specific setup and matrix:
   - `401` unauthenticated
   - `200` allowlisted caller
   - `403` non-allowlisted caller

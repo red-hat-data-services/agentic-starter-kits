@@ -34,7 +34,7 @@ Supports Milvus Lite (local) and pgvector (OpenShift) as vector store backends.
 `make init` creates a `.env` file from `.env.example`. Set your environment variables in the `.env` file.
 
 ```bash
-cd agents/langgraph/agentic_rag
+cd agents/langgraph/templates/agentic_rag
 make init
 ```
 
@@ -162,7 +162,7 @@ This will:
 > You should see output indicating the app started on `http://localhost:8000`.
 
 ```bash
-cd agents/langgraph/agentic_rag
+cd agents/langgraph/templates/agentic_rag
 make run-app           # fails if port is already in use and print steps TO-DO
 ```
 
@@ -171,7 +171,7 @@ make run-app           # fails if port is already in use and print steps TO-DO
 For terminal-based testing without a browser:
 
 ```bash
-cd agents/langgraph/agentic_rag
+cd agents/langgraph/templates/agentic_rag
 make run-cli
 ```
 
@@ -183,7 +183,7 @@ displayed inline with colored output.
 ### Setup
 
 ```bash
-cd agents/langgraph/agentic_rag
+cd agents/langgraph/templates/agentic_rag
 make init
 ```
 
@@ -385,10 +385,10 @@ export MLFLOW_TRACKING_URI=https://<mlflow-route>/mlflow
 export MLFLOW_EXPERIMENT_NAME=<experiment>
 
 # Run all behavioral tests
-pytest agents/langgraph/agentic_rag/tests/behavioral/ -v
+pytest agents/langgraph/templates/agentic_rag/tests/behavioral/ -v
 
 # Run specific test categories
-pytest agents/langgraph/agentic_rag/tests/behavioral/ -v -m "agentic_rag and not slow"
+pytest agents/langgraph/templates/agentic_rag/tests/behavioral/ -v -m "agentic_rag and not slow"
 ```
 
 See `tests/behavioral/` at the repo root for the shared test harness and threshold configuration.
