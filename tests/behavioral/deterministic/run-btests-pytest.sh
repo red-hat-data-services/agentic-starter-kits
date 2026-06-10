@@ -47,6 +47,7 @@ AGENTS=(
   "autogen/mcp_agent|AUTOGEN_MCP_AGENT_URL|autogen-mcp-agent"
   "llamaindex/websearch_agent|LLAMAINDEX_WEBSEARCH_AGENT_URL|llamaindex-websearch-agent"
   "vanilla_python/openai_responses_agent|VANILLA_PYTHON_AGENT_URL|openai-responses-agent"
+  "langgraph/human_in_the_loop|HITL_AGENT_URL|langgraph-hitl-agent"
 )
 
 # ---------------------------------------------------------------------------

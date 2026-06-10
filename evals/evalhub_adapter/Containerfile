@@ -28,6 +28,7 @@ COPY agents/langgraph/agentic_rag/evalhub/ ./fixtures/agentic_rag/
 COPY agents/langgraph/react_with_database_memory/evalhub/ ./fixtures/langgraph_db_memory/
 COPY agents/llamaindex/websearch_agent/evalhub/ ./fixtures/llamaindex_websearch/
 COPY agents/langflow/simple_tool_calling_agent/evalhub/ ./fixtures/langflow_tool_calling/
+COPY agents/langgraph/human_in_the_loop/evalhub/ ./fixtures/langgraph_hitl/
 
 # Install runtime deps only — NOT the project itself, to keep __file__ paths intact.
 # Includes MLflow for trace enrichment and run logging.
@@ -38,7 +39,7 @@ RUN uv pip install --no-cache \
     "PyYAML>=6.0,<7"
 
 # Build-time assertion: per-agent fixture directories exist
-RUN python -c "from pathlib import Path; assert Path('fixtures/langgraph_react/tool_use.yaml').exists(); assert Path('fixtures/vanilla_python/tool_use.yaml').exists(); assert Path('fixtures/autogen_mcp/tool_use.yaml').exists(); assert Path('fixtures/crewai_websearch/tool_use.yaml').exists(); assert Path('fixtures/agentic_rag/tool_use.yaml').exists(); assert Path('fixtures/langgraph_db_memory/tool_use.yaml').exists(); assert Path('fixtures/llamaindex_websearch/tool_use.yaml').exists(); assert Path('fixtures/langflow_tool_calling/tool_use.yaml').exists()"
+RUN python -c "from pathlib import Path; assert Path('fixtures/langgraph_react/tool_use.yaml').exists(); assert Path('fixtures/vanilla_python/tool_use.yaml').exists(); assert Path('fixtures/autogen_mcp/tool_use.yaml').exists(); assert Path('fixtures/crewai_websearch/tool_use.yaml').exists(); assert Path('fixtures/agentic_rag/tool_use.yaml').exists(); assert Path('fixtures/langgraph_db_memory/tool_use.yaml').exists(); assert Path('fixtures/llamaindex_websearch/tool_use.yaml').exists(); assert Path('fixtures/langflow_tool_calling/tool_use.yaml').exists(); assert Path('fixtures/langgraph_hitl/tool_use.yaml').exists()"
 
 RUN chown -R 1001:0 /opt/app-root/src \
     && chmod -R g=u /opt/app-root/src

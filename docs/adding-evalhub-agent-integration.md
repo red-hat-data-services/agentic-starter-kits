@@ -48,6 +48,7 @@ Existing fixtures:
 - `agents/langgraph/react_with_database_memory/evalhub/tool_use.yaml`
 - `agents/llamaindex/websearch_agent/evalhub/tool_use.yaml`
 - `agents/langflow/simple_tool_calling_agent/evalhub/tool_use.yaml`
+- `agents/langgraph/human_in_the_loop/evalhub/tool_use.yaml`
 
 ## 2. Add COPY Line to Containerfile
 

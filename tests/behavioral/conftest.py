@@ -27,6 +27,7 @@ _AGENT_URL_MAP = {
     "langgraph_db_memory": "DB_MEMORY_AGENT_URL",
     "autogen_mcp": "AUTOGEN_MCP_AGENT_URL",
     "llamaindex_websearch": "LLAMAINDEX_WEBSEARCH_AGENT_URL",
+    "langgraph_hitl": "HITL_AGENT_URL",
 }
 
 

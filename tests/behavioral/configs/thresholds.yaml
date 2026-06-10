@@ -47,3 +47,9 @@ langflow_tool_calling:
   response_coherence_accuracy: 0.70
   max_latency_p95: 30.0
   pass_at_k: 8
+
+langgraph_hitl:
+  tool_selection_accuracy: 0.85
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 15.0
+  pass_at_k: 8

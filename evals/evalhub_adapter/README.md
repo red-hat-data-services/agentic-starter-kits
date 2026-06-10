@@ -241,6 +241,7 @@ There are two different YAMLs in this flow:
   - `agents/langgraph/react_with_database_memory/evalhub/tool_use.yaml`
   - `agents/llamaindex/websearch_agent/evalhub/tool_use.yaml`
   - `agents/langflow/simple_tool_calling_agent/evalhub/tool_use.yaml`
+  - `agents/langgraph/human_in_the_loop/evalhub/tool_use.yaml`
   - These contain golden queries (`queries`, `expected_tools`,
     `expected_elements`) used by the adapter scorers
   - At image build time, these are copied into the adapter container under
@@ -252,6 +253,7 @@ There are two different YAMLs in this flow:
     - `agents/langgraph/react_with_database_memory/evalhub/*` -> `fixtures/langgraph_db_memory/`
     - `agents/llamaindex/websearch_agent/evalhub/*` -> `fixtures/llamaindex_websearch/`
     - `agents/langflow/simple_tool_calling_agent/evalhub/*` -> `fixtures/langflow_tool_calling/`
+    - `agents/langgraph/human_in_the_loop/evalhub/*` -> `fixtures/langgraph_hitl/`
   - You select which fixture set to use via `parameters.fixtures_path`
 
 Create one file per agent. To evaluate both agents, submit two jobs.
@@ -310,6 +312,7 @@ Notes:
   - `agentic_rag` -> `fixtures/agentic_rag`
   - `llamaindex_websearch` -> `fixtures/llamaindex_websearch`
   - `langflow_tool_calling` -> `fixtures/langflow_tool_calling`
+  - `langgraph_hitl` -> `fixtures/langgraph_hitl`
   - These are relative to the container WORKDIR (`/opt/app-root/src`)
 - `known_tools` should match the tools your target agent is allowed to use
 - See [JobSpec parameters](#jobspec-parameters) for the full field reference
@@ -480,8 +483,8 @@ sets this automatically from the namespace.
 - asyncio nesting guard (thread-pool fallback for async callers)
 - Agent-specific query files (LangGraph `search` tool, vanilla Python
   `search_price` + `search_reviews` tools, CrewAI `Web Search` tool,
-  LlamaIndex `dummy_web_search` tool, Langflow `get_forecast` +
-  `search_parks` + `park_alerts` tools)
+  LlamaIndex `dummy_web_search` tool, LangGraph HITL `create_file` tool,
+  Langflow `get_forecast` + `search_parks` + `park_alerts` tools)
 - Langflow `/api/v1/run` adapter support (`api_format=langflow_run`,
   `flow_id`, auto_login token acquisition)
 - Unit tests (50) + integration tests (11) for adapter, config, evaluations,

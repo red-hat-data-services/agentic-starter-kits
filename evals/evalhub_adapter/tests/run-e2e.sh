@@ -107,6 +107,7 @@ REQUIRED_FILES=(
   "agents/langgraph/react_with_database_memory/evalhub/tool_use.yaml"
   "agents/llamaindex/websearch_agent/evalhub/tool_use.yaml"
   "agents/langflow/simple_tool_calling_agent/evalhub/tool_use.yaml"
+  "agents/langgraph/human_in_the_loop/evalhub/tool_use.yaml"
 )
 for f in "${REQUIRED_FILES[@]}"; do
   if [[ -f "${REPO_ROOT}/${f}" ]]; then
@@ -229,6 +230,18 @@ if [[ -z "${LLAMAINDEX_WEBSEARCH_ROUTE:-}" ]]; then
   fi
 else
   preflight_ok "LlamaIndex Websearch agent route (override): ${LLAMAINDEX_WEBSEARCH_ROUTE}"
+fi
+
+if [[ -z "${HITL_AGENT_ROUTE:-}" ]]; then
+  HITL_AGENT_ROUTE=$(get_route "langgraph-hitl-agent" || true)
+  [[ -z "${HITL_AGENT_ROUTE}" ]] && HITL_AGENT_ROUTE=$(get_route_contains "hitl")
+  if [[ -n "${HITL_AGENT_ROUTE}" ]]; then
+    preflight_ok "HITL agent route: ${HITL_AGENT_ROUTE}"
+  else
+    preflight_fail "Could not discover hitl_agent route. Set HITL_AGENT_ROUTE manually."
+  fi
+else
+  preflight_ok "HITL agent route (override): ${HITL_AGENT_ROUTE}"
 fi
 
 # Langflow agent route — lives in a separate namespace (langflow-agent)
@@ -355,6 +368,14 @@ if [[ -n "${LLAMAINDEX_WEBSEARCH_ROUTE:-}" ]]; then
   fi
 fi
 
+if [[ -n "${HITL_AGENT_ROUTE:-}" ]]; then
+  if curl -sf --max-time 10 "https://${HITL_AGENT_ROUTE}/health" > /dev/null 2>&1; then
+    preflight_ok "hitl_agent /health responded"
+  else
+    preflight_warn "hitl_agent /health not reachable (https://${HITL_AGENT_ROUTE}/health)"
+  fi
+fi
+
 if [[ -n "${LANGFLOW_ROUTE:-}" ]]; then
   if curl -sf --max-time 10 "https://${LANGFLOW_ROUTE}/health" > /dev/null 2>&1; then
     preflight_ok "langflow_tool_calling_agent /health responded"
@@ -443,6 +464,7 @@ echo "  CrewAI Websearch:  ${CREWAI_WEBSEARCH_ROUTE}"
 echo "  Agentic RAG agent: ${AGENTIC_RAG_AGENT_ROUTE}"
 echo "  DB Memory agent:   ${DB_MEMORY_AGENT_ROUTE}"
 echo "  LlamaIndex Websearch: ${LLAMAINDEX_WEBSEARCH_ROUTE}"
+echo "  HITL agent:        ${HITL_AGENT_ROUTE}"
 echo "  MLflow:            ${MLFLOW_TRACKING_URI}"
 echo "  Experiment:        ${MLFLOW_EXPERIMENT}"
 
@@ -716,6 +738,29 @@ EOF
 
 echo "  Created: eval-llamaindex-websearch-agent.yaml"
 
+cat > "${WORK_DIR}/eval-hitl-agent.yaml" <<EOF
+name: agentic-tool-use-hitl-agent
+description: EvalHub orchestration run for LangGraph Human-in-the-Loop agent
+model:
+  name: langgraph-hitl-agent
+  url: https://${HITL_AGENT_ROUTE}
+benchmarks:
+  - id: agentic-tool-use
+    provider_id: ${PROVIDER_ID}
+    parameters:
+      known_tools: ["create_file"]
+      forbidden_actions: ["shell execution"]
+      max_latency_seconds: 15.0
+      timeout_seconds: 45.0
+      verify_ssl: true
+      fixtures_path: fixtures/langgraph_hitl
+      mlflow_tracking_uri: ${MLFLOW_INTERNAL_URI}
+      mlflow_experiment_name: ${MLFLOW_EXPERIMENT}
+      mlflow_trace_experiment_name: ${MLFLOW_AGENT_EXPERIMENT}
+EOF
+
+echo "  Created: eval-hitl-agent.yaml"
+
 # Langflow agent — discover flow_id dynamically and obtain auth token
 if [[ -n "${LANGFLOW_ROUTE:-}" ]]; then
   LANGFLOW_TOKEN=$(curl -sk --compressed "https://${LANGFLOW_ROUTE}/api/v1/auto_login" \
@@ -865,6 +910,19 @@ for line in sys.stdin:
         break
 " 2>/dev/null || true)
 
+echo ""
+echo "=== Step 6: Submitting hitl_agent eval ==="
+HITL_OUTPUT=$(evalhub eval run --config "${WORK_DIR}/eval-hitl-agent.yaml" --wait --poll-interval 5 2>&1)
+echo "${HITL_OUTPUT}"
+HITL_JOB_ID=$(echo "${HITL_OUTPUT}" | python3 -c "
+import sys, re
+for line in sys.stdin:
+    m = re.search(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', line)
+    if m:
+        print(m.group())
+        break
+" 2>/dev/null || true)
+
 LANGFLOW_JOB_ID=""
 if [[ -f "${WORK_DIR}/eval-langflow-tool-calling-agent.yaml" ]]; then
   echo ""
@@ -952,6 +1010,8 @@ echo ""
 print_results "db_memory_agent" "${DB_MEMORY_JOB_ID:-}"
 echo ""
 print_results "llamaindex_websearch_agent" "${LLAMAINDEX_JOB_ID:-}"
+echo ""
+print_results "hitl_agent" "${HITL_JOB_ID:-}"
 if [[ -n "${LANGFLOW_JOB_ID:-}" ]]; then
   echo ""
   print_results "langflow_tool_calling_agent" "${LANGFLOW_JOB_ID:-}"

@@ -307,6 +307,20 @@ The agent resumes, executes `create_file`, and returns the final result.
 make test
 ```
 
+### Behavioral Tests
+
+Behavioral tests validate tool selection, response quality, latency, and reliability against a live agent instance.
+
+```bash
+# From the repo root (not the agent directory)
+HITL_AGENT_URL=https://<agent-route> \
+MLFLOW_TRACKING_URI=<mlflow-uri> \
+MLFLOW_EXPERIMENT_NAME=<experiment> \
+uv run --extra test python -m pytest agents/langgraph/human_in_the_loop/tests/behavioral/ -v
+```
+
+Thresholds are configured in `tests/behavioral/configs/thresholds.yaml` under the `langgraph_hitl` section.
+
 ## API Endpoints
 
 ### POST /chat/completions

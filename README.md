@@ -140,6 +140,7 @@ Tests require a running agent. Set the target URL via environment variables:
 | `LLAMAINDEX_WEBSEARCH_AGENT_URL` | LlamaIndex Websearch agent tests |
 | `LANGFLOW_AGENT_URL` | Langflow Simple Tool Calling agent tests |
 | `LANGFLOW_FLOW_ID` | Langflow flow ID (changes on re-import) |
+| `HITL_AGENT_URL` | LangGraph Human-in-the-Loop agent tests |
 
 ```bash
 uv pip install -e ".[test]"
