@@ -143,11 +143,7 @@ def run_eval(
 
         if result.success and approval is not None:
             raw = result.raw_response
-            finish = (
-                raw.get("choices", [{}])[0].get("finish_reason", "")
-                if raw
-                else ""
-            )
+            finish = raw.get("choices", [{}])[0].get("finish_reason", "") if raw else ""
             thread_id = raw.get("thread_id", "") if raw else ""
             if finish != "pending_approval" or not thread_id:
                 warnings.warn(
