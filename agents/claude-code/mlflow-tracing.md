@@ -169,19 +169,21 @@ The following must already be running on the cluster:
 
 Add Python and the MLflow SDK to the [Containerfile](https://github.com/red-hat-data-services/agentic-starter-kits/blob/main/agents/claude-code/deployment/Containerfile).
 
+MLflow offers two ways to set up Claude Code tracing: a Claude Code plugin (npm) and the MLflow Python SDK. On RHOAI, use the **Python SDK** approach because the `kubernetes-namespaced` auth plugin is only available in the Python SDK — the npm plugin does not support Kubernetes service account authentication.
+
+For MLflow 3.12+ (upstream):
+
+```dockerfile
+RUN microdnf install -y --nodocs python3.12 python3.12-pip
+RUN python3.12 -m pip install --no-cache-dir 'mlflow[kubernetes]>=3.12'
+```
+
 For MLflow 3.10.x (Red Hat fork required):
 
 ```dockerfile
 RUN microdnf install -y --nodocs python3.12 python3.12-pip
 RUN python3.12 -m pip install --no-cache-dir \
   'mlflow[kubernetes] @ git+https://github.com/red-hat-data-services/mlflow.git@v3.10.1+rhaiv.3'
-```
-
-For MLflow 3.12+ (upstream, no fork needed — requires npm for the Claude Code plugin):
-
-```dockerfile
-RUN microdnf install -y --nodocs python3.12 python3.12-pip nodejs npm
-RUN python3.12 -m pip install --no-cache-dir 'mlflow[kubernetes]>=3.12'
 ```
 
 #### 2. Grant RBAC to the pod's service account
@@ -220,13 +222,25 @@ oc adm policy add-role-to-user edit -z default -n <your-namespace>
 
 #### 5. Wire up autolog in the [entrypoint](https://github.com/red-hat-data-services/agentic-starter-kits/blob/main/agents/claude-code/deployment/entrypoint.sh)
 
-The entrypoint sets the auth env vars and runs `mlflow autolog claude` at startup. The `kubernetes-namespaced` auth must be exported before the autolog command so it can authenticate with the MLflow server.
+The entrypoint exports `kubernetes-namespaced` auth, runs `mlflow autolog claude` to configure the Python hook, then injects auth settings into the generated `.claude/settings.json` so the hook can authenticate at session end.
 
 ```bash
 export MLFLOW_TRACKING_AUTH="kubernetes-namespaced"
 export MLFLOW_TRACKING_INSECURE_TLS="${MLFLOW_TRACKING_INSECURE_TLS:-false}"
 
 mlflow autolog claude -d /workspace -u "${MLFLOW_TRACKING_URI}" -n "${MLFLOW_EXPERIMENT_NAME}"
+
+# Inject auth into settings.json so the Python hook can authenticate
+python3.12 -c '
+import json, os
+sf = "/workspace/.claude/settings.json"
+with open(sf) as f: s = json.load(f)
+env = s.setdefault("env", {})
+env["MLFLOW_TRACKING_AUTH"] = "kubernetes-namespaced"
+env["MLFLOW_WORKSPACE"] = os.environ["MLFLOW_WORKSPACE"]
+env["MLFLOW_TRACKING_INSECURE_TLS"] = os.environ.get("MLFLOW_TRACKING_INSECURE_TLS", "false")
+with open(sf, "w") as f: json.dump(s, f, indent=2)
+'
 ```
 
 #### 6. Verify
@@ -250,4 +264,4 @@ oc exec deployment/<claude-deployment> -- bash -c '
 
 It works across all backends (Vertex AI, vLLM, OGX) with no changes to the tracing setup. It captures tool calls, token usage, latency, and session metadata out of the box. The only overhead is the stop-hook which runs after the session ends — zero impact on agent response times.
 
-For MLflow 3.12+, use upstream `mlflow[kubernetes]>=3.12` — no Red Hat fork needed.
+For MLflow 3.12+, use upstream `mlflow[kubernetes]>=3.12` with the Python SDK approach — no Red Hat fork needed.
