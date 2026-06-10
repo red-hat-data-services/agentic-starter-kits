@@ -54,7 +54,7 @@ curl -s https://<your-endpoint>/v1/models | python3 -m json.tool
 }
 ```
 
-Use the **exact** `id` value from the response in your ConfigMap — both in `agents.defaults.model` and in `models.providers.vllm.models[].id`. Getting this wrong produces a `404 Model not found` error at runtime.
+Use the **exact** `id` value from the response as `models[].id` in your ConfigMap. For `agents.defaults.model`, prepend `vllm/` (the provider name) to the model ID.
 
 ## Configuration
 
@@ -111,15 +111,25 @@ Edit `manifests/02-configmap.yaml` and replace the placeholder values:
 
 Notice the `agents.defaults.model` field uses the format `<provider>/<model-id>`, while the `models[].id` is the raw ID sent to the endpoint in API requests.
 
-### Step 2: Set the gateway token
+### Step 2: Set secrets
 
-You might want to update `OPENCLAW_GATEWAY_TOKEN` in `manifests/01-secret.yaml` with a generated token.
+Edit `manifests/01-secret.yaml`:
 
-You will need this token to authenticate with the Control UI.
+- `OPENCLAW_GATEWAY_TOKEN` — replace `CHANGE-ME` with a token for the Control UI
+- `VLLM_API_KEY` — set to your vLLM/OGX API key, or leave as `not-needed` for unauthenticated endpoints
 
 ### Step 3: Check the storage class
 
-Edit `manifests/03-pvc.yaml` if your cluster uses a different block storage class than `gp3-csi`:
+Edit `manifests/03-pvc.yaml` if your cluster uses a different block storage class than `gp3-csi`.
+
+**Alternative: use an overlay** to keep the base manifests untouched:
+
+```bash
+cp -r overlays/example overlays/my-env
+# Edit overlays/my-env/configmap-patch.yaml with your endpoint + model
+# Edit overlays/my-env/kustomization.yaml with your namespace + storage class
+oc apply -k overlays/my-env
+```
 
 ## Deployment
 

@@ -31,8 +31,8 @@ data:
             "apiKey": "not-needed",
             "models": [
               {
-                "id": "vllm/my-model",
-                "name": "vllm/my-model",
+                "id": "my-model",
+                "name": "my-model",
                 "reasoning": false,
                 "input": ["text"],
                 "contextWindow": 32768,
