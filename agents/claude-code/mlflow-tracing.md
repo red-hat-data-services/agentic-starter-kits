@@ -199,8 +199,12 @@ oc adm policy add-role-to-user edit -z default -n <your-namespace>
 #### 3. Add MLflow env vars to the [deployment](https://github.com/red-hat-data-services/agentic-starter-kits/blob/main/agents/claude-code/deployment/deployment.yaml)
 
 ```yaml
+# For MLflow 3.12+:
 - name: MLFLOW_TRACKING_URI
-  value: "https://mlflow.<your-rhoai-namespace>.svc:8443/mlflow"  # for 3.10.x remove /mlflow; namespace is commonly redhat-ods-applications
+  value: "https://mlflow.<your-rhoai-namespace>.svc:8443/mlflow"  # namespace is commonly redhat-ods-applications
+# For MLflow 3.10.x:
+# - name: MLFLOW_TRACKING_URI
+#   value: "https://mlflow.<your-rhoai-namespace>.svc:8443"
 - name: MLFLOW_TRACKING_AUTH
   value: "kubernetes-namespaced"
 - name: MLFLOW_WORKSPACE
