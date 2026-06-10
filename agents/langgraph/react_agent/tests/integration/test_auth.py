@@ -44,6 +44,9 @@ def _write_auth_env_file(*, agent_dir, container_image, namespace, allowed_calle
             "Set them in the CI workflow or export locally."
         )
     env_path = agent_dir / ".env"
+    orig_env = None
+    if env_path.exists():
+        orig_env = env_path.read_text(encoding="utf-8")
     env_path.write_text(
         f"API_KEY={os.environ.get('API_KEY', 'not-needed')}\n"
         f"BASE_URL={os.environ['BASE_URL']}\n"
@@ -51,9 +54,10 @@ def _write_auth_env_file(*, agent_dir, container_image, namespace, allowed_calle
         f"CONTAINER_IMAGE={container_image}\n"
         "AUTH_ENABLED=true\n"
         f"AUTH_AUDIENCE={AUDIENCE}\n"
-        f"AUTH_ALLOWED_SERVICEACCOUNTS={namespace}:{allowed_caller_sa}\n"
+        f"AUTH_ALLOWED_SERVICEACCOUNTS={namespace}:{allowed_caller_sa}\n",
+        encoding="utf-8",
     )
-    return env_path
+    return env_path, orig_env
 
 
 @pytest.fixture(scope="module")
@@ -72,7 +76,7 @@ def auth_callers(cluster_auth):
 def deployed_auth_agent(cluster_auth, agent_dir, agent_name, auth_callers):
     namespace = cluster_auth["namespace"]
     container_image = f"{INTERNAL_REGISTRY}/{namespace}/{agent_name}:latest"
-    env_path = _write_auth_env_file(
+    env_path, orig_env = _write_auth_env_file(
         agent_dir=agent_dir,
         container_image=container_image,
         namespace=namespace,
@@ -102,7 +106,13 @@ def deployed_auth_agent(cluster_auth, agent_dir, agent_name, auth_callers):
                 logger.warning(
                     "Auth cleanup failed — manual undeploy may be needed", exc_info=True
                 )
-        env_path.unlink(missing_ok=True)
+        if orig_env is not None:
+            try:
+                env_path.write_text(orig_env, encoding="utf-8")
+            except Exception:
+                logger.exception("Failed to restore pre-existing .env at %s", env_path)
+        else:
+            env_path.unlink(missing_ok=True)
 
 
 @pytest.fixture(scope="function")

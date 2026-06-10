@@ -37,20 +37,24 @@ def _write_env_file(agent_dir, container_image):
             "Set them in the CI workflow or export locally."
         )
     env_path = agent_dir / ".env"
+    orig_env = None
+    if env_path.exists():
+        orig_env = env_path.read_text(encoding="utf-8")
     env_path.write_text(
         f"API_KEY={os.environ.get('API_KEY', 'not-needed')}\n"
         f"BASE_URL={os.environ['BASE_URL']}\n"
         f"MODEL_ID={os.environ['MODEL_ID']}\n"
-        f"CONTAINER_IMAGE={container_image}\n"
+        f"CONTAINER_IMAGE={container_image}\n",
+        encoding="utf-8",
     )
-    return env_path
+    return env_path, orig_env
 
 
 @pytest.fixture(scope="module")
 def deployed_agent(cluster_auth, agent_dir, agent_name):
     namespace = cluster_auth["namespace"]
     container_image = f"{INTERNAL_REGISTRY}/{namespace}/{agent_name}:latest"
-    env_path = _write_env_file(agent_dir, container_image)
+    env_path, orig_env = _write_env_file(agent_dir, container_image)
 
     deployed = False
     try:
@@ -78,7 +82,13 @@ def deployed_agent(cluster_auth, agent_dir, agent_name):
                 logger.warning(
                     "Cleanup failed — manual undeploy may be needed", exc_info=True
                 )
-        env_path.unlink(missing_ok=True)
+        if orig_env is not None:
+            try:
+                env_path.write_text(orig_env, encoding="utf-8")
+            except Exception:
+                logger.exception("Failed to restore pre-existing .env at %s", env_path)
+        else:
+            env_path.unlink(missing_ok=True)
 
 
 @pytest.mark.integration
