@@ -38,7 +38,7 @@ ollama pull embeddinggemma:latest
 
 ### 3. Start Llama Stack Server
 
-From your agent directory (e.g., `agents/llamaindex/websearch_agent`):
+From your agent directory (e.g., `agents/llamaindex/templates/websearch_agent`):
 
 ```bash
 # Install llama-stack and its provider dependencies (ollama, milvus)
@@ -62,7 +62,7 @@ The server starts on `http://localhost:8321`.
 ### 4. Configure and Run an Agent
 
 ```bash
-cd agents/langgraph/react_agent   # or any other agent
+cd agents/langgraph/templates/react_agent   # or any other agent
 make init                          # creates .env
 ```
 
@@ -110,7 +110,7 @@ curl -sN -X POST http://localhost:8000/chat/completions \
 ## Running Tests
 
 ```bash
-cd agents/langgraph/react_agent
+cd agents/langgraph/templates/react_agent
 make test
 ```
 
@@ -125,6 +125,6 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 To install an agent's dependencies locally:
 
 ```bash
-cd agents/langgraph/react_agent
+cd agents/langgraph/templates/react_agent
 uv pip install -e ".[dev]"
 ```

@@ -6,7 +6,7 @@ Agent templates built with [AutoGen](https://microsoft.github.io/autogen/) (Micr
 
 | Agent | Description |
 |-------|-------------|
-| [mcp_agent](mcp_agent/) | AssistantAgent with MCP tools over SSE (e.g. churn deployment, `add`/`sub`), FastAPI `/chat/completions` |
+| [mcp_agent](templates/mcp_agent/) | AssistantAgent with MCP tools over SSE (e.g. churn deployment, `add`/`sub`), FastAPI `/chat/completions` |
 
 ## Resources
 

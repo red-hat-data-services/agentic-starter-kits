@@ -56,7 +56,7 @@ For an agent to work with kagenti, it must:
 ### Step 1: Navigate to agent directory
 
 ```bash
-cd agents/<framework>/<agent_name>/
+cd agents/<framework>/templates/<agent_name>/
 ```
 
 The agent must have:
@@ -553,7 +553,7 @@ Here's the complete workflow for deploying the a2a-langgraph-crewai agent with k
 
 ```bash
 # 1. Navigate to agent directory
-cd agents/a2a/langgraph_crewai_agent/
+cd agents/a2a/templates/langgraph_crewai_agent/
 
 # 2. Initialize configuration
 make init  # Creates .env from template.env

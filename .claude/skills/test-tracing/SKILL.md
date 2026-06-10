@@ -8,7 +8,7 @@ disable-model-invocation: true
 # Test MLflow Tracing
 
 > **Usage:** `/test-tracing <agent_path>`
-> **Example:** `/test-tracing agents/langgraph/react_agent`
+> **Example:** `/test-tracing agents/langgraph/templates/react_agent`
 
 You are testing that MLflow tracing is working correctly for an agent template — verifying that traces land in the MLflow server with the expected spans.
 

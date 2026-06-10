@@ -54,10 +54,10 @@ for cluster-native execution, tracking, and integration with EvalHub workflows.
 
 ### Adding a new agent's fixtures
 
-1. Create `agents/<framework>/<agent_name>/evalhub/tool_use.yaml` with
+1. Create `agents/<framework>/templates/<agent_name>/evalhub/tool_use.yaml` with
    `queries`, `expected_tools`, `expected_elements`
 2. Add a `COPY` line to `evals/evalhub_adapter/Containerfile`:
-   `COPY agents/<framework>/<agent_name>/evalhub/ ./fixtures/<short_name>/`
+   `COPY agents/<framework>/templates/<agent_name>/evalhub/ ./fixtures/<short_name>/`
 3. Use `fixtures_path: fixtures/<short_name>` in your eval submission YAML
 4. Set `known_tools` in parameters to match the agent's available tools
 
@@ -234,26 +234,26 @@ There are two different YAMLs in this flow:
   - Used by `evalhub eval run --config ...`
   - Defines model endpoint, provider, and benchmark `parameters`
 - **Fixture YAMLs (already in repo/image):**
-  - `agents/langgraph/react_agent/evalhub/tool_use.yaml`
-  - `agents/vanilla_python/openai_responses_agent/evalhub/tool_use.yaml`
-  - `agents/crewai/websearch_agent/evalhub/tool_use.yaml`
-  - `agents/langgraph/agentic_rag/evalhub/tool_use.yaml`
-  - `agents/langgraph/react_with_database_memory/evalhub/tool_use.yaml`
-  - `agents/llamaindex/websearch_agent/evalhub/tool_use.yaml`
-  - `agents/langflow/simple_tool_calling_agent/evalhub/tool_use.yaml`
-  - `agents/langgraph/human_in_the_loop/evalhub/tool_use.yaml`
+  - `agents/langgraph/templates/react_agent/evalhub/tool_use.yaml`
+  - `agents/vanilla_python/templates/openai_responses_agent/evalhub/tool_use.yaml`
+  - `agents/crewai/templates/websearch_agent/evalhub/tool_use.yaml`
+  - `agents/langgraph/templates/agentic_rag/evalhub/tool_use.yaml`
+  - `agents/langgraph/templates/react_with_database_memory/evalhub/tool_use.yaml`
+  - `agents/llamaindex/templates/websearch_agent/evalhub/tool_use.yaml`
+  - `agents/langflow/templates/simple_tool_calling_agent/evalhub/tool_use.yaml`
+  - `agents/langgraph/templates/human_in_the_loop/evalhub/tool_use.yaml`
   - These contain golden queries (`queries`, `expected_tools`,
     `expected_elements`) used by the adapter scorers
   - At image build time, these are copied into the adapter container under
     `fixtures/`:
-    - `agents/langgraph/react_agent/evalhub/*` -> `fixtures/langgraph_react/`
-    - `agents/vanilla_python/openai_responses_agent/evalhub/*` -> `fixtures/vanilla_python/`
-    - `agents/crewai/websearch_agent/evalhub/*` -> `fixtures/crewai_websearch/`
-    - `agents/langgraph/agentic_rag/evalhub/*` -> `fixtures/agentic_rag/`
-    - `agents/langgraph/react_with_database_memory/evalhub/*` -> `fixtures/langgraph_db_memory/`
-    - `agents/llamaindex/websearch_agent/evalhub/*` -> `fixtures/llamaindex_websearch/`
-    - `agents/langflow/simple_tool_calling_agent/evalhub/*` -> `fixtures/langflow_tool_calling/`
-    - `agents/langgraph/human_in_the_loop/evalhub/*` -> `fixtures/langgraph_hitl/`
+    - `agents/langgraph/templates/react_agent/evalhub/*` -> `fixtures/langgraph_react/`
+    - `agents/vanilla_python/templates/openai_responses_agent/evalhub/*` -> `fixtures/vanilla_python/`
+    - `agents/crewai/templates/websearch_agent/evalhub/*` -> `fixtures/crewai_websearch/`
+    - `agents/langgraph/templates/agentic_rag/evalhub/*` -> `fixtures/agentic_rag/`
+    - `agents/langgraph/templates/react_with_database_memory/evalhub/*` -> `fixtures/langgraph_db_memory/`
+    - `agents/llamaindex/templates/websearch_agent/evalhub/*` -> `fixtures/llamaindex_websearch/`
+    - `agents/langflow/templates/simple_tool_calling_agent/evalhub/*` -> `fixtures/langflow_tool_calling/`
+    - `agents/langgraph/templates/human_in_the_loop/evalhub/*` -> `fixtures/langgraph_hitl/`
   - You select which fixture set to use via `parameters.fixtures_path`
 
 Create one file per agent. To evaluate both agents, submit two jobs.
@@ -471,7 +471,7 @@ sets this automatically from the namespace.
 ## What works now
 
 - `agentic-tool-use` benchmark: 5 golden queries per agent
-  (e.g. `agents/langgraph/react_agent/evalhub/tool_use.yaml`)
+  (e.g. `agents/langgraph/templates/react_agent/evalhub/tool_use.yaml`)
 - `agentic-tool-use` runs 4 scorers: tool_selection, tool_sequence,
   hallucinated_tools, tool_call_validity. 6 additional scorers
   (plan_coherence, completeness, latency, pii_leakage, policy_adherence,

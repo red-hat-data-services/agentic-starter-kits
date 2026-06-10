@@ -197,9 +197,9 @@ This module exports `enable_tracing()` (and `wrap_func_with_mlflow_trace()` if y
 
 See existing examples:
 
-- Full autolog (no manual wrapping needed): `agents/langgraph/react_agent/src/react_agent/tracing.py`
-- Partial autolog (tools need manual wrapping): `agents/crewai/websearch_agent/src/crewai_web_search/tracing.py`
-- No framework autolog (tools + agent entry point need manual wrapping): `agents/vanilla_python/openai_responses_agent/src/openai_responses_agent/tracing.py`
+- Full autolog (no manual wrapping needed): `agents/langgraph/templates/react_agent/src/react_agent/tracing.py`
+- Partial autolog (tools need manual wrapping): `agents/crewai/templates/websearch_agent/src/crewai_web_search/tracing.py`
+- No framework autolog (tools + agent entry point need manual wrapping): `agents/vanilla_python/templates/openai_responses_agent/src/openai_responses_agent/tracing.py`
 
 **2. Edit `main.py`**
 
@@ -244,7 +244,7 @@ If you have [Claude Code](https://docs.anthropic.com/en/docs/claude-code) set up
 For example:
 
 ```text
-/integrate-tracing autogen agents/autogen/chat_agent
+/integrate-tracing autogen agents/autogen/templates/chat_agent
 ```
 
 You can also prompt Claude Code directly (e.g., "integrate tracing into the autogen chat agent using the `/integrate-tracing` skill") and it will follow the same workflow.

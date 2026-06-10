@@ -19,16 +19,16 @@ COPY --from=ghcr.io/astral-sh/uv@sha256:fc93e9ecd7218e9ec8fba117af89348eef8fd246
 
 COPY evals/evalhub_adapter/ ./evalhub_adapter/
 COPY evals/harness/          ./harness/
-# TODO: auto-discover agents/*/evalhub/ dirs instead of hardcoding per agent
-COPY agents/langgraph/react_agent/evalhub/ ./fixtures/langgraph_react/
-COPY agents/vanilla_python/openai_responses_agent/evalhub/ ./fixtures/vanilla_python/
-COPY agents/autogen/mcp_agent/evalhub/ ./fixtures/autogen_mcp/
-COPY agents/crewai/websearch_agent/evalhub/ ./fixtures/crewai_websearch/
-COPY agents/langgraph/agentic_rag/evalhub/ ./fixtures/agentic_rag/
-COPY agents/langgraph/react_with_database_memory/evalhub/ ./fixtures/langgraph_db_memory/
-COPY agents/llamaindex/websearch_agent/evalhub/ ./fixtures/llamaindex_websearch/
-COPY agents/langflow/simple_tool_calling_agent/evalhub/ ./fixtures/langflow_tool_calling/
-COPY agents/langgraph/human_in_the_loop/evalhub/ ./fixtures/langgraph_hitl/
+# TODO: auto-discover agents/*/templates/*/evalhub/ dirs instead of hardcoding per agent
+COPY agents/langgraph/templates/react_agent/evalhub/ ./fixtures/langgraph_react/
+COPY agents/vanilla_python/templates/openai_responses_agent/evalhub/ ./fixtures/vanilla_python/
+COPY agents/autogen/templates/mcp_agent/evalhub/ ./fixtures/autogen_mcp/
+COPY agents/crewai/templates/websearch_agent/evalhub/ ./fixtures/crewai_websearch/
+COPY agents/langgraph/templates/agentic_rag/evalhub/ ./fixtures/agentic_rag/
+COPY agents/langgraph/templates/react_with_database_memory/evalhub/ ./fixtures/langgraph_db_memory/
+COPY agents/llamaindex/templates/websearch_agent/evalhub/ ./fixtures/llamaindex_websearch/
+COPY agents/langflow/templates/simple_tool_calling_agent/evalhub/ ./fixtures/langflow_tool_calling/
+COPY agents/langgraph/templates/human_in_the_loop/evalhub/ ./fixtures/langgraph_hitl/
 
 # Install runtime deps only — NOT the project itself, to keep __file__ paths intact.
 # Includes MLflow for trace enrichment and run logging.

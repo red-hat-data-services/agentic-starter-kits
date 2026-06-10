@@ -16,7 +16,7 @@ adapter architecture and end-to-end walkthrough, see the
 ## 1. Create Fixture Queries
 
 ```bash
-mkdir -p agents/<framework>/<agent_name>/evalhub
+mkdir -p agents/<framework>/templates/<agent_name>/evalhub
 ```
 
 Create `evalhub/tool_use.yaml`:
@@ -41,14 +41,14 @@ Include at least one no-tool query and one multi-tool query.
 
 Existing fixtures:
 
-- `agents/langgraph/react_agent/evalhub/tool_use.yaml`
-- `agents/vanilla_python/openai_responses_agent/evalhub/tool_use.yaml`
-- `agents/crewai/websearch_agent/evalhub/tool_use.yaml`
-- `agents/langgraph/agentic_rag/evalhub/tool_use.yaml`
-- `agents/langgraph/react_with_database_memory/evalhub/tool_use.yaml`
-- `agents/llamaindex/websearch_agent/evalhub/tool_use.yaml`
-- `agents/langflow/simple_tool_calling_agent/evalhub/tool_use.yaml`
-- `agents/langgraph/human_in_the_loop/evalhub/tool_use.yaml`
+- `agents/langgraph/templates/react_agent/evalhub/tool_use.yaml`
+- `agents/vanilla_python/templates/openai_responses_agent/evalhub/tool_use.yaml`
+- `agents/crewai/templates/websearch_agent/evalhub/tool_use.yaml`
+- `agents/langgraph/templates/agentic_rag/evalhub/tool_use.yaml`
+- `agents/langgraph/templates/react_with_database_memory/evalhub/tool_use.yaml`
+- `agents/llamaindex/templates/websearch_agent/evalhub/tool_use.yaml`
+- `agents/langflow/templates/simple_tool_calling_agent/evalhub/tool_use.yaml`
+- `agents/langgraph/templates/human_in_the_loop/evalhub/tool_use.yaml`
 
 ## 2. Add COPY Line to Containerfile
 
@@ -56,7 +56,7 @@ In `evals/evalhub_adapter/Containerfile`, add a `COPY` for your fixtures
 and extend the build-time assertion:
 
 ```dockerfile
-COPY agents/<framework>/<agent_name>/evalhub/ ./fixtures/<short_name>/
+COPY agents/<framework>/templates/<agent_name>/evalhub/ ./fixtures/<short_name>/
 ```
 
 ```dockerfile
@@ -124,7 +124,7 @@ Metrics and result interpretation are documented in the
 
 | File | Action |
 |------|--------|
-| `agents/<framework>/<agent_name>/evalhub/tool_use.yaml` | Create |
+| `agents/<framework>/templates/<agent_name>/evalhub/tool_use.yaml` | Create |
 | `evals/evalhub_adapter/Containerfile` | Edit — add `COPY` + assertion |
 | `evals/evalhub_adapter/eval-<agent_name>.yaml` | Create |
 | `evals/evalhub_adapter/README.md` | Edit — note new agent under "What works now" |

@@ -91,15 +91,15 @@ agent.run = wrap_func_with_mlflow_trace(agent.run, span_type="agent")
 #### Streaming path
 Check if `_handle_stream` in `main.py` creates the agent differently from `_handle_chat`. If it does (e.g., creates a new agent instance directly instead of using the closure), the wrapping must be duplicated in the streaming path.
 
-Reference: In the Vanilla Python agent, `_handle_stream` creates `AIAgent` directly and wraps tools + `agent.query` inside the `run_agent()` function. See `agents/vanilla_python/openai_responses_agent/main.py`, search for `def run_agent()`.
+Reference: In the Vanilla Python agent, `_handle_stream` creates `AIAgent` directly and wraps tools + `agent.query` inside the `run_agent()` function. See `agents/vanilla_python/templates/openai_responses_agent/main.py`, search for `def run_agent()`.
 
 ## Reference Files
 
 Read these to see the wiring patterns in practice:
-- `agents/vanilla_python/openai_responses_agent/main.py` — Level C wiring (search for `import enable_tracing`, `enable_tracing()` in `lifespan()`, and `run_agent()` in `_handle_stream`)
-- `agents/langgraph/react_agent/main.py` — Level A wiring (search for `import enable_tracing` and `enable_tracing()` in `lifespan()`)
-- `agents/crewai/websearch_agent/main.py` — Level B wiring (search for `import enable_tracing` and `enable_tracing()` in `lifespan()`)
-- `agents/crewai/websearch_agent/src/crewai_web_search/crew.py` — Level B tool wrapping (search for `wrap_func_with_mlflow_trace` in `ai_assistant()`)
+- `agents/vanilla_python/templates/openai_responses_agent/main.py` — Level C wiring (search for `import enable_tracing`, `enable_tracing()` in `lifespan()`, and `run_agent()` in `_handle_stream`)
+- `agents/langgraph/templates/react_agent/main.py` — Level A wiring (search for `import enable_tracing` and `enable_tracing()` in `lifespan()`)
+- `agents/crewai/templates/websearch_agent/main.py` — Level B wiring (search for `import enable_tracing` and `enable_tracing()` in `lifespan()`)
+- `agents/crewai/templates/websearch_agent/src/crewai_web_search/crew.py` — Level B tool wrapping (search for `wrap_func_with_mlflow_trace` in `ai_assistant()`)
 
 ## Final Checklist
 

@@ -8,11 +8,17 @@ Agents are organized by framework:
 
 ```text
 agents/
-  langgraph/        # LangGraph-based agents
-  llamaindex/       # LlamaIndex-based agents
-  vanilla_python/   # Vanilla Python agents (no framework)
-  langflow/         # Langflow visual agents
-  <new-framework>/  # Add a new framework directory if needed
+  langgraph/
+    templates/      # LangGraph agent templates
+    examples/       # LangGraph business use-case demos
+  llamaindex/
+    templates/      # LlamaIndex agent templates
+  vanilla_python/
+    templates/      # Vanilla Python agents (no framework)
+  langflow/
+    templates/      # Langflow visual agents
+  <new-framework>/
+    templates/      # Add a new framework directory if needed
 ```
 
 ## 2. Copy an Existing Agent
@@ -20,7 +26,7 @@ agents/
 Start from the closest existing agent:
 
 ```bash
-cp -r agents/langgraph/react_agent agents/<framework>/<your_agent>
+cp -r agents/langgraph/templates/react_agent agents/<framework>/templates/<your_agent>
 ```
 
 ## 3. Required Files
@@ -107,7 +113,7 @@ Every Makefile includes a `build-openshift` target for in-cluster builds (no Pod
 ## 9. Test Your Agent
 
 ```bash
-cd agents/<framework>/<your_agent>
+cd agents/<framework>/templates/<your_agent>
 make init && make run                # local test
 make dry-run                         # preview Helm manifests
 make build && make push && make deploy  # OpenShift test (via registry)

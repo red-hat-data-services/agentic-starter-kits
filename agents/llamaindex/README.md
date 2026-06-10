@@ -6,7 +6,7 @@ Agent templates built with [LlamaIndex](https://docs.llamaindex.ai/).
 
 | Agent | Description |
 |-------|-------------|
-| [websearch_agent](websearch_agent/) | Agent that uses a web search tool to query the internet and augment answers |
+| [websearch_agent](templates/websearch_agent/) | Agent that uses a web search tool to query the internet and augment answers |
 
 ## Resources
 

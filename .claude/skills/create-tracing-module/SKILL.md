@@ -28,10 +28,10 @@ Read `tracing.md` at the repo root for the full tracing architecture, design pri
 
 Read the reference `tracing.py` that matches the coverage level. These are the source of truth — follow their patterns exactly:
 
-- **Level A — autolog variant** (full autolog): `agents/langgraph/react_agent/src/react_agent/tracing.py`
-- **Level A — OTel variant** (framework emits OTel spans): `agents/google/adk/src/adk_agent/tracing.py`
-- **Level B** (partial autolog): `agents/crewai/websearch_agent/src/crewai_web_search/tracing.py`
-- **Level C** (no framework autolog): `agents/vanilla_python/openai_responses_agent/src/openai_responses_agent/tracing.py`
+- **Level A — autolog variant** (full autolog): `agents/langgraph/templates/react_agent/src/react_agent/tracing.py`
+- **Level A — OTel variant** (framework emits OTel spans): `agents/google/templates/adk/src/adk_agent/tracing.py`
+- **Level B** (partial autolog): `agents/crewai/templates/websearch_agent/src/crewai_web_search/tracing.py`
+- **Level C** (no framework autolog): `agents/vanilla_python/templates/openai_responses_agent/src/openai_responses_agent/tracing.py`
 
 ## What to Create
 

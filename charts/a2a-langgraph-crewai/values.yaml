@@ -1,4 +1,4 @@
-# Defaults — override from agents/a2a/langgraph_crewai_agent/values.yaml and/or --set
+# Defaults — override from agents/a2a/templates/langgraph_crewai_agent/values.yaml and/or --set
 
 # Phase 1: only Service, Route, Secret. Phase 2: add Deployments (after Route hostnames exist).
 deploymentsEnabled: false

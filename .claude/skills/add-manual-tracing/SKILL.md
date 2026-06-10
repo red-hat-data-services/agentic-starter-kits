@@ -108,7 +108,7 @@ This is critical. Read `_handle_stream` in `main.py` carefully.
 
 **If streaming creates a new agent instance directly** (bypasses the adapter):
 - You MUST duplicate the wrapping inside the streaming path.
-- This is the pattern used by the Vanilla Python agent. See the `run_agent()` function inside `_handle_stream` in `agents/vanilla_python/openai_responses_agent/main.py`:
+- This is the pattern used by the Vanilla Python agent. See the `run_agent()` function inside `_handle_stream` in `agents/vanilla_python/templates/openai_responses_agent/main.py`:
 
 ```python
 # Inside _handle_stream's run_agent():
@@ -135,9 +135,9 @@ Confirm that `wrap_func_with_mlflow_trace()` in `tracing.py` returns the origina
 
 ## Reference Files
 
-- **Level B tool wrapping**: `agents/crewai/websearch_agent/src/crewai_web_search/crew.py` — `ai_assistant()` method
-- **Level C tool + agent wrapping (non-streaming)**: `agents/vanilla_python/openai_responses_agent/src/openai_responses_agent/agent.py` — `_AIAgentAdapter.run()` method
-- **Level C streaming path wrapping**: `agents/vanilla_python/openai_responses_agent/main.py` — `run_agent()` inside `_handle_stream()`
+- **Level B tool wrapping**: `agents/crewai/templates/websearch_agent/src/crewai_web_search/crew.py` — `ai_assistant()` method
+- **Level C tool + agent wrapping (non-streaming)**: `agents/vanilla_python/templates/openai_responses_agent/src/openai_responses_agent/agent.py` — `_AIAgentAdapter.run()` method
+- **Level C streaming path wrapping**: `agents/vanilla_python/templates/openai_responses_agent/main.py` — `run_agent()` inside `_handle_stream()`
 
 ## Final Checklist
 

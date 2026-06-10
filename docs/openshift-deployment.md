@@ -37,7 +37,7 @@ podman login $(oc get route default-route -n openshift-image-registry -o jsonpat
 Navigate to the agent you want to deploy:
 
 ```bash
-cd agents/langgraph/react_agent   # or any other agent
+cd agents/langgraph/templates/react_agent   # or any other agent
 ```
 
 ### 3. Configure Environment

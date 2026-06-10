@@ -8,4 +8,4 @@ Agent templates built with [Langflow](https://docs.langflow.org/)'s visual flow 
 
 | Agent | Description |
 |-------|-------------|
-| [Simple Tool Calling Agent](simple_tool_calling_agent/) | Tool-calling agent that calls external APIs (weather, parks) and reasons over results. Includes Langfuse v3 tracing. |
+| [Simple Tool Calling Agent](templates/simple_tool_calling_agent/) | Tool-calling agent that calls external APIs (weather, parks) and reasons over results. Includes Langfuse v3 tracing. |

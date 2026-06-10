@@ -52,9 +52,9 @@ Read `<agent_path>/src/<package>/tracing.py` and verify:
 - [ ] `wrap_func_with_mlflow_trace()` returns original function when `MLFLOW_TRACKING_URI` is not set
 
 Compare against the reference file for the matching level:
-- Level A: `agents/langgraph/react_agent/src/react_agent/tracing.py`
-- Level B: `agents/crewai/websearch_agent/src/crewai_web_search/tracing.py`
-- Level C: `agents/vanilla_python/openai_responses_agent/src/openai_responses_agent/tracing.py`
+- Level A: `agents/langgraph/templates/react_agent/src/react_agent/tracing.py`
+- Level B: `agents/crewai/templates/websearch_agent/src/crewai_web_search/tracing.py`
+- Level C: `agents/vanilla_python/templates/openai_responses_agent/src/openai_responses_agent/tracing.py`
 
 ### 2. `main.py` wiring
 
