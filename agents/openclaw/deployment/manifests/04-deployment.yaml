@@ -25,15 +25,14 @@ spec:
             - sh
             - -c
             - |
-              cp /config/openclaw.json /data/.openclaw/openclaw.json
-              chgrp -R 0 /data/.openclaw
-              chmod -R g=u /data/.openclaw
+              mkdir -p /home/node/.openclaw/workspace
+              cp /config/openclaw.json /home/node/.openclaw/openclaw.json
               echo "Config initialized"
           volumeMounts:
             - name: config
               mountPath: /config
             - name: data
-              mountPath: /data/.openclaw
+              mountPath: /home/node/.openclaw
           resources:
             limits:
               memory: 128Mi
@@ -46,20 +45,34 @@ spec:
       containers:
         - name: gateway
           image: ghcr.io/openclaw/openclaw:latest
+          command:
+            - node
+            - /app/dist/index.js
+            - gateway
+            - run
           ports:
             - containerPort: 18789
               protocol: TCP
           env:
+            - name: HOME
+              value: /home/node
+            - name: OPENCLAW_CONFIG_DIR
+              value: /home/node/.openclaw
+            - name: NODE_ENV
+              value: production
             - name: OPENCLAW_GATEWAY_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: openclaw-secrets
                   key: OPENCLAW_GATEWAY_TOKEN
-            - name: OPENCLAW_HOME
-              value: /data/.openclaw
+            - name: VLLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: openclaw-secrets
+                  key: VLLM_API_KEY
           volumeMounts:
             - name: data
-              mountPath: /data/.openclaw
+              mountPath: /home/node/.openclaw
           resources:
             requests:
               memory: 256Mi

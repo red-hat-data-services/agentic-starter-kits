@@ -25,20 +25,7 @@ npm install && npm run build && npm run dev
 
 See [docs/installer-deployment.md](docs/installer-deployment.md) for the full walkthrough, validation, and rollback procedures.
 
-### Option B: Kustomize
-
-```bash
-oc new-project my-openclaw
-
-# Copy and customize the example overlay
-cp -r overlays/example overlays/my-env
-# Edit overlays/my-env/configmap-patch.yaml with your vLLM endpoint
-# Edit overlays/my-env/kustomization.yaml with your namespace and storage class
-
-oc apply -k overlays/my-env
-```
-
-### Option C: Direct YAML apply
+### Option B: Raw Manifests (Kustomize or direct apply)
 
 ```bash
 oc new-project my-openclaw
@@ -48,6 +35,8 @@ oc new-project my-openclaw
 
 oc apply -k manifests/
 ```
+
+See [docs/raw-deployment.md](docs/raw-deployment.md) for the full walkthrough, configuration details, and troubleshooting.
 
 ## Architecture
 
@@ -94,6 +83,7 @@ oc apply -k manifests/
 | Document | Description |
 |----------|-------------|
 | [docs/installer-deployment.md](docs/installer-deployment.md) | Full deployment guide: prerequisites, validation, rollback, appendix |
+| [docs/raw-deployment.md](docs/raw-deployment.md) | Step-by-step guide for deploying with raw Kustomize manifests |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues and fixes (route 503, model override, heartbeat, config clobber) |
 | [docs/model-compatibility.md](docs/model-compatibility.md) | Model testing results for agentic tool-calling |
 

@@ -7,7 +7,7 @@ data:
     {
       "gateway": {
         "port": 18789,
-        "bind": "0.0.0.0",
+        "bind": "lan",
         "mode": "local",
         "auth": {
           "mode": "token"
@@ -16,8 +16,7 @@ data:
       "channels": {},
       "agents": {
         "defaults": {
-          "heartbeat": {},
-          "model": "openai-compat/my-model",
+          "model": "vllm/my-model",
           "sandbox": {
             "mode": "off"
           }
@@ -26,14 +25,14 @@ data:
       "models": {
         "mode": "replace",
         "providers": {
-          "openai-compat": {
+          "vllm": {
             "baseUrl": "https://my-vllm-endpoint.apps.my-cluster.example.com/v1",
             "api": "openai-completions",
             "apiKey": "not-needed",
             "models": [
               {
-                "id": "my-model",
-                "name": "my-model",
+                "id": "vllm/my-model",
+                "name": "vllm/my-model",
                 "reasoning": false,
                 "input": ["text"],
                 "contextWindow": 32768,
