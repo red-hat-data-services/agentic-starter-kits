@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import time
@@ -150,6 +149,13 @@ def run_eval(
                 else ""
             )
             thread_id = raw.get("thread_id", "") if raw else ""
+            if finish != "pending_approval" or not thread_id:
+                warnings.warn(
+                    f"approval='{approval}' requested but agent did not return "
+                    f"pending_approval (finish_reason='{finish}', "
+                    f"thread_id='{thread_id}'). Approval step skipped.",
+                    stacklevel=2,
+                )
             if finish == "pending_approval" and thread_id:
                 followup_start = time.monotonic()
                 followup = await _send_approval(

@@ -84,6 +84,15 @@ async def test_tool_rejection(run_eval: Any, golden: dict[str, Any]) -> None:
     assert result.success, f"Agent request failed: {result.error}"
     assert len(result.response) > 0, "Response is empty after rejection"
 
+    expected_elements = golden.get("expected_elements", [])
+    if expected_elements:
+        text_lower = result.response.lower()
+        found = [e for e in expected_elements if e.lower() in text_lower]
+        assert len(found) > 0, (
+            f"Rejection response does not contain expected elements "
+            f"{expected_elements}. Response: {result.response[:300]}"
+        )
+
 
 async def test_no_hallucinated_tools(run_eval: Any, known_tools: list[str]) -> None:
     """Agent must only call tools that exist in its schema."""
