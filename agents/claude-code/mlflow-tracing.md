@@ -153,7 +153,7 @@ No measurable latency difference. OGX acts as a thin passthrough to vLLM's `/v1/
 
 ### Summary
 
-MLflow integration works. Follow this guide to hook Claude Code, OGX, and MLflow together on RHOAI — assuming all three are already deployed on the cluster. The setup requires the Red Hat MLflow fork for RHOAI 3.4, which will be replaced by upstream MLflow 3.11 in a future release.
+MLflow integration works. Follow this guide to hook Claude Code, OGX, and MLflow together on RHOAI — assuming all three are already deployed on the cluster.
 
 ### Prerequisites
 
@@ -167,15 +167,22 @@ The following must already be running on the cluster:
 
 #### 1. Add Python + MLflow to the Containerfile
 
-The ODH build of MLflow uses the Red Hat fork which includes the `kubernetes-namespaced` auth plugin not yet in upstream 3.10.x:
+Add Python and the MLflow SDK to the [Containerfile](https://github.com/red-hat-data-services/agentic-starter-kits/blob/main/agents/claude-code/deployment/Containerfile).
+
+For MLflow 3.10.x (Red Hat fork required):
 
 ```dockerfile
-RUN microdnf install -y python3.12 python3.12-pip
+RUN microdnf install -y --nodocs python3.12 python3.12-pip
 RUN python3.12 -m pip install --no-cache-dir \
   'mlflow[kubernetes] @ git+https://github.com/red-hat-data-services/mlflow.git@v3.10.1+rhaiv.3'
 ```
 
-> This fork requirement will go away when RHOAI ships MLflow 3.11, at which point replace with `mlflow[kubernetes]>=3.11`.
+For MLflow 3.12+ (upstream, no fork needed — requires npm for the Claude Code plugin):
+
+```dockerfile
+RUN microdnf install -y --nodocs python3.12 python3.12-pip nodejs npm
+RUN python3.12 -m pip install --no-cache-dir 'mlflow[kubernetes]>=3.12'
+```
 
 #### 2. Grant RBAC to the pod's service account
 
@@ -189,7 +196,7 @@ oc adm policy add-role-to-user edit -z default -n <your-namespace>
 
 ```yaml
 - name: MLFLOW_TRACKING_URI
-  value: "https://mlflow.<your-rhoai-namespace>.svc:8443"  # namespace where MLflow is deployed (commonly redhat-ods-applications)
+  value: "https://mlflow.<your-rhoai-namespace>.svc:8443/mlflow"  # for 3.10.x remove /mlflow; namespace is commonly redhat-ods-applications
 - name: MLFLOW_TRACKING_AUTH
   value: "kubernetes-namespaced"
 - name: MLFLOW_WORKSPACE
@@ -213,21 +220,13 @@ oc adm policy add-role-to-user edit -z default -n <your-namespace>
 
 #### 5. Wire up autolog in the [entrypoint](https://github.com/red-hat-data-services/agentic-starter-kits/blob/main/agents/claude-code/deployment/entrypoint.sh)
 
-The entrypoint runs `mlflow autolog claude` at startup and injects auth into the generated `.claude/settings.json`:
+The entrypoint sets the auth env vars and runs `mlflow autolog claude` at startup. The `kubernetes-namespaced` auth must be exported before the autolog command so it can authenticate with the MLflow server.
 
 ```bash
-mlflow autolog claude -u "${MLFLOW_TRACKING_URI}" -n "${MLFLOW_EXPERIMENT_NAME}" /workspace
+export MLFLOW_TRACKING_AUTH="kubernetes-namespaced"
+export MLFLOW_TRACKING_INSECURE_TLS="${MLFLOW_TRACKING_INSECURE_TLS:-false}"
 
-python3.12 -c '
-import json, os
-sf = "/workspace/.claude/settings.json"
-with open(sf) as f: s = json.load(f)
-env = s.setdefault("env", {})
-env["MLFLOW_TRACKING_AUTH"] = "kubernetes-namespaced"
-env["MLFLOW_WORKSPACE"] = os.environ["MLFLOW_WORKSPACE"]
-env["MLFLOW_TRACKING_INSECURE_TLS"] = "true"
-with open(sf, "w") as f: json.dump(s, f, indent=2)
-'
+mlflow autolog claude -d /workspace -u "${MLFLOW_TRACKING_URI}" -n "${MLFLOW_EXPERIMENT_NAME}"
 ```
 
 #### 6. Verify
@@ -251,4 +250,4 @@ oc exec deployment/<claude-deployment> -- bash -c '
 
 It works across all backends (Vertex AI, vLLM, OGX) with no changes to the tracing setup. It captures tool calls, token usage, latency, and session metadata out of the box. The only overhead is the stop-hook which runs after the session ends — zero impact on agent response times.
 
-When RHOAI ships MLflow 3.11, drop the Red Hat fork and use upstream `mlflow[kubernetes]>=3.11`.
+For MLflow 3.12+, use upstream `mlflow[kubernetes]>=3.12` — no Red Hat fork needed.
