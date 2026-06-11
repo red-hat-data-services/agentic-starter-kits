@@ -198,13 +198,23 @@ oc adm policy add-role-to-user edit -z default -n <your-namespace>
 
 #### 3. Add MLflow env vars to the [deployment](https://github.com/red-hat-data-services/agentic-starter-kits/blob/main/agents/claude-code/deployment/deployment.yaml)
 
+For MLflow 3.12+:
+
 ```yaml
-# For MLflow 3.12+:
 - name: MLFLOW_TRACKING_URI
   value: "https://mlflow.<your-rhoai-namespace>.svc:8443/mlflow"  # namespace is commonly redhat-ods-applications
-# For MLflow 3.10.x:
-# - name: MLFLOW_TRACKING_URI
-#   value: "https://mlflow.<your-rhoai-namespace>.svc:8443"
+```
+
+For MLflow 3.10.x:
+
+```yaml
+- name: MLFLOW_TRACKING_URI
+  value: "https://mlflow.<your-rhoai-namespace>.svc:8443"  # namespace is commonly redhat-ods-applications
+```
+
+Common env vars (both versions):
+
+```yaml
 - name: MLFLOW_TRACKING_AUTH
   value: "kubernetes-namespaced"
 - name: MLFLOW_WORKSPACE
@@ -234,6 +244,7 @@ The entrypoint exports `kubernetes-namespaced` auth, runs `mlflow autolog claude
 export MLFLOW_TRACKING_AUTH="kubernetes-namespaced"
 export MLFLOW_TRACKING_INSECURE_TLS="${MLFLOW_TRACKING_INSECURE_TLS:-false}"
 
+# MLflow 3.12 uses -d flag; 3.10.x uses positional argument: mlflow autolog claude ... /workspace
 mlflow autolog claude -d /workspace -u "${MLFLOW_TRACKING_URI}" -n "${MLFLOW_EXPERIMENT_NAME}"
 
 # Inject auth into settings.json so the Python hook can authenticate
