@@ -41,6 +41,11 @@
 #   Permissions:
 #     SKIP_PERMISSIONS         - Set to "true" to bypass permission checks (sandboxed environments only)
 #
+#   Session Persistence:
+#     CLAUDE_CONFIG_DIR        - Directory for Claude Code state (default: /workspace/.claude)
+#                                Session history and memory persist here across pod restarts.
+#                                A symlink is created from ~/.claude to this directory.
+#
 # =============================================================================
 
 set -euo pipefail
@@ -143,6 +148,39 @@ setup_git_credentials() {
 }
 
 # -----------------------------------------------------------------------------
+# Config Directory Setup (Session Persistence)
+# -----------------------------------------------------------------------------
+
+setup_config_dir() {
+    # Use CLAUDE_CONFIG_DIR for Claude Code state, defaulting to /workspace/.claude
+    # This enables session persistence since /workspace is backed by a PVC
+    export CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-/workspace/.claude}"
+
+    # Ensure the config directory exists
+    mkdir -p "${CLAUDE_CONFIG_DIR}"
+
+    # Ensure the projects directory exists (WORKDIR is /workspace/projects)
+    # This separates global config (/workspace/.claude) from local auto-memory (/workspace/projects/.claude)
+    mkdir -p /workspace/projects
+
+    # Create symlink from ~/.claude to the config dir for user convenience
+    # Users expect to find settings/skills at ~/.claude/
+    # The image doesn't include ~/.claude (removed at build time), so we just create the symlink
+    local home_claude_dir="${HOME}/.claude"
+    if [[ ! -L "${home_claude_dir}" ]]; then
+        # Remove any existing directory (shouldn't exist in normal operation, but handles edge cases)
+        if [[ -d "${home_claude_dir}" ]]; then
+            log_info "Removing existing ${home_claude_dir} directory"
+            rm -rf "${home_claude_dir}" 2>/dev/null || mv -f "${home_claude_dir}" "${home_claude_dir}.old" 2>/dev/null || true
+        fi
+        ln -sfn "${CLAUDE_CONFIG_DIR}" "${home_claude_dir}"
+    fi
+
+    log_info "Claude config directory: ${CLAUDE_CONFIG_DIR}"
+    log_info "Symlink: ${home_claude_dir} -> ${CLAUDE_CONFIG_DIR}"
+}
+
+# -----------------------------------------------------------------------------
 # MCP Configuration
 # -----------------------------------------------------------------------------
 
@@ -235,9 +273,10 @@ print("[entrypoint] INFO: MLflow settings injected into " + sf)
 # -----------------------------------------------------------------------------
 
 setup_skills() {
-    # Claude Code auto-discovers skills from ~/.claude/skills/
-    # Structure: ~/.claude/skills/<skill-name>/SKILL.md
-    local skills_dir="${HOME}/.claude/skills"
+    # Claude Code auto-discovers skills from $CLAUDE_CONFIG_DIR/skills/
+    # Structure: $CLAUDE_CONFIG_DIR/skills/<skill-name>/SKILL.md
+    # (Also accessible via ~/.claude/skills/ symlink)
+    local skills_dir="${CLAUDE_CONFIG_DIR}/skills"
 
     if [[ -d "${skills_dir}" ]]; then
         local skill_count
@@ -329,6 +368,7 @@ main() {
     setup_onboarding
     validate_environment
     setup_git_credentials
+    setup_config_dir
     setup_mcp
     setup_mlflow
     setup_skills

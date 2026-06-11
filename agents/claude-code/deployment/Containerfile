@@ -77,28 +77,30 @@ RUN useradd -u ${USER_UID} -g ${USER_GID} -d /home/${USER_NAME} -m -s /bin/bash 
 # Create Directory Structure
 # =============================================================================
 
-# Skills directory - empty, mountable via ConfigMap/PVC
-# Claude Code auto-discovers skills from ~/.claude/skills/
-# Each skill is a subdirectory containing a SKILL.md file
-# Structure: ~/.claude/skills/<skill-name>/SKILL.md
+# Temporary ~/.claude directory for Claude Code installer
+# The installer writes to ~/.claude/local/ during installation
+# This directory is removed after installation and replaced with a symlink at runtime
+# (see entrypoint.sh for symlink creation to /workspace/.claude)
+#
+# Skills are mounted at runtime to /workspace/.claude/skills/ via ConfigMap/PVC
+# and accessible via ~/.claude/skills/ through the symlink.
+# Each skill is a subdirectory containing a SKILL.md file.
+# Structure: /workspace/.claude/skills/<skill-name>/SKILL.md
 #
 # Mount at runtime:
-#   podman run -v /path/to/skills:/home/claude-agent/.claude/skills:ro,z ...
-#   Or in OpenShift, mount a ConfigMap or PVC to /home/claude-agent/.claude/skills
-RUN mkdir -p /home/${USER_NAME}/.claude/skills \
-    && chown -R ${USER_UID}:${USER_GID} /home/${USER_NAME}/.claude/skills \
-    && chmod -R 775 /home/${USER_NAME}/.claude/skills
-
-# Workspace directory - for agent working files
-# Can be mounted with PVC for persistence
-RUN mkdir -p /workspace \
-    && chown -R ${USER_UID}:${USER_GID} /workspace \
-    && chmod -R 775 /workspace
-
-# Claude config directory
+#   podman run -v /path/to/skills:/workspace/.claude/skills:ro,z ...
+#   Or in OpenShift, mount a ConfigMap or PVC to /workspace/.claude/skills
 RUN mkdir -p /home/${USER_NAME}/.claude \
     && chown -R ${USER_UID}:${USER_GID} /home/${USER_NAME}/.claude \
     && chmod -R 775 /home/${USER_NAME}/.claude
+
+# Workspace directory - for agent working files
+# Can be mounted with PVC for persistence
+# /workspace/.claude holds global config (CLAUDE_CONFIG_DIR)
+# /workspace/projects is the working directory (WORKDIR)
+RUN mkdir -p /workspace/projects \
+    && chown -R ${USER_UID}:${USER_GID} /workspace \
+    && chmod -R 775 /workspace
 
 # Ensure home directory has correct permissions for OpenShift random UID
 RUN chown -R ${USER_UID}:${USER_GID} /home/${USER_NAME} \
@@ -125,6 +127,10 @@ RUN claude --version
 # Switch back to root for remaining setup
 USER 0
 
+# Remove ~/.claude created by installer - entrypoint will create a symlink to /workspace/.claude
+# This prevents overlay filesystem issues when trying to remove/move the directory at runtime
+RUN rm -rf /home/${USER_NAME}/.claude
+
 # =============================================================================
 # Copy Entrypoint
 # =============================================================================
@@ -139,7 +145,9 @@ COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
 ENV DISABLE_AUTOUPDATER=1
 
 # Default working directory
-WORKDIR /workspace
+# Set to /workspace/projects to separate from global config at /workspace/.claude
+# This prevents overlap between CLAUDE_CONFIG_DIR and local auto-memory
+WORKDIR /workspace/projects
 
 # =============================================================================
 # Runtime Configuration

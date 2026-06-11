@@ -113,7 +113,6 @@ podman run -it --rm \
 # OpenShift interactive mode (uses claude-run for proper config)
 oc exec -it deployment/claude-code -- bash -c '
   export HOME=/home/claude-agent
-  cd /workspace
   ~/.claude/claude-run
 '
 ```
@@ -128,14 +127,12 @@ To see detailed logging of Claude Code activity, use the `--debug` flag:
 # Enable full debug logging
 oc exec -it deployment/claude-code -- bash -c '
   export HOME=/home/claude-agent
-  cd /workspace
   claude --debug
 '
 
 # Enable debug logging for API calls only
 oc exec -it deployment/claude-code -- bash -c '
   export HOME=/home/claude-agent
-  cd /workspace
   claude --debug api
 '
 ```
@@ -303,14 +300,12 @@ podman run -it --rm \
 # OpenShift interactive mode (uses claude-run for proper config)
 oc exec -it deployment/claude-code-vertex -- bash -c '
   export HOME=/home/claude-agent
-  cd /workspace
   ~/.claude/claude-run
 '
 
 # Alternative: source env.sh directly
 oc exec -it deployment/claude-code-vertex -- bash -c '
   export HOME=/home/claude-agent
-  cd /workspace
   source ~/.claude/env.sh
   claude $CLAUDE_EXTRA_ARGS
 '
@@ -326,14 +321,12 @@ To see detailed logging of Claude Code activity, use the `--debug` flag:
 # Enable full debug logging
 oc exec -it deployment/claude-code-vertex -- bash -c '
   export HOME=/home/claude-agent
-  cd /workspace
   claude --debug
 '
 
 # Enable debug logging for API calls only
 oc exec -it deployment/claude-code-vertex -- bash -c '
   export HOME=/home/claude-agent
-  cd /workspace
   claude --debug api
 '
 ```
@@ -515,7 +508,6 @@ podman run -it --rm \
 # OpenShift interactive mode
 oc exec -it deployment/claude-code-vllm -- bash -c '
   export HOME=/home/claude-agent
-  cd /workspace
   ~/.claude/claude-run
 '
 ```
@@ -526,14 +518,12 @@ oc exec -it deployment/claude-code-vllm -- bash -c '
 # Enable full debug logging
 oc exec -it deployment/claude-code-vllm -- bash -c '
   export HOME=/home/claude-agent
-  cd /workspace
   claude --debug
 '
 
 # Enable debug logging for API calls only
 oc exec -it deployment/claude-code-vllm -- bash -c '
   export HOME=/home/claude-agent
-  cd /workspace
   claude --debug api
 '
 ```
@@ -682,7 +672,6 @@ The 404s are caused by Claude Code's HTTP client probing behavior and do not ind
 # OpenShift interactive mode
 oc exec -it deployment/claude-code-ogx-vllm -- bash -c '
   export HOME=/home/claude-agent
-  cd /workspace
   ~/.claude/claude-run
 '
 ```
@@ -693,14 +682,12 @@ oc exec -it deployment/claude-code-ogx-vllm -- bash -c '
 # Enable full debug logging
 oc exec -it deployment/claude-code-ogx-vllm -- bash -c '
   export HOME=/home/claude-agent
-  cd /workspace
   claude --debug
 '
 
 # Enable debug logging for API calls only
 oc exec -it deployment/claude-code-ogx-vllm -- bash -c '
   export HOME=/home/claude-agent
-  cd /workspace
   claude --debug api
 '
 ```
@@ -763,6 +750,69 @@ Container isolation solutions are actively exploring ways to provide this kind o
 
 ## Customization
 
+### Session Persistence
+
+By default, Claude Code session history and memory persist across pod restarts. This is enabled via the `CLAUDE_CONFIG_DIR` environment variable, which points to `/workspace/.claude/` (inside the workspace PVC).
+
+**Directory structure:**
+
+```text
+/workspace/                      ← PVC mount (persistent)
+├── .claude/                     ← Global config (CLAUDE_CONFIG_DIR)
+│   ├── settings.json            ← ConfigMap mount
+│   ├── skills/                  ← ConfigMap mount
+│   ├── memory/                  ← Persisted (global memory)
+│   └── projects/                ← Persisted (session history)
+└── projects/                    ← WORKDIR (where users run Claude)
+    └── .claude/                 ← Local auto-memory (separate from global)
+```
+
+This structure separates global config (`/workspace/.claude/`) from local auto-memory (`/workspace/projects/.claude/`), mirroring the experience of running Claude Code locally on a laptop.
+
+**What persists:**
+
+| Data | Location | Persisted? |
+|------|----------|------------|
+| Session history | `/workspace/.claude/projects/` | ✅ Yes |
+| Global memory | `/workspace/.claude/memory/` | ✅ Yes |
+| Local auto-memory | `/workspace/projects/.claude/` | ✅ Yes |
+| Project files | `/workspace/projects/` | ✅ Yes |
+| Skills | `/workspace/.claude/skills/` | ConfigMap (re-mounted each restart) |
+| Settings | `/workspace/.claude/settings.json` | ConfigMap (re-mounted each restart) |
+
+**How it works:**
+
+1. The `CLAUDE_CONFIG_DIR` environment variable tells Claude Code to store global state in `/workspace/.claude/`
+2. The entrypoint creates a symlink: `~/.claude` → `/workspace/.claude/`
+3. The `WORKDIR` is `/workspace/projects/`, so local auto-memory goes to `/workspace/projects/.claude/`
+4. The `/workspace` directory is backed by a PVC, so all session data persists
+5. Skills and settings are ConfigMap mounts that overlay specific paths within the PVC
+
+**User experience:**
+
+```bash
+# Session 1: Have a conversation
+oc exec -it deployment/claude-code -- bash
+~/.claude/claude-run
+# ... conversation with Claude ...
+# Exit and pod restarts
+
+# Session 2: Claude remembers the previous conversation
+oc exec -it deployment/claude-code -- bash
+~/.claude/claude-run
+# Claude can reference prior context
+```
+
+**Disabling persistence:**
+
+To disable session persistence (ephemeral sessions only), set `CLAUDE_CONFIG_DIR` to a non-PVC path:
+
+```yaml
+env:
+  - name: CLAUDE_CONFIG_DIR
+    value: "/tmp/.claude"
+```
+
 ### Injecting Skills
 
 Skills allow you to extend Claude Code with custom instructions and capabilities. Skills are injected at deploy time via ConfigMap or PVC mount.
@@ -777,7 +827,7 @@ Skills allow you to extend Claude Code with custom instructions and capabilities
     └── SKILL.md
 ```
 
-**Mount path:** `/home/claude-agent/.claude/skills`
+**Mount path:** `/workspace/.claude/skills` (accessible via `~/.claude/skills/` symlink)
 
 Claude Code auto-discovers skills from `~/.claude/skills/`. Each skill is a subdirectory containing a `SKILL.md` file that defines the skill's behavior.
 
@@ -912,7 +962,7 @@ Claude Code automatically reads CLAUDE.md from the working directory and applies
 
 ### Overriding settings.json
 
-All deployment manifests include a settings ConfigMap that mounts to `~/.claude/settings.json`. The ConfigMap name varies by deployment option (`claude-settings`, `claude-vertex-settings`, `claude-vllm-settings`, or `claude-ogx-vllm-settings`). The default is empty (`{}`), which you can customize at deploy time:
+All deployment manifests include a settings ConfigMap that mounts to `/workspace/.claude/settings.json` (accessible via `~/.claude/settings.json` symlink). The ConfigMap name varies by deployment option (`claude-settings`, `claude-vertex-settings`, `claude-vllm-settings`, or `claude-ogx-vllm-settings`). The default is empty (`{}`), which you can customize at deploy time:
 
 ```bash
 # Update the settings ConfigMap (use the appropriate name for your deployment)

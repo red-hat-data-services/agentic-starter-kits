@@ -6,6 +6,12 @@
 # Architecture:
 #   Claude Code → OGX (API Gateway) → vLLM (Model Server)
 #
+# Directory Structure:
+#   /workspace/                - PVC mount (persistent)
+#   /workspace/.claude/        - Global config (CLAUDE_CONFIG_DIR) - settings, skills, memory
+#   /workspace/projects/       - Working directory (WORKDIR) - where users run Claude
+#   /workspace/projects/.claude/ - Local auto-memory (separate from global config)
+#
 # OGX Requirements:
 # - PostgreSQL database (check your OGX version's requirements)
 #
@@ -145,6 +151,10 @@ spec:
             # ===========================================
             - name: HOME
               value: "/home/claude-agent"
+            # CLAUDE_CONFIG_DIR enables session persistence across pod restarts
+            # The entrypoint creates a symlink: ~/.claude -> /workspace/.claude
+            - name: CLAUDE_CONFIG_DIR
+              value: "/workspace/.claude"
             # ===========================================
             # OGX Gateway Connection
             # ===========================================
@@ -184,15 +194,17 @@ spec:
           volumeMounts:
             - name: workspace
               mountPath: /workspace
+            # Skills and settings are mounted inside /workspace/.claude/ (the CLAUDE_CONFIG_DIR)
+            # This enables session persistence while keeping ConfigMap-based injection
             - name: skills
-              mountPath: /home/claude-agent/.claude/skills
+              mountPath: /workspace/.claude/skills
               readOnly: true
             - name: mcp-config
               mountPath: /etc/mcp
               readOnly: true
             # Mount settings.json to set default model
             - name: claude-settings
-              mountPath: /home/claude-agent/.claude/settings.json
+              mountPath: /workspace/.claude/settings.json
               subPath: settings.json
           resources:
             requests:
