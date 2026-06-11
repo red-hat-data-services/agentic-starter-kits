@@ -1,6 +1,6 @@
 SHELL          := bash
 AGENT_NAME     := $(shell python3 -c "import re; print(re.search(r'^name:\s*(.+)', open('agent.yaml').read(), re.M).group(1).strip())")
-CHART_DIR      := ../../../../charts/agent
+CHART_DIR      := ../../deployment
 VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b

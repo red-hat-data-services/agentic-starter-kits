@@ -211,7 +211,7 @@ With the LangGraph server running (terminal 2), open **<http://127.0.0.1:9200/>*
 
 ## Deploying to OpenShift
 
-Uses **[Helm](https://helm.sh/)** + **`Makefile`**. Chart: **`charts/a2a-langgraph-crewai/`** (two Deployments, two Services, two Routes, one Secret).
+Uses **[Helm](https://helm.sh/)** + **`Makefile`**. Chart: **`agents/a2a/deployment/`** (two Deployments, two Services, two Routes, one Secret).
 
 ### Setup
 
@@ -409,7 +409,7 @@ For local runs, use `http://127.0.0.1:9200` instead of `https://<YOUR_ROUTE_URL>
 
 | Resource | Role |
 |----------|------|
-| Helm chart **`charts/a2a-langgraph-crewai`** | Secret, Services, Routes, Deployments |
+| Helm chart **`agents/a2a/deployment`** | Secret, Services, Routes, Deployments |
 | `Deployment` **a2a-crew-agent** | CrewAI + A2A server, port **8080** |
 | `Deployment` **a2a-langgraph-agent** | LangGraph + tool → `CREW_A2A_URL` |
 | `Service` + `Route` ×2 | HTTPS; hosts feed Agent Card URLs |

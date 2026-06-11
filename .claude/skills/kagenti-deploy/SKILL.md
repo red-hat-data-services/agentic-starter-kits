@@ -123,7 +123,7 @@ docker login quay.io
 
 ### Step 6: Verify and enforce kagenti labels in deployment charts
 
-**CRITICAL**: The deployment charts must include protocol labels for discovery. This skill assumes agents use specialized charts (like `charts/a2a-langgraph-crewai/`) that include these labels.
+**CRITICAL**: The deployment charts must include protocol labels for discovery. This skill assumes agents use per-framework charts (like `agents/a2a/deployment/`) that include these labels.
 
 **Required labels in the chart templates**:
 ```yaml
@@ -160,7 +160,7 @@ grep -r "protocol.kagenti.io" <chart-directory>/templates/
 **If protocol labels are missing**:
 - Check if this is truly an A2A agent that needs kagenti integration
 - The agent may need a specialized chart - consult with the user
-- Standard `charts/agent/` template does not include kagenti labels by design
+- Standard framework deployment charts do not include kagenti labels by design
 
 **ENFORCEMENT**: If the grep returns no results for `protocol.kagenti.io`, STOP and inform the user that the chart templates do not include protocol labels. Ask if they want to:
 1. Create a specialized chart for this agent with protocol labels
@@ -525,7 +525,7 @@ Returns `[PASS]`, `[FAIL]`, or `[WARN]` for each check.
   
 - **AgentRuntime creates AgentCard**: When you create an AgentRuntime CR, the kagenti controller automatically creates a corresponding AgentCard CR by fetching metadata from the agent's endpoint. You only need to create AgentRuntime.
 
-- **Chart requirements**: This skill assumes agents use specialized charts (like `charts/a2a-langgraph-crewai/`) that include the A2A protocol label. The standard `charts/agent/` template does not include these labels by design.
+- **Chart requirements**: This skill assumes agents use per-framework charts (like `agents/a2a/deployment/`) that include the A2A protocol label. Standard framework deployment charts do not include these labels by design.
 
 - **Controller-managed vs chart-managed labels**:
   - `kagenti.io/type: agent` - Automatically added by kagenti controller when AgentRuntime CR is created (NOT in chart)
@@ -566,7 +566,7 @@ vim .env  # or nano, code, etc.
 make env
 
 # 5. Verify chart has protocol labels
-grep -r "protocol.kagenti.io" ../../../charts/a2a-langgraph-crewai/templates/
+grep -r "protocol.kagenti.io" ../deployment/templates/
 # Should show: protocol.kagenti.io/a2a: "true"
 
 # 6. Build container image

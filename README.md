@@ -58,6 +58,7 @@ agentic-starter-kits/
 │   │   │   ├── agentic_rag/             # LangGraph RAG agent with Milvus
 │   │   │   ├── react_with_database_memory/ # LangGraph ReAct + PostgreSQL memory
 │   │   │   └── human_in_the_loop/       # LangGraph Human-in-the-Loop agent
+│   │   ├── deployment/                  # Helm chart for LangGraph agents
 │   │   └── examples/                    # Business use-case demos
 │   ├── crewai/
 │   │   ├── templates/
@@ -92,9 +93,6 @@ agentic-starter-kits/
 │   └── evalhub_adapter/             # EvalHub on-cluster adapter (JobSpec → harness)
 ├── tests/
 │   └── behavioral/                  # Behavioral eval suite (shared infra)
-├── charts/
-│   ├── agent/                       # Shared Helm chart for all standard agents
-│   └── a2a-langgraph-crewai/        # Dedicated Helm chart for A2A agent
 ├── infrastructure/
 │   └── llm-d/                       # llm-d deployment manifests and test tooling
 ├── docs/                            # Guides: local dev, deployment, contributing

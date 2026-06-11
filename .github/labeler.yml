@@ -35,7 +35,7 @@ area/vanilla-python:
 
 area/helm:
   - changed-files:
-    - any-glob-to-any-file: 'charts/**'
+    - any-glob-to-any-file: 'agents/*/deployment/**'
 
 area/docs:
   - changed-files:

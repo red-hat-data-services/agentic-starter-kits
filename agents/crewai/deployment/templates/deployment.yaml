@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent.fullname" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "agent.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "agent.selectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      {{- if .Values.auth.enabled }}
+      serviceAccountName: {{ .Values.serviceAccount.name | default (include "agent.fullname" .) }}
+      {{- end }}
+      containers:
+        - name: {{ include "agent.name" . }}
+          image: "{{ required "image.repository is required — set CONTAINER_IMAGE in .env" .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: {{ .Values.service.port | quote }}
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- if .Values.auth.enabled }}
+            - name: AUTH_ENABLED
+              value: "true"
+            - name: AUTH_AUDIENCE
+              value: {{ .Values.auth.audience | quote }}
+            {{- if .Values.auth.allowedServiceAccounts }}
+            - name: AUTH_ALLOWED_SERVICEACCOUNTS
+              value: {{ join "," .Values.auth.allowedServiceAccounts | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.secrets.apiKey }}
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent.fullname" . }}-secret
+                  key: api-key
+            {{- end }}
+            {{- if .Values.secrets.postgresPassword }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent.fullname" . }}-secret
+                  key: postgres-password
+            {{- end }}
+            {{- if .Values.secrets.mlflowTrackingToken }}
+            - name: MLFLOW_TRACKING_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent.fullname" . }}-secret
+                  key: mlflow-tracking-token
+            {{- end }}
+            {{- range $key, $value := .Values.extraSecrets }}
+            {{- if $value }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent.fullname" $ }}-secret
+                  key: {{ $key }}
+            {{- end }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.path }}
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: {{ .Values.healthCheck.livenessInitialDelay }}
+            periodSeconds: {{ .Values.healthCheck.livenessPeriod }}
+            timeoutSeconds: {{ .Values.healthCheck.livenessTimeout }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.path }}
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: {{ .Values.healthCheck.readinessInitialDelay }}
+            periodSeconds: {{ .Values.healthCheck.readinessPeriod }}
+            timeoutSeconds: {{ .Values.healthCheck.readinessTimeout }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

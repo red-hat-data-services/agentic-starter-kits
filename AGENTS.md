@@ -6,9 +6,8 @@ Collection of production-ready LLM agent templates for Red Hat OpenShift (LangGr
 
 - `agents/<framework>/templates/<agent_name>/` - self-contained agent templates (Makefile, Dockerfile, pyproject.toml, src/, tests/)
 - `agents/<framework>/examples/<agent_name>/` - business use-case demos built on templates
+- `agents/<framework>/deployment/` - per-framework Helm charts for deployment
 - `components/<component_name>/` - shared reusable Python packages (for cross-agent concerns like auth/tracing)
-- `charts/agent/` - shared Helm chart for all standard agents
-- `charts/a2a-langgraph-crewai/` - specialized chart for multi-agent setup
 - `docs/` - guides for local dev, deployment, and adding new agents
 
 ## Commands
@@ -44,7 +43,7 @@ make dry-run    # preview Helm manifests
 
 ## Boundaries
 
-- Don't modify `charts/agent/` templates unless explicitly requested
+- Don't modify `agents/<framework>/deployment/` chart templates unless explicitly requested
 - Don't modify CONTRIBUTING.md, CI config, or root Makefile without asking
 - Don't refactor other agents when working on one agent
 - Don't change the API contract (`POST /chat/completions`, `GET /health`) without discussion
@@ -56,7 +55,7 @@ Several agents diverge significantly from the standard pattern:
 
 **langflow/templates/simple_tool_calling_agent** - Podman Compose flow-import deployment, not standalone FastAPI. No Dockerfile, pyproject.toml, main.py, src/, or tests/. Different Makefile targets (`init`, `ollama`, `run`, `stop`, `clean`). Uses infra-only env vars (PostgreSQL, Langfuse, Ollama) -- not `API_KEY`/`BASE_URL`/`MODEL_ID`.
 
-**a2a/templates/langgraph_crewai_agent** - Uses `python:3.12-slim` (not UBI9), PYTHONPATH `/app` (not `/opt/app-root/src`), `charts/a2a-langgraph-crewai/` chart, `template.env` (not `.env.example`), `entrypoint.sh` (not `main.py`), Starlette (not FastAPI). No tests/ directory.
+**a2a/templates/langgraph_crewai_agent** - Uses `python:3.12-slim` (not UBI9), PYTHONPATH `/app` (not `/opt/app-root/src`), `agents/a2a/deployment/` chart, `template.env` (not `.env.example`), `entrypoint.sh` (not `main.py`), Starlette (not FastAPI). No tests/ directory.
 
 **openclaw/deployment** - Kustomize-based deployment of OpenClaw on OpenShift. Uses pre-built image (`ghcr.io/openclaw/openclaw:latest`), not a Dockerfile. Kustomize overlays for customization (model endpoint, storage class). No Makefile, no FastAPI, no src/. Port 18789 (gateway).
 

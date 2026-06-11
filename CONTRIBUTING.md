@@ -67,7 +67,7 @@ General-purpose checks from [pre-commit/pre-commit-hooks](https://github.com/pre
 | ---- | ------------ |
 | `trailing-whitespace` | Removes trailing whitespace from all files |
 | `end-of-file-fixer` | Ensures every file ends with a newline |
-| `check-yaml` | Validates YAML syntax (excludes `charts/` — Helm templates use Go syntax) |
+| `check-yaml` | Validates YAML syntax (excludes `agents/*/deployment/` — Helm templates use Go syntax) |
 | `check-json` | Validates JSON syntax |
 | `check-toml` | Validates TOML syntax |
 | `check-merge-conflict` | Detects leftover merge conflict markers |
@@ -163,7 +163,7 @@ Every pull request is automatically labeled when opened or updated:
 | `area/google-adk` | `agents/google/**` |
 | `area/a2a` | `agents/a2a/**` |
 | `area/vanilla-python` | `agents/vanilla_python/**` |
-| `area/helm` | `charts/**` |
+| `area/helm` | `agents/*/deployment/**` |
 | `area/docs` | `docs/**`, `*.md` (root) |
 | `area/ci` | `.github/**` |
 | `area/tests` | `tests/**`, `eval/**` |
