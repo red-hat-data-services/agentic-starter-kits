@@ -61,11 +61,11 @@ llama-server: ## Install llama-stack and start Llama Stack server
 	source .venv/bin/activate && \
 	  echo "==> Installing llama-stack..." && \
 	  uv pip install "llama-stack==0.5.0" "llama-stack-api==0.5.0" ollama "pymilvus==2.6.9" "milvus-lite>=2.5.1" "setuptools>=80.9.0,<82.0.0" && \
-	  mkdir -p ../../../milvus_data && \
+	  mkdir -p ../../../../milvus_data && \
 	  echo "==> Killing any existing process on port 8321..." && \
 	  lsof -ti:8321 | xargs kill -9 2>/dev/null; true && \
 	  echo "==> Starting Llama Stack server on port 8321..." && \
-	  llama stack run ../../../run_llama_server.yaml
+	  llama stack run ../../../../run_llama_server.yaml
 
 run: init ## Start the local Langflow stack (Langflow + PostgreSQL + Langfuse)
 	@./deploy-local.sh

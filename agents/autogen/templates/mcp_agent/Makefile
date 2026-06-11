@@ -1,6 +1,6 @@
 SHELL          := bash
 AGENT_NAME     := $(shell python3 -c "import re; print(re.search(r'^name:\s*(.+)', open('agent.yaml').read(), re.M).group(1).strip())")
-CHART_DIR      := ../../../charts/agent
+CHART_DIR      := ../../../../charts/agent
 VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
@@ -55,11 +55,11 @@ llama-server: ## Install llama-stack and start Llama Stack server
 	  echo "==> Installing llama-stack dependencies..." && \
 	  uv sync --extra llama && \
 	  set -a && source .env && set +a && \
-	  mkdir -p ../../../milvus_data && \
+	  mkdir -p ../../../../milvus_data && \
 	  echo "==> Killing any existing process on port 8321..." && \
 	  lsof -ti:8321 | xargs kill -9 2>/dev/null; true && \
 	  echo "==> Starting Llama Stack server on port 8321..." && \
-	  llama stack run ../../../run_llama_server.yaml
+	  llama stack run ../../../../run_llama_server.yaml
 
 run-app: ## Run agent locally with hot-reload
 	@[ -f .env ] || { echo "ERROR: .env not found — run 'make init' first"; exit 1; }
@@ -94,7 +94,7 @@ build: ## Build container image locally (podman/docker)
 	@[ -n "$(CONTAINER_CLI)" ] || { echo "ERROR: neither podman nor docker found in PATH"; exit 1; } && \
 	  source .env && \
 	  [ -n "$${CONTAINER_IMAGE}" ] || { echo "ERROR: CONTAINER_IMAGE is not set in .env"; exit 1; } && \
-	  cp -r ../../../images ./images && trap 'rm -rf ./images' EXIT && \
+	  cp -r ../../../../images ./images && trap 'rm -rf ./images' EXIT && \
 	  $(CONTAINER_CLI) build --platform linux/amd64 -t "$${CONTAINER_IMAGE}" -f Dockerfile .
 
 push: ## Push container image to registry
@@ -104,7 +104,7 @@ push: ## Push container image to registry
 	  $(CONTAINER_CLI) push "$${CONTAINER_IMAGE}"
 
 build-openshift: ## Build image in-cluster via OpenShift BuildConfig (no podman/docker needed)
-	@cp -r ../../../images ./images && trap 'rm -rf ./images' EXIT && \
+	@cp -r ../../../../images ./images && trap 'rm -rf ./images' EXIT && \
 	  oc new-build --strategy=docker --binary --name=$(AGENT_NAME) --to=$(AGENT_NAME):latest 2>/dev/null || true && \
 	  oc start-build $(AGENT_NAME) --from-dir=. --follow && \
 	  NS=$$(oc project -q) && \

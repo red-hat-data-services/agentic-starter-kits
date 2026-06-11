@@ -45,7 +45,7 @@ tracing = [
 where = ["src"]
 
 [tool.uv.sources]
-agent-auth = { path = "../../../components/auth" }
+agent-auth = { path = "../../../../components/auth" }
 
 [build-system]
 requires = ["setuptools>=80.9.0"]
