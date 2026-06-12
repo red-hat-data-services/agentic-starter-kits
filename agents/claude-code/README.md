@@ -225,7 +225,7 @@ Edit `deployment-vllm.yaml`. Search for placeholder values and replace them:
 
 - In the **ConfigMap** (`claude-vllm-settings`), set `"model"` to your model ID
 - In the **Deployment** `env` section, update these env vars:
-  - `ANTHROPIC_BASE_URL`: Your vLLM server URL (replace `YOUR_VLLM_SERVICE.namespace`)
+  - `ANTHROPIC_BASE_URL`: Your vLLM server URL (replace `YOUR_VLLM_ENDPOINT`)
   - `ANTHROPIC_CUSTOM_MODEL_OPTION`: Your model ID (bare name, no prefix)
   - `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `_SONNET_MODEL`, `_OPUS_MODEL`: Your model ID (all three required to prevent 404 errors)
 
