@@ -182,6 +182,31 @@ spec:
             - name: ANTHROPIC_DEFAULT_OPUS_MODEL
               value: "vllm/YOUR_MODEL_ID"
             # ===========================================
+            # MLflow Tracing (Optional)
+            # ===========================================
+            # Uncomment and configure to enable.
+            # See the MLflow Tracing section in ../README.md for details.
+            # - name: MLFLOW_TRACKING_URI
+            #   value: "https://mlflow.<rhoai-namespace>.svc:8443/mlflow"
+            # - name: MLFLOW_TRACKING_AUTH
+            #   value: "kubernetes-namespaced"
+            # - name: MLFLOW_WORKSPACE
+            #   value: "<your-namespace>"
+            # - name: MLFLOW_EXPERIMENT_NAME
+            #   value: "claude-code-traces"
+            # - name: MLFLOW_TRACKING_INSECURE_TLS
+            #   value: "true"
+            # ===========================================
+            # Context Window Configuration (Optional)
+            # ===========================================
+            # Uncomment and adjust if your model's context window differs from defaults.
+            # - name: CLAUDE_CODE_AUTO_COMPACT_WINDOW
+            #   value: "32768"
+            # - name: CLAUDE_CODE_MAX_OUTPUT_TOKENS
+            #   value: "4000"
+            # - name: CLAUDE_AUTOCOMPACT_PCT_OVERRIDE
+            #   value: "85"
+            # ===========================================
             # Claude Code Configuration
             # ===========================================
             - name: MCP_CONFIG_FILE
@@ -202,9 +227,10 @@ spec:
             - name: mcp-config
               mountPath: /etc/mcp
               readOnly: true
-            # Mount settings.json to set default model
+            # Stage settings.json at a read-only path; the entrypoint copies it
+            # to the writable PVC so mlflow autolog can update it at runtime
             - name: claude-settings
-              mountPath: /workspace/.claude/settings.json
+              mountPath: /etc/claude-config/settings.json
               subPath: settings.json
           resources:
             requests:

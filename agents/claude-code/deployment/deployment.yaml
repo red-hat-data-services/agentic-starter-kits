@@ -166,6 +166,21 @@ spec:
             #   value: "https://your-endpoint/v1"
             # - name: CLAUDE_MODEL
             #   value: "your-model"
+            # ===========================================
+            # MLflow Tracing (Optional)
+            # ===========================================
+            # Uncomment and configure to enable.
+            # See the MLflow Tracing section in ../README.md for details.
+            # - name: MLFLOW_TRACKING_URI
+            #   value: "https://mlflow.<rhoai-namespace>.svc:8443/mlflow"
+            # - name: MLFLOW_TRACKING_AUTH
+            #   value: "kubernetes-namespaced"
+            # - name: MLFLOW_WORKSPACE
+            #   value: "<your-namespace>"
+            # - name: MLFLOW_EXPERIMENT_NAME
+            #   value: "claude-code-traces"
+            # - name: MLFLOW_TRACKING_INSECURE_TLS
+            #   value: "true"
             - name: MCP_CONFIG_FILE
               value: "/etc/mcp/config.json"
             # WARNING: Setting SKIP_PERMISSIONS=true disables all Claude permission checks.
@@ -185,7 +200,7 @@ spec:
               mountPath: /etc/mcp
               readOnly: true
             - name: claude-settings
-              mountPath: /workspace/.claude/settings.json
+              mountPath: /etc/claude-config/settings.json
               subPath: settings.json
           resources:
             requests:

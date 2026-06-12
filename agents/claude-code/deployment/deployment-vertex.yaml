@@ -201,6 +201,21 @@ spec:
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/var/secrets/google/key.json"
             # ===========================================
+            # MLflow Tracing (Optional)
+            # ===========================================
+            # Uncomment and configure to enable.
+            # See the MLflow Tracing section in ../README.md for details.
+            # - name: MLFLOW_TRACKING_URI
+            #   value: "https://mlflow.<rhoai-namespace>.svc:8443/mlflow"
+            # - name: MLFLOW_TRACKING_AUTH
+            #   value: "kubernetes-namespaced"
+            # - name: MLFLOW_WORKSPACE
+            #   value: "<your-namespace>"
+            # - name: MLFLOW_EXPERIMENT_NAME
+            #   value: "claude-code-traces"
+            # - name: MLFLOW_TRACKING_INSECURE_TLS
+            #   value: "true"
+            # ===========================================
             # Claude Code Configuration
             # ===========================================
             - name: MCP_CONFIG_FILE
@@ -226,7 +241,7 @@ spec:
               mountPath: /var/secrets/google
               readOnly: true
             - name: claude-settings
-              mountPath: /workspace/.claude/settings.json
+              mountPath: /etc/claude-config/settings.json
               subPath: settings.json
           resources:
             requests:
