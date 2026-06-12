@@ -406,15 +406,18 @@ oc exec deployment/claude-code -- ls -la /workspace/projects/
 
 ### Rebuilding the Image
 
-After modifying the Containerfile or entrypoint, rebuild and restart:
+After modifying the Containerfile or entrypoint, rebuild and update the deployment:
 
 ```bash
+# Build and push the new image
 oc start-build claude-code --from-dir=. --follow
-oc apply -f <your-manifest>.yaml
-oc rollout restart deployment/<your-deployment-name>
+
+# Update the deployment to use the new image
+oc set image deployment/<your-deployment-name> \
+  claude-code=$(oc get istag claude-code:latest -o jsonpath='{.image.dockerImageReference}')
 ```
 
-The running pod does not pick up a new image automatically. You must re-apply the manifest and restart the deployment.
+`oc rollout restart` alone is not sufficient. OpenShift pins deployments to a specific image digest, so restarting just recreates the pod with the old image. You must update the image reference with `oc set image` to pick up the new build.
 
 ---
 
