@@ -246,7 +246,8 @@ setup_mlflow() {
     # Inject MLflow auth env vars into the generated settings
     if ! python3 -c '
 import json, os, sys
-sf = "/workspace/.claude/settings.json"
+config_dir = os.environ.get("CLAUDE_CONFIG_DIR", "/workspace/.claude")
+sf = os.path.join(config_dir, "settings.json")
 if not os.path.exists(sf):
     print(f"[entrypoint] WARN: {sf} not found, skipping MLflow settings injection")
     sys.exit(0)
