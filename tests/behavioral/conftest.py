@@ -28,6 +28,7 @@ _AGENT_URL_MAP = {
     "autogen_mcp": "AUTOGEN_MCP_AGENT_URL",
     "llamaindex_websearch": "LLAMAINDEX_WEBSEARCH_AGENT_URL",
     "langgraph_hitl": "HITL_AGENT_URL",
+    "google_adk": "GOOGLE_ADK_AGENT_URL",
 }
 
 

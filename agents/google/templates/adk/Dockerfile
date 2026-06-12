@@ -17,7 +17,7 @@ COPY pyproject.toml .
 COPY src/ ./src/
 
 # Install the project and its dependencies using uv
-RUN uv pip install --no-cache .
+RUN uv pip install --no-cache ".[tracing]"
 
 # Copy the application entrypoint, playground UI, and images
 COPY main.py .

@@ -7,6 +7,7 @@ from os import getenv
 from pathlib import Path
 
 from adk_agent.agent import APP_NAME, get_runner
+from adk_agent.tracing import enable_tracing
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import (
     FileResponse,
@@ -94,7 +95,11 @@ class ChatCompletionResponse(BaseModel):
     )
     model: str = Field(..., description="The model used for the chat completion.")
     choices: list[Choice] = Field(..., description="A list of chat completion choices.")
-
+    context: list[dict] | None = Field(
+        None,
+        description="Non-standard extension: intermediate agent messages including "
+        "tool calls and responses. Not part of the OpenAI API spec.",
+    )
     usage: dict | None = Field(
         None, description="Usage statistics for the completion request."
     )
@@ -121,6 +126,8 @@ USER_ID = "api_user"
 async def lifespan(app: FastAPI):
     """Initialize the ADK agent runner on startup and clear it on shutdown."""
     global runner
+
+    enable_tracing()
 
     base_url = getenv("BASE_URL")
     model_id = getenv("MODEL_ID")

@@ -29,6 +29,7 @@ COPY agents/langgraph/templates/react_with_database_memory/evalhub/ ./fixtures/l
 COPY agents/llamaindex/templates/websearch_agent/evalhub/ ./fixtures/llamaindex_websearch/
 COPY agents/langflow/templates/simple_tool_calling_agent/evalhub/ ./fixtures/langflow_tool_calling/
 COPY agents/langgraph/templates/human_in_the_loop/evalhub/ ./fixtures/langgraph_hitl/
+COPY agents/google/templates/adk/evalhub/ ./fixtures/google_adk/
 
 # Install runtime deps only — NOT the project itself, to keep __file__ paths intact.
 # Includes MLflow for trace enrichment and run logging.
@@ -50,6 +51,7 @@ required = [ \
     'fixtures/llamaindex_websearch/tool_use.yaml', \
     'fixtures/langflow_tool_calling/tool_use.yaml', \
     'fixtures/langgraph_hitl/tool_use.yaml', \
+    'fixtures/google_adk/tool_use.yaml', \
 ]; \
 missing = [p for p in required if not Path(p).exists()]; \
 assert not missing, f'Missing fixtures: {missing}'"

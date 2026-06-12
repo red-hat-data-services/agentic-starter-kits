@@ -49,6 +49,7 @@ Existing fixtures:
 - `agents/llamaindex/templates/websearch_agent/evalhub/tool_use.yaml`
 - `agents/langflow/templates/simple_tool_calling_agent/evalhub/tool_use.yaml`
 - `agents/langgraph/templates/human_in_the_loop/evalhub/tool_use.yaml`
+- `agents/google/templates/adk/evalhub/tool_use.yaml`
 
 ## 2. Add COPY Line to Containerfile
 
