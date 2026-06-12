@@ -121,7 +121,7 @@ Now using project "<your-name>-openclaw" on server "https://api.<your-cluster>:4
 
 ```bash
 git clone https://github.com/sallyom/claw-installer.git
-cd openclaw-installer
+cd claw-installer
 npm install && npm run build && npm run dev
 ```
 

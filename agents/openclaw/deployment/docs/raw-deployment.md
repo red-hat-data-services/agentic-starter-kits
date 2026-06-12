@@ -65,7 +65,7 @@ Edit `manifests/02-configmap.yaml` and replace the placeholder values:
 - `YOUR-VLLM-OR-OGX-ENDPOINT` — your vLLM or OGX endpoint hostname
 - `YOUR-MODEL-ID` — the model ID from the `/v1/models` query above
 
-**Via OGX gateway** — OGX prefixes model IDs with `vllm/`, so use that full ID:
+**Via OGX gateway** — OGX prefixes model IDs with `vllm/`, so `agents.defaults.model` ends up as `vllm/vllm/<model>` (provider prefix + OGX model ID — the double `vllm/` is intentional):
 
 ```json
 "agents": {
@@ -173,7 +173,6 @@ oc port-forward deployment/openclaw 18789:18789 -n my-openclaw
 Open <http://localhost:18789> in your browser. Paste the gateway token from Step 2 when prompted.
 
 On first connect, device pairing is auto-approved for local connections. You should see the chat interface ready to use.
-
 
 ## References
 
