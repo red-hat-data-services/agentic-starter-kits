@@ -448,7 +448,7 @@ This structure separates global config (`/workspace/.claude/`) from local auto-m
 | Local auto-memory | `/workspace/projects/.claude/` | Yes |
 | Project files | `/workspace/projects/` | Yes |
 | Skills | `/workspace/.claude/skills/` | ConfigMap (re-mounted each restart) |
-| Settings | `/workspace/.claude/settings.json` | Copied from ConfigMap at each restart |
+| Settings | `${CLAUDE_CONFIG_DIR}/settings.json` | Copied from ConfigMap on first start |
 
 The entrypoint creates a symlink `~/.claude` -> `/workspace/.claude/` so that standard `~/.claude/` paths work as expected.
 
@@ -619,7 +619,7 @@ Claude Code automatically reads CLAUDE.md from the working directory and applies
 
 ### Overriding settings.json
 
-All manifests include a settings ConfigMap that the entrypoint copies to `/workspace/.claude/settings.json` at startup. The ConfigMap is staged at a read-only path (`/etc/claude-config/settings.json`) and copied to the writable PVC so that runtime tools like `mlflow autolog` can update it. The ConfigMap name varies by deployment (`claude-settings`, `claude-vertex-settings`, `claude-vllm-settings`, or `claude-ogx-vllm-settings`):
+All manifests include a settings ConfigMap staged at a read-only path (`/etc/claude-config/settings.json`). On first start, the entrypoint copies it to `${CLAUDE_CONFIG_DIR}/settings.json` on the writable PVC. On subsequent restarts, the existing file is preserved so that runtime changes (e.g., hooks added by `mlflow autolog`) survive. To force a settings reset, delete the file from the PVC before restarting. The ConfigMap name varies by deployment (`claude-settings`, `claude-vertex-settings`, `claude-vllm-settings`, or `claude-ogx-vllm-settings`):
 
 ```bash
 oc patch configmap claude-settings -p '{

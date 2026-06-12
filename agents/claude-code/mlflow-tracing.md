@@ -47,6 +47,8 @@ The spans produced by `mlflow autolog claude` are OTel spans. Every session capt
 
 This works the same whether the backend is Vertex AI, vLLM directly, or OGX to vLLM, using the same Claude Code hook that emits these OTel spans. If server-side OGX spans are needed in the future, they would need to be emitted using a custom exporter.
 
+> **Privacy note:** Traces capture full prompt and response text, which may contain secrets, PII, or proprietary code. Treat the MLflow experiment store as sensitive data. Apply appropriate access controls, retention policies, and consider redaction if traces are stored long-term.
+
 ### Integration Path
 
 The Claude Code stop hook is the right integration path for agent-level tracing. It captures tool calls, token usage, latency, and session ID out of the box because Claude Code records and writes all of this in its session file, and works the same across Vertex AI, vLLM, and OGX without any changes. If additional server-side metrics are needed (e.g. per-hop vLLM latency, OGX routing decisions), those would require OGX or vLLM to emit their own OTel spans separately.

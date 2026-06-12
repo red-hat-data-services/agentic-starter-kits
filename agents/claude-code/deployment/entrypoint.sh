@@ -187,12 +187,16 @@ setup_config_dir() {
     # Copy staged settings.json from ConfigMap mount to writable PVC location.
     # ConfigMap subPath mounts are read-only, but mlflow autolog needs to write
     # hook configuration into settings.json. Staging at /etc/claude-config/ and
-    # copying here makes the file writable.
+    # copying here makes the file writable. Only copy if the target doesn't
+    # already exist, so runtime changes (e.g., mlflow autolog hooks) survive
+    # pod restarts.
     local staged_settings="/etc/claude-config/settings.json"
     local target_settings="${CLAUDE_CONFIG_DIR}/settings.json"
-    if [[ -f "${staged_settings}" ]]; then
+    if [[ -f "${staged_settings}" && ! -s "${target_settings}" ]]; then
         cp "${staged_settings}" "${target_settings}"
         log_info "Copied settings from ${staged_settings} to ${target_settings}"
+    elif [[ -s "${target_settings}" ]]; then
+        log_info "Preserving existing ${target_settings}"
     fi
 
     log_info "Claude config directory: ${CLAUDE_CONFIG_DIR}"
