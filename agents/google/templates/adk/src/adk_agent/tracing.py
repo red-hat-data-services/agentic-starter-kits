@@ -16,8 +16,23 @@ if not logger.handlers:
     logger.addHandler(handler)
 
 
+def _safe_uri(uri: str) -> str:
+    """Strip credentials and query params from a URI for safe logging."""
+    from urllib.parse import urlsplit, urlunsplit
+
+    parts = urlsplit(uri)
+    host = parts.hostname or ""
+    if parts.port:
+        host = f"{host}:{parts.port}"
+    return urlunsplit((parts.scheme, host, parts.path, "", ""))
+
+
 def check_mlflow_health(
-    mlflow_tracking_uri: str, max_wait_time: int = 5, retry_interval: int = 1
+    mlflow_tracking_uri: str,
+    max_wait_time: int = 5,
+    retry_interval: int = 1,
+    tracking_token: Optional[str] = None,
+    insecure_tls: bool = False,
 ) -> None:
     """
     Check MLflow health by trying the /health endpoint. If it fails, retry for a certain duration before giving up.
@@ -25,11 +40,15 @@ def check_mlflow_health(
         mlflow_tracking_uri: base URI of the MLflow server
         max_wait_time: total time to keep retrying before giving up (in seconds)
         retry_interval: time to wait between retries (in seconds)
+        tracking_token: optional Bearer token for authenticated endpoints
+        insecure_tls: skip TLS verification when True
     """
     import requests
 
     mlflow_health_endpoint = "/health"
     mlflow_url = f"{mlflow_tracking_uri.rstrip('/')}{mlflow_health_endpoint}"
+    safe_url = _safe_uri(mlflow_url)
+    headers = {"Authorization": f"Bearer {tracking_token}"} if tracking_token else None
     start_time = time.time()
 
     while True:
@@ -43,20 +62,25 @@ def check_mlflow_health(
             )
 
         try:
-            response = requests.get(mlflow_url, timeout=min(5, remaining))
+            response = requests.get(
+                mlflow_url,
+                headers=headers,
+                verify=not insecure_tls,
+                timeout=min(5, remaining),
+            )
             if response.status_code == 200:
                 logger.info(
-                    f"MLflow health check passed at {mlflow_url} with status code {response.status_code}."
+                    f"MLflow health check passed at {safe_url} with status code {response.status_code}."
                 )
                 return
             else:
                 logger.warning(
-                    f"MLflow returned status code {response.status_code} at {mlflow_url}\n"
+                    f"MLflow returned status code {response.status_code} at {safe_url}\n"
                     f"  Status Code: {response.status_code}\n"
                     f"  Reason: {response.reason}"
                 )
         except requests.exceptions.RequestException as e:
-            logger.warning(f"Failed to connect to MLflow at {mlflow_url}: {e}")
+            logger.warning(f"Failed to connect to MLflow at {safe_url}: {e}")
 
         logger.warning(f"Retrying in {retry_interval} seconds...")
         time.sleep(retry_interval)
@@ -117,13 +141,23 @@ def enable_tracing() -> None:
             health_check_timeout = int(getenv("MLFLOW_HEALTH_CHECK_TIMEOUT", "5"))
         except ValueError:
             health_check_timeout = 5
+        insecure_tls = getenv("MLFLOW_TRACKING_INSECURE_TLS", "").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
         check_mlflow_health(
-            mlflow_tracking_uri=tracking_uri, max_wait_time=health_check_timeout
+            mlflow_tracking_uri=tracking_uri,
+            max_wait_time=health_check_timeout,
+            tracking_token=getenv("MLFLOW_TRACKING_TOKEN"),
+            insecure_tls=insecure_tls,
         )
-        logger.info(f"[Tracing] MLflow server is reachable at {tracking_uri}")
+        safe_uri = _safe_uri(tracking_uri)
+        logger.info(f"[Tracing] MLflow server is reachable at {safe_uri}")
     except RuntimeError as e:
+        safe_uri = _safe_uri(tracking_uri)
         logger.warning(
-            f"[Tracing] MLflow server is unreachable at {tracking_uri}. "
+            f"[Tracing] MLflow server is unreachable at {safe_uri}. "
             f"Tried connecting for {health_check_timeout}s. Continuing without tracing. Error: {e}"
         )
         return
@@ -143,10 +177,10 @@ def enable_tracing() -> None:
 
         _TRACING_ENABLED = True
         logger.info(
-            f"[Tracing Enabled] MLflow -> {tracking_uri}, Experiment: {experiment_name}"
+            f"[Tracing Enabled] MLflow -> {_safe_uri(tracking_uri)}, Experiment: {experiment_name}"
         )
     except Exception as e:
         logger.warning(
-            f"[Tracing] Failed to configure MLflow tracing at {tracking_uri}. "
+            f"[Tracing] Failed to configure MLflow tracing at {_safe_uri(tracking_uri)}. "
             f"Continuing without tracing. Error: {e}"
         )
