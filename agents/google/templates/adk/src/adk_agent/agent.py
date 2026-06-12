@@ -60,8 +60,7 @@ def get_agent(
     model = LiteLlm(model=f"openai/{model_id}")
 
     traced_tools = [
-        wrap_func_with_mlflow_trace(t, span_type="tool", name=t.__name__)
-        for t in TOOLS
+        wrap_func_with_mlflow_trace(t, span_type="tool", name=t.__name__) for t in TOOLS
     ]
 
     agent = LlmAgent(
