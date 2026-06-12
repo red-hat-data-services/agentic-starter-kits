@@ -813,6 +813,27 @@ env:
     value: "/tmp/.claude"
 ```
 
+### Retrieving Files from the Container
+
+When Claude Code generates files (reports, documents, code, etc.) that you want on your local machine without pushing them to a Git repository, use `oc cp` to copy them from the pod:
+
+```bash
+# Copy a single file
+oc cp <pod-name>:/workspace/projects/report.md ./report.md
+
+# Copy a directory
+oc cp <pod-name>:/workspace/projects/output/ ./output/
+
+# Find the pod name
+oc get pods -l app=claude-code-vllm -o name
+```
+
+You can also list files inside the container to find what was generated:
+
+```bash
+oc exec deployment/claude-code-vllm -- ls -la /workspace/projects/
+```
+
 ### Injecting Skills
 
 Skills allow you to extend Claude Code with custom instructions and capabilities. Skills are injected at deploy time via ConfigMap or PVC mount.
