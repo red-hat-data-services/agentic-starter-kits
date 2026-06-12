@@ -95,6 +95,45 @@ setup_onboarding() {
     chmod 660 "${claude_json}"
 }
 
+# Pre-approve the configured API key so the interactive wizard does not prompt
+# users to confirm it. Without this, rejecting the key traps users in a
+# browser-auth loop with no way to recover except manually editing the file.
+# Must run after setup_config_dir (needs CLAUDE_CONFIG_DIR).
+approve_api_key() {
+    if [[ "${CLAUDE_CODE_USE_VERTEX:-}" == "1" ]]; then
+        return
+    fi
+    if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+        return
+    fi
+
+    local config_json="${CLAUDE_CONFIG_DIR}/.claude.json"
+    python3 -c '
+import json, os, sys
+f = sys.argv[1]
+key = sys.argv[2]
+d = {}
+if os.path.exists(f):
+    try:
+        with open(f) as fh:
+            d = json.load(fh)
+    except (json.JSONDecodeError, OSError):
+        pass
+responses = d.get("customApiKeyResponses", {"approved": [], "rejected": []})
+if key not in responses.get("approved", []):
+    responses.setdefault("approved", [])
+    if key not in responses["approved"]:
+        responses["approved"].append(key)
+    if key in responses.get("rejected", []):
+        responses["rejected"].remove(key)
+    d["customApiKeyResponses"] = responses
+    with open(f, "w") as fh:
+        json.dump(d, fh, indent=2)
+    print("[entrypoint] INFO: Pre-approved API key for interactive mode", file=sys.stderr)
+' "${config_json}" "${ANTHROPIC_API_KEY}" 2>&1 || \
+        log_warn "Failed to pre-approve API key (interactive wizard may prompt)"
+}
+
 # -----------------------------------------------------------------------------
 # Validation
 # -----------------------------------------------------------------------------
@@ -156,12 +195,17 @@ setup_config_dir() {
     # This enables session persistence since /workspace is backed by a PVC
     export CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-/workspace/.claude}"
 
-    # Ensure the config directory exists
+    # Ensure the config directory exists and is group-writable.
+    # On OpenShift, fresh PVCs are owned by root with the pod's fsGroup.
+    # The non-root container user writes via group membership, so directories
+    # must be group-writable (g+w).
     mkdir -p "${CLAUDE_CONFIG_DIR}"
+    chmod g+w "${CLAUDE_CONFIG_DIR}" 2>/dev/null || true
 
     # Ensure the projects directory exists (WORKDIR is /workspace/projects)
     # This separates global config (/workspace/.claude) from local auto-memory (/workspace/projects/.claude)
     mkdir -p /workspace/projects
+    chmod g+w /workspace/projects 2>/dev/null || true
 
     # Create symlink from ~/.claude to the config dir for user convenience
     # Users expect to find settings/skills at ~/.claude/
@@ -297,18 +341,21 @@ print("[entrypoint] INFO: MLflow settings injected into " + sf)
 # -----------------------------------------------------------------------------
 
 setup_skills() {
-    # Claude Code auto-discovers skills from $CLAUDE_CONFIG_DIR/skills/
-    # Structure: $CLAUDE_CONFIG_DIR/skills/<skill-name>/SKILL.md
-    # (Also accessible via ~/.claude/skills/ symlink)
+    # Skills are staged at /etc/claude-skills/ (read-only ConfigMap mount) and
+    # symlinked into $CLAUDE_CONFIG_DIR/skills/ so Claude Code discovers them.
+    # We mount outside the PVC to avoid Kubernetes creating /workspace/.claude/
+    # as root with restrictive permissions on fresh PVCs.
+    local staged_skills="/etc/claude-skills"
     local skills_dir="${CLAUDE_CONFIG_DIR}/skills"
 
-    if [[ -d "${skills_dir}" ]]; then
+    if [[ -d "${staged_skills}" ]]; then
+        ln -sfn "${staged_skills}" "${skills_dir}"
         local skill_count
         skill_count=$(find "${skills_dir}" -name "SKILL.md" -type f 2>/dev/null | wc -l)
         if [[ ${skill_count} -gt 0 ]]; then
             log_info "Found ${skill_count} skill(s) in ${skills_dir}"
         else
-            log_info "No skills found (mount skills to ${skills_dir})"
+            log_info "No skills found (mount skills to ${staged_skills})"
         fi
     fi
 }
@@ -393,6 +440,7 @@ main() {
     validate_environment
     setup_git_credentials
     setup_config_dir
+    approve_api_key
     setup_mcp
     setup_mlflow
     setup_skills

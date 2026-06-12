@@ -111,7 +111,6 @@ oc start-build claude-code --from-dir=. --follow
 # Wait and test
 oc rollout status deployment/claude-code
 oc exec deployment/claude-code -- bash -c '
-  export HOME=/home/claude-agent
   ~/.claude/claude-run -p "What is 2+2?"
 '
 ```
@@ -190,7 +189,6 @@ oc rollout status deployment/claude-code-vertex
 
 # Test
 oc exec deployment/claude-code-vertex -- bash -c '
-  export HOME=/home/claude-agent
   ~/.claude/claude-run -p "What is 2+2?"
 '
 ```
@@ -225,7 +223,9 @@ Edit `deployment-vllm.yaml`. Search for placeholder values and replace them:
 
 - In the **ConfigMap** (`claude-vllm-settings`), set `"model"` to your model ID
 - In the **Deployment** `env` section, update these env vars:
-  - `ANTHROPIC_BASE_URL`: Your vLLM server URL (replace `YOUR_VLLM_URL`)
+  - `ANTHROPIC_BASE_URL`: Your vLLM server's base URL, for example:
+    - `http://my-vllm-service.namespace.svc.cluster.local` (cluster-internal)
+    - `https://vllm.apps.cluster.example.com` (external route)
   - `ANTHROPIC_CUSTOM_MODEL_OPTION`: Your model ID (bare name, no prefix)
   - `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `_SONNET_MODEL`, `_OPUS_MODEL`: Your model ID (all three required to prevent 404 errors)
 
@@ -268,7 +268,6 @@ oc start-build claude-code --from-dir=. --follow
 oc rollout status deployment/claude-code-vllm
 
 oc exec deployment/claude-code-vllm -- bash -c '
-  export HOME=/home/claude-agent
   ~/.claude/claude-run -p "What is 2+2?"
 '
 ```
@@ -311,7 +310,6 @@ oc start-build claude-code --from-dir=. --follow
 oc rollout status deployment/claude-code-ogx-vllm
 
 oc exec deployment/claude-code-ogx-vllm -- bash -c '
-  export HOME=/home/claude-agent
   ~/.claude/claude-run -p "What is 2+2?"
 '
 ```
@@ -328,7 +326,6 @@ The `claude-run` wrapper includes all container-configured arguments (permission
 
 ```bash
 oc exec deployment/claude-code -- bash -c '
-  export HOME=/home/claude-agent
   ~/.claude/claude-run -p "Your prompt here"
 '
 ```
@@ -337,7 +334,6 @@ You can also source the environment directly:
 
 ```bash
 oc exec deployment/claude-code -- bash -c '
-  export HOME=/home/claude-agent
   source ~/.claude/env.sh
   claude $CLAUDE_EXTRA_ARGS -p "Your prompt here"
 '
@@ -350,7 +346,6 @@ For multi-turn conversations with a TTY:
 ```bash
 # OpenShift
 oc exec -it deployment/claude-code -- bash -c '
-  export HOME=/home/claude-agent
   ~/.claude/claude-run
 '
 
@@ -368,16 +363,10 @@ Interactive mode requires the `-it` flags for both `podman` and `oc exec`.
 
 ```bash
 # Full debug logging
-oc exec -it deployment/claude-code -- bash -c '
-  export HOME=/home/claude-agent
-  claude --debug
-'
+oc exec -it deployment/claude-code -- bash -c 'claude --debug'
 
 # API calls only
-oc exec -it deployment/claude-code -- bash -c '
-  export HOME=/home/claude-agent
-  claude --debug api
-'
+oc exec -it deployment/claude-code -- bash -c 'claude --debug api'
 ```
 
 Debug logs are written to a file. To tail them in real time from a second terminal:
@@ -450,7 +439,7 @@ This structure separates global config (`/workspace/.claude/`) from local auto-m
 | Global memory | `/workspace/.claude/memory/` | Yes |
 | Local auto-memory | `/workspace/projects/.claude/` | Yes |
 | Project files | `/workspace/projects/` | Yes |
-| Skills | `/workspace/.claude/skills/` | ConfigMap (re-mounted each restart) |
+| Skills | `/etc/claude-skills/` (symlinked to `$CLAUDE_CONFIG_DIR/skills/`) | ConfigMap (re-mounted each restart) |
 | Settings | `${CLAUDE_CONFIG_DIR}/settings.json` | Copied from ConfigMap on first start |
 
 The entrypoint creates a symlink `~/.claude` -> `/workspace/.claude/` so that standard `~/.claude/` paths work as expected.
@@ -465,7 +454,7 @@ env:
 
 ### Injecting Skills
 
-Skills extend Claude Code with custom instructions. They are auto-discovered from `~/.claude/skills/` (symlinked to `/workspace/.claude/skills/`). Each skill must be in a subdirectory containing a `SKILL.md` file.
+Skills extend Claude Code with custom instructions. They are auto-discovered from `~/.claude/skills/`. The skills ConfigMap is mounted at `/etc/claude-skills/` and the entrypoint symlinks it into `$CLAUDE_CONFIG_DIR/skills/`. Each skill must be in a subdirectory containing a `SKILL.md` file.
 
 **1. Create a SKILL.md file:**
 
@@ -744,7 +733,6 @@ oc logs deployment/<deployment-name> | grep -i mlflow
 
 # Run a test prompt
 oc exec deployment/<deployment-name> -- bash -c '
-  export HOME=/home/claude-agent
   ~/.claude/claude-run -p "What is 2+2?"
 '
 
@@ -941,6 +929,27 @@ oc set env deployment/claude-code CLAUDE_MODEL=my-custom-model-name
 ```
 
 `--served-model-name` is a **replacement**, not an addition. The original HuggingFace model ID is no longer recognized after setting an alias. To keep both the original name and an alias, pass the flag twice: `--served-model-name openai/gpt-oss-120b --served-model-name my-alias`.
+
+### Interactive Wizard Authentication Loop
+
+When launching interactive mode with a non-Anthropic backend (vLLM, OGX), Claude Code may prompt you to confirm the API key. If you reject it, you can get stuck in a browser-based authentication loop with no way to return to the key confirmation prompt.
+
+The entrypoint pre-approves the configured `ANTHROPIC_API_KEY` automatically, so this should not happen on new deployments. If you do get stuck (e.g., after changing the API key), fix it by resetting the key approval state:
+
+```bash
+oc exec deployment/<your-deployment-name> -- python3 -c '
+import json
+f = "/workspace/.claude/.claude.json"
+with open(f) as fh:
+    d = json.load(fh)
+d["customApiKeyResponses"] = {"approved": ["fake"], "rejected": []}
+with open(f, "w") as fh:
+    json.dump(d, fh, indent=2)
+print("Fixed: API key re-approved")
+'
+```
+
+Replace `"fake"` with your actual `ANTHROPIC_API_KEY` value if it differs. After running this, interactive mode will work without prompting.
 
 ### Test Scripts
 

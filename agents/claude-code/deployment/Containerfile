@@ -47,10 +47,12 @@ ARG USER_GID=0
 # - git: Version control (agent may need to clone repos)
 # - curl: HTTP client (agent may need to fetch resources, also used by installer)
 # - jq: JSON processor (useful for scripting)
+# - tar: Required by oc cp for file retrieval
 RUN microdnf install -y --nodocs \
         git \
         curl \
         jq \
+        tar \
         python3.12 \
         python3.12-pip \
     && ln -sf /usr/bin/python3.12 /usr/bin/python3 \
@@ -119,7 +121,8 @@ USER ${USER_UID}
 RUN curl -fsSL https://claude.ai/install.sh | bash -s -- "${CLAUDE_CODE_VERSION}"
 
 # Add Claude to PATH (native installer puts it in ~/.local/bin)
-ENV PATH="/home/${USER_NAME}/.local/bin:${PATH}"
+ENV HOME="/home/${USER_NAME}" \
+    PATH="/home/${USER_NAME}/.local/bin:${PATH}"
 
 # Verify installation
 RUN claude --version

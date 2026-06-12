@@ -158,6 +158,9 @@ spec:
             # vLLM doesn't validate API keys, but Claude Code requires one
             - name: ANTHROPIC_API_KEY
               value: "fake"
+            # Model to use for Claude Code sessions
+            - name: CLAUDE_MODEL
+              value: "YOUR_MODEL_ID"
             # Adds model to the Claude Code model picker menu
             # Use bare model ID (no provider prefix) for direct vLLM connection
             - name: ANTHROPIC_CUSTOM_MODEL_OPTION
@@ -211,10 +214,12 @@ spec:
           volumeMounts:
             - name: workspace
               mountPath: /workspace
-            # Skills and settings are mounted inside /workspace/.claude/ (the CLAUDE_CONFIG_DIR)
-            # This enables session persistence while keeping ConfigMap-based injection
+            # Skills and settings are staged outside the PVC at read-only paths.
+            # The entrypoint symlinks skills into CLAUDE_CONFIG_DIR.
+            # Mounting directly inside /workspace/.claude/ would cause Kubernetes
+            # to create that directory as root, making the PVC unwritable.
             - name: skills
-              mountPath: /workspace/.claude/skills
+              mountPath: /etc/claude-skills
               readOnly: true
             - name: mcp-config
               mountPath: /etc/mcp

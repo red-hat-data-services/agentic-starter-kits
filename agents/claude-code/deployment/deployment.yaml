@@ -173,10 +173,12 @@ spec:
           volumeMounts:
             - name: workspace
               mountPath: /workspace
-            # Skills and settings are mounted inside /workspace/.claude/ (the CLAUDE_CONFIG_DIR)
-            # This enables session persistence while keeping ConfigMap-based injection
+            # Skills and settings are staged outside the PVC at read-only paths.
+            # The entrypoint symlinks skills into CLAUDE_CONFIG_DIR.
+            # Mounting directly inside /workspace/.claude/ would cause Kubernetes
+            # to create that directory as root, making the PVC unwritable.
             - name: skills
-              mountPath: /workspace/.claude/skills
+              mountPath: /etc/claude-skills
               readOnly: true
             - name: mcp-config
               mountPath: /etc/mcp
