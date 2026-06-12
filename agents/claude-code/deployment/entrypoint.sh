@@ -167,8 +167,16 @@ setup_config_dir() {
     # Users expect to find settings/skills at ~/.claude/
     # The image doesn't include ~/.claude (removed at build time), so we just create the symlink
     local home_claude_dir="${HOME}/.claude"
-    if [[ ! -L "${home_claude_dir}" ]]; then
-        # Remove any existing directory (shouldn't exist in normal operation, but handles edge cases)
+    if [[ -L "${home_claude_dir}" ]]; then
+        # Symlink exists - verify it points to the correct location
+        local current_target
+        current_target=$(readlink "${home_claude_dir}")
+        if [[ "${current_target}" != "${CLAUDE_CONFIG_DIR}" ]]; then
+            ln -sfn "${CLAUDE_CONFIG_DIR}" "${home_claude_dir}"
+            log_info "Updated symlink: ${home_claude_dir} -> ${CLAUDE_CONFIG_DIR}"
+        fi
+    else
+        # No symlink - remove any existing directory and create the symlink
         if [[ -d "${home_claude_dir}" ]]; then
             log_info "Removing existing ${home_claude_dir} directory"
             rm -rf "${home_claude_dir}" 2>/dev/null || mv -f "${home_claude_dir}" "${home_claude_dir}.old" 2>/dev/null || true
