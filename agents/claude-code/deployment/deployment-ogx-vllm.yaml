@@ -162,7 +162,7 @@ spec:
             # For internal service: http://ogx.namespace.svc.cluster.local:8321
             # For external route: https://ogx-route.apps.cluster.domain
             - name: ANTHROPIC_BASE_URL
-              value: "https://YOUR_OGX_ENDPOINT"
+              value: YOUR_OGX_URL
             # OGX doesn't validate API keys, but Claude Code requires one
             - name: ANTHROPIC_API_KEY
               value: "fake"

@@ -154,7 +154,7 @@ spec:
             # For internal service: http://vllm-service.namespace.svc.cluster.local
             # For external route: https://vllm-route.apps.cluster.domain
             - name: ANTHROPIC_BASE_URL
-              value: "http://YOUR_VLLM_ENDPOINT"
+              value: YOUR_VLLM_URL
             # vLLM doesn't validate API keys, but Claude Code requires one
             - name: ANTHROPIC_API_KEY
               value: "fake"

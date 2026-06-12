@@ -60,32 +60,14 @@ data:
     }
 
 ---
-# ConfigMap for skills
-# Skills are injected at deploy time
-# Each skill needs a subdirectory with a SKILL.md file.
-# Modify this ConfigMap to add your own skills.
+# ConfigMap for skills (empty by default)
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: claude-skills
   labels:
     app: claude-code
-data:
-  SKILL.md: |
-    # Code Review
-
-    When reviewing code, analyze for:
-
-    1. **Correctness** - Logic errors, edge cases, off-by-one errors
-    2. **Security** - Input validation, injection risks, hardcoded secrets
-    3. **Performance** - Unnecessary loops, N+1 queries, missing indexes
-    4. **Readability** - Clear naming, appropriate comments, consistent style
-    5. **Maintainability** - DRY violations, tight coupling, missing error handling
-
-    Provide feedback as:
-    - **Must Fix** - Bugs or security issues
-    - **Should Fix** - Performance or maintainability concerns
-    - **Consider** - Style suggestions or minor improvements
+data: {}
 
 ---
 # ConfigMap for Claude Code settings
@@ -225,9 +207,6 @@ spec:
           configMap:
             name: claude-skills
             optional: true
-            items:
-              - key: SKILL.md
-                path: code-review/SKILL.md
         - name: mcp-config
           configMap:
             name: claude-mcp-config

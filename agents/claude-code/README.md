@@ -225,7 +225,7 @@ Edit `deployment-vllm.yaml`. Search for placeholder values and replace them:
 
 - In the **ConfigMap** (`claude-vllm-settings`), set `"model"` to your model ID
 - In the **Deployment** `env` section, update these env vars:
-  - `ANTHROPIC_BASE_URL`: Your vLLM server URL (replace `YOUR_VLLM_ENDPOINT`)
+  - `ANTHROPIC_BASE_URL`: Your vLLM server URL (replace `YOUR_VLLM_URL`)
   - `ANTHROPIC_CUSTOM_MODEL_OPTION`: Your model ID (bare name, no prefix)
   - `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `_SONNET_MODEL`, `_OPUS_MODEL`: Your model ID (all three required to prevent 404 errors)
 
@@ -297,7 +297,7 @@ Edit `deployment-ogx-vllm.yaml`. Search for placeholder values and replace them:
 
 - In the **ConfigMap** (`claude-ogx-vllm-settings`), set `"model"` to `vllm/<model-id>`
 - In the **Deployment** `env` section, update these env vars:
-  - `ANTHROPIC_BASE_URL`: Your OGX route URL (replace `YOUR_OGX_ENDPOINT`)
+  - `ANTHROPIC_BASE_URL`: Your OGX route URL (replace `YOUR_OGX_URL`)
   - `ANTHROPIC_CUSTOM_MODEL_OPTION`: Use `vllm/<model-id>` format (OGX routing prefix)
   - `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `_SONNET_MODEL`, `_OPUS_MODEL`: `vllm/<model-id>` (all three required to prevent 404 errors)
 
@@ -462,27 +462,50 @@ env:
 
 ### Injecting Skills
 
-Skills extend Claude Code with custom instructions. They are auto-discovered from `~/.claude/skills/` (symlinked to `/workspace/.claude/skills/`).
+Skills extend Claude Code with custom instructions. They are auto-discovered from `~/.claude/skills/` (symlinked to `/workspace/.claude/skills/`). Each skill must be in a subdirectory containing a `SKILL.md` file.
 
-**Skills directory structure:**
+**1. Create a SKILL.md file:**
 
-```text
-~/.claude/skills/
-|-- my-skill/
-|   +-- SKILL.md
-+-- another-skill/
-    +-- SKILL.md
+```markdown
+# Code Review
+
+When reviewing code, analyze for:
+
+1. **Correctness** - Logic errors, edge cases, off-by-one errors
+2. **Security** - Input validation, injection risks, hardcoded secrets
+3. **Performance** - Unnecessary loops, N+1 queries, missing indexes
+
+Provide feedback as:
+- **Must Fix** - Bugs or security issues
+- **Should Fix** - Performance or maintainability concerns
+- **Consider** - Style suggestions or minor improvements
 ```
 
-**Create a skills ConfigMap:**
+**2. Create a ConfigMap from your skill files:**
 
 ```bash
-oc create configmap claude-skills \
-  --from-file=code-review-skill=./skills/code-review/SKILL.md \
-  --from-file=security-audit-skill=./skills/security-audit/SKILL.md
+oc create configmap <skills-configmap-name> \
+  --from-file=code-review-skill=./skills/code-review/SKILL.md
 ```
 
-The deployment manifests include an `items` projection that maps ConfigMap keys to subdirectory paths. When adding skills, update both the ConfigMap and the volume spec's `items` entries. For multi-skill setups, consider a PVC instead of a ConfigMap.
+The ConfigMap name must match your deployment manifest (e.g., `claude-skills`, `claude-vllm-skills`).
+
+**3. Add an `items` mapping to the skills volume in your deployment manifest:**
+
+The `items` mapping is required so Kubernetes creates the `<skill-name>/SKILL.md` subdirectory structure that Claude Code expects. Without it, the file appears as a flat file and won't be discovered.
+
+```yaml
+volumes:
+  - name: skills
+    configMap:
+      name: <skills-configmap-name>
+      optional: true
+      items:
+        - key: code-review-skill
+          path: code-review/SKILL.md
+```
+
+Each `items` entry maps a ConfigMap key to a path under the mount point. For multiple skills, add one entry per skill. For many skills, consider a PVC instead of a ConfigMap.
 
 ### MCP Server Configuration
 
