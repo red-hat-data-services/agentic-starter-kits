@@ -3,6 +3,7 @@ import json
 from collections.abc import Generator
 
 from adk_agent.agent import APP_NAME, get_runner
+from adk_agent.tracing import enable_tracing
 from google.genai import types
 
 USER_ID = "local_user"
@@ -25,6 +26,7 @@ def ai_stream_service(context, base_url=None, model_id=None):
         Tuple (generate, generate_stream). Each takes context and returns a response
         (dict with body/choices for generate, generator of choice dicts for generate_stream).
     """
+    enable_tracing()
     runner = get_runner(model_id=model_id, base_url=base_url)
 
     def _extract_user_content(payload: dict) -> str:
