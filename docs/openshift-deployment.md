@@ -126,7 +126,7 @@ Each agent has a `values.yaml` that overrides the framework chart defaults at `a
 - **Disable OpenShift Route** and use K8s Ingress instead:
 
   ```bash
-  helm upgrade --install <agent-name> ../deployment \
+  helm upgrade --install <agent-name> ../../deployment \
     -f values.yaml \
     --set openshift.route.enabled=false \
     --set ingress.enabled=true \

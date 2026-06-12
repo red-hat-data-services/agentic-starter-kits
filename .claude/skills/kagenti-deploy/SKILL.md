@@ -566,7 +566,7 @@ vim .env  # or nano, code, etc.
 make env
 
 # 5. Verify chart has protocol labels
-grep -r "protocol.kagenti.io" ../deployment/templates/
+grep -r "protocol.kagenti.io" ../../deployment/templates/
 # Should show: protocol.kagenti.io/a2a: "true"
 
 # 6. Build container image
