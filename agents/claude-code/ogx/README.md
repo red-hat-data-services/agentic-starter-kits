@@ -68,7 +68,7 @@ oc set env deployment/claude-code \
 
 OGX prefixes model IDs with the provider name (`vllm/`), so use `vllm/<MODEL_ID>` when configuring Claude Code.
 
-For the full Claude Code deployment guide, see [`../deployment/README.md`](../deployment/README.md) (Option D covers OGX).
+For the full Claude Code deployment guide, see [`../README.md`](../README.md) (Option D covers OGX).
 
 ## Verifying the Passthrough
 

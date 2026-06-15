@@ -155,8 +155,11 @@ spec:
             # For external route: https://vllm-route.apps.cluster.domain
             - name: ANTHROPIC_BASE_URL
               value: YOUR_VLLM_URL
-            # vLLM doesn't validate API keys, but Claude Code requires one
-            - name: ANTHROPIC_API_KEY
+            # Auth token sent to the backend as a Bearer token.
+            # Using ANTHROPIC_AUTH_TOKEN (instead of ANTHROPIC_API_KEY) skips
+            # the interactive wizard's key confirmation page.
+            # Set to "fake" if no auth is required, or a real token if it is.
+            - name: ANTHROPIC_AUTH_TOKEN
               value: "fake"
             # Model to use for Claude Code sessions
             - name: CLAUDE_MODEL

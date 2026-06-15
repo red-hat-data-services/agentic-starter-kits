@@ -11,6 +11,7 @@
 #
 #   Authentication:
 #     ANTHROPIC_API_KEY        - API key for Anthropic (or compatible endpoint)
+#     ANTHROPIC_AUTH_TOKEN      - Bearer token (skips interactive key confirmation)
 #     ANTHROPIC_BASE_URL       - Custom API endpoint (vLLM, OGX, etc.)
 #
 #   Vertex AI Authentication (alternative to ANTHROPIC_API_KEY):
@@ -95,45 +96,6 @@ setup_onboarding() {
     chmod 660 "${claude_json}"
 }
 
-# Pre-approve the configured API key so the interactive wizard does not prompt
-# users to confirm it. Without this, rejecting the key traps users in a
-# browser-auth loop with no way to recover except manually editing the file.
-# Must run after setup_config_dir (needs CLAUDE_CONFIG_DIR).
-approve_api_key() {
-    if [[ "${CLAUDE_CODE_USE_VERTEX:-}" == "1" ]]; then
-        return
-    fi
-    if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
-        return
-    fi
-
-    local config_json="${CLAUDE_CONFIG_DIR}/.claude.json"
-    python3 -c '
-import json, os, sys
-f = sys.argv[1]
-key = sys.argv[2]
-d = {}
-if os.path.exists(f):
-    try:
-        with open(f) as fh:
-            d = json.load(fh)
-    except (json.JSONDecodeError, OSError):
-        pass
-responses = d.get("customApiKeyResponses", {"approved": [], "rejected": []})
-if key not in responses.get("approved", []):
-    responses.setdefault("approved", [])
-    if key not in responses["approved"]:
-        responses["approved"].append(key)
-    if key in responses.get("rejected", []):
-        responses["rejected"].remove(key)
-    d["customApiKeyResponses"] = responses
-    with open(f, "w") as fh:
-        json.dump(d, fh, indent=2)
-    print("[entrypoint] INFO: Pre-approved API key for interactive mode", file=sys.stderr)
-' "${config_json}" "${ANTHROPIC_API_KEY}" 2>&1 || \
-        log_warn "Failed to pre-approve API key (interactive wizard may prompt)"
-}
-
 # -----------------------------------------------------------------------------
 # Validation
 # -----------------------------------------------------------------------------
@@ -152,10 +114,9 @@ validate_environment() {
             log_warn "ANTHROPIC_VERTEX_PROJECT_ID not set. Vertex AI requires a GCP project ID."
         fi
     else
-        # Standard Anthropic API mode
-        if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
-            log_warn "ANTHROPIC_API_KEY not set. Claude Code may not be able to authenticate."
-            log_warn "Set ANTHROPIC_API_KEY or use Vertex AI mode (CLAUDE_CODE_USE_VERTEX=1)."
+        # API key or auth token mode
+        if [[ -z "${ANTHROPIC_API_KEY:-}" && -z "${ANTHROPIC_AUTH_TOKEN:-}" ]]; then
+            log_warn "No authentication configured. Set ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, or use Vertex AI mode (CLAUDE_CODE_USE_VERTEX=1)."
         fi
     fi
 
@@ -349,6 +310,10 @@ setup_skills() {
     local skills_dir="${CLAUDE_CONFIG_DIR}/skills"
 
     if [[ -d "${staged_skills}" ]]; then
+        if [[ -e "${skills_dir}" && ! -L "${skills_dir}" ]]; then
+            mv "${skills_dir}" "${skills_dir}.bak"
+            log_info "Moved existing skills directory to ${skills_dir}.bak"
+        fi
         ln -sfn "${staged_skills}" "${skills_dir}"
         local skill_count
         skill_count=$(find "${skills_dir}" -name "SKILL.md" -type f 2>/dev/null | wc -l)
@@ -440,7 +405,6 @@ main() {
     validate_environment
     setup_git_credentials
     setup_config_dir
-    approve_api_key
     setup_mcp
     setup_mlflow
     setup_skills

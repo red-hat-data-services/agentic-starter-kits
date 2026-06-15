@@ -221,15 +221,22 @@ Claude Code pod  ──HTTP──>  vLLM server (/v1/messages)
 
 Edit `deployment-vllm.yaml`. Search for placeholder values and replace them:
 
-- In the **ConfigMap** (`claude-vllm-settings`), set `"model"` to your model ID
-- In the **Deployment** `env` section, update these env vars:
-  - `ANTHROPIC_BASE_URL`: Your vLLM server's base URL, for example:
-    - `http://my-vllm-service.namespace.svc.cluster.local` (cluster-internal)
-    - `https://vllm.apps.cluster.example.com` (external route)
-  - `ANTHROPIC_CUSTOM_MODEL_OPTION`: Your model ID (bare name, no prefix)
-  - `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `_SONNET_MODEL`, `_OPUS_MODEL`: Your model ID (all three required to prevent 404 errors)
+- `ANTHROPIC_BASE_URL`: Your vLLM server's base URL, for example:
+  - `http://my-vllm-service.namespace.svc.cluster.local` (cluster-internal)
+  - `https://vllm.apps.cluster.example.com` (external route)
 
-Claude Code internally uses model aliases (haiku, sonnet, opus) for certain operations. Without these overrides, it will try to use Anthropic model names, resulting in 404 errors from vLLM.
+Replace model IDs in the **ConfigMap** and the **Deployment** env vars. If your vLLM server hosts only one model, use the same model ID everywhere. If it hosts multiple models, you can assign different models to each role (e.g., a small fast model for haiku, a mid-range model for sonnet, and your most capable model for opus).
+
+| Variable | Purpose | Example (single model) |
+|----------|---------|----------------------|
+| ConfigMap `"model"` | Default model in `settings.json` | `gpt-oss-120b` |
+| `CLAUDE_MODEL` | Main conversation model (overrides ConfigMap) | `gpt-oss-120b` |
+| `ANTHROPIC_CUSTOM_MODEL_OPTION` | Adds model to the interactive mode picker menu | `gpt-oss-120b` |
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | What the `haiku` alias resolves to (used for background tasks like summarization) | `gpt-oss-120b` |
+| `ANTHROPIC_DEFAULT_SONNET_MODEL` | What the `sonnet` alias resolves to (selectable via `/model sonnet`) | `gpt-oss-120b` |
+| `ANTHROPIC_DEFAULT_OPUS_MODEL` | What the `opus` alias resolves to (selectable via `/model opus`, used for plan mode) | `gpt-oss-120b` |
+
+The three alias overrides are required. Without them, Claude Code tries to resolve haiku, sonnet, and opus to Anthropic model names (e.g., `claude-haiku-4-5-20251001`), which don't exist on vLLM, causing 404 errors.
 
 #### Context window configuration
 
@@ -255,7 +262,7 @@ Models with 500K+ context can use the default 83% threshold. Models with smaller
 ```bash
 podman run --rm \
   -e ANTHROPIC_BASE_URL="https://YOUR_VLLM_ENDPOINT" \
-  -e ANTHROPIC_API_KEY="fake" \
+  -e ANTHROPIC_AUTH_TOKEN="fake" \
   claude-code:latest \
   claude --model YOUR_MODEL_ID -p "What is 2+2?"
 ```
@@ -284,7 +291,7 @@ Claude Code pod  ──HTTP──>  OGX (API Gateway)  ──HTTP──>  vLLM s
 
 #### Prerequisites
 
-- OGX deployed and serving. Some versions require PostgreSQL as storage backend; check your OGX version's requirements.
+- OGX deployed and serving. See [`ogx/README.md`](ogx/README.md) for deployment instructions. Some versions require PostgreSQL as storage backend; check your OGX version's requirements.
 - A vLLM server accessible from OGX.
 - **Context window**: minimum 32K tokens. **128K+ strongly recommended** for realistic coding work.
 
@@ -294,13 +301,20 @@ Claude Code pod  ──HTTP──>  OGX (API Gateway)  ──HTTP──>  vLLM s
 
 Edit `deployment-ogx-vllm.yaml`. Search for placeholder values and replace them:
 
-- In the **ConfigMap** (`claude-ogx-vllm-settings`), set `"model"` to `vllm/<model-id>`
-- In the **Deployment** `env` section, update these env vars:
-  - `ANTHROPIC_BASE_URL`: Your OGX route URL (replace `YOUR_OGX_URL`)
-  - `ANTHROPIC_CUSTOM_MODEL_OPTION`: Use `vllm/<model-id>` format (OGX routing prefix)
-  - `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `_SONNET_MODEL`, `_OPUS_MODEL`: `vllm/<model-id>` (all three required to prevent 404 errors)
+- `ANTHROPIC_BASE_URL`: Your OGX route URL (replace `YOUR_OGX_URL`)
 
-OGX uses the `vllm/` prefix to route requests to the vLLM backend. Always use `vllm/<model-id>` format in this deployment.
+Replace model IDs in the **ConfigMap** and the **Deployment** env vars. OGX uses the `vllm/` prefix to route requests to the vLLM backend, so all model IDs must use `vllm/<model-id>` format. If OGX serves only one model, use the same value everywhere. If it serves multiple models, you can assign different models to each role.
+
+| Variable | Purpose | Example (single model) |
+|----------|---------|----------------------|
+| ConfigMap `"model"` | Default model in `settings.json` | `vllm/gpt-oss-120b` |
+| `CLAUDE_MODEL` | Main conversation model (overrides ConfigMap) | `vllm/gpt-oss-120b` |
+| `ANTHROPIC_CUSTOM_MODEL_OPTION` | Adds model to the interactive mode picker menu | `vllm/gpt-oss-120b` |
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | What the `haiku` alias resolves to (used for background tasks like summarization) | `vllm/gpt-oss-120b` |
+| `ANTHROPIC_DEFAULT_SONNET_MODEL` | What the `sonnet` alias resolves to (selectable via `/model sonnet`) | `vllm/gpt-oss-120b` |
+| `ANTHROPIC_DEFAULT_OPUS_MODEL` | What the `opus` alias resolves to (selectable via `/model opus`, used for plan mode) | `vllm/gpt-oss-120b` |
+
+The three alias overrides are required. Without them, Claude Code tries to resolve haiku, sonnet, and opus to Anthropic model names, causing 404 errors.
 
 #### Deploy
 
@@ -455,6 +469,8 @@ env:
 ### Injecting Skills
 
 Skills extend Claude Code with custom instructions. They are auto-discovered from `~/.claude/skills/`. The skills ConfigMap is mounted at `/etc/claude-skills/` and the entrypoint symlinks it into `$CLAUDE_CONFIG_DIR/skills/`. Each skill must be in a subdirectory containing a `SKILL.md` file.
+
+**Upgrading from older deployments:** If your PVC has an existing `skills/` directory from a previous deployment, the entrypoint automatically moves it to `skills.bak/` before creating the symlink.
 
 **1. Create a SKILL.md file:**
 
@@ -930,26 +946,32 @@ oc set env deployment/claude-code CLAUDE_MODEL=my-custom-model-name
 
 `--served-model-name` is a **replacement**, not an addition. The original HuggingFace model ID is no longer recognized after setting an alias. To keep both the original name and an alias, pass the flag twice: `--served-model-name openai/gpt-oss-120b --served-model-name my-alias`.
 
-### Interactive Wizard Authentication Loop
+### Interactive Wizard API Key Confirmation
 
-When launching interactive mode with a non-Anthropic backend (vLLM, OGX), Claude Code may prompt you to confirm the API key. If you reject it, you can get stuck in a browser-based authentication loop with no way to return to the key confirmation prompt.
+When launching interactive mode, Claude Code's setup wizard includes an API key confirmation page. The behavior depends on which authentication env var you use:
 
-The entrypoint pre-approves the configured `ANTHROPIC_API_KEY` automatically, so this should not happen on new deployments. If you do get stuck (e.g., after changing the API key), fix it by resetting the key approval state:
+- **`ANTHROPIC_AUTH_TOKEN`**: The key confirmation page is skipped entirely. This is what the vLLM and OGX manifests use. Set it to `"fake"` if your backend requires no authentication, or to a real token if it does.
+- **`ANTHROPIC_API_KEY`**: The wizard prompts you to accept or reject the key. Use this for the Anthropic API (Option A) or any backend that requires an Anthropic-style API key. You must accept the key when prompted; see below for what happens if you reject it.
+
+**If you reject an API key**, Claude Code stores the rejection in `/workspace/.claude/.claude.json` on the PVC and redirects you to browser-based authentication. Restarting the pod does not help because the rejection is persisted on the PVC. To recover, either fix the config file or delete the PVC and redeploy:
 
 ```bash
+# Option 1: Fix the config file
 oc exec deployment/<your-deployment-name> -- python3 -c '
 import json
 f = "/workspace/.claude/.claude.json"
 with open(f) as fh:
     d = json.load(fh)
-d["customApiKeyResponses"] = {"approved": ["fake"], "rejected": []}
+d["customApiKeyResponses"] = {"approved": [], "rejected": []}
 with open(f, "w") as fh:
     json.dump(d, fh, indent=2)
-print("Fixed: API key re-approved")
+print("Fixed: cleared key rejections")
 '
-```
 
-Replace `"fake"` with your actual `ANTHROPIC_API_KEY` value if it differs. After running this, interactive mode will work without prompting.
+# Option 2: Delete PVC and redeploy (full fresh start)
+oc delete pvc <your-workspace-pvc>
+oc rollout restart deployment/<your-deployment-name>
+```
 
 ### Test Scripts
 

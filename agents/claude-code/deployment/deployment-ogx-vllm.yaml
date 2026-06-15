@@ -163,8 +163,11 @@ spec:
             # For external route: https://ogx-route.apps.cluster.domain
             - name: ANTHROPIC_BASE_URL
               value: YOUR_OGX_URL
-            # OGX doesn't validate API keys, but Claude Code requires one
-            - name: ANTHROPIC_API_KEY
+            # Auth token sent to the backend as a Bearer token.
+            # Using ANTHROPIC_AUTH_TOKEN (instead of ANTHROPIC_API_KEY) skips
+            # the interactive wizard's key confirmation page.
+            # Set to "fake" if no auth is required, or a real token if it is.
+            - name: ANTHROPIC_AUTH_TOKEN
               value: "fake"
             # Adds model to the Claude Code model picker menu
             # Use "vllm/<model-id>" format for OGX routing
