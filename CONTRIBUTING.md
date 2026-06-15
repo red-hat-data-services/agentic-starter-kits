@@ -238,7 +238,8 @@ If you have [Claude Code](https://docs.anthropic.com/en/docs/claude-code) set up
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and configured
 - Install the skills plugin:
-  ```
+
+  ```bash
   claude plugin marketplace add red-hat-data-services/agentic-starter-kits-skills
   claude plugin install agentic-starter-kits-skills@agentic-starter-kits-skills
   ```
