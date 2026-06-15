@@ -176,12 +176,7 @@ See `tests/behavioral/` for full details.
 
 ## Claude Code Skills
 
-This project includes [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills that automate common contributor workflows — tracing integration, deployment, test scaffolding, and more.
-
-- **Local skills** (`.claude/skills/`) — tracing integration and kagenti deployment, discovered automatically when running Claude Code from the repo root
-- **Plugin skills** ([agentic-starter-kits-skills](https://github.com/red-hat-data-services/agentic-starter-kits-skills)) — deployment, behavioral test scaffolding, and integration test generation, installable as a Claude Code plugin
-
-See [CONTRIBUTING.md — Claude Code skills](CONTRIBUTING.md#claude-code-skills) for installation instructions and the full skill list.
+This project has [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills that automate contributor workflows — tracing integration, deployment, test scaffolding, and more. Contributor and operator skills are in the [agentic-starter-kits-skills](https://github.com/red-hat-data-services/agentic-starter-kits-skills) plugin. See [CONTRIBUTING.md — Claude Code skills](CONTRIBUTING.md#claude-code-skills) for installation instructions and the full skill list.
 
 ## Additional Resources
 
