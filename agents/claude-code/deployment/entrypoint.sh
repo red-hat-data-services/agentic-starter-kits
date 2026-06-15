@@ -311,6 +311,7 @@ setup_skills() {
 
     if [[ -d "${staged_skills}" ]]; then
         if [[ -e "${skills_dir}" && ! -L "${skills_dir}" ]]; then
+            rm -rf "${skills_dir}.bak" 2>/dev/null || true
             mv "${skills_dir}" "${skills_dir}.bak"
             log_info "Moved existing skills directory to ${skills_dir}.bak"
         fi
