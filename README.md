@@ -174,6 +174,15 @@ See `tests/behavioral/` for full details.
 - [Adding an EvalHub Agent Integration](./docs/adding-evalhub-agent-integration.md) — How to integrate a new agent into the EvalHub evaluation pipeline
 - [llm-d Deployment](./docs/llm-d-deployment.md) — Deploy llm-d for intelligent LLM inference routing on OpenShift AI
 
+## Claude Code Skills
+
+This project includes [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills that automate common contributor workflows — tracing integration, deployment, test scaffolding, and more.
+
+- **Local skills** (`.claude/skills/`) — tracing integration and kagenti deployment, discovered automatically when running Claude Code from the repo root
+- **Plugin skills** ([agentic-starter-kits-skills](https://github.com/red-hat-data-services/agentic-starter-kits-skills)) — deployment, behavioral test scaffolding, and integration test generation, installable as a Claude Code plugin
+
+See [CONTRIBUTING.md — Claude Code skills](CONTRIBUTING.md#claude-code-skills) for installation instructions and the full skill list.
+
 ## Additional Resources
 
 - **Llama Stack Documentation**: <https://llama-stack.readthedocs.io/>

@@ -237,12 +237,7 @@ If you have [Claude Code](https://docs.anthropic.com/en/docs/claude-code) set up
 #### Prerequisites
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and configured
-- Install the skills plugin:
-
-  ```bash
-  claude plugin marketplace add red-hat-data-services/agentic-starter-kits-skills
-  claude plugin install agentic-starter-kits-skills@agentic-starter-kits-skills
-  ```
+- Install the [agentic-starter-kits-skills](https://github.com/red-hat-data-services/agentic-starter-kits-skills) plugin (see [Claude Code skills](#claude-code-skills))
 
 #### Running the full integration
 
@@ -290,9 +285,46 @@ Each step of the pipeline is also available as a standalone skill. This is usefu
 
 `verify-traces` is itself a sub-orchestrator — it calls `review-tracing-code` (static analysis) and `test-tracing` (live end-to-end testing) and combines their results into a single report. If verification fails, the report points back to which step to revisit.
 
-All skills live in the [agentic-starter-kits-skills](https://github.com/red-hat-data-services/agentic-starter-kits-skills) plugin repo as siblings under `skills/`. The flat structure makes each sub-skill independently callable. If you need to maintain or extend a skill, edit the `SKILL.md` file in its directory in the plugin repo.
+All skills live in the [agentic-starter-kits-skills](https://github.com/red-hat-data-services/agentic-starter-kits-skills) plugin repo as a flat set of siblings. The flat structure makes each sub-skill independently callable. If you need to maintain or extend a skill, edit the `SKILL.md` file in its directory in the plugin repo. Each skill includes a self-update instruction — if Claude deviates from a skill's steps because they were inaccurate, it updates the skill file automatically so the next run benefits. See [Claude Code skills](#claude-code-skills) for the full skill list.
 
 **Recommended model:** These skills were developed and tested with `claude-opus-4-6`. Use Opus for best results — smaller models may not follow the multi-step orchestration reliably.
+
+## Claude Code skills
+
+This project uses [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills to automate common contributor workflows. All contributor and operator skills live in the [agentic-starter-kits-skills](https://github.com/red-hat-data-services/agentic-starter-kits-skills) plugin repo.
+
+### Available skills
+
+| Skill | Description |
+|-------|-------------|
+| `integrate-tracing` | End-to-end MLflow tracing integration (see [Adding MLflow tracing](#adding-mlflow-tracing-to-your-agent-template)) |
+| `check-autolog-support` | Research MLflow autolog support for a framework |
+| `create-tracing-module` | Create `tracing.py` for an agent |
+| `wire-into-lifespan` | Wire tracing into the FastAPI lifespan |
+| `add-manual-tracing` | Add manual trace wrapping for tools and agent entry points |
+| `verify-traces` | Code review + live trace testing |
+| `review-tracing-code` | Static code review of tracing implementation |
+| `test-tracing` | Live end-to-end trace testing |
+| `kagenti-deploy` | Deploy A2A-compliant agents to OpenShift with kagenti integration |
+| `deploy-agents` | Deploy agents to OpenShift with auto-detected cluster config and MLflow token refresh |
+| `add-behavioral-tests` | Scaffold behavioral testing (pytest + EvalHub) for an agent |
+| `run-behavioral-tests` | Run and validate behavioral tests for an agent |
+| `add-integration-tests` | Add integration tests for agent deployment verification |
+
+### Installation
+
+```bash
+claude plugin marketplace add red-hat-data-services/agentic-starter-kits-skills
+claude plugin install agentic-starter-kits-skills@agentic-starter-kits-skills
+```
+
+After installing, invoke skills with the `agentic-starter-kits-skills:` prefix (e.g. `/agentic-starter-kits-skills:deploy-agents`).
+
+### Adding a new skill
+
+Contributor and operator skills (test scaffolding, deployment, tracing integration, code generation) go in the [plugin repo](https://github.com/red-hat-data-services/agentic-starter-kits-skills). See its [Contributing section](https://github.com/red-hat-data-services/agentic-starter-kits-skills#contributing) for how to add one.
+
+End-user-facing skills — ones that help someone who cloned a starter kit customize or run an agent for their own use case — can go in this repo under `.claude/skills/` so they're available without installing the plugin.
 
 ## Questions?
 
