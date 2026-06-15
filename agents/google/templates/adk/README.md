@@ -110,7 +110,7 @@ CONTAINER_IMAGE = quay.io/your-username/google-adk-agent:latest
 - `API_KEY` - your API key or contact your cluster administrator
 - `BASE_URL` - should end with `/v1`. For local Llama Stack, use `http://localhost:8321/v1`
 - `MODEL_ID` - model identifier available on your endpoint
-  - **Local Llama Stack:** requires `ollama/` prefix (e.g., `ollama/llama3.1:8b`)
+  - **Local OGX:** requires `ollama/` prefix (e.g., `ollama/Llama3.1:8B`)
   - **Cluster deployment:** discover available models via `curl $BASE_URL/models` or check your model serving dashboard
 - `CONTAINER_IMAGE` – full image path where the agent container will be pushed and pulled from. The image is built
   locally, pushed to this registry, and then deployed to OpenShift.
@@ -267,7 +267,7 @@ User Input -> ADK LlmAgent -> LiteLLM -> LlamaStack (OpenAI API)
 | Variable          | Description        | Example                                               |
 |-------------------|--------------------|-------------------------------------------------------|
 | `BASE_URL`        | LLM API endpoint   | `http://localhost:8321/v1`                            |
-| `MODEL_ID`        | Model identifier   | `ollama/llama3.1:8b`                                  |
+| `MODEL_ID`        | Model identifier   | `ollama/Llama3.1:8B`                                  |
 | `API_KEY`         | API authentication | `not-needed-for-local-development` (local) or API key |
 | `CONTAINER_IMAGE` | Container registry | `quay.io/user/google-adk-agent:latest`                |
 
@@ -320,7 +320,7 @@ TOOLS = [dummy_web_search, my_custom_tool]
 
 - **Google ADK 2.0 Documentation**: <https://google.github.io/adk-docs/2.0/>
 - **LiteLLM Documentation**: <https://docs.litellm.ai/>
-- **Llama Stack Documentation**: <https://llama-stack.readthedocs.io/>
+- **OGX Documentation**: <https://ogx-ai.github.io/docs/>
 - **Ollama Documentation**: <https://ollama.com/docs>
 
 ---

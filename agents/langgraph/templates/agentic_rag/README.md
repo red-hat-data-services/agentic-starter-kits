@@ -11,7 +11,7 @@
 ## What this agent does
 
 RAG (Retrieval-Augmented Generation) agent that indexes documents in a vector store and retrieves relevant
-chunks to augment the LLM's answers with your own data. Built with LangGraph, LangChain, and LlamaStack.
+chunks to augment the LLM's answers with your own data. Built with LangGraph, LangChain, and OGX.
 Supports Milvus Lite (local) and pgvector (OpenShift) as vector store backends.
 
 ---
@@ -128,13 +128,13 @@ This also pulls the embedding model (`embeddinggemma:latest`) required for RAG.
 make ollama
 ```
 
-### Run llama server
+### Run OGX server
 
 > **Keep this terminal open** – the server needs to keep running.
 > You should see output indicating the server started on `http://localhost:8321`.
 
 ```bash
-make llama-server
+make ogx-server
 ```
 
 ### Load documents into vector store
@@ -191,10 +191,10 @@ make init
 
 Edit `.env` with your model endpoint, RAG configuration, and container image.
 
-#### Using a LlamaStack server on the cluster
+#### Using an OGX server on the cluster
 
-If a LlamaStack server is already deployed on the cluster (e.g., in the `llama-serving` namespace), use its
-external route URL so both LLM and vector store operations go through LlamaStack:
+If an OGX server is already deployed on the cluster (e.g., in the `llama-serving` namespace), use its
+external route URL so both LLM and vector store operations go through OGX:
 
 ```ini
 API_KEY=not-needed
@@ -210,11 +210,11 @@ VECTOR_STORE_PROVIDER=pgvector
 DOCS_TO_LOAD=./data/sample_knowledge.txt
 ```
 
-To discover the LlamaStack route URL and available models on your cluster:
+To discover the OGX route URL and available models on your cluster:
 
 ```bash
-# Get the LlamaStack route
-oc get route -n llama-serving llamastack -o jsonpath='{.spec.host}'
+# Get the OGX route
+oc get route -n llama-serving ogx -o jsonpath='{.spec.host}'
 
 # Check available models
 curl -s https://<route-host>/v1/models | python3 -m json.tool
@@ -222,12 +222,12 @@ curl -s https://<route-host>/v1/models | python3 -m json.tool
 
 **Notes:**
 
-- `API_KEY` - your API key or contact your cluster administrator. Use `not-needed` for LlamaStack servers that don't require auth.
-- `BASE_URL` - should end with `/v1`. For local Llama Stack, use `http://localhost:8321/v1`. For LlamaStack on the cluster, use the external route URL.
+- `API_KEY` - your API key or contact your cluster administrator. Use `not-needed` for OGX servers that don't require auth.
+- `BASE_URL` - should end with `/v1`. For local OGX, use `http://localhost:8321/v1`. For OGX on the cluster, use the external route URL.
 - `MODEL_ID` - model identifier available on your endpoint
-  - **Local Llama Stack:** requires `ollama/` prefix (e.g., `ollama/llama3.1:8b`)
+  - **Local OGX:** requires `ollama/` prefix (e.g., `ollama/Llama3.1:8B`)
   - **Cluster deployment:** discover available models via `curl $BASE_URL/models` (see example above) or check your model serving dashboard
-- `VECTOR_STORE_PROVIDER` - vector store backend configured in your LlamaStack server. Use `pgvector` or `milvus` depending on your LlamaStack deployment.
+- `VECTOR_STORE_PROVIDER` - vector store backend configured in your OGX server. Use `pgvector` or `milvus` depending on your OGX deployment.
 - `CONTAINER_IMAGE` -- full image path where the agent container will be pushed and pulled from. The image is built
   locally, pushed to this registry, and then deployed to OpenShift.
 
@@ -245,8 +245,8 @@ curl -s https://<route-host>/v1/models | python3 -m json.tool
 
 ### Loading Documents into the Vector Store (OpenShift)
 
-Before deploying the agent, load documents into the LlamaStack vector store. Run the loader script
-locally, pointing it at the LlamaStack server's external route (the same `BASE_URL` used in your `.env`):
+Before deploying the agent, load documents into the OGX vector store. Run the loader script
+locally, pointing it at the OGX server's external route (the same `BASE_URL` used in your `.env`):
 
 ```bash
 uv run python data/load_documents.py
@@ -364,13 +364,13 @@ curl http://localhost:8000/health
 
 This agent implements a Retrieval-Augmented Generation (RAG) pattern:
 
-1. **Document Indexing**: Documents are loaded from a text file, split into chunks, and embedded using the configured embedding model. The embeddings are stored in a vector database via LlamaStack (supports Milvus and pgvector backends, configurable via `VECTOR_STORE_PROVIDER`).
+1. **Document Indexing**: Documents are loaded from a text file, split into chunks, and embedded using the configured embedding model. The embeddings are stored in a vector database via OGX (supports Milvus and pgvector backends, configurable via `VECTOR_STORE_PROVIDER`).
 
-2. **Query Processing**: When the user asks a question, the agent searches the vector store through LlamaStack for the most relevant document chunks.
+2. **Query Processing**: When the user asks a question, the agent searches the vector store through OGX for the most relevant document chunks.
 
 3. **Augmented Generation**: The retrieved chunks are provided as context to the LLM, which generates an answer grounded in the relevant documents. This reduces hallucination and allows the model to answer questions about your specific data.
 
-The agent uses LangGraph to orchestrate the retrieval and generation steps, LangChain for the LLM integration, and LlamaStack for vector store operations.
+The agent uses LangGraph to orchestrate the retrieval and generation steps, LangChain for the LLM integration, and OGX for vector store operations.
 
 ## Behavioral Tests
 
@@ -397,5 +397,5 @@ See `tests/behavioral/` at the repo root for the shared test harness and thresho
 
 - [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
 - [LangChain Documentation](https://python.langchain.com/)
-- [Llama Stack Documentation](https://llama-stack.readthedocs.io/)
+- [OGX Documentation](https://ogx-ai.github.io/docs/)
 - [Milvus Documentation](https://milvus.io/docs)

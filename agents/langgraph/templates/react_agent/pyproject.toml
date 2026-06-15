@@ -11,7 +11,6 @@ dependencies = [
     "langchain>=1.2.10",
     "langchain-openai>=1.1.10",
     "langgraph-prebuilt>=1.0.8",
-    "llama-stack>=0.5.0",
     "openai>=2.24.0",
     "milvus-lite>=2.5.1",
     "pymilvus==2.6.9", # <-- 2.6.10 has a bug https://github.com/milvus-io/pymilvus/issues/3317

@@ -144,7 +144,7 @@ CONTAINER_IMAGE = quay.io/your-username/openai-responses-agent:latest
 - `API_KEY` - your OpenAI API key (or `not-needed` for local Llama Stack)
 - `BASE_URL` - should end with `/v1`. For local Llama Stack, use `http://localhost:8321/v1`
 - `MODEL_ID` - model identifier available on your endpoint
-  - **Local Llama Stack:** requires `ollama/` prefix (e.g., `ollama/llama3.1:8b`)
+  - **Local Llama Stack:** requires `ollama/` prefix (e.g., `ollama/Llama3.1:8B`)
   - **Cluster deployment:** discover available models via `curl $BASE_URL/models` or check your model serving dashboard
 - `CONTAINER_IMAGE` – full image path where the agent container will be pushed and pulled from. The image is built
   locally, pushed to this registry, and then deployed to OpenShift.

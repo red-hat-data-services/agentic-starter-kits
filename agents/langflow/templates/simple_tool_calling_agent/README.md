@@ -85,7 +85,7 @@ make ollama
 > You should see output indicating the server started on `http://localhost:8321`.
 
 ```bash
-make llama-server
+make ogx-server
 ```
 
 ### Run the Langflow stack

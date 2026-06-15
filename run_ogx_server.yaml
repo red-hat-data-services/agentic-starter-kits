@@ -2,14 +2,13 @@ version: '2'
 image_name: ollama
 apis:
   - inference
-  - safety
   - vector_io
 providers:
   vector_io:
     - provider_id: milvus
       provider_type: inline::milvus
       config:
-        db_path: ./../../../milvus_data/milvus_lite.db
+        db_path: ../../../../milvus_data/milvus_lite.db
         persistence:
           namespace: vector_io::milvus
           backend: kv_default
@@ -18,10 +17,6 @@ providers:
       provider_type: remote::ollama
       config:
         url: http://localhost:11434/v1
-  safety:
-    - provider_id: llama-guard
-      provider_type: inline::llama-guard
-      config: { }
 persistence:
   host: localhost
   port: 5432
@@ -32,11 +27,11 @@ persistence:
   type: postgres
 registered_resources:
   models:
-    - model_id: llama3.1:8b
+    - model_id: Llama3.1:8B
       provider_id: ollama
       model_type: llm
       metadata: { }
-    - model_id: embeddinggemma:latest
+    - model_id: nomic-embed-text:latest
       provider_id: ollama
       model_type: embedding
       metadata:

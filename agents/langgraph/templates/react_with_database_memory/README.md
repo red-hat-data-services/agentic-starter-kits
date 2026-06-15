@@ -217,7 +217,7 @@ POSTGRES_PASSWORD = your_db_password
 - `API_KEY` - your API key or contact your cluster administrator
 - `BASE_URL` - should end with `/v1`. For local Llama Stack, use `http://localhost:8321/v1`
 - `MODEL_ID` - model identifier available on your endpoint
-  - **Local Llama Stack:** requires `ollama/` prefix (e.g., `ollama/llama3.1:8b`)
+  - **Local OGX:** requires `ollama/` prefix (e.g., `ollama/Llama3.1:8B`)
   - **Cluster deployment:** discover available models via `curl $BASE_URL/models` or check your model serving dashboard
 - `CONTAINER_IMAGE` -- full image path where the agent container will be pushed and pulled from. The image is built
   locally, pushed to this registry, and then deployed to OpenShift.
@@ -457,5 +457,5 @@ To permanently delete a conversation thread (or all threads), use the provided s
 - [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
 - [LangGraph Checkpointers](https://langchain-ai.github.io/langgraph/concepts/persistence/)
 - [LangChain Documentation](https://python.langchain.com/)
-- [Llama Stack Documentation](https://llama-stack.readthedocs.io/)
+- [OGX Documentation](https://ogx-ai.github.io/docs/)
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)

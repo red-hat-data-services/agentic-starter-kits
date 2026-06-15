@@ -13,7 +13,6 @@ dependencies = [
     "langgraph>=1.0.9",
     "langgraph-prebuilt>=1.0.8",
     "langgraph-checkpoint>=3.0.0",
-    "llama-stack>=0.5.0",
     "openai>=2.24.0",
     "chardet==7.2.0",
     "pypdf==6.9.1",

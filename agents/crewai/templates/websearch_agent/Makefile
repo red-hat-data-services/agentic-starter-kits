@@ -5,7 +5,7 @@ VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
 
-.PHONY: init re-init env ollama llama-server run-app run-app-fresh run-cli build push build-openshift deploy undeploy test test-integration dry-run help
+.PHONY: init re-init env ollama ogx-server run-app run-app-fresh run-cli build push build-openshift deploy undeploy test test-integration dry-run help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -29,7 +29,7 @@ env: ## Create venv, load .env, and install dependencies
 	  echo "" && \
 	  echo "Done. Next steps:" && \
 	  echo "  make ollama        # install Ollama and pull models" && \
-	  echo "  make llama-server  # start Llama Stack server"
+	  echo "  make ogx-server    # start OGX server"
 
 ollama: ## Install Ollama, start it, and pull models
 	@source .venv/bin/activate && set -a && source .env && set +a && \
@@ -56,17 +56,17 @@ ollama: ## Install Ollama, start it, and pull models
 	  echo "==> Pulling $(MODEL)..." && \
 	  ollama pull $(MODEL) && \
 	  echo "" && \
-	  echo "Done. Run 'make llama-server' to start the Llama Stack server."
+	  echo "Done. Run 'make ogx-server' to start the OGX server."
 
-llama-server: ## Install llama-stack and start Llama Stack server
+ogx-server: ## Install OGX and start OGX server
 	@source .venv/bin/activate && set -a && source .env && set +a && \
-	  echo "==> Installing llama-stack..." && \
-	  uv pip install "llama-stack==0.5.0" "llama-stack-api==0.5.0" ollama "pymilvus==2.6.9" "milvus-lite>=2.5.1" "setuptools>=80.9.0,<82.0.0" && \
+	  echo "==> Installing OGX..." && \
+	  uv pip install "ogx[starter]==1.1.0" "ogx-api==1.1.0" ollama "pymilvus==2.6.9" "milvus-lite>=2.5.1" "setuptools>=80.9.0,<82.0.0" && \
 	  mkdir -p ../../../../milvus_data && \
 	  echo "==> Killing any existing process on port 8321..." && \
 	  lsof -ti:8321 | xargs kill -9 2>/dev/null; true && \
-	  echo "==> Starting Llama Stack server on port 8321..." && \
-	  llama stack run ../../../../run_llama_server.yaml
+	  echo "==> Starting OGX server on port 8321..." && \
+	  ogx run ../../../../run_ogx_server.yaml
 
 run-app: ## Run agent locally with hot-reload
 	@source .venv/bin/activate && set -a && source .env && set +a && \

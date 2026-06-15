@@ -58,7 +58,7 @@ You can use placeholders for container images if you only run Python locally:
 ```ini
 API_KEY=your-key-or-not-needed
 BASE_URL=http://localhost:8321/v1
-MODEL_ID=ollama/llama3.1:8b
+MODEL_ID=ollama/Llama3.1:8B
 CONTAINER_IMAGE=not-needed
 CREW_A2A_PUBLIC_URL=http://127.0.0.1:9100
 LANGGRAPH_A2A_PUBLIC_URL=http://127.0.0.1:9200

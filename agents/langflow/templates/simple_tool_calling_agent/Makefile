@@ -3,7 +3,7 @@ COMPOSE_FILE   := local/podman-compose.yml
 ENV_FILE       := local/.env
 MODEL          ?= qwen2.5:7b
 
-.PHONY: init ollama llama-server run stop clean status logs help
+.PHONY: init ollama ogx-server run stop clean status logs help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -51,21 +51,21 @@ ollama: ## Install Ollama, start it, and pull models
 	  echo "==> Pulling $(MODEL)..." && \
 	  ollama pull $(MODEL) && \
 	  echo "" && \
-	  echo "Done. Run 'make llama-server' to start the Llama Stack server."
+	  echo "Done. Run 'make ogx-server' to start the OGX server."
 
-llama-server: ## Install llama-stack and start Llama Stack server
+ogx-server: ## Install OGX and start OGX server
 	@if [ ! -d .venv ]; then \
 	  echo "==> Creating virtual environment..." && \
 	  uv venv .venv --python 3.12; \
 	fi && \
 	source .venv/bin/activate && \
-	  echo "==> Installing llama-stack..." && \
-	  uv pip install "llama-stack==0.5.0" "llama-stack-api==0.5.0" ollama "pymilvus==2.6.9" "milvus-lite>=2.5.1" "setuptools>=80.9.0,<82.0.0" && \
+	  echo "==> Installing OGX..." && \
+	  uv pip install "ogx[starter]==1.1.0" "ogx-api==1.1.0" ollama "pymilvus==2.6.9" "milvus-lite>=2.5.1" "setuptools>=80.9.0,<82.0.0" && \
 	  mkdir -p ../../../../milvus_data && \
 	  echo "==> Killing any existing process on port 8321..." && \
 	  lsof -ti:8321 | xargs kill -9 2>/dev/null; true && \
-	  echo "==> Starting Llama Stack server on port 8321..." && \
-	  llama stack run ../../../../run_llama_server.yaml
+	  echo "==> Starting OGX server on port 8321..." && \
+	  ogx run ../../../../run_ogx_server.yaml
 
 run: init ## Start the local Langflow stack (Langflow + PostgreSQL + Langfuse)
 	@./deploy-local.sh

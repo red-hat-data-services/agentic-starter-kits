@@ -26,8 +26,6 @@ dev = [
     "pytest>=9.0.2",
 ]
 llama = [
-    "llama-stack>=0.7.1",
-    "llama-stack-api>=0.7.1",
     "ollama>=0.4.0",
     "milvus-lite>=2.5.1",
     "pymilvus>=2.6.9",
