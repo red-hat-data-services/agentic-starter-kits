@@ -1,3 +1,5 @@
+<!-- PR title must follow Conventional Commits (e.g. feat: add health check endpoint). It becomes the commit message on main. -->
+
 ## Description
 
 <!-- Summarize your changes and the motivation behind them -->
