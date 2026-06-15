@@ -1,0 +1,33 @@
+# OGX Network Policy
+#
+# Allows ingress to OGX on port 8321 from the OpenShift router
+# (for external routes) and from pods in the same namespace
+# (for Claude Code internal access).
+#
+# Before applying, replace the following placeholder with your value:
+#
+#   <NAMESPACE>  - Namespace where OGX is deployed (e.g., redhat-ods-applications)
+#
+# Usage:
+#   oc apply -f ogx-network-policy.yaml -n <NAMESPACE>
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ogx-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: ogx
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          network.openshift.io/policy-group: ingress
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: <NAMESPACE>
+    ports:
+    - port: 8321
+      protocol: TCP
+  policyTypes:
+  - Ingress

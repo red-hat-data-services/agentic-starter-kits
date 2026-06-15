@@ -80,7 +80,7 @@ jobs:
               echo "::error file=$dir/uv.lock::Lock file is stale — run 'uv lock' in $dir"
               failed=1
             fi
-          done < <(find . -maxdepth 5 -name pyproject.toml ! -path '*/.venv/*' ! -path '*/egg-info/*')
+          done < <(find . -name pyproject.toml ! -path '*/.venv/*' ! -path '*/egg-info/*')
           exit $failed
 
   secret-scanning:

@@ -85,6 +85,10 @@ repos:
         files: ^agents/autogen/templates/mcp_agent/pyproject\.toml$
         args: [--project, agents/autogen/templates/mcp_agent]
       - id: uv-lock
+        name: uv-lock (autogen/mcp_automl_template)
+        files: ^agents/autogen/templates/mcp_agent/mcp_automl_template/pyproject\.toml$
+        args: [--project, agents/autogen/templates/mcp_agent/mcp_automl_template]
+      - id: uv-lock
         name: uv-lock (crewai/websearch_agent)
         files: ^agents/crewai/templates/websearch_agent/pyproject\.toml$
         args: [--project, agents/crewai/templates/websearch_agent]
