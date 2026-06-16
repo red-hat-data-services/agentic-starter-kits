@@ -28,11 +28,7 @@ def _safe_uri(uri: str) -> str:
 
 
 def check_mlflow_health(
-    mlflow_tracking_uri: str,
-    max_wait_time: int = 5,
-    retry_interval: int = 1,
-    tracking_token: Optional[str] = None,
-    insecure_tls: bool = False,
+    mlflow_tracking_uri: str, max_wait_time: int = 5, retry_interval: int = 1
 ) -> None:
     """
     Check MLflow health by trying the /health endpoint. If it fails, retry for a certain duration before giving up.
@@ -40,15 +36,17 @@ def check_mlflow_health(
         mlflow_tracking_uri: base URI of the MLflow server
         max_wait_time: total time to keep retrying before giving up (in seconds)
         retry_interval: time to wait between retries (in seconds)
-        tracking_token: optional Bearer token for authenticated endpoints
-        insecure_tls: skip TLS verification when True
     """
     import requests
 
     mlflow_health_endpoint = "/health"
     mlflow_url = f"{mlflow_tracking_uri.rstrip('/')}{mlflow_health_endpoint}"
     safe_url = _safe_uri(mlflow_url)
-    headers = {"Authorization": f"Bearer {tracking_token}"} if tracking_token else None
+    insecure = getenv("MLFLOW_TRACKING_INSECURE_TLS", "").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
     start_time = time.time()
 
     while True:
@@ -63,10 +61,7 @@ def check_mlflow_health(
 
         try:
             response = requests.get(
-                mlflow_url,
-                headers=headers,
-                verify=not insecure_tls,
-                timeout=min(5, remaining),
+                mlflow_url, timeout=min(5, remaining), verify=not insecure
             )
             if response.status_code == 200:
                 logger.info(
@@ -141,16 +136,8 @@ def enable_tracing() -> None:
             health_check_timeout = int(getenv("MLFLOW_HEALTH_CHECK_TIMEOUT", "5"))
         except ValueError:
             health_check_timeout = 5
-        insecure_tls = getenv("MLFLOW_TRACKING_INSECURE_TLS", "").lower() in {
-            "1",
-            "true",
-            "yes",
-        }
         check_mlflow_health(
-            mlflow_tracking_uri=tracking_uri,
-            max_wait_time=health_check_timeout,
-            tracking_token=getenv("MLFLOW_TRACKING_TOKEN"),
-            insecure_tls=insecure_tls,
+            mlflow_tracking_uri=tracking_uri, max_wait_time=health_check_timeout
         )
         safe_uri = _safe_uri(tracking_uri)
         logger.info(f"[Tracing] MLflow server is reachable at {safe_uri}")
