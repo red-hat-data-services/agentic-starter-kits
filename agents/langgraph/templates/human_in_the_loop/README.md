@@ -316,7 +316,7 @@ Behavioral tests validate tool selection, response quality, latency, and reliabi
 HITL_AGENT_URL=https://<agent-route> \
 MLFLOW_TRACKING_URI=<mlflow-uri> \
 MLFLOW_EXPERIMENT_NAME=<experiment> \
-uv run --extra test --extra test-mlflow python -m pytest agents/langgraph/human_in_the_loop/tests/behavioral/ -v
+uv run --extra test --extra test-mlflow python -m pytest agents/langgraph/templates/human_in_the_loop/tests/behavioral/ -v
 ```
 
 Thresholds are configured in `tests/behavioral/configs/thresholds.yaml` under the `langgraph_hitl` section.
