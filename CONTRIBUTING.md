@@ -285,7 +285,7 @@ Each step of the pipeline is also available as a standalone skill. This is usefu
 
 `verify-traces` is itself a sub-orchestrator — it calls `review-tracing-code` (static analysis) and `test-tracing` (live end-to-end testing) and combines their results into a single report. If verification fails, the report points back to which step to revisit.
 
-All skills live in the [agentic-starter-kits-skills](https://github.com/red-hat-data-services/agentic-starter-kits-skills) plugin repo as a flat set of siblings. The flat structure makes each sub-skill independently callable. If you need to maintain or extend a skill, edit the `SKILL.md` file in its directory in the plugin repo. Each skill includes a self-update instruction — if Claude deviates from a skill's steps because they were inaccurate, it updates the skill file automatically so the next run benefits. See [Claude Code skills](#claude-code-skills) for the full skill list.
+All contributor and operator skills live in the [agentic-starter-kits-skills](https://github.com/red-hat-data-services/agentic-starter-kits-skills) plugin repo as a flat set of siblings. The flat structure makes each sub-skill independently callable. If you need to maintain or extend a skill, edit the `SKILL.md` file in its directory in the plugin repo. Each skill includes a self-update instruction — if Claude deviates from a skill's steps because they were inaccurate, it updates the skill file automatically so the next run benefits. See [Claude Code skills](#claude-code-skills) for the full skill list.
 
 **Recommended model:** These skills were developed and tested with `claude-opus-4-6`. Use Opus for best results — smaller models may not follow the multi-step orchestration reliably.
 
