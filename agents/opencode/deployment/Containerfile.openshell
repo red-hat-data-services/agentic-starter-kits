@@ -1,0 +1,27 @@
+# OpenCode agent for OpenShell sandbox
+#
+# Flavor image built on the shared openshell-base.
+# Adds Node.js and OpenCode (MIT).
+#
+# Build:
+#   podman build --platform linux/amd64 -t opencode-sandbox:latest -f Containerfile.openshell .
+
+FROM quay.io/hmoghani/openshell-base:latest
+
+USER 0
+
+# Node.js runtime (from UBI repos)
+RUN microdnf install -y --nodocs nodejs npm && \
+    microdnf clean all && \
+    rm -rf /var/cache/yum
+
+# Install OpenCode (MIT)
+ARG OPENCODE_VERSION=1.17.1
+RUN npm install -g opencode-ai@${OPENCODE_VERSION}
+
+# Verify
+RUN opencode --version
+
+USER 1001
+WORKDIR /workspace
+ENV AGENT_NAME=opencode

@@ -79,32 +79,14 @@ data:
     }
 
 ---
-# ConfigMap for skills
-# Skills are injected at deploy time
-# Each skill needs a subdirectory with a SKILL.md file.
-# Modify this ConfigMap to add your own skills.
+# ConfigMap for skills (empty by default)
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: claude-vertex-skills
   labels:
     app: claude-code-vertex
-data:
-  SKILL.md: |
-    # Code Review
-
-    When reviewing code, analyze for:
-
-    1. **Correctness** - Logic errors, edge cases, off-by-one errors
-    2. **Security** - Input validation, injection risks, hardcoded secrets
-    3. **Performance** - Unnecessary loops, N+1 queries, missing indexes
-    4. **Readability** - Clear naming, appropriate comments, consistent style
-    5. **Maintainability** - DRY violations, tight coupling, missing error handling
-
-    Provide feedback as:
-    - **Must Fix** - Bugs or security issues
-    - **Should Fix** - Performance or maintainability concerns
-    - **Consider** - Style suggestions or minor improvements
+data: {}
 
 ---
 # ConfigMap for Claude Code settings
@@ -201,6 +183,21 @@ spec:
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/var/secrets/google/key.json"
             # ===========================================
+            # MLflow Tracing (Optional)
+            # ===========================================
+            # Uncomment and configure to enable.
+            # See the MLflow Tracing section in ../README.md for details.
+            # - name: MLFLOW_TRACKING_URI
+            #   value: "https://mlflow.<rhoai-namespace>.svc:8443/mlflow"
+            # - name: MLFLOW_TRACKING_AUTH
+            #   value: "kubernetes-namespaced"
+            # - name: MLFLOW_WORKSPACE
+            #   value: "<your-namespace>"
+            # - name: MLFLOW_EXPERIMENT_NAME
+            #   value: "claude-code-traces"
+            # - name: MLFLOW_TRACKING_INSECURE_TLS
+            #   value: "true"
+            # ===========================================
             # Claude Code Configuration
             # ===========================================
             - name: MCP_CONFIG_FILE
@@ -213,10 +210,12 @@ spec:
           volumeMounts:
             - name: workspace
               mountPath: /workspace
-            # Skills and settings are mounted inside /workspace/.claude/ (the CLAUDE_CONFIG_DIR)
-            # This enables session persistence while keeping ConfigMap-based injection
+            # Skills and settings are staged outside the PVC at read-only paths.
+            # The entrypoint symlinks skills into CLAUDE_CONFIG_DIR.
+            # Mounting directly inside /workspace/.claude/ would cause Kubernetes
+            # to create that directory as root, making the PVC unwritable.
             - name: skills
-              mountPath: /workspace/.claude/skills
+              mountPath: /etc/claude-skills
               readOnly: true
             - name: mcp-config
               mountPath: /etc/mcp
@@ -226,7 +225,7 @@ spec:
               mountPath: /var/secrets/google
               readOnly: true
             - name: claude-settings
-              mountPath: /workspace/.claude/settings.json
+              mountPath: /etc/claude-config/settings.json
               subPath: settings.json
           resources:
             requests:
@@ -251,9 +250,6 @@ spec:
           configMap:
             name: claude-vertex-skills
             optional: true
-            items:
-              - key: SKILL.md
-                path: code-review/SKILL.md
         - name: mcp-config
           configMap:
             name: claude-vertex-mcp-config

@@ -11,6 +11,7 @@
 #
 #   Authentication:
 #     ANTHROPIC_API_KEY        - API key for Anthropic (or compatible endpoint)
+#     ANTHROPIC_AUTH_TOKEN      - Bearer token (skips interactive key confirmation)
 #     ANTHROPIC_BASE_URL       - Custom API endpoint (vLLM, OGX, etc.)
 #
 #   Vertex AI Authentication (alternative to ANTHROPIC_API_KEY):
@@ -113,10 +114,9 @@ validate_environment() {
             log_warn "ANTHROPIC_VERTEX_PROJECT_ID not set. Vertex AI requires a GCP project ID."
         fi
     else
-        # Standard Anthropic API mode
-        if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
-            log_warn "ANTHROPIC_API_KEY not set. Claude Code may not be able to authenticate."
-            log_warn "Set ANTHROPIC_API_KEY or use Vertex AI mode (CLAUDE_CODE_USE_VERTEX=1)."
+        # API key or auth token mode
+        if [[ -z "${ANTHROPIC_API_KEY:-}" && -z "${ANTHROPIC_AUTH_TOKEN:-}" ]]; then
+            log_warn "No authentication configured. Set ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, or use Vertex AI mode (CLAUDE_CODE_USE_VERTEX=1)."
         fi
     fi
 
@@ -156,12 +156,17 @@ setup_config_dir() {
     # This enables session persistence since /workspace is backed by a PVC
     export CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-/workspace/.claude}"
 
-    # Ensure the config directory exists
+    # Ensure the config directory exists and is group-writable.
+    # On OpenShift, fresh PVCs are owned by root with the pod's fsGroup.
+    # The non-root container user writes via group membership, so directories
+    # must be group-writable (g+w).
     mkdir -p "${CLAUDE_CONFIG_DIR}"
+    chmod g+w "${CLAUDE_CONFIG_DIR}" 2>/dev/null || true
 
     # Ensure the projects directory exists (WORKDIR is /workspace/projects)
     # This separates global config (/workspace/.claude) from local auto-memory (/workspace/projects/.claude)
     mkdir -p /workspace/projects
+    chmod g+w /workspace/projects 2>/dev/null || true
 
     # Create symlink from ~/.claude to the config dir for user convenience
     # Users expect to find settings/skills at ~/.claude/
@@ -182,6 +187,21 @@ setup_config_dir() {
             rm -rf "${home_claude_dir}" 2>/dev/null || mv -f "${home_claude_dir}" "${home_claude_dir}.old" 2>/dev/null || true
         fi
         ln -sfn "${CLAUDE_CONFIG_DIR}" "${home_claude_dir}"
+    fi
+
+    # Copy staged settings.json from ConfigMap mount to writable PVC location.
+    # ConfigMap subPath mounts are read-only, but mlflow autolog needs to write
+    # hook configuration into settings.json. Staging at /etc/claude-config/ and
+    # copying here makes the file writable. Only copy if the target doesn't
+    # already exist, so runtime changes (e.g., mlflow autolog hooks) survive
+    # pod restarts.
+    local staged_settings="/etc/claude-config/settings.json"
+    local target_settings="${CLAUDE_CONFIG_DIR}/settings.json"
+    if [[ -f "${staged_settings}" && ! -s "${target_settings}" ]]; then
+        cp "${staged_settings}" "${target_settings}"
+        log_info "Copied settings from ${staged_settings} to ${target_settings}"
+    elif [[ -s "${target_settings}" ]]; then
+        log_info "Preserving existing ${target_settings}"
     fi
 
     log_info "Claude config directory: ${CLAUDE_CONFIG_DIR}"
@@ -282,18 +302,31 @@ print("[entrypoint] INFO: MLflow settings injected into " + sf)
 # -----------------------------------------------------------------------------
 
 setup_skills() {
-    # Claude Code auto-discovers skills from $CLAUDE_CONFIG_DIR/skills/
-    # Structure: $CLAUDE_CONFIG_DIR/skills/<skill-name>/SKILL.md
-    # (Also accessible via ~/.claude/skills/ symlink)
+    # Skills are staged at /etc/claude-skills/ (read-only ConfigMap mount) and
+    # symlinked into $CLAUDE_CONFIG_DIR/skills/ so Claude Code discovers them.
+    # We mount outside the PVC to avoid Kubernetes creating /workspace/.claude/
+    # as root with restrictive permissions on fresh PVCs.
+    local staged_skills="/etc/claude-skills"
     local skills_dir="${CLAUDE_CONFIG_DIR}/skills"
 
-    if [[ -d "${skills_dir}" ]]; then
+    if [[ -d "${staged_skills}" ]]; then
+        if [[ -e "${skills_dir}" && ! -L "${skills_dir}" ]]; then
+            local backup_dir="${skills_dir}.bak"
+            local i=1
+            while [[ -e "${backup_dir}" ]]; do
+                backup_dir="${skills_dir}.bak.${i}"
+                ((i++))
+            done
+            mv "${skills_dir}" "${backup_dir}"
+            log_info "Moved existing skills directory to ${backup_dir}"
+        fi
+        ln -sfn "${staged_skills}" "${skills_dir}"
         local skill_count
         skill_count=$(find "${skills_dir}" -name "SKILL.md" -type f 2>/dev/null | wc -l)
         if [[ ${skill_count} -gt 0 ]]; then
             log_info "Found ${skill_count} skill(s) in ${skills_dir}"
         else
-            log_info "No skills found (mount skills to ${skills_dir})"
+            log_info "No skills found (mount skills to ${staged_skills})"
         fi
     fi
 }

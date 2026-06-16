@@ -1,0 +1,22 @@
+sandbox:
+  filesystem:
+    landlock:
+      compatibility: best_effort
+    read_only:
+      - /usr
+      - /lib
+      - /proc
+      - /etc
+      - /app
+      - /var/log
+      - /dev/urandom
+    read_write:
+      - /sandbox
+      - /workspace
+      - /tmp
+      - /dev/null
+    include_workdir: true
+
+  process:
+    user: sandbox
+    group: sandbox

@@ -94,7 +94,7 @@ Configuration files: [`ruff.toml`](ruff.toml) (Python rules), [`.markdownlint.js
 
 ## Commit message conventions
 
-This repository enforces the [Conventional Commits](https://www.conventionalcommits.org/) specification via a pre-commit hook. Commits that don't follow this format will be blocked locally by the pre-commit hook.
+This repository enforces the [Conventional Commits](https://www.conventionalcommits.org/) specification via a pre-commit hook. Commits that don't follow this format will be blocked locally by the pre-commit hook. All PRs are squash-merged, so the **PR title** becomes the commit message on `main` — make sure it follows Conventional Commits format.
 
 > **Tip:** To bypass the hook in rare cases (e.g., merge commits, emergency hotfixes): `git commit --no-verify`
 

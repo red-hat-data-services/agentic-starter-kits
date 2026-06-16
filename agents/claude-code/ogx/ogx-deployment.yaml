@@ -1,0 +1,92 @@
+# OGX Deployment for Claude Code Passthrough
+#
+# Deploys OGX as a standalone pod that provides the Anthropic Messages API
+# (/v1/messages) passthrough to a vLLM backend. When vLLM supports
+# /v1/messages natively, OGX forwards requests directly without translation.
+#
+# This deployment does not use the LlamaStack operator. The configuration
+# is loaded from a ConfigMap mounted at /etc/ogx/config.yaml.
+#
+# Before applying, ensure the ogx-configmap.yaml has been applied first.
+#
+# Usage:
+#   oc apply -f ogx-deployment.yaml -n <NAMESPACE>
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ogx
+  labels:
+    app: ogx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ogx
+  template:
+    metadata:
+      labels:
+        app: ogx
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: ogx
+        image: quay.io/rhoai/odh-ogx-core-rhel9:rhoai-3.5-ea.1
+        env:
+        - name: RUN_CONFIG_PATH
+          value: /etc/ogx/config.yaml
+        - name: HOME
+          value: /tmp
+        - name: OGX_HOME
+          value: /tmp/.ogx
+        ports:
+        - containerPort: 8321
+          name: http
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            drop:
+              - ALL
+          seccompProfile:
+            type: RuntimeDefault
+        readinessProbe:
+          httpGet:
+            path: /v1/health
+            port: 8321
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /v1/health
+            port: 8321
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        volumeMounts:
+        - name: config
+          mountPath: /etc/ogx
+          readOnly: true
+        - name: ogx-home
+          mountPath: /tmp/.ogx
+        - name: ogx-distributions
+          mountPath: /opt/app-root/src/.ogx
+      volumes:
+      - name: config
+        configMap:
+          name: ogx-config
+      - name: ogx-home
+        emptyDir: {}
+      - name: ogx-distributions
+        emptyDir: {}

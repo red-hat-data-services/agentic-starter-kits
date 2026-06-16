@@ -162,12 +162,18 @@ spec:
             # For internal service: http://ogx.namespace.svc.cluster.local:8321
             # For external route: https://ogx-route.apps.cluster.domain
             - name: ANTHROPIC_BASE_URL
-              value: "https://YOUR_OGX_ENDPOINT"
-            # OGX doesn't validate API keys, but Claude Code requires one
-            - name: ANTHROPIC_API_KEY
+              value: YOUR_OGX_URL
+            # Auth token sent to the backend as a Bearer token.
+            # Using ANTHROPIC_AUTH_TOKEN (instead of ANTHROPIC_API_KEY) skips
+            # the interactive wizard's key confirmation page.
+            # Set to "fake" if no auth is required, or a real token if it is.
+            - name: ANTHROPIC_AUTH_TOKEN
               value: "fake"
             # Adds model to the Claude Code model picker menu
             # Use "vllm/<model-id>" format for OGX routing
+            # Model to use for Claude Code sessions
+            - name: CLAUDE_MODEL
+              value: "vllm/YOUR_MODEL_ID"
             - name: ANTHROPIC_CUSTOM_MODEL_OPTION
               value: "vllm/YOUR_MODEL_ID"
             # ===========================================
@@ -182,6 +188,31 @@ spec:
             - name: ANTHROPIC_DEFAULT_OPUS_MODEL
               value: "vllm/YOUR_MODEL_ID"
             # ===========================================
+            # MLflow Tracing (Optional)
+            # ===========================================
+            # Uncomment and configure to enable.
+            # See the MLflow Tracing section in ../README.md for details.
+            # - name: MLFLOW_TRACKING_URI
+            #   value: "https://mlflow.<rhoai-namespace>.svc:8443/mlflow"
+            # - name: MLFLOW_TRACKING_AUTH
+            #   value: "kubernetes-namespaced"
+            # - name: MLFLOW_WORKSPACE
+            #   value: "<your-namespace>"
+            # - name: MLFLOW_EXPERIMENT_NAME
+            #   value: "claude-code-traces"
+            # - name: MLFLOW_TRACKING_INSECURE_TLS
+            #   value: "true"
+            # ===========================================
+            # Context Window Configuration (Optional)
+            # ===========================================
+            # Uncomment and adjust if your model's context window differs from defaults.
+            # - name: CLAUDE_CODE_AUTO_COMPACT_WINDOW
+            #   value: "32768"
+            # - name: CLAUDE_CODE_MAX_OUTPUT_TOKENS
+            #   value: "4000"
+            # - name: CLAUDE_AUTOCOMPACT_PCT_OVERRIDE
+            #   value: "85"
+            # ===========================================
             # Claude Code Configuration
             # ===========================================
             - name: MCP_CONFIG_FILE
@@ -194,17 +225,20 @@ spec:
           volumeMounts:
             - name: workspace
               mountPath: /workspace
-            # Skills and settings are mounted inside /workspace/.claude/ (the CLAUDE_CONFIG_DIR)
-            # This enables session persistence while keeping ConfigMap-based injection
+            # Skills and settings are staged outside the PVC at read-only paths.
+            # The entrypoint symlinks skills into CLAUDE_CONFIG_DIR.
+            # Mounting directly inside /workspace/.claude/ would cause Kubernetes
+            # to create that directory as root, making the PVC unwritable.
             - name: skills
-              mountPath: /workspace/.claude/skills
+              mountPath: /etc/claude-skills
               readOnly: true
             - name: mcp-config
               mountPath: /etc/mcp
               readOnly: true
-            # Mount settings.json to set default model
+            # Stage settings.json at a read-only path; the entrypoint copies it
+            # to the writable PVC so mlflow autolog can update it at runtime
             - name: claude-settings
-              mountPath: /workspace/.claude/settings.json
+              mountPath: /etc/claude-config/settings.json
               subPath: settings.json
           resources:
             requests:

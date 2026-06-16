@@ -1,0 +1,54 @@
+# Claude Code agent for OpenShell sandbox
+#
+# Flavor image built on the shared openshell-base.
+# Installs Claude Code via native installer (proprietary, runtime install).
+#
+# Build:
+#   podman build --platform linux/amd64 -t claude-sandbox:latest -f Containerfile.openshell .
+#
+# Build with specific version:
+#   podman build --build-arg CLAUDE_CODE_VERSION=2.1.123 --platform linux/amd64 -t claude-sandbox:latest -f Containerfile.openshell .
+
+FROM quay.io/hmoghani/openshell-base:latest
+
+LABEL name="claude-code" \
+      vendor="Red Hat" \
+      summary="Claude Code agent for OpenShell sandbox" \
+      description="Container image for running Anthropic's Claude Code CLI in an OpenShell sandbox"
+
+ARG CLAUDE_CODE_VERSION=2.1.123
+
+USER 0
+
+# Node.js runtime (required by Claude Code's native installer)
+RUN microdnf install -y --nodocs nodejs npm && \
+    microdnf clean all && \
+    rm -rf /var/cache/yum
+
+# Claude Code skills directory
+RUN mkdir -p /sandbox/.claude/skills && \
+    chown -R 1001:0 /sandbox/.claude && \
+    chmod -R 775 /sandbox/.claude
+
+USER 1001
+
+# Install Claude Code via native installer (proprietary, "All rights reserved")
+# Version pinning: pass version as argument to install.sh
+RUN curl -fsSL https://claude.ai/install.sh | bash -s -- "${CLAUDE_CODE_VERSION}"
+
+ENV PATH="/sandbox/.local/bin:${PATH}" \
+    HOME="/sandbox" \
+    DISABLE_AUTOUPDATER=1
+
+# Verify installation
+RUN claude --version
+
+# Copy the agent-specific entrypoint from the existing deployment
+USER 0
+COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
+
+USER 1001
+WORKDIR /workspace
+ENV AGENT_NAME=claude
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["claude", "--print", "--output-format", "stream-json", "--input-format", "stream-json"]

@@ -47,10 +47,12 @@ ARG USER_GID=0
 # - git: Version control (agent may need to clone repos)
 # - curl: HTTP client (agent may need to fetch resources, also used by installer)
 # - jq: JSON processor (useful for scripting)
+# - tar: Required by oc cp for file retrieval
 RUN microdnf install -y --nodocs \
         git \
         curl \
         jq \
+        tar \
         python3.12 \
         python3.12-pip \
     && ln -sf /usr/bin/python3.12 /usr/bin/python3 \
@@ -82,14 +84,15 @@ RUN useradd -u ${USER_UID} -g ${USER_GID} -d /home/${USER_NAME} -m -s /bin/bash 
 # This directory is removed after installation and replaced with a symlink at runtime
 # (see entrypoint.sh for symlink creation to /workspace/.claude)
 #
-# Skills are mounted at runtime to /workspace/.claude/skills/ via ConfigMap/PVC
-# and accessible via ~/.claude/skills/ through the symlink.
+# Skills are mounted at runtime to /etc/claude-skills/ (read-only ConfigMap).
+# The entrypoint symlinks this into $CLAUDE_CONFIG_DIR/skills/ so Claude Code
+# discovers them via ~/.claude/skills/.
 # Each skill is a subdirectory containing a SKILL.md file.
-# Structure: /workspace/.claude/skills/<skill-name>/SKILL.md
+# Structure: /etc/claude-skills/<skill-name>/SKILL.md
 #
 # Mount at runtime:
-#   podman run -v /path/to/skills:/workspace/.claude/skills:ro,z ...
-#   Or in OpenShift, mount a ConfigMap or PVC to /workspace/.claude/skills
+#   podman run -v /path/to/skills:/etc/claude-skills:ro,z ...
+#   Or in OpenShift, mount a ConfigMap to /etc/claude-skills
 RUN mkdir -p /home/${USER_NAME}/.claude \
     && chown -R ${USER_UID}:${USER_GID} /home/${USER_NAME}/.claude \
     && chmod -R 775 /home/${USER_NAME}/.claude
@@ -119,7 +122,8 @@ USER ${USER_UID}
 RUN curl -fsSL https://claude.ai/install.sh | bash -s -- "${CLAUDE_CODE_VERSION}"
 
 # Add Claude to PATH (native installer puts it in ~/.local/bin)
-ENV PATH="/home/${USER_NAME}/.local/bin:${PATH}"
+ENV HOME="/home/${USER_NAME}" \
+    PATH="/home/${USER_NAME}/.local/bin:${PATH}"
 
 # Verify installation
 RUN claude --version
