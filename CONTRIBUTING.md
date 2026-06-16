@@ -248,7 +248,7 @@ If you have [Claude Code](https://docs.anthropic.com/en/docs/claude-code) set up
 For example:
 
 ```text
-/agentic-starter-kits-skills:integrate-tracing autogen agents/autogen/templates/chat_agent
+/agentic-starter-kits-skills:integrate-tracing autogen agents/autogen/templates/mcp_agent
 ```
 
 You can also prompt Claude Code directly (e.g., "integrate tracing into the autogen chat agent using the `/agentic-starter-kits-skills:integrate-tracing` skill") and it will follow the same workflow.
