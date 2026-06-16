@@ -1,0 +1,74 @@
+# openshell-base: runtime-free sandbox foundation
+#
+# Thin base image for all agent sandboxes. Contains system dependencies,
+# sandbox/supervisor users, default policy, and entrypoint. No language
+# runtimes, no agents.
+#
+# Target size: 150-200 MB
+#
+# Build:
+#   podman build --platform linux/amd64 -t openshell-base:latest .
+
+FROM registry.access.redhat.com/ubi10/ubi-minimal:10.1
+
+ARG RIPGREP_VERSION=14.1.1
+ARG USER_UID=1001
+ARG USER_GID=0
+
+# System deps: everything a sandbox needs, no language runtimes
+RUN microdnf install -y --nodocs --setopt=install_weak_deps=0 \
+        ca-certificates \
+        curl \
+        git \
+        jq \
+        iproute \
+        nftables \
+        bind-utils \
+        procps-ng \
+        vim-minimal \
+        tar \
+        gzip \
+        shadow-utils \
+    && microdnf clean all \
+    && rm -rf /var/cache/yum
+
+# ripgrep (not in UBI repos, install from GitHub release)
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then RIPGREP_ARCH="x86_64-unknown-linux-musl"; \
+    elif [ "$ARCH" = "aarch64" ]; then RIPGREP_ARCH="aarch64-unknown-linux-gnu"; \
+    else echo "Unsupported arch: $ARCH" && exit 1; fi && \
+    curl -fsSL "https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/ripgrep-${RIPGREP_VERSION}-${RIPGREP_ARCH}.tar.gz" \
+    | tar xz -C /usr/local/bin --strip-components=1 "ripgrep-${RIPGREP_VERSION}-${RIPGREP_ARCH}/rg"
+
+# Users: supervisor (system, non-login) and sandbox (interactive, GID=0 for OpenShift)
+RUN useradd -r -s /usr/sbin/nologin supervisor && \
+    useradd -u ${USER_UID} -g ${USER_GID} -d /sandbox -m -s /bin/bash sandbox && \
+    groupadd -f sandbox
+
+# Sandbox home structure
+RUN mkdir -p /sandbox/.local/bin /sandbox/.config && \
+    chown -R ${USER_UID}:${USER_GID} /sandbox && \
+    chmod -R 775 /sandbox
+
+# Workspace directory
+RUN mkdir -p /workspace && \
+    chown -R ${USER_UID}:${USER_GID} /workspace && \
+    chmod -R 775 /workspace
+
+# Default policy
+RUN mkdir -p /etc/openshell
+COPY policy.yaml /etc/openshell/policy.yaml
+
+# Agent install scripts directory
+RUN mkdir -p /etc/openshell/agents
+
+# Entrypoint
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+USER ${USER_UID}
+WORKDIR /sandbox
+ENV PATH="/sandbox/.local/bin:${PATH}"
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["bash"]

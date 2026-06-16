@@ -1,0 +1,27 @@
+# Codex agent for OpenShell sandbox
+#
+# Flavor image built on the shared openshell-base.
+# Adds Node.js and Codex CLI (Apache 2.0).
+#
+# Build:
+#   podman build --platform linux/amd64 -t codex-sandbox:latest -f Containerfile.openshell .
+
+FROM quay.io/hmoghani/openshell-base:latest
+
+USER 0
+
+# Node.js runtime (from UBI repos)
+RUN microdnf install -y --nodocs nodejs npm && \
+    microdnf clean all && \
+    rm -rf /var/cache/yum
+
+# Install Codex CLI (Apache 2.0)
+ARG CODEX_VERSION=0.139.0
+RUN npm install -g @openai/codex@${CODEX_VERSION}
+
+# Verify
+RUN codex --version
+
+USER 1001
+WORKDIR /workspace
+ENV AGENT_NAME=codex

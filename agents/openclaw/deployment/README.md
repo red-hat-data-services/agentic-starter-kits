@@ -92,3 +92,34 @@ See [docs/raw-deployment.md](docs/raw-deployment.md) for the full walkthrough, c
 - [claw-installer](https://github.com/sallyom/claw-installer) — Web-based deployment tool with OpenShift plugin
 - [openclaw-on-openshift](https://github.com/aakankshaduggal/openclaw-on-openshift) — Source repo with full docs
 - [OpenClaw](https://github.com/openclaw/openclaw) — Upstream project
+
+---
+
+## Running in an OpenShell Sandbox
+
+To run OpenClaw inside an [OpenShell](https://github.com/NVIDIA/OpenShell-Community) sandbox, use the `Containerfile.openshell`. This builds on the shared base image (`sandboxes/base/`) and adds Node.js and the OpenClaw CLI on top.
+
+### Build the OpenShell-compatible image
+
+```bash
+podman build --platform linux/amd64 -t openclaw-sandbox:latest -f Containerfile.openshell .
+```
+
+### Create a sandbox
+
+```bash
+openshell sandbox create --from openclaw-sandbox:latest
+```
+
+### What `Containerfile.openshell` does
+
+Builds on the shared base image (`quay.io/hmoghani/openshell-base`) which provides the `sandbox` user, system packages, and OpenShell entrypoint. This flavor adds:
+
+- Node.js and npm (from UBI repos)
+- OpenClaw via npm (version pinned, MIT)
+
+### Notes
+
+- OpenShell's supervisor takes over as PID 1 and does not automatically start the OpenClaw gateway. Start it manually inside the sandbox: `openclaw gateway --bind loopback --auth none --port 18789 --allow-unconfigured`
+- Build with `--platform linux/amd64` when targeting x86_64 clusters from Apple Silicon machines.
+- Tested on OpenShell v0.0.58, OpenShift 4.21 (June 2026).
