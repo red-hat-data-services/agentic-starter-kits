@@ -137,4 +137,3 @@ This ensures the lock file is auto-updated whenever `pyproject.toml` changes. Se
 ## 11. Update Root README
 
 Add your agent to the agent table in the root `README.md`.
-
