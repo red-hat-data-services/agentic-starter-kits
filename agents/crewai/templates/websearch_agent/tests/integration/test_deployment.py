@@ -10,6 +10,7 @@ from integration.utils import (
     get_route,
     health_check,
     load_agent_name,
+    resolve_agent_dir,
     run_make,
 )
 
@@ -19,8 +20,8 @@ INTERNAL_REGISTRY = "image-registry.openshift-image-registry.svc:5000"
 
 
 @pytest.fixture(scope="module")
-def agent_dir(repo_root):
-    return repo_root / "agents" / "crewai" / "websearch_agent"
+def agent_dir():
+    return resolve_agent_dir(__file__)
 
 
 @pytest.fixture(scope="module")

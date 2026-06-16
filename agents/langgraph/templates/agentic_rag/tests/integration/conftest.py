@@ -10,6 +10,7 @@ from integration.utils import (
     RouteNotFoundError,
     get_route,
     load_agent_name,
+    resolve_agent_dir,
     run_make,
 )
 
@@ -22,8 +23,8 @@ _REQUIRED_ENV = ("BASE_URL", "MODEL_ID", "EMBEDDING_MODEL", "VECTOR_STORE_ID")
 
 
 @pytest.fixture(scope="module")
-def agent_dir(repo_root):
-    return repo_root / "agents" / "langgraph" / "agentic_rag"
+def agent_dir():
+    return resolve_agent_dir(__file__)
 
 
 @pytest.fixture(scope="module")
