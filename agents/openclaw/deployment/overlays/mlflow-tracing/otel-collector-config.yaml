@@ -1,0 +1,55 @@
+# OTel collector ConfigMap for self-hosted MLflow
+# No auth, no workspace header, no TLS — plain HTTP to mlflow
+#
+# Before applying: replace YOUR-NAMESPACE with your OpenShift namespace
+# and YOUR-EXPERIMENT-ID with the MLflow experiment ID (e.g., "1")
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  labels:
+    app: openclaw
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "127.0.0.1:4317"
+          http:
+            endpoint: "127.0.0.1:4318"
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 256
+        spike_limit_mib: 64
+      resource:
+        attributes:
+          - key: service.namespace
+            value: YOUR-NAMESPACE
+            action: upsert
+          - key: deployment.environment
+            value: prototype
+            action: upsert
+      batch:
+        timeout: 5s
+        send_batch_size: 100
+
+    exporters:
+      otlphttp:
+        endpoint: "http://mlflow.YOUR-NAMESPACE.svc.cluster.local:5000"
+        tls:
+          insecure: true
+        headers:
+          x-mlflow-experiment-id: "YOUR-EXPERIMENT-ID"
+      debug:
+        verbosity: basic
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, resource, batch]
+          exporters: [otlphttp, debug]
