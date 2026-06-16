@@ -67,7 +67,7 @@ CREW_A2A_PORT=9100
 LANGGRAPH_A2A_PORT=9200
 ```
 
-See [Local Development](../../../docs/local-development.md) for Ollama + Llama Stack setup for local model serving.
+See [Local Development](../../../docs/local-development.md) for Ollama + OGX setup for local model serving.
 
 #### OpenShift cluster (values for `make build` / `make push` / `make deploy`)
 

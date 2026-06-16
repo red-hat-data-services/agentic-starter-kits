@@ -108,7 +108,7 @@ CONTAINER_IMAGE = quay.io/your-username/google-adk-agent:latest
 **Notes:**
 
 - `API_KEY` - your API key or contact your cluster administrator
-- `BASE_URL` - should end with `/v1`. For local Llama Stack, use `http://localhost:8321/v1`
+- `BASE_URL` - should end with `/v1`. For local OGX, use `http://localhost:8321/v1`
 - `MODEL_ID` - model identifier available on your endpoint
   - **Local OGX:** requires `ollama/` prefix (e.g., `ollama/Llama3.1:8B`)
   - **Cluster deployment:** discover available models via `curl $BASE_URL/models` or check your model serving dashboard

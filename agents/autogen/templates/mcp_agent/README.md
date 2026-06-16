@@ -52,7 +52,7 @@ make env
 
 Edit `.env` to point the agent at an LLM. Choose **one** of the two options below.
 
-#### Option A: Local model (Ollama + Llama Stack)
+#### Option A: Local model (Ollama + OGX)
 
 Set the following in `.env`:
 
@@ -69,7 +69,7 @@ make ollama                    # default model: llama3.1:8b
 make ollama MODEL=llama3.2:3b  # or specify a different model
 ```
 
-Start the Llama Stack server (keep this terminal open):
+Start the OGX server (keep this terminal open):
 
 ```bash
 make llama-server
@@ -88,8 +88,8 @@ MODEL_ID=llama-3.1-8b-instruct
 ```
 
 - `API_KEY` - your API key or contact your cluster administrator
-- `BASE_URL` - should end with `/v1`. For local Llama Stack, use `http://localhost:8321/v1`
-- `MODEL_ID` - model identifier available on your endpoint. For local Llama Stack, requires `ollama/` prefix (e.g., `ollama/Llama3.1:8B`)
+- `BASE_URL` - should end with `/v1`. For local OGX, use `http://localhost:8321/v1`
+- `MODEL_ID` - model identifier available on your endpoint. For local OGX, requires `ollama/` prefix (e.g., `ollama/Llama3.1:8B`)
 
 ### MCP Configuration
 
@@ -290,7 +290,7 @@ CONTAINER_IMAGE=quay.io/your-username/autogen-mcp-agent:latest
 **Notes:**
 
 - `API_KEY` - your API key or contact your cluster administrator
-- `BASE_URL` - should end with `/v1`. For local Llama Stack, use `http://localhost:8321/v1`
+- `BASE_URL` - should end with `/v1`. For local OGX, use `http://localhost:8321/v1`
 - `MODEL_ID` - model identifier available on your endpoint
   - **Local OGX:** requires `ollama/` prefix (e.g., `ollama/Llama3.1:8B`)
   - **Cluster deployment:** discover available models via `curl $BASE_URL/models` or check your model serving dashboard

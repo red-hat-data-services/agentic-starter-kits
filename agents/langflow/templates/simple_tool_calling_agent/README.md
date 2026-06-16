@@ -132,13 +132,13 @@ Configure the flow components:
 
 ### Pointing to a locally hosted model
 
-See [Local Development](../../../docs/local-development.md) for Ollama + Llama Stack setup for local model serving.
+See [Local Development](../../../docs/local-development.md) for Ollama + OGX setup for local model serving.
 
 **Notes:**
 
-- `api_base` — use `host.containers.internal` instead of `localhost` so containerized Langflow can reach Llama Stack
+- `api_base` — use `host.containers.internal` instead of `localhost` so containerized Langflow can reach OGX
   running on the host
-- `api_key` — Llama Stack doesn't require authentication, so any non-empty string works
+- `api_key` — OGX doesn't require authentication, so any non-empty string works
 - `model_name` — not all models handle tool calling well. `qwen2.5:7b` and `llama3.1:8b` are known to work
 
 ### Pointing to a remotely hosted model
