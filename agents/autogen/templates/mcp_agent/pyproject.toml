@@ -25,13 +25,6 @@ tracing = [
 dev = [
     "pytest>=9.0.2",
 ]
-llama = [
-    "ollama>=0.4.0",
-    "milvus-lite>=2.5.1",
-    "pymilvus>=2.6.9",
-    "chardet>=7.1.0",
-    "pypdf>=6.9.0",
-]
 [tool.setuptools.packages.find]
 where = ["src"]
 

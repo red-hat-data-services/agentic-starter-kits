@@ -401,18 +401,6 @@ wheels = [
 ]
 
 [[package]]
-name = "langchain-llama-stack"
-version = "0.2.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "langchain-openai" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f6/de/651a408fd406180a549a07894fe12e95f4796f699443aa54770cfce8b2e4/langchain_llama_stack-0.2.1.tar.gz", hash = "sha256:027e35fea6f122044a06e5a718f18712f8bdf0bc485d419d3c697fb6499f3aca", size = 89501, upload-time = "2025-08-25T21:55:29.138Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/12/cd/1909a71e9dbbb619a7ccf0333bb89ad05505c1502735c2c03cddb4af8fdb/langchain_llama_stack-0.2.1-py3-none-any.whl", hash = "sha256:1d8e63868c79ce501b0f503a21265cb45339941ffc05bb3fa86c027aced622c8", size = 6066, upload-time = "2025-08-25T21:55:28.404Z" },
-]
-
-[[package]]
 name = "langchain-mcp-adapters"
 version = "0.2.2"
 source = { registry = "https://pypi.org/simple" }
@@ -560,7 +548,6 @@ source = { editable = "." }
 dependencies = [
     { name = "httpx" },
     { name = "langchain" },
-    { name = "langchain-llama-stack" },
     { name = "langchain-mcp-adapters" },
     { name = "langchain-openai" },
     { name = "langgraph" },
@@ -582,7 +569,6 @@ dev = [
 requires-dist = [
     { name = "httpx", specifier = ">=0.27.0,<1.0.0" },
     { name = "langchain", specifier = ">=1.2.10,<2.0.0" },
-    { name = "langchain-llama-stack", specifier = ">=0.1.0,<1.0.0" },
     { name = "langchain-mcp-adapters", specifier = ">=0.1.0,<1.0.0" },
     { name = "langchain-openai", specifier = ">=1.1.10,<2.0.0" },
     { name = "langgraph", specifier = ">=1.0.0" },
