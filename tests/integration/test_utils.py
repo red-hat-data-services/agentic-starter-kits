@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from integration import utils as integration_utils
 
+from integration import utils as integration_utils
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
