@@ -6,7 +6,7 @@ OpenClaw natively emits OpenTelemetry (OTLP) traces via its `diagnostics-otel` p
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │  OpenClaw Pod                                               │
 │                                                             │
@@ -57,7 +57,7 @@ The collector runs as a sidecar in the OpenClaw pod, receiving spans on localhos
 
 A multi-tool agent turn produces this span tree:
 
-```
+```text
 openclaw.message.processed           (turn-level root, 14.6s)
 └── openclaw.harness.run             (items.completed=13)
     └── openclaw.run                 (trigger=user, outcome=completed)
@@ -89,19 +89,19 @@ The `openclaw.model.call` spans capture `time_to_first_byte_ms` (40–294ms), `r
 
 **Traces list** — 74 traces captured in the `openclaw-tracing` experiment:
 
-![](images/traces-list.png)
+![MLflow traces list showing captured traces in the openclaw-tracing experiment](images/traces-list.png)
 
 **Span waterfall** — tree hierarchy for a multi-tool agent turn:
 
-![](images/span-waterfall.png)
+![Span waterfall showing tree hierarchy for a multi-tool agent turn](images/span-waterfall.png)
 
 **Model call attributes** — `openclaw.model.call` span detail showing request/response sizes and TTFB:
 
-![](images/span-details.png)
+![Model call span details showing request/response sizes and TTFB](images/span-details.png)
 
 **Tool execution attributes** — `openclaw.tool.execution` span detail showing tool name and source:
 
-![](images/tool-execution-details.png)
+![Tool execution span details showing tool name and source](images/tool-execution-details.png)
 
 ---
 
@@ -128,7 +128,7 @@ Replace every `YOUR-*` placeholder across these files:
 | `otel-collector-config.yaml` | `YOUR-NAMESPACE` and `YOUR-EXPERIMENT-ID` (set after Step 3) |
 | `mlflow.yaml` | `storageClassName` if not on AWS (e.g., `managed-csi` for Azure, `thin-csi` for VMware) |
 
-Also set the gateway token in `manifests/01-secret.yaml` — the default is `CHANGE-ME`.
+Also set the gateway token in `../manifests/01-secret.yaml` — the default is `CHANGE-ME`.
 
 See [raw-deployment.md](raw-deployment.md) for how to find your model ID.
 
