@@ -13,6 +13,18 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
+def resolve_agent_dir(test_file: str | Path) -> Path:
+    test_path = Path(test_file).resolve()
+    agent_dir = test_path.parents[2]
+    agent_config = agent_dir / "agent.yaml"
+    if not agent_config.is_file():
+        raise FileNotFoundError(
+            f"Could not find agent.yaml from test file {test_path}; "
+            f"expected {agent_config}"
+        )
+    return agent_dir
+
+
 def load_agent_name(agent_dir: str | Path) -> str:
     data = yaml.safe_load((Path(agent_dir) / "agent.yaml").read_text())
     if not isinstance(data, dict) or "name" not in data:
