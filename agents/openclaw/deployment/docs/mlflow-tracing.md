@@ -1,14 +1,14 @@
 # MLflow Tracing for OpenClaw
 
-> Tested: 2026-06-16 on OpenShift 4.19 (ROSA) with `ghcr.io/openclaw/openclaw@sha256:037f49ba1595be9502fb345138d727cd0cfaecf1392cbe0cfe053fb4681386cd`, vLLM `gpt-oss-120b`
+> Tested: 2026-06-17 on OpenShift 4.19 (ROSA) with `ghcr.io/openclaw/openclaw@sha256:037f49ba1595be9502fb345138d727cd0cfaecf1392cbe0cfe053fb4681386cd`, vLLM `gpt-oss-120b`, RHOAI MLflow 3.x
 
-OpenClaw natively emits OpenTelemetry (OTLP) traces via its `diagnostics-otel` plugin — no custom instrumentation, no Python hooks, no stop scripts. This overlay deploys a self-hosted MLflow alongside OpenClaw with an OTel collector sidecar that forwards spans in real time. A multi-turn coding task with 8 model calls and 8 tool executions produced a 19-span trace with full tool names, latencies, request/response sizes, and context window stats — all visible in the MLflow UI.
+OpenClaw natively emits OpenTelemetry (OTLP) traces via its `diagnostics-otel` plugin — no custom instrumentation, no Python hooks, no stop scripts. This overlay deploys OpenClaw with an OTel collector sidecar that forwards spans to RHOAI's shared MLflow instance over TLS with bearer token auth and scoped RBAC. A multi-turn coding task with 8 model calls and 8 tool executions produced a 19-span trace with full tool names, latencies, request/response sizes, and context window stats — all visible in the MLflow UI.
 
 ## Architecture
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│  OpenClaw Pod                                               │
+│  OpenClaw Pod (YOUR-NAMESPACE)                              │
 │                                                             │
 │  ┌──────────────┐    OTLP/HTTP     ┌────────────────────┐  │
 │  │              │  localhost:4318   │                    │  │
@@ -18,16 +18,17 @@ OpenClaw natively emits OpenTelemetry (OTLP) traces via its `diagnostics-otel` p
 │  └──────────────┘                  └─────────┬──────────┘  │
 │                                              │              │
 └──────────────────────────────────────────────┼──────────────┘
-                                               │ otlphttp
-                                               │ /v1/traces
+                                               │ OTLP/HTTP + bearer auth
+                                               │ TLS (Service CA)
                                                ▼
-                                    ┌─────────────────────┐
-                                    │   MLflow             │
-                                    │   port 5000          │
-                                    └─────────────────────┘
+                              ┌──────────────────────────────┐
+                              │  RHOAI MLflow                │
+                              │  (redhat-ods-applications)   │
+                              │  port 8443, TLS              │
+                              └──────────────────────────────┘
 ```
 
-The collector runs as a sidecar in the OpenClaw pod, receiving spans on localhost and forwarding to MLflow's OTLP ingestion endpoint over the cluster network. No auth, no TLS, no external dependencies.
+The collector runs as a sidecar in the OpenClaw pod, receiving spans on localhost and forwarding to RHOAI's shared MLflow over the cluster network. Authentication uses a ServiceAccount token with a scoped ClusterRole (`openclaw-mlflow-traces`) that only grants access to MLflow API groups — no access to core Kubernetes resources.
 
 ### Component versions
 
@@ -35,7 +36,13 @@ The collector runs as a sidecar in the OpenClaw pod, receiving spans on localhos
 |---|---|
 | OpenClaw | `ghcr.io/openclaw/openclaw@sha256:037f49ba1595be9502fb345138d727cd0cfaecf1392cbe0cfe053fb4681386cd` |
 | OTel Collector (0.120.0) | `ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917` |
-| MLflow (3.10.1) | `ghcr.io/mlflow/mlflow@sha256:bb350de1ae29025e3f78d70a3443047ca863429cc577a28e050c7156ed8d388d` |
+| MLflow | RHOAI-managed (3.x) |
+
+### Security model
+
+The overlay creates a dedicated `openclaw-tracing` ServiceAccount bound to the pre-existing `openclaw-mlflow-traces` ClusterRole. This role is scoped to `mlflow.kubeflow.org` and `mlflow.opendatahub.io` API groups only — it cannot read secrets, modify deployments, or access any core Kubernetes resources.
+
+TLS verification uses the OpenShift Service CA certificate, injected automatically via the `service.beta.openshift.io/inject-cabundle` annotation on the `service-ca-bundle` ConfigMap.
 
 ---
 
@@ -109,9 +116,11 @@ The `openclaw.model.call` spans capture `time_to_first_byte_ms` (40–294ms), `r
 
 ### Prerequisites
 
+- **RHOAI with MLflow** — the `mlflow` service must be running in `redhat-ods-applications` with `--enable-workspaces`. The `openclaw-mlflow-traces` ClusterRole must exist (created by the RHOAI operator).
 - **OpenShift 4.17+** with namespace-scoped access (`oc login`)
-- **Block storage class** — the overlay is configured for AWS (`gp3-csi`). Not NFS (SQLite requires POSIX file locking).
 - **A vLLM-compatible model endpoint** (see [model-compatibility.md](model-compatibility.md))
+
+If you don't have RHOAI, see [Alternative: Self-hosted MLflow](#alternative-self-hosted-mlflow).
 
 ### Step 1: Copy and configure the overlay
 
@@ -124,33 +133,59 @@ Replace every `YOUR-*` placeholder across these files:
 | File | What to change |
 |---|---|
 | `kustomization.yaml` | `YOUR-NAMESPACE` |
-| `configmap-patch.yaml` | `YOUR-MODEL-ID`, `YOUR-VLLM-OR-OGX-ENDPOINT`, `YOUR-NAMESPACE` |
+| `configmap-patch.yaml` | `YOUR-MODEL-ID`, `YOUR-VLLM-OR-OGX-ENDPOINT` |
 | `otel-collector-config.yaml` | `YOUR-NAMESPACE` and `YOUR-EXPERIMENT-ID` (set after Step 3) |
-| `mlflow.yaml` | `storageClassName` if not on AWS (e.g., `managed-csi` for Azure, `thin-csi` for VMware) |
+| `rbac.yaml` | `YOUR-NAMESPACE` in the RoleBinding subject |
 
 Also set the gateway token in `../manifests/01-secret.yaml` — the default is `CHANGE-ME`.
 
 See [raw-deployment.md](raw-deployment.md) for how to find your model ID.
 
-### Step 2: Deploy MLflow
+### Step 2: Create namespace and RBAC
 
 ```bash
 oc new-project YOUR-NAMESPACE   # or use existing namespace
 
-oc apply -f overlays/my-tracing/mlflow.yaml -n YOUR-NAMESPACE
+oc apply -f overlays/my-tracing/rbac.yaml -n YOUR-NAMESPACE
 ```
 
-Wait for the `mlflow` pod to reach `1/1 Running`.
+This creates:
+- **`openclaw-tracing` ServiceAccount** — used by the OpenClaw pod, scoped to MLflow API groups only
+- **`openclaw-tracing-mlflow` RoleBinding** — binds the pre-existing `openclaw-mlflow-traces` ClusterRole
+- **`service-ca-bundle` ConfigMap** — auto-populated with the OpenShift Service CA certificate for TLS verification
+
+Verify the Service CA bundle was injected:
+
+```bash
+oc get configmap service-ca-bundle -o jsonpath='{.data.service-ca\.crt}' | head -1
+```
+
+You should see `-----BEGIN CERTIFICATE-----`.
 
 ### Step 3: Create an MLflow experiment
 
+RHOAI MLflow uses workspaces — your namespace maps to a workspace. Create an experiment in your workspace:
+
 ```bash
-oc exec deploy/mlflow -- \
-  env MLFLOW_TRACKING_URI=http://localhost:5000 \
-  mlflow experiments create -n openclaw-tracing
+MLFLOW_ROUTE=$(oc get route mlflow -n redhat-ods-applications -o jsonpath='{.spec.host}')
+TOKEN=$(oc whoami -t)
+
+curl -s -X POST "https://${MLFLOW_ROUTE}/mlflow/api/2.0/mlflow/experiments/create" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -H "X-MLFLOW-WORKSPACE: YOUR-NAMESPACE" \
+  -d '{"name": "openclaw-tracing"}' | python3 -m json.tool
 ```
 
-Note the `experiment_id` from the output (e.g., `Created experiment 'openclaw-tracing' with id 1`). Update `YOUR-EXPERIMENT-ID` in your overlay's `otel-collector-config.yaml`.
+Note the `experiment_id` from the response. If the experiment already exists, look it up:
+
+```bash
+curl -s "https://${MLFLOW_ROUTE}/mlflow/api/2.0/mlflow/experiments/get-by-name?experiment_name=openclaw-tracing" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "X-MLFLOW-WORKSPACE: YOUR-NAMESPACE" | python3 -m json.tool
+```
+
+Update `YOUR-EXPERIMENT-ID` in your overlay's `otel-collector-config.yaml`.
 
 ### Step 4: Deploy OpenClaw
 
@@ -181,17 +216,89 @@ The API key persists across pod restarts (stored in SQLite on the PVC), so you o
 
 ### Step 6: Connect
 
-Port-forward both OpenClaw and MLflow:
+Port-forward OpenClaw:
 
 ```bash
 oc port-forward deploy/openclaw 18789:18789 &
-oc port-forward deploy/mlflow 5001:5000 &
 ```
 
 - **OpenClaw Control UI:** <http://localhost:18789> — paste the gateway token from `01-secret.yaml` when prompted
-- **MLflow UI:** <http://localhost:5001> — navigate to the `openclaw-tracing` experiment to view traces
+- **MLflow UI:** Access via the RHOAI dashboard or `oc get route mlflow -n redhat-ods-applications -o jsonpath='{.spec.host}'`
+
+Navigate to the `openclaw-tracing` experiment in your workspace to view traces.
 
 > Port-forward is required for the Control UI. The OpenShift Route works for HTTP requests but WebSocket connections flap through HAProxy's reverse proxy.
+
+---
+
+## Alternative: Self-hosted MLflow
+
+If you don't have RHOAI or prefer a standalone MLflow instance, the overlay includes `mlflow.yaml` for a self-hosted deployment with SQLite backend and no auth.
+
+### Changes required
+
+1. **Add `mlflow.yaml` to `kustomization.yaml`:**
+
+   ```yaml
+   resources:
+     - ../../manifests
+     - rbac.yaml              # can be removed for self-hosted
+     - otel-collector-config.yaml
+     - mlflow.yaml            # add this
+   ```
+
+2. **Simplify `otel-collector-config.yaml`** — replace the RHOAI exporter with:
+
+   ```yaml
+   exporters:
+     otlphttp:
+       endpoint: "http://mlflow.YOUR-NAMESPACE.svc.cluster.local:5000"
+       tls:
+         insecure: true
+       headers:
+         x-mlflow-experiment-id: "YOUR-EXPERIMENT-ID"
+     debug:
+       verbosity: basic
+
+   service:
+     pipelines:
+       traces:
+         receivers: [otlp]
+         processors: [memory_limiter, resource, batch]
+         exporters: [otlphttp, debug]
+   ```
+
+   Remove the `extensions` block and `bearertokenauth` references.
+
+3. **Simplify `deployment-patch.yaml`** — remove `serviceAccountName` and the `service-ca-bundle` volume/mount.
+
+4. **Create the MLflow experiment:**
+
+   ```bash
+   oc exec deploy/mlflow -- \
+     env MLFLOW_TRACKING_URI=http://localhost:5000 \
+     mlflow experiments create -n openclaw-tracing
+   ```
+
+5. **Port-forward MLflow** on a separate port:
+
+   ```bash
+   oc port-forward deploy/mlflow 5001:5000 &
+   ```
+
+   Access at <http://localhost:5001>.
+
+### Self-hosted storage class
+
+`mlflow.yaml` is configured for AWS (`gp3-csi`). Change the `storageClassName` in the PVC if you're on a different platform:
+
+| Platform | Storage class |
+|---|---|
+| AWS (ROSA) | `gp3-csi` |
+| Azure (ARO) | `managed-csi` |
+| VMware | `thin-csi` |
+
+SQLite requires POSIX file locking — NFS-backed storage classes will not work.
 
 ---
 
@@ -204,6 +311,14 @@ oc port-forward deploy/mlflow 5001:5000 &
 **Root cause:** `paste-api-key` writes to `~/.openclaw/openclaw.json`, which triggers the gateway's config file watcher. The watcher detects changes in the `auth` and `meta` fields, determines a restart is required, and sends `SIGUSR1` to itself. The gateway does an in-process restart (keeping PID 1 alive for container health), but the `diagnostics-otel` plugin's `TracerProvider` / `BatchSpanProcessor` from the first initialization is left in a broken state. The second startup loads the plugin in 0.3s (vs 3.5s on first boot) and emits zero spans — not even startup diagnostics.
 
 **Fix:** Always do a full pod restart (`oc delete pod`) after `paste-api-key`. The API key persists in SQLite on the PVC, and the ConfigMap includes `auth.profiles`, so the gateway starts fully configured on the next boot with no config mutation needed.
+
+### Traces not appearing (experiment 404)
+
+**Symptom:** The OTel collector logs `Exporting failed. Dropping data. ... HTTP Status Code 404` but no further detail.
+
+**Root cause:** The experiment ID in `otel-collector-config.yaml` doesn't exist in the target workspace. MLflow returns a 404 with no body, and the collector only logs the status code.
+
+**Fix:** Verify the experiment exists in your workspace. Use the `get-by-name` API from Step 3 to look up the correct ID. Each workspace has its own experiment ID sequence — an experiment that exists in one workspace may not exist in another.
 
 ### WebSocket connections flap through the Route
 
@@ -233,4 +348,3 @@ The OpenShift Route terminates TLS at HAProxy, which disrupts the persistent Web
 | OpenClaw Deployment Guide | [raw-deployment.md](raw-deployment.md) |
 | OTel Collector Contrib | <https://github.com/open-telemetry/opentelemetry-collector-contrib> |
 | MLflow OTLP Tracing | <https://mlflow.org/docs/latest/tracing/index.html> |
-

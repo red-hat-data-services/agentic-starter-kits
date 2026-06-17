@@ -1,10 +1,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Base OpenClaw manifests + MLflow tracing resources
+# Base OpenClaw manifests + RHOAI MLflow tracing resources
 resources:
   - ../../manifests
-  - mlflow.yaml
+  - rbac.yaml
   - otel-collector-config.yaml
 
 # Set your namespace

@@ -1,8 +1,9 @@
-# OTel collector ConfigMap for self-hosted MLflow
-# No auth, no workspace header, no TLS — plain HTTP to mlflow
+# OTel collector ConfigMap for RHOAI shared MLflow
+# Uses bearer token auth (SA token) and Service CA TLS
 #
-# Before applying: replace YOUR-NAMESPACE with your OpenShift namespace
-# and YOUR-EXPERIMENT-ID with the MLflow experiment ID (e.g., "1")
+# Before applying: replace YOUR-NAMESPACE and YOUR-EXPERIMENT-ID
+# If RHOAI is installed in a namespace other than redhat-ods-applications,
+# update the otlphttp endpoint below accordingly.
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -12,6 +13,10 @@ metadata:
     app: openclaw
 data:
   config.yaml: |
+    extensions:
+      bearertokenauth:
+        filename: /var/run/secrets/kubernetes.io/serviceaccount/token
+
     receivers:
       otlp:
         protocols:
@@ -39,15 +44,19 @@ data:
 
     exporters:
       otlphttp:
-        endpoint: "http://mlflow.YOUR-NAMESPACE.svc.cluster.local:5000"
+        endpoint: "https://mlflow.redhat-ods-applications.svc.cluster.local:8443"
         tls:
-          insecure: true
+          ca_file: /etc/ssl/service-ca/service-ca.crt
         headers:
+          X-MLFLOW-WORKSPACE: YOUR-NAMESPACE
           x-mlflow-experiment-id: "YOUR-EXPERIMENT-ID"
+        auth:
+          authenticator: bearertokenauth
       debug:
         verbosity: basic
 
     service:
+      extensions: [bearertokenauth]
       pipelines:
         traces:
           receivers: [otlp]
