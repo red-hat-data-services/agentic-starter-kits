@@ -120,8 +120,6 @@ The `openclaw.model.call` spans capture `time_to_first_byte_ms` (40–294ms), `r
 - **OpenShift 4.17+** with namespace-scoped access (`oc login`)
 - **A vLLM-compatible model endpoint** (see [model-compatibility.md](model-compatibility.md))
 
-If you don't have RHOAI, see [Alternative: Self-hosted MLflow](#alternative-self-hosted-mlflow).
-
 ### Step 1: Copy and configure the overlay
 
 ```bash
@@ -228,77 +226,6 @@ oc port-forward deploy/openclaw 18789:18789 &
 Navigate to the `openclaw-tracing` experiment in your workspace to view traces.
 
 > Port-forward is required for the Control UI. The OpenShift Route works for HTTP requests but WebSocket connections flap through HAProxy's reverse proxy.
-
----
-
-## Alternative: Self-hosted MLflow
-
-If you don't have RHOAI or prefer a standalone MLflow instance, the overlay includes `mlflow.yaml` for a self-hosted deployment with SQLite backend and no auth.
-
-### Changes required
-
-1. **Add `mlflow.yaml` to `kustomization.yaml`:**
-
-   ```yaml
-   resources:
-     - ../../manifests
-     - rbac.yaml              # can be removed for self-hosted
-     - otel-collector-config.yaml
-     - mlflow.yaml            # add this
-   ```
-
-2. **Simplify `otel-collector-config.yaml`** — replace the RHOAI exporter with:
-
-   ```yaml
-   exporters:
-     otlphttp:
-       endpoint: "http://mlflow.YOUR-NAMESPACE.svc.cluster.local:5000"
-       tls:
-         insecure: true
-       headers:
-         x-mlflow-experiment-id: "YOUR-EXPERIMENT-ID"
-     debug:
-       verbosity: basic
-
-   service:
-     pipelines:
-       traces:
-         receivers: [otlp]
-         processors: [memory_limiter, resource, batch]
-         exporters: [otlphttp, debug]
-   ```
-
-   Remove the `extensions` block and `bearertokenauth` references.
-
-3. **Simplify `deployment-patch.yaml`** — remove `serviceAccountName` and the `service-ca-bundle` volume/mount.
-
-4. **Create the MLflow experiment:**
-
-   ```bash
-   oc exec deploy/mlflow -- \
-     env MLFLOW_TRACKING_URI=http://localhost:5000 \
-     mlflow experiments create -n openclaw-tracing
-   ```
-
-5. **Port-forward MLflow** on a separate port:
-
-   ```bash
-   oc port-forward deploy/mlflow 5001:5000 &
-   ```
-
-   Access at <http://localhost:5001>.
-
-### Self-hosted storage class
-
-`mlflow.yaml` is configured for AWS (`gp3-csi`). Change the `storageClassName` in the PVC if you're on a different platform:
-
-| Platform | Storage class |
-|---|---|
-| AWS (ROSA) | `gp3-csi` |
-| Azure (ARO) | `managed-csi` |
-| VMware | `thin-csi` |
-
-SQLite requires POSIX file locking — NFS-backed storage classes will not work.
 
 ---
 
