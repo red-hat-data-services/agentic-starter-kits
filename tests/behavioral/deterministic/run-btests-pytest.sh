@@ -330,7 +330,9 @@ run_tests() {
       export MLFLOW_WORKSPACE="${MLFLOW_WORKSPACE:-}"
       export MLFLOW_TRACKING_INSECURE_TLS="true"
 
-      uv run --extra test python -m pytest "${test_path}" -v --tb=short
+      uv run --extra test python -m pytest "${test_path}" -v --tb=short \
+        --report-json "${RESULTS_DIR}/${log_name}_scores.json" \
+        --report-console
     ) > "${logfile}" 2>&1 &
     local pid=$!
     CHILD_PIDS+=("$pid")
@@ -661,6 +663,9 @@ print_summary() {
   else
     echo -e "${RED}${BOLD}SOME AGENTS FAILED${RESET}"
   fi
+
+  # Clean up temporary .exit files
+  rm -f "${RESULTS_DIR}"/*.exit
 
   echo ""
   log "Full logs: ${RESULTS_DIR}"

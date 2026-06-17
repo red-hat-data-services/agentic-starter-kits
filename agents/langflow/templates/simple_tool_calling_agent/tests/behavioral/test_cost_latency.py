@@ -17,7 +17,9 @@ pytestmark = pytest.mark.langflow_tool_calling
 
 
 async def test_latency_under_threshold(
-    run_eval: Any, langflow_tool_calling_thresholds: dict[str, Any]
+    run_eval: Any,
+    langflow_tool_calling_thresholds: dict[str, Any],
+    score_collector: Any,
 ) -> None:
     """Response latency must stay within the p95 threshold."""
     max_latency = langflow_tool_calling_thresholds["max_latency_p95"]
@@ -25,6 +27,7 @@ async def test_latency_under_threshold(
     assert result.success, f"Agent request failed: {result.error}"
 
     score = score_latency(result, max_latency)
+    score_collector.record("What is the weather like in Boston today?", score)
     assert score.passed, (
         f"Latency exceeded threshold: {result.latency_seconds:.2f}s > "
         f"{max_latency}s (details: {score.details})"

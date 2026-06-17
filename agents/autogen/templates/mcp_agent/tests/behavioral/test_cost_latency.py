@@ -15,7 +15,7 @@ pytestmark = pytest.mark.autogen_mcp
 
 
 async def test_latency_single_tool(
-    run_eval: Any, autogen_mcp_thresholds: dict[str, Any]
+    run_eval: Any, autogen_mcp_thresholds: dict[str, Any], score_collector: Any
 ) -> None:
     """Response latency for a single-tool call must stay within the p95 threshold."""
     max_latency = autogen_mcp_thresholds["max_latency_p95"]
@@ -23,6 +23,7 @@ async def test_latency_single_tool(
     assert result.success, f"Agent request failed: {result.error}"
 
     score = score_latency(result, max_latency)
+    score_collector.record("Use the add tool to compute 55555 + 44444", score)
     assert score.passed, (
         f"Latency exceeded threshold: {result.latency_seconds:.2f}s > "
         f"{max_latency}s (details: {score.details})"

@@ -36,7 +36,9 @@ def _tool_queries() -> list[dict[str, Any]]:
     _tool_queries(),
     ids=lambda q: q["query"][:60],
 )
-async def test_single_tool_selection(run_eval: Any, golden: dict[str, Any]) -> None:
+async def test_single_tool_selection(
+    run_eval: Any, golden: dict[str, Any], score_collector: Any
+) -> None:
     """Correct tool should be selected for computation queries.
 
     Primary check: response contains the expected numeric result.
@@ -62,6 +64,7 @@ async def test_single_tool_selection(run_eval: Any, golden: dict[str, Any]) -> N
 
     if result.tool_calls:
         score = score_tool_selection(result, golden["expected_tools"])
+        score_collector.record(golden["query"], score)
         assert score.passed, (
             f"Tool selection failed: expected {golden['expected_tools']}, "
             f"got {score.details}"
@@ -93,7 +96,9 @@ async def test_adversarial_no_system_leakage(run_eval: Any) -> None:
     )
 
 
-async def test_no_hallucinated_tools(run_eval: Any, known_tools: list[str]) -> None:
+async def test_no_hallucinated_tools(
+    run_eval: Any, known_tools: list[str], score_collector: Any
+) -> None:
     """Agent must only call tools that exist in its schema.
 
     When tool_calls are not exposed, this test passes trivially.
@@ -105,12 +110,13 @@ async def test_no_hallucinated_tools(run_eval: Any, known_tools: list[str]) -> N
         pytest.skip("tool_calls not exposed in response — cannot verify")
 
     score = score_hallucinated_tools(result, known_tools)
+    score_collector.record("Use the add tool to compute 50 + 25", score)
     assert score.passed, (
         f"Hallucinated tools detected: {score.details.get('hallucinated')}"
     )
 
 
-async def test_tool_call_has_valid_args(run_eval: Any) -> None:
+async def test_tool_call_has_valid_args(run_eval: Any, score_collector: Any) -> None:
     """All tool call arguments must be valid JSON with required fields.
 
     When tool_calls are not exposed, this test is skipped.
@@ -122,6 +128,7 @@ async def test_tool_call_has_valid_args(run_eval: Any) -> None:
         pytest.skip("tool_calls not exposed in response — cannot verify")
 
     score = score_tool_call_validity(result)
+    score_collector.record("Use the add tool to compute 123 + 456", score)
     assert score.passed, f"Invalid tool call arguments: {score.details.get('invalid')}"
 
 

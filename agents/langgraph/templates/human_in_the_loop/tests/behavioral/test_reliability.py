@@ -23,7 +23,7 @@ PASS_K_TIMEOUT = 60.0
 
 
 async def test_pass_at_k_tool_usage(
-    run_eval: Any, hitl_thresholds: dict[str, Any]
+    run_eval: Any, hitl_thresholds: dict[str, Any], score_collector: Any
 ) -> None:
     """Tool selection should succeed in >= threshold% of k runs.
 
@@ -50,6 +50,7 @@ async def test_pass_at_k_tool_usage(
 
         if result.tool_calls:
             score = score_tool_selection(result, expected_tools)
+            score_collector.record(query, score)
             if score.passed:
                 passed_count += 1
         else:
@@ -66,7 +67,7 @@ async def test_pass_at_k_tool_usage(
 
 
 async def test_pass_at_k_response_quality(
-    run_eval: Any, hitl_thresholds: dict[str, Any]
+    run_eval: Any, hitl_thresholds: dict[str, Any], score_collector: Any
 ) -> None:
     """Response coherence should pass in >= threshold% of k runs."""
     k = hitl_thresholds.get("pass_at_k", 8)
@@ -81,6 +82,7 @@ async def test_pass_at_k_response_quality(
             failures += 1
             continue
         score = score_plan_coherence(result)
+        score_collector.record(query, score)
         if score.passed:
             passed_count += 1
 

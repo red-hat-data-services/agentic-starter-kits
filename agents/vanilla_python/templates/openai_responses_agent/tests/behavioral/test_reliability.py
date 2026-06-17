@@ -26,7 +26,7 @@ PASS_K_TIMEOUT = 60.0
 
 
 async def test_pass_at_k_single_tool(
-    run_eval: Any, vanilla_python_thresholds: dict[str, Any]
+    run_eval: Any, vanilla_python_thresholds: dict[str, Any], score_collector: Any
 ) -> None:
     """Single-tool selection should succeed in >= threshold% of k runs.
 
@@ -52,6 +52,7 @@ async def test_pass_at_k_single_tool(
 
         if result.tool_calls:
             score = score_tool_selection(result, expected_tools)
+            score_collector.record(query, score)
             if score.passed:
                 passed_count += 1
         else:
@@ -76,7 +77,7 @@ async def test_pass_at_k_single_tool(
 
 
 async def test_pass_at_k_multi_tool(
-    run_eval: Any, vanilla_python_thresholds: dict[str, Any]
+    run_eval: Any, vanilla_python_thresholds: dict[str, Any], score_collector: Any
 ) -> None:
     """Multi-tool selection should succeed in >= threshold% of k runs.
 
@@ -101,6 +102,7 @@ async def test_pass_at_k_multi_tool(
 
         if result.tool_calls:
             score = score_tool_selection(result, expected_tools)
+            score_collector.record(query, score)
             if score.passed:
                 passed_count += 1
         else:
@@ -127,7 +129,7 @@ async def test_pass_at_k_multi_tool(
 
 
 async def test_pass_at_k_response_quality(
-    run_eval: Any, vanilla_python_thresholds: dict[str, Any]
+    run_eval: Any, vanilla_python_thresholds: dict[str, Any], score_collector: Any
 ) -> None:
     """Response coherence should pass in >= threshold% of k runs.
 
@@ -146,6 +148,7 @@ async def test_pass_at_k_response_quality(
             failures += 1
             continue
         score = score_plan_coherence(result)
+        score_collector.record(query, score)
         if score.passed:
             passed_count += 1
 

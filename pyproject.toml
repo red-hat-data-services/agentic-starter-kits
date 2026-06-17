@@ -68,6 +68,9 @@ markers = [
     "integration: Integration tests (adapter orchestration, deployment health checks)",
 ]
 
+[project.entry-points."pytest11"]
+harness-reporters = "harness.reporters.pytest_plugin"
+
 [tool.setuptools.packages.find]
 where = ["evals"]
 include = ["harness*", "evalhub_adapter*"]

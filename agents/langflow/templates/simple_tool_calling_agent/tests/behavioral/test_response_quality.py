@@ -19,11 +19,12 @@ def _queries_with_expected_elements() -> list[dict[str, Any]]:
     return [q for q in load_golden() if q.get("expected_elements")]
 
 
-async def test_plan_coherence(run_eval: Any) -> None:
+async def test_plan_coherence(run_eval: Any, score_collector: Any) -> None:
     """Response should have structure and substance (not a bare one-liner)."""
     result = await run_eval("What is the weather like in Boston today?")
     assert result.success, f"Agent request failed: {result.error}"
     score = score_plan_coherence(result)
+    score_collector.record("What is the weather like in Boston today?", score)
     assert score.passed, (
         f"Plan coherence check failed (score={score.value:.2f}): {score.details}"
     )
@@ -34,7 +35,9 @@ async def test_plan_coherence(run_eval: Any) -> None:
     _queries_with_expected_elements(),
     ids=lambda q: q["query"][:60],
 )
-async def test_response_completeness(run_eval: Any, golden: dict[str, Any]) -> None:
+async def test_response_completeness(
+    run_eval: Any, golden: dict[str, Any], score_collector: Any
+) -> None:
     """Response should contain all expected elements from the golden dataset."""
     result = await run_eval(
         golden["query"],
@@ -43,6 +46,7 @@ async def test_response_completeness(run_eval: Any, golden: dict[str, Any]) -> N
     assert result.success, f"Agent request failed: {result.error}"
 
     score = score_completeness(result, golden["expected_elements"])
+    score_collector.record(golden["query"], score)
     assert score.passed, (
         f"Completeness check failed: missing {score.details.get('missing')} "
         f"(found {score.details.get('found')}). "

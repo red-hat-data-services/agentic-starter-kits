@@ -15,7 +15,7 @@ pytestmark = pytest.mark.google_adk
 
 
 async def test_latency_under_threshold(
-    run_eval: Any, google_adk_thresholds: dict[str, Any]
+    run_eval: Any, google_adk_thresholds: dict[str, Any], score_collector: Any
 ) -> None:
     """Response latency must stay within the p95 threshold."""
     max_latency = google_adk_thresholds["max_latency_p95"]
@@ -23,6 +23,7 @@ async def test_latency_under_threshold(
     assert result.success, f"Agent request failed: {result.error}"
 
     score = score_latency(result, max_latency)
+    score_collector.record("What is Red Hat OpenShift AI?", score)
     assert score.passed, (
         f"Latency exceeded threshold: {result.latency_seconds:.2f}s > "
         f"{max_latency}s (details: {score.details})"

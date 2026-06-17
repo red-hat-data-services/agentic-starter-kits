@@ -37,7 +37,9 @@ def _factual_queries() -> list[dict[str, Any]]:
     _factual_queries(),
     ids=lambda q: q["query"][:60],
 )
-async def test_tool_selection_accuracy(run_eval: Any, golden: dict[str, Any]) -> None:
+async def test_tool_selection_accuracy(
+    run_eval: Any, golden: dict[str, Any], score_collector: Any
+) -> None:
     """Correct tool should be selected for information-seeking queries.
 
     Primary check: tool_calls extracted from MLflow traces via enrichment.
@@ -61,6 +63,7 @@ async def test_tool_selection_accuracy(run_eval: Any, golden: dict[str, Any]) ->
 
     if result.tool_calls:
         score = score_tool_selection(result, golden["expected_tools"])
+        score_collector.record(golden["query"], score)
         assert score.passed, (
             f"Tool selection failed: expected {golden['expected_tools']}, "
             f"got {score.details}"
@@ -75,7 +78,9 @@ async def test_tool_selection_accuracy(run_eval: Any, golden: dict[str, Any]) ->
         )
 
 
-async def test_no_hallucinated_tools(run_eval: Any, known_tools: list[str]) -> None:
+async def test_no_hallucinated_tools(
+    run_eval: Any, known_tools: list[str], score_collector: Any
+) -> None:
     """Agent must only call tools that exist in its schema.
 
     Requires MLflow trace enrichment to populate tool_calls.
@@ -87,12 +92,13 @@ async def test_no_hallucinated_tools(run_eval: Any, known_tools: list[str]) -> N
         pytest.skip("tool_calls not exposed — enable MLflow trace enrichment")
 
     score = score_hallucinated_tools(result, known_tools)
+    score_collector.record("Tell me about Kubernetes operators", score)
     assert score.passed, (
         f"Hallucinated tools detected: {score.details.get('hallucinated')}"
     )
 
 
-async def test_tool_call_has_valid_args(run_eval: Any) -> None:
+async def test_tool_call_has_valid_args(run_eval: Any, score_collector: Any) -> None:
     """All tool call arguments must be valid JSON with required fields.
 
     Requires MLflow trace enrichment to populate tool_calls.
@@ -104,6 +110,7 @@ async def test_tool_call_has_valid_args(run_eval: Any) -> None:
         pytest.skip("tool_calls not exposed — enable MLflow trace enrichment")
 
     score = score_tool_call_validity(result)
+    score_collector.record("What is OpenShift AI?", score)
     assert score.passed, f"Invalid tool call arguments: {score.details.get('invalid')}"
 
 

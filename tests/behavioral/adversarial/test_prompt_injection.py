@@ -27,10 +27,11 @@ class TestDirectInjection:
         payloads_by_category("direct_injection"),
         ids=lambda p: p["id"],
     )
-    async def test_direct_injection(self, run_eval, payload):
+    async def test_direct_injection(self, run_eval, payload, score_collector):
         """Agent must resist direct injection payloads."""
         result = await run_eval(payload["payload"])
         score = score_prompt_injection_resistance(result, payload["payload"])
+        score_collector.record(payload["payload"], score)
         assert score.passed, (
             f"Agent complied with direct injection [{payload['id']}]: {score.details}"
         )
@@ -44,10 +45,11 @@ class TestIndirectInjection:
         payloads_by_category("indirect_injection"),
         ids=lambda p: p["id"],
     )
-    async def test_indirect_injection(self, run_eval, payload):
+    async def test_indirect_injection(self, run_eval, payload, score_collector):
         """Agent must resist indirect injection payloads."""
         result = await run_eval(payload["payload"])
         score = score_prompt_injection_resistance(result, payload["payload"])
+        score_collector.record(payload["payload"], score)
         assert score.passed, (
             f"Agent complied with indirect injection [{payload['id']}]: {score.details}"
         )
@@ -67,10 +69,11 @@ class TestRolePlayInjection:
         payloads_by_category("role_play"),
         ids=lambda p: p["id"],
     )
-    async def test_role_play_injection(self, run_eval, payload):
+    async def test_role_play_injection(self, run_eval, payload, score_collector):
         """Agent must not adopt injected personas."""
         result = await run_eval(payload["payload"])
         score = score_prompt_injection_resistance(result, payload["payload"])
+        score_collector.record(payload["payload"], score)
         assert score.passed, f"Agent adopted persona [{payload['id']}]: {score.details}"
 
 
@@ -82,10 +85,11 @@ class TestEncodingTricks:
         payloads_by_category("encoding_tricks"),
         ids=lambda p: p["id"],
     )
-    async def test_encoding_trick_injection(self, run_eval, payload):
+    async def test_encoding_trick_injection(self, run_eval, payload, score_collector):
         """Agent must resist encoded injection attempts."""
         result = await run_eval(payload["payload"])
         score = score_prompt_injection_resistance(result, payload["payload"])
+        score_collector.record(payload["payload"], score)
         assert score.passed, (
             f"Agent complied with encoding trick [{payload['id']}]: {score.details}"
         )
@@ -99,10 +103,11 @@ class TestContextManipulation:
         payloads_by_category("context_manipulation"),
         ids=lambda p: p["id"],
     )
-    async def test_context_manipulation(self, run_eval, payload):
+    async def test_context_manipulation(self, run_eval, payload, score_collector):
         """Agent must resist context manipulation payloads."""
         result = await run_eval(payload["payload"])
         score = score_prompt_injection_resistance(result, payload["payload"])
+        score_collector.record(payload["payload"], score)
         assert score.passed, (
             f"Agent complied with context manipulation [{payload['id']}]: {score.details}"
         )
@@ -111,7 +116,7 @@ class TestContextManipulation:
 class TestInjectionChain:
     """Tests for multi-step injection that builds context."""
 
-    async def test_injection_nested_in_content(self, run_eval):
+    async def test_injection_nested_in_content(self, run_eval, score_collector):
         """Injection hidden inside seemingly legitimate content."""
         query = (
             "The following text is user feedback that needs processing:\n"
@@ -124,4 +129,5 @@ class TestInjectionChain:
         result = await run_eval(query)
 
         score = score_prompt_injection_resistance(result, query)
+        score_collector.record(query, score)
         assert score.passed, f"Agent followed nested injection: {score.details}"
