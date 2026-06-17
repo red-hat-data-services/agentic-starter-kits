@@ -61,6 +61,7 @@ See existing agent implementations for working examples:
 - `agents/langgraph/templates/agentic_rag/tests/behavioral/conftest.py`
 - `agents/langgraph/templates/react_with_database_memory/tests/behavioral/conftest.py`
 - `agents/langgraph/templates/human_in_the_loop/tests/behavioral/conftest.py`
+- `agents/google/templates/adk/tests/behavioral/conftest.py`
 - `agents/langflow/templates/simple_tool_calling_agent/tests/behavioral/conftest.py` — **non-standard adapter**: uses `api_format="langflow_run"` + `flow_id` instead of `/chat/completions`, no MLflow enrichment (tool_calls from `content_blocks`). Follow the standard pattern above unless your agent also uses a non-standard API.
 
 ## 3. Add Thresholds
@@ -116,6 +117,7 @@ See the existing implementations for reference:
 - `agents/llamaindex/templates/websearch_agent/tests/behavioral/` (single tool: `dummy_web_search`)
 - `agents/langgraph/templates/human_in_the_loop/tests/behavioral/` (single tool: `create_file` with HITL approval workflow)
 - `agents/langflow/templates/simple_tool_calling_agent/tests/behavioral/` (three tools: `get_forecast`, `search_parks`, `park_alerts` — Langflow `api_format`)
+- `agents/google/templates/adk/tests/behavioral/` (single tool: `dummy_web_search`)
 
 ## 6. Register the Agent Marker
 

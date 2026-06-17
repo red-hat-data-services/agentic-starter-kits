@@ -232,26 +232,31 @@ This allows `make run` to auto-install MLflow when `MLFLOW_TRACKING_URI` is set 
 
 ### Using the `integrate-tracing` Claude Code skill
 
-If you have [Claude Code](https://docs.anthropic.com/en/docs/claude-code) set up, this repo includes a skill that automates the entire process described above.
+If you have [Claude Code](https://docs.anthropic.com/en/docs/claude-code) set up, the [agentic-starter-kits-skills](https://github.com/red-hat-data-services/agentic-starter-kits-skills) plugin includes a skill that automates the entire process described above.
 
 #### Prerequisites
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and configured
-- Run Claude Code from the repo root so it discovers the skills in `.claude/skills/`
+- Install the skills plugin:
+
+  ```bash
+  claude plugin marketplace add red-hat-data-services/agentic-starter-kits-skills
+  claude plugin install agentic-starter-kits-skills@agentic-starter-kits-skills
+  ```
 
 #### Running the full integration
 
 ```text
-/integrate-tracing <framework> <agent_path>
+/agentic-starter-kits-skills:integrate-tracing <framework> <agent_path>
 ```
 
 For example:
 
 ```text
-/integrate-tracing autogen agents/autogen/templates/chat_agent
+/agentic-starter-kits-skills:integrate-tracing autogen agents/autogen/templates/chat_agent
 ```
 
-You can also prompt Claude Code directly (e.g., "integrate tracing into the autogen chat agent using the `/integrate-tracing` skill") and it will follow the same workflow.
+You can also prompt Claude Code directly (e.g., "integrate tracing into the autogen chat agent using the `/agentic-starter-kits-skills:integrate-tracing` skill") and it will follow the same workflow.
 
 This single command runs the entire pipeline end-to-end. The skill always creates a demo copy of the agent first, implements and verifies tracing on the demo, and only applies the changes to the actual agent template once everything works correctly.
 
@@ -270,13 +275,13 @@ This single command runs the entire pipeline end-to-end. The skill always create
 Each step of the pipeline is also available as a standalone skill. This is useful if you want to run just one phase, re-run a step after a fix, or integrate tracing manually with some automation:
 
 ```text
-/check-autolog-support <framework>         # Research MLflow autolog support for a framework
-/create-tracing-module <agent_path> [framework]  # Create tracing.py only
-/wire-into-lifespan <agent_path>            # Wire tracing into main.py only
-/add-manual-tracing <agent_path>            # Add manual trace wrapping only
-/verify-traces <agent_path>                 # Run code review + live trace testing
-/review-tracing-code <agent_path>           # Code review only (no live testing)
-/test-tracing <agent_path>                  # Live trace testing only (no code review)
+/agentic-starter-kits-skills:check-autolog-support <framework>         # Research MLflow autolog support for a framework
+/agentic-starter-kits-skills:create-tracing-module <agent_path> [framework]  # Create tracing.py only
+/agentic-starter-kits-skills:wire-into-lifespan <agent_path>            # Wire tracing into main.py only
+/agentic-starter-kits-skills:add-manual-tracing <agent_path>            # Add manual trace wrapping only
+/agentic-starter-kits-skills:verify-traces <agent_path>                 # Run code review + live trace testing
+/agentic-starter-kits-skills:review-tracing-code <agent_path>           # Code review only (no live testing)
+/agentic-starter-kits-skills:test-tracing <agent_path>                  # Live trace testing only (no code review)
 ```
 
 #### How the skill system works
@@ -285,7 +290,7 @@ Each step of the pipeline is also available as a standalone skill. This is usefu
 
 `verify-traces` is itself a sub-orchestrator — it calls `review-tracing-code` (static analysis) and `test-tracing` (live end-to-end testing) and combines their results into a single report. If verification fails, the report points back to which step to revisit.
 
-All skills live as siblings in `.claude/skills/` (not nested under `integrate-tracing/`) because Claude Code discovers skills by scanning `.claude/skills/*/SKILL.md`. The flat structure also makes each sub-skill independently callable. If you need to maintain or extend a skill, edit the `SKILL.md` file in its directory. Each skill includes a self-update instruction — if Claude deviates from a skill's steps because they were inaccurate, it updates the skill file automatically so the next run benefits.
+All skills live in the [agentic-starter-kits-skills](https://github.com/red-hat-data-services/agentic-starter-kits-skills) plugin repo as siblings under `skills/`. The flat structure makes each sub-skill independently callable. If you need to maintain or extend a skill, edit the `SKILL.md` file in its directory in the plugin repo.
 
 **Recommended model:** These skills were developed and tested with `claude-opus-4-6`. Use Opus for best results — smaller models may not follow the multi-step orchestration reliably.
 

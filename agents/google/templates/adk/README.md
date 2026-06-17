@@ -198,6 +198,35 @@ See [OpenShift Deployment](../../../docs/openshift-deployment.md) for more detai
 make test
 ```
 
+### Behavioral Tests
+
+Behavioral tests validate tool selection, response quality, latency, and reliability
+over HTTP against the standard `/chat/completions` endpoint. Run from the **repo root**:
+
+```bash
+cd /path/to/agentic-starter-kits
+
+GOOGLE_ADK_AGENT_URL=https://<agent-route> \
+  uv run --extra test python -m pytest \
+    agents/google/templates/adk/tests/behavioral/ -v
+```
+
+To enable MLflow trace enrichment (for full tool_calls extraction via F1 scoring):
+
+```bash
+GOOGLE_ADK_AGENT_URL=https://<agent-route> \
+MLFLOW_TRACKING_URI=<uri> \
+MLFLOW_EXPERIMENT_NAME=<experiment> \
+MLFLOW_TRACKING_TOKEN=$(oc whoami -t) \
+MLFLOW_WORKSPACE=<namespace> \
+MLFLOW_TRACKING_INSECURE_TLS=true \
+  uv run --extra test python -m pytest \
+    agents/google/templates/adk/tests/behavioral/ -v
+```
+
+MLflow tracing is integrated — when `MLFLOW_TRACKING_URI` is set, traces include
+`[TOOL]` spans for `dummy_web_search` and `[CHAT_MODEL]` spans for LLM calls via LiteLLM.
+
 ## API Endpoints
 
 ### POST /chat/completions

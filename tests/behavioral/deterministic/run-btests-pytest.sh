@@ -40,14 +40,15 @@ RESET='\033[0m'
 # ---------------------------------------------------------------------------
 # Each entry: "agent_path|url_env_var|deployment_name"
 AGENTS=(
-  "crewai/websearch_agent|CREWAI_WEBSEARCH_AGENT_URL|crewai-websearch-agent"
-  "langgraph/react_agent|REACT_AGENT_URL|langgraph-react-agent"
-  "langgraph/agentic_rag|AGENTIC_RAG_AGENT_URL|langgraph-agentic-rag"
-  "langgraph/react_with_database_memory|DB_MEMORY_AGENT_URL|langgraph-db-memory-agent"
-  "autogen/mcp_agent|AUTOGEN_MCP_AGENT_URL|autogen-mcp-agent"
-  "llamaindex/websearch_agent|LLAMAINDEX_WEBSEARCH_AGENT_URL|llamaindex-websearch-agent"
-  "vanilla_python/openai_responses_agent|VANILLA_PYTHON_AGENT_URL|openai-responses-agent"
-  "langgraph/human_in_the_loop|HITL_AGENT_URL|langgraph-hitl-agent"
+  "crewai/templates/websearch_agent|CREWAI_WEBSEARCH_AGENT_URL|crewai-websearch-agent"
+  "langgraph/templates/react_agent|REACT_AGENT_URL|langgraph-react-agent"
+  "langgraph/templates/agentic_rag|AGENTIC_RAG_AGENT_URL|langgraph-agentic-rag"
+  "langgraph/templates/react_with_database_memory|DB_MEMORY_AGENT_URL|langgraph-db-memory-agent"
+  "autogen/templates/mcp_agent|AUTOGEN_MCP_AGENT_URL|autogen-mcp-agent"
+  "llamaindex/templates/websearch_agent|LLAMAINDEX_WEBSEARCH_AGENT_URL|llamaindex-websearch-agent"
+  "vanilla_python/templates/openai_responses_agent|VANILLA_PYTHON_AGENT_URL|openai-responses-agent"
+  "langgraph/templates/human_in_the_loop|HITL_AGENT_URL|langgraph-hitl-agent"
+  "google/templates/adk|GOOGLE_ADK_AGENT_URL|google-adk-agent"
 )
 
 # ---------------------------------------------------------------------------

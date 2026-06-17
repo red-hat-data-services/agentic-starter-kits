@@ -108,6 +108,7 @@ REQUIRED_FILES=(
   "agents/llamaindex/templates/websearch_agent/evalhub/tool_use.yaml"
   "agents/langflow/templates/simple_tool_calling_agent/evalhub/tool_use.yaml"
   "agents/langgraph/templates/human_in_the_loop/evalhub/tool_use.yaml"
+  "agents/google/templates/adk/evalhub/tool_use.yaml"
 )
 for f in "${REQUIRED_FILES[@]}"; do
   if [[ -f "${REPO_ROOT}/${f}" ]]; then
@@ -244,6 +245,18 @@ else
   preflight_ok "HITL agent route (override): ${HITL_AGENT_ROUTE}"
 fi
 
+if [[ -z "${GOOGLE_ADK_AGENT_ROUTE:-}" ]]; then
+  GOOGLE_ADK_AGENT_ROUTE=$(get_route "google-adk-agent" || true)
+  [[ -z "${GOOGLE_ADK_AGENT_ROUTE}" ]] && GOOGLE_ADK_AGENT_ROUTE=$(get_route_contains "google-adk")
+  if [[ -n "${GOOGLE_ADK_AGENT_ROUTE}" ]]; then
+    preflight_ok "Google ADK agent route: ${GOOGLE_ADK_AGENT_ROUTE}"
+  else
+    preflight_fail "Could not discover google_adk_agent route. Set GOOGLE_ADK_AGENT_ROUTE manually."
+  fi
+else
+  preflight_ok "Google ADK agent route (override): ${GOOGLE_ADK_AGENT_ROUTE}"
+fi
+
 # Langflow agent route — lives in a separate namespace (langflow-agent)
 LANGFLOW_NAMESPACE="${LANGFLOW_NAMESPACE:-langflow-agent}"
 if [[ -z "${LANGFLOW_ROUTE:-}" ]]; then
@@ -376,6 +389,14 @@ if [[ -n "${HITL_AGENT_ROUTE:-}" ]]; then
   fi
 fi
 
+if [[ -n "${GOOGLE_ADK_AGENT_ROUTE:-}" ]]; then
+  if curl -sf --max-time 10 "https://${GOOGLE_ADK_AGENT_ROUTE}/health" > /dev/null 2>&1; then
+    preflight_ok "google_adk_agent /health responded"
+  else
+    preflight_warn "google_adk_agent /health not reachable (https://${GOOGLE_ADK_AGENT_ROUTE}/health)"
+  fi
+fi
+
 if [[ -n "${LANGFLOW_ROUTE:-}" ]]; then
   if curl -sf --max-time 10 "https://${LANGFLOW_ROUTE}/health" > /dev/null 2>&1; then
     preflight_ok "langflow_tool_calling_agent /health responded"
@@ -465,6 +486,7 @@ echo "  Agentic RAG agent: ${AGENTIC_RAG_AGENT_ROUTE}"
 echo "  DB Memory agent:   ${DB_MEMORY_AGENT_ROUTE}"
 echo "  LlamaIndex Websearch: ${LLAMAINDEX_WEBSEARCH_ROUTE}"
 echo "  HITL agent:        ${HITL_AGENT_ROUTE}"
+echo "  Google ADK agent:  ${GOOGLE_ADK_AGENT_ROUTE}"
 echo "  MLflow:            ${MLFLOW_TRACKING_URI}"
 echo "  Experiment:        ${MLFLOW_EXPERIMENT}"
 
@@ -761,6 +783,29 @@ EOF
 
 echo "  Created: eval-hitl-agent.yaml"
 
+cat > "${WORK_DIR}/eval-google-adk-agent.yaml" <<EOF
+name: agentic-tool-use-google-adk-agent
+description: EvalHub orchestration run for Google ADK agent
+model:
+  name: google-adk-agent
+  url: https://${GOOGLE_ADK_AGENT_ROUTE}
+benchmarks:
+  - id: agentic-tool-use
+    provider_id: ${PROVIDER_ID}
+    parameters:
+      known_tools: ["dummy_web_search"]
+      forbidden_actions: ["shell execution"]
+      max_latency_seconds: 15.0
+      timeout_seconds: 45.0
+      verify_ssl: true
+      fixtures_path: fixtures/google_adk
+      mlflow_tracking_uri: ${MLFLOW_INTERNAL_URI}
+      mlflow_experiment_name: ${MLFLOW_EXPERIMENT}
+      mlflow_trace_experiment_name: ${MLFLOW_AGENT_EXPERIMENT}
+EOF
+
+echo "  Created: eval-google-adk-agent.yaml"
+
 # Langflow agent — discover flow_id dynamically and obtain auth token
 if [[ -n "${LANGFLOW_ROUTE:-}" ]]; then
   LANGFLOW_TOKEN=$(curl -sk --compressed "https://${LANGFLOW_ROUTE}/api/v1/auto_login" \
@@ -923,6 +968,19 @@ for line in sys.stdin:
         break
 " 2>/dev/null || true)
 
+echo ""
+echo "=== Step 6: Submitting google_adk_agent eval ==="
+GOOGLE_ADK_OUTPUT=$(evalhub eval run --config "${WORK_DIR}/eval-google-adk-agent.yaml" --wait --poll-interval 5 2>&1)
+echo "${GOOGLE_ADK_OUTPUT}"
+GOOGLE_ADK_JOB_ID=$(echo "${GOOGLE_ADK_OUTPUT}" | python3 -c "
+import sys, re
+for line in sys.stdin:
+    m = re.search(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', line)
+    if m:
+        print(m.group())
+        break
+" 2>/dev/null || true)
+
 LANGFLOW_JOB_ID=""
 if [[ -f "${WORK_DIR}/eval-langflow-tool-calling-agent.yaml" ]]; then
   echo ""
@@ -1012,6 +1070,8 @@ echo ""
 print_results "llamaindex_websearch_agent" "${LLAMAINDEX_JOB_ID:-}"
 echo ""
 print_results "hitl_agent" "${HITL_JOB_ID:-}"
+echo ""
+print_results "google_adk_agent" "${GOOGLE_ADK_JOB_ID:-}"
 if [[ -n "${LANGFLOW_JOB_ID:-}" ]]; then
   echo ""
   print_results "langflow_tool_calling_agent" "${LANGFLOW_JOB_ID:-}"

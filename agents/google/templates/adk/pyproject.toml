@@ -26,6 +26,9 @@ dev = [
     "pytest>=9.0.2",
     "httpx>=0.27",
 ]
+tracing = [
+    "mlflow>=3.10.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

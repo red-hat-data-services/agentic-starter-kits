@@ -7,6 +7,7 @@ from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 
 from adk_agent import TOOLS
+from adk_agent.tracing import wrap_func_with_mlflow_trace
 
 # Suppress LiteLLM's internal telemetry/logging worker timeout errors
 litellm.suppress_debug_info = True
@@ -58,6 +59,10 @@ def get_agent(
 
     model = LiteLlm(model=f"openai/{model_id}")
 
+    traced_tools = [
+        wrap_func_with_mlflow_trace(t, span_type="tool", name=t.__name__) for t in TOOLS
+    ]
+
     agent = LlmAgent(
         name=APP_NAME,
         model=model,
@@ -67,7 +72,7 @@ def get_agent(
             "use that information to provide a FINAL answer to the user immediately. "
             "Do NOT call tools repeatedly for the same question."
         ),
-        tools=TOOLS,
+        tools=traced_tools,
     )
 
     return agent
