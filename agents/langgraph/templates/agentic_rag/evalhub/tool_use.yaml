@@ -1,6 +1,6 @@
 # Golden queries for agentic tool-use benchmark.
 # Each query defines expected tool calls for a RAG retriever agent.
-# The agent has one tool: retriever (LlamaStack vector_io search).
+# The agent has one tool: retriever (OGX vector_io search).
 queries:
   - query: "What is RAG and how does it work?"
     expected_tools: ["retriever"]

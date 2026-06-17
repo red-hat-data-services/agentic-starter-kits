@@ -7,7 +7,7 @@
 #
 # Tool calls are extracted from the Langflow /api/v1/run response
 # content_blocks (not MLflow traces). The model is qwen2.5-7b-instruct
-# running on vLLM via KServe/LlamaStack.
+# running on vLLM via KServe/OGX.
 #
 # External APIs return live data — expected_elements check structural
 # content (e.g. "temperature", park names), not exact numeric values.

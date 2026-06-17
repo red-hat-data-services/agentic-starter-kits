@@ -75,7 +75,7 @@ Edit `.env` with your keys and registry image(s):
 
 ```ini
 API_KEY=your-api-key-here
-BASE_URL=https://your-llama-stack.example.com/v1
+BASE_URL=https://your-ogx.example.com/v1
 MODEL_ID=your-model-id
 CONTAINER_IMAGE=quay.io/your-org/a2a-langgraph-crewai:latest
 ```

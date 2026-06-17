@@ -193,12 +193,12 @@ Edit `.env` with your model endpoint, RAG configuration, and container image.
 
 #### Using an OGX server on the cluster
 
-If an OGX server is already deployed on the cluster (e.g., in the `llama-serving` namespace), use its
+If an OGX server is already deployed on the cluster (e.g., in the `ogx-serving` namespace), use its
 external route URL so both LLM and vector store operations go through OGX:
 
 ```ini
 API_KEY=not-needed
-BASE_URL=https://llamastack-route-host/v1
+BASE_URL=https://ogx-route-host/v1
 MODEL_ID=vllm//mnt/models
 CONTAINER_IMAGE=quay.io/your-username/langgraph-agentic-rag:latest
 
@@ -214,7 +214,7 @@ To discover the OGX route URL and available models on your cluster:
 
 ```bash
 # Get the OGX route
-oc get route -n llama-serving ogx -o jsonpath='{.spec.host}'
+oc get route -n ogx-serving ogx -o jsonpath='{.spec.host}'
 
 # Check available models
 curl -s https://<route-host>/v1/models | python3 -m json.tool

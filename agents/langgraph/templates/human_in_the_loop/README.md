@@ -114,13 +114,13 @@ The default model is `llama3.1:8b`. To use a different model, pass `MODEL=`:
 make ollama
 ```
 
-### Run llama server
+### Run OGX server
 
 > **Keep this terminal open** – the server needs to keep running.
 > You should see output indicating the server started on `http://localhost:8321`.
 
 ```bash
-make llama-server
+make ogx-server
 ```
 
 ### Run the interactive web application
@@ -455,7 +455,7 @@ This agent combines three key components:
 
 1. **LangGraph StateGraph**: Custom workflow with conditional routing for safe vs sensitive tools
 2. **LangGraph Interrupts**: `interrupt()` pauses execution; `Command(resume=...)` resumes it
-3. **ChatOpenAI**: OpenAI-compatible LLM client (connects to Llama-stack or OpenAI)
+3. **ChatOpenAI**: OpenAI-compatible LLM client (connects to OGX or OpenAI)
 
 ```text
 User Input → Agent Node (LLM) → Route Decision

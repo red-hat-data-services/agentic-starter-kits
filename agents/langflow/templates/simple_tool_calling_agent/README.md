@@ -79,7 +79,7 @@ The default model is `qwen2.5:7b`. To use a different model, pass `MODEL=`:
 make ollama
 ```
 
-### Run llama server
+### Run OGX server
 
 > **Keep this terminal open** – the server needs to keep running.
 > You should see output indicating the server started on `http://localhost:8321`.
@@ -183,7 +183,7 @@ make clean       # stop services, remove all data
 ## Deploying to Cluster
 
 There is nothing to build or deploy — no Dockerfiles, no Helm charts, no k8s manifests. This agent assumes Langflow,
-Langfuse, and an LLM (LlamaStack/KServe) are already running on the cluster. You just import the flow JSON into the
+Langfuse, and an LLM (OGX/KServe) are already running on the cluster. You just import the flow JSON into the
 existing Langflow instance and configure it.
 
 ### Login to OC
@@ -194,15 +194,15 @@ oc login -u "login" -p "password" https://super-link-to-cluster:111
 
 ### Finding cluster endpoints
 
-Reach out to your cluster admin for the Langflow URL and LlamaStack endpoint/model names. If you have `oc` CLI access,
+Reach out to your cluster admin for the Langflow URL and OGX endpoint/model names. If you have `oc` CLI access,
 you can find them yourself:
 
 ```bash
 # Langflow UI URL
 oc get routes --all-namespaces | grep langflow
 
-# LlamaStack URL
-oc get routes --all-namespaces | grep llama
+# OGX URL
+oc get routes --all-namespaces | grep ogx
 
 # KServe model (internal endpoint + model name)
 oc get inferenceservice --all-namespaces
@@ -213,15 +213,15 @@ oc get inferenceservice --all-namespaces
 1. Open the Langflow UI on your cluster
 2. Import `flows/outdoor-activity-agent.json`
 3. Configure the flow components:
-    - **KServe vLLM**: set `api_base` and `model_name`. You can connect through LlamaStack or directly to KServe:
+    - **KServe vLLM**: set `api_base` and `model_name`. You can connect through OGX or directly to KServe:
 
       | Option | api_base | model_name |
             |--------|----------|------------|
-      | Via LlamaStack (external route) | `https://<llamastack-route-host>/v1` | vllm//mnt/models |
-      | Via LlamaStack (internal) | `http://llamastack-service.<namespace>.svc.cluster.local:8321/v1` | vllm//mnt/models |
+      | Via OGX (external route) | `https://<ogx-route-host>/v1` | vllm//mnt/models |
+      | Via OGX (internal) | `http://ogx-service.<namespace>.svc.cluster.local:8321/v1` | vllm//mnt/models |
       | Direct to KServe (internal) | `http://<model>-predictor.<namespace>.svc.cluster.local:8080/v1` | /mnt/models |
 
-      Use the external route if Langflow can't reach LlamaStack internally (network policy). Use `oc get routes` and
+      Use the external route if Langflow can't reach OGX internally (network policy). Use `oc get routes` and
       `oc get inferenceservice` to find the actual hostnames and namespaces.
     - **NPS Search Parks**: set `api_key` (get one free at <https://developer.nps.gov>)
     - **NPS Park Alerts**: set `api_key` (same NPS key)

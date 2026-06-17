@@ -72,7 +72,7 @@ make ollama MODEL=llama3.2:3b  # or specify a different model
 Start the OGX server (keep this terminal open):
 
 ```bash
-make llama-server
+make ogx-server
 ```
 
 > You should see output indicating the server started on `http://localhost:8321`.

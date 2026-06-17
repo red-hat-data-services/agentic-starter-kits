@@ -1,7 +1,7 @@
 name: google-adk-agent
 displayName: "Google ADK Agent"
 framework: google-adk
-description: "General-purpose agent using Google ADK 2.0 with LiteLLM to route inference through a LlamaStack-compatible endpoint."
+description: "General-purpose agent using Google ADK 2.0 with LiteLLM to route inference through an OGX-compatible endpoint."
 env:
   required:
     - API_KEY

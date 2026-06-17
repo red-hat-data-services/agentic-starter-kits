@@ -1,6 +1,6 @@
 # Golden dataset for LangGraph Agentic RAG agent evals.
 #
-# The Agentic RAG agent has a single tool: retriever (LlamaStack vector_io)
+# The Agentic RAG agent has a single tool: retriever (OGX vector_io)
 # that searches a knowledge base about LangChain, LangGraph, RAG, vector
 # databases, Milvus, embeddings, and agent architectures.
 #
