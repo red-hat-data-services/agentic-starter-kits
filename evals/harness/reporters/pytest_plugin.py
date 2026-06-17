@@ -46,34 +46,37 @@ class ScoreCollector:
         if not frame:
             return ("", "")
 
-        caller = frame.f_back
-        test_name = ""
-        test_globals: dict | None = None
+        try:
+            caller = frame.f_back
+            test_name = ""
+            test_globals: dict | None = None
 
-        while caller is not None:
-            name = caller.f_code.co_name
-            if name.startswith("test_"):
-                test_name = name
-                test_globals = caller.f_globals
-                break
-            caller = caller.f_back
-
-        if not test_name or test_globals is None:
-            return ("", "")
-
-        agent = ""
-        pytestmark = test_globals.get("pytestmark")
-        if pytestmark is not None:
-            marks = pytestmark if isinstance(pytestmark, list) else [pytestmark]
-            for mark in marks:
-                mark_name = getattr(mark, "name", None) or getattr(
-                    getattr(mark, "mark", None), "name", None
-                )
-                if mark_name and mark_name not in _CATEGORY_MARKERS:
-                    agent = mark_name
+            while caller is not None:
+                name = caller.f_code.co_name
+                if name.startswith("test_"):
+                    test_name = name
+                    test_globals = caller.f_globals
                     break
+                caller = caller.f_back
 
-        return (test_name, agent)
+            if not test_name or test_globals is None:
+                return ("", "")
+
+            agent = ""
+            pytestmark = test_globals.get("pytestmark")
+            if pytestmark is not None:
+                marks = pytestmark if isinstance(pytestmark, list) else [pytestmark]
+                for mark in marks:
+                    mark_name = getattr(mark, "name", None) or getattr(
+                        getattr(mark, "mark", None), "name", None
+                    )
+                    if mark_name and mark_name not in _CATEGORY_MARKERS:
+                        agent = mark_name
+                        break
+
+            return (test_name, agent)
+        finally:
+            del frame
 
     def record(
         self,
