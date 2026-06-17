@@ -9,7 +9,6 @@ import pytest
 from rich.console import Console
 
 from harness.reporters import (
-    MetricSummary,
     ReportData,
     Reporter,
     ScoreRecord,
@@ -21,10 +20,10 @@ from harness.reporters.pytest_plugin import ScoreCollector
 from harness.scorers import Score
 from harness.scorers.latency import LatencyTracker
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_score(
     name: str = "tool_selection",
@@ -54,11 +53,10 @@ def _make_record(
 # ScoreRecord
 # ---------------------------------------------------------------------------
 
+
 class TestScoreRecord:
     def test_creation_defaults(self) -> None:
-        rec = ScoreRecord(
-            query="hello", test_name="test_hi", score=_make_score()
-        )
+        rec = ScoreRecord(query="hello", test_name="test_hi", score=_make_score())
         assert rec.agent == ""
         assert rec.timestamp == 0.0
 
@@ -71,6 +69,7 @@ class TestScoreRecord:
 # ---------------------------------------------------------------------------
 # aggregate()
 # ---------------------------------------------------------------------------
+
 
 class TestAggregate:
     def test_empty_input(self) -> None:
@@ -92,9 +91,13 @@ class TestAggregate:
 
     def test_multiple_metrics(self) -> None:
         records = [
-            _make_record(score=_make_score(name="tool_selection", value=1.0, passed=True)),
+            _make_record(
+                score=_make_score(name="tool_selection", value=1.0, passed=True)
+            ),
             _make_record(score=_make_score(name="latency", value=0.9, passed=True)),
-            _make_record(score=_make_score(name="tool_selection", value=0.5, passed=False)),
+            _make_record(
+                score=_make_score(name="tool_selection", value=0.5, passed=False)
+            ),
         ]
         result = aggregate(records)
         assert len(result) == 2
@@ -116,9 +119,13 @@ class TestAggregate:
 # JSONFileReporter
 # ---------------------------------------------------------------------------
 
+
 class TestJSONFileReporter:
     def test_writes_valid_json(self, tmp_path) -> None:
-        records = [_make_record(), _make_record(score=_make_score(value=0.5, passed=False))]
+        records = [
+            _make_record(),
+            _make_record(score=_make_score(value=0.5, passed=False)),
+        ]
         summary = aggregate(records)
         data = ReportData(records=records, summary=summary)
 
@@ -202,6 +209,7 @@ class TestJSONFileReporter:
 # ConsoleReporter
 # ---------------------------------------------------------------------------
 
+
 class TestConsoleReporter:
     def _capture(self, data: ReportData, verbose: bool = False) -> str:
         buf = StringIO()
@@ -241,9 +249,7 @@ class TestConsoleReporter:
         tracker.add(2.5)
 
         records = [_make_record()]
-        data = ReportData(
-            records=records, summary=aggregate(records), latency=tracker
-        )
+        data = ReportData(records=records, summary=aggregate(records), latency=tracker)
         output = self._capture(data)
         assert "Latency Percentiles" in output
 
@@ -264,6 +270,7 @@ class TestConsoleReporter:
 # ---------------------------------------------------------------------------
 # ScoreCollector
 # ---------------------------------------------------------------------------
+
 
 class TestScoreCollector:
     def test_record_stores_entries(self) -> None:
@@ -325,6 +332,7 @@ class TestScoreCollector:
 # Reporter protocol
 # ---------------------------------------------------------------------------
 
+
 class TestReporterProtocol:
     def test_json_reporter_is_reporter(self) -> None:
         assert isinstance(JSONFileReporter("/tmp/test.json"), Reporter)
@@ -336,6 +344,7 @@ class TestReporterProtocol:
 # ---------------------------------------------------------------------------
 # Integration: collector -> aggregate -> reporters pipeline
 # ---------------------------------------------------------------------------
+
 
 class TestIntegrationPipeline:
     def test_full_pipeline(self, tmp_path) -> None:
