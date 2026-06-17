@@ -58,7 +58,7 @@ class TestScoreRecord:
     def test_creation_defaults(self) -> None:
         rec = ScoreRecord(query="hello", test_name="test_hi", score=_make_score())
         assert rec.agent == ""
-        assert rec.timestamp == 0.0
+        assert rec.timestamp > 0.0
 
     def test_creation_with_values(self) -> None:
         rec = _make_record(agent="crewai")

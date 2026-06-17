@@ -10,8 +10,6 @@ import warnings
 import pytest
 
 from harness.reporters import ReportData, ScoreRecord, aggregate
-from harness.reporters.console import ConsoleReporter
-from harness.reporters.json_file import JSONFileReporter
 from harness.scorers import Score
 from harness.scorers.latency import LatencyTracker
 
@@ -175,11 +173,15 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     if json_path:
         try:
+            from harness.reporters.json_file import JSONFileReporter
+
             JSONFileReporter(json_path).report(data)
         except Exception as exc:
             warnings.warn(f"JSON reporter failed: {exc}", stacklevel=1)
     if console:
         try:
+            from harness.reporters.console import ConsoleReporter
+
             ConsoleReporter(verbose=verbose).report(data)
         except Exception as exc:
             warnings.warn(f"Console reporter failed: {exc}", stacklevel=1)

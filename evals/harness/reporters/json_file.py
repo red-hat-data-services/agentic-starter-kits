@@ -17,6 +17,16 @@ def _safe_float(v: float) -> float | None:
     return v
 
 
+def _sanitize_json_value(v: Any) -> Any:
+    if isinstance(v, float):
+        return _safe_float(v)
+    if isinstance(v, dict):
+        return {k: _sanitize_json_value(val) for k, val in v.items()}
+    if isinstance(v, list):
+        return [_sanitize_json_value(item) for item in v]
+    return v
+
+
 class JSONFileReporter:
     """Writes a JSON score report to a file."""
 
@@ -44,7 +54,7 @@ class JSONFileReporter:
 
         latency_percentiles: dict[str, float | int | None] | None = None
         if data.latency is not None and data.latency.count > 0:
-            latency_percentiles = data.latency.summary()
+            latency_percentiles = _sanitize_json_value(data.latency.summary())
 
         scores: list[dict[str, Any]] = []
         for rec in data.records:
@@ -55,7 +65,7 @@ class JSONFileReporter:
                     "score_name": rec.score.name,
                     "value": _safe_float(rec.score.value),
                     "passed": rec.score.passed,
-                    "details": rec.score.details,
+                    "details": _sanitize_json_value(rec.score.details),
                 }
             )
 
@@ -67,7 +77,7 @@ class JSONFileReporter:
         }
 
         with self._path.open("w", encoding="utf-8") as fh:
-            json.dump(payload, fh, indent=2)
+            json.dump(payload, fh, indent=2, allow_nan=False)
 
 
 __all__ = ["JSONFileReporter"]
