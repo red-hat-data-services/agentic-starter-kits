@@ -148,6 +148,7 @@ oc apply -f overlays/my-tracing/rbac.yaml -n YOUR-NAMESPACE
 ```
 
 This creates:
+
 - **`openclaw-tracing` ServiceAccount** — used by the OpenClaw pod, scoped to MLflow API groups only
 - **`openclaw-tracing-mlflow` RoleBinding** — binds the pre-existing `openclaw-mlflow-traces` ClusterRole
 - **`service-ca-bundle` ConfigMap** — auto-populated with the OpenShift Service CA certificate for TLS verification
