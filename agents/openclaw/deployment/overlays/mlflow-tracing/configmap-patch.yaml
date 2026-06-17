@@ -1,3 +1,5 @@
+# Replaces the full openclaw.json from the base ConfigMap (adds
+# diagnostics-otel plugin, auth profile, and OTel endpoint config).
 apiVersion: v1
 kind: ConfigMap
 metadata:

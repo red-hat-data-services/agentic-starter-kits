@@ -36,6 +36,8 @@ spec:
               memory: 384Mi
           securityContext:
             allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
             capabilities:
               drop:
                 - ALL
