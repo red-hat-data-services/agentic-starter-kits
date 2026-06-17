@@ -22,7 +22,7 @@ OpenClaw natively emits OpenTelemetry (OTLP) traces via its `diagnostics-otel` p
                                                │ /v1/traces
                                                ▼
                                     ┌─────────────────────┐
-                                    │   MLflow (local)     │
+                                    │   MLflow             │
                                     │   port 5000          │
                                     └─────────────────────┘
 ```
