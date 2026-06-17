@@ -251,7 +251,7 @@ For example:
 /agentic-starter-kits-skills:integrate-tracing autogen agents/autogen/templates/mcp_agent
 ```
 
-You can also prompt Claude Code directly (e.g., "integrate tracing into the autogen chat agent using the `/agentic-starter-kits-skills:integrate-tracing` skill") and it will follow the same workflow.
+You can also prompt Claude Code directly (e.g., "integrate tracing into the autogen MCP agent using the `/agentic-starter-kits-skills:integrate-tracing` skill") and it will follow the same workflow.
 
 This single command runs the entire pipeline end-to-end. The skill always creates a demo copy of the agent first, implements and verifies tracing on the demo, and only applies the changes to the actual agent template once everything works correctly.
 
@@ -324,7 +324,7 @@ After installing, invoke skills with the `agentic-starter-kits-skills:` prefix (
 
 Contributor and operator skills (test scaffolding, deployment, tracing integration, code generation) go in the [plugin repo](https://github.com/red-hat-data-services/agentic-starter-kits-skills). See its [Contributing section](https://github.com/red-hat-data-services/agentic-starter-kits-skills#contributing) for how to add one.
 
-End-user-facing skills — ones that help someone who cloned a starter kit customize or run an agent for their own use case — can go in this repo under `.claude/skills/` so they're available without installing the plugin.
+End-user-facing skills — ones that help someone who cloned a starter kit customize or run an agent for their own use case — can go in this repo under `.claude/skills/` so they're available without installing the plugin. Create the directory when adding the first skill.
 
 ## Questions?
 
