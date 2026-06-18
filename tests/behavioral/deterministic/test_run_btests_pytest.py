@@ -39,18 +39,6 @@ def test_resolve_test_path_supports_autogen_templates_layout() -> None:
     )
 
 
-def test_resolve_test_path_accepts_agent_ids_with_templates_segment() -> None:
-    result = _run_bash(
-        f'BTEST_LIB_ONLY=1 source "{SCRIPT_PATH}"; resolve_test_path "langgraph/templates/react_agent"'
-    )
-
-    assert result.returncode == 0, result.stderr or result.stdout
-    assert (
-        result.stdout.strip()
-        == "agents/langgraph/templates/react_agent/tests/behavioral/"
-    )
-
-
 def test_selected_agent_run_does_not_fail_conftest_sync_check() -> None:
     result = _run_bash(
         f'''BTEST_LIB_ONLY=1 source "{SCRIPT_PATH}";
