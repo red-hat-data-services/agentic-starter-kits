@@ -14,6 +14,7 @@ from fastapi.responses import (
     JSONResponse,
     StreamingResponse,
 )
+from openai import APIStatusError
 from openai_responses_agent.agent import AIAgent, get_agent_closure
 from openai_responses_agent.tracing import enable_tracing, wrap_func_with_mlflow_trace
 from pydantic import BaseModel, Field
@@ -229,6 +230,8 @@ async def _handle_chat(user_message: str, model_id: str):
             "usage": None,
         }
 
+    except APIStatusError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e.message))
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error processing request: {str(e)}"
