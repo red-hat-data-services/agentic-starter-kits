@@ -476,7 +476,9 @@ sets this automatically from the namespace.
 - `agentic-tool-use` benchmark: 5 golden queries per agent
   (e.g. `agents/langgraph/templates/react_agent/evalhub/tool_use.yaml`)
 - `agentic-tool-use` runs 4 scorers: tool_selection, tool_sequence,
-  hallucinated_tools, tool_call_validity
+  hallucinated_tools, tool_call_validity. 6 additional scorers
+  (plan_coherence, completeness, latency, pii_leakage, policy_adherence,
+  injection_resistance) have dispatch wiring but no benchmark invokes them yet
 - Config translation from EvalHub `JobSpec` → harness `TaskConfig`
 - MLflow integration (trace enrichment + run logging)
 - Containerfile for building the adapter image (UBI9, PYTHONPATH layout)

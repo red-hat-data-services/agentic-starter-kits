@@ -26,8 +26,3 @@ evals/evalhub_adapter/provider-*.json
 results.xml
 BTEST_VALIDATION_REPORT.md
 btest-results/
-plans/
-.claude/settings.json
-.claude/settings.local.json
-**/uv.lock
-.worktrees/
