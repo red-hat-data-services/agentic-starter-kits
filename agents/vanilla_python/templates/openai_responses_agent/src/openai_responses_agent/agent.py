@@ -18,10 +18,10 @@ from typing import Any, Callable, Dict, List, Optional
 from dotenv import load_dotenv
 from openai import APIStatusError, OpenAI
 
-logger = logging.getLogger(__name__)
-
 from openai_responses_agent.tools import search_price, search_reviews
 from openai_responses_agent.tracing import wrap_func_with_mlflow_trace
+
+logger = logging.getLogger(__name__)
 
 
 def get_agent_closure(
