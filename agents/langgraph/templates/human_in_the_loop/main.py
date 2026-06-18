@@ -276,6 +276,13 @@ async def _handle_chat(
     try:
         agent = agent_graph_closure(checkpointer)
 
+        prior_count = 0
+        prior = checkpointer.get_tuple(config)
+        if prior and prior.checkpoint:
+            prior_count = len(
+                prior.checkpoint.get("channel_values", {}).get("messages", [])
+            )
+
         if request.approval:
             # Resume from interrupt with human decision
             if request.approval.lower() in ("yes", "y", "approve"):
@@ -324,10 +331,11 @@ async def _handle_chat(
             }
 
         all_messages = result.value.get("messages", [])
+        new_messages = all_messages[prior_count:]
 
         # Extract the final assistant content
         assistant_content = ""
-        for message in reversed(all_messages):
+        for message in reversed(new_messages):
             if isinstance(message, AIMessage) and message.content:
                 assistant_content = message.content
                 break
@@ -351,7 +359,7 @@ async def _handle_chat(
             ],
             "context": context_messages,
             "thread_id": thread_id,
-            "usage": _extract_usage(all_messages),
+            "usage": _extract_usage(new_messages),
         }
 
     except Exception:
