@@ -40,8 +40,24 @@ class ScoreCollector:
             self._latency = LatencyTracker()
 
     @staticmethod
+    def _infer_from_request(request: pytest.FixtureRequest) -> tuple[str, str]:
+        """Return (test_name, agent) using the pytest request fixture."""
+        test_name = request.node.name
+        agent = ""
+        for marker in request.node.iter_markers():
+            if marker.name not in _CATEGORY_MARKERS:
+                agent = marker.name
+                break
+        return (test_name, agent)
+
+    @staticmethod
     def _infer_from_caller() -> tuple[str, str]:
-        """Return (test_name, agent) by walking the stack for a test_* frame."""
+        """Return (test_name, agent) by walking the stack for a test_* frame.
+
+        Prefer ``_infer_from_request`` when a pytest ``request`` fixture is
+        available — it is faster, deterministic, and avoids the reference-cycle
+        hazard of ``inspect.currentframe()``.
+        """
         frame = inspect.currentframe()
         if not frame:
             return ("", "")
@@ -76,7 +92,7 @@ class ScoreCollector:
 
             return (test_name, agent)
         finally:
-            del frame
+            del frame, caller
 
     def record(
         self,
@@ -85,15 +101,20 @@ class ScoreCollector:
         *,
         test_name: str = "",
         agent: str = "",
+        request: pytest.FixtureRequest | None = None,
     ) -> None:
         """Store a score and track latency when applicable.
 
-        When *test_name* or *agent* are not provided, they are inferred from
-        the caller's stack frame: test_name from the function name, agent from
-        the module-level ``pytestmark`` variable.
+        When *test_name* or *agent* are not provided they are inferred
+        automatically.  Pass *request* (the pytest ``request`` fixture) for
+        fast, deterministic attribution via ``request.node``.  When *request*
+        is ``None``, falls back to stack-frame walking.
         """
         if not test_name or not agent:
-            inferred_test, inferred_agent = self._infer_from_caller()
+            if request is not None:
+                inferred_test, inferred_agent = self._infer_from_request(request)
+            else:
+                inferred_test, inferred_agent = self._infer_from_caller()
             if not test_name:
                 test_name = inferred_test
             if not agent:
@@ -111,6 +132,13 @@ class ScoreCollector:
             self._records.append(record)
             if score.name == "latency" and "latency_seconds" in score.details:
                 self._latency.add(score.details["latency_seconds"])
+            elif "latency" in score.name and "latency_seconds" not in score.details:
+                warnings.warn(
+                    f"Score '{score.name}' contains 'latency' but details "
+                    f"is missing 'latency_seconds' key; latency percentiles "
+                    f"will not track this score",
+                    stacklevel=2,
+                )
 
     @property
     def records(self) -> list[ScoreRecord]:
@@ -119,7 +147,8 @@ class ScoreCollector:
 
     @property
     def latency(self) -> LatencyTracker:
-        return self._latency
+        with self._lock:
+            return self._latency
 
 
 # Module-level singleton so the session-finish hook can access the same
