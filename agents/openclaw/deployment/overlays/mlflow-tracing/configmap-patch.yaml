@@ -1,5 +1,5 @@
 # Replaces the full openclaw.json from the base ConfigMap (adds
-# diagnostics-otel plugin, auth profile, and OTel endpoint config).
+# diagnostics-otel plugin and OTel endpoint config).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -33,7 +33,7 @@ data:
           "vllm": {
             "baseUrl": "https://YOUR-VLLM-OR-OGX-ENDPOINT/v1",
             "api": "openai-completions",
-            "apiKey": "not-needed",
+            "apiKey": "${VLLM_API_KEY}",
             "models": [
               {
                 "id": "YOUR-MODEL-ID",
@@ -63,14 +63,6 @@ data:
           "traces": true,
           "metrics": true,
           "logs": false
-        }
-      },
-      "auth": {
-        "profiles": {
-          "vllm:manual": {
-            "provider": "vllm",
-            "mode": "api_key"
-          }
         }
       },
       "tools": {

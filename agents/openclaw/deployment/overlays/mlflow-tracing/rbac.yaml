@@ -4,7 +4,7 @@
 # - RoleBinding: binds the pre-existing openclaw-mlflow-traces ClusterRole
 # - ConfigMap: injected with the OpenShift Service CA for TLS verification
 #
-# Before applying: replace YOUR-NAMESPACE in the RoleBinding subject
+
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -26,7 +26,6 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: openclaw-tracing
-    namespace: YOUR-NAMESPACE
 ---
 apiVersion: v1
 kind: ConfigMap

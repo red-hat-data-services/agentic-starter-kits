@@ -42,7 +42,7 @@ The collector runs as a sidecar in the OpenClaw pod, receiving spans on localhos
 
 The overlay creates a dedicated `openclaw-tracing` ServiceAccount bound to the pre-existing `openclaw-mlflow-traces` ClusterRole. This role is scoped to `mlflow.kubeflow.org` and `mlflow.opendatahub.io` API groups only — it cannot read secrets, modify deployments, or access any core Kubernetes resources.
 
-TLS verification uses the OpenShift Service CA certificate, injected automatically via the `service.beta.openshift.io/inject-cabundle` annotation on the `service-ca-bundle` ConfigMap.
+TLS verification uses the OpenShift Service CA certificate, injected automatically via the [`service.beta.openshift.io/inject-cabundle` annotation](https://docs.openshift.com/container-platform/4.17/security/certificates/service-serving-certificate.html) on the `service-ca-bundle` ConfigMap.
 
 ---
 
@@ -133,9 +133,8 @@ Replace every `YOUR-*` placeholder across these files:
 | `kustomization.yaml` | `YOUR-NAMESPACE` |
 | `configmap-patch.yaml` | `YOUR-MODEL-ID`, `YOUR-VLLM-OR-OGX-ENDPOINT` |
 | `otel-collector-config.yaml` | `YOUR-NAMESPACE` and `YOUR-EXPERIMENT-ID` (set after Step 3) |
-| `rbac.yaml` | `YOUR-NAMESPACE` in the RoleBinding subject |
 
-Also set the gateway token in `../manifests/01-secret.yaml` — the default is `CHANGE-ME`.
+Also set `VLLM_API_KEY` and `OPENCLAW_GATEWAY_TOKEN` in `../manifests/01-secret.yaml` — both default to placeholder values.
 
 See [raw-deployment.md](raw-deployment.md) for how to find your model ID.
 
@@ -194,26 +193,7 @@ oc apply -k overlays/my-tracing
 
 Wait for the `openclaw` pod to reach `2/2 Running` (gateway + otel-collector sidecar).
 
-### Step 5: Set API key (if your model endpoint requires one)
-
-If your endpoint doesn't require an API key (e.g., `apiKey: "not-needed"` in the ConfigMap), skip this step.
-
-```bash
-echo "your-api-key" | oc exec -i deploy/openclaw -c gateway -- \
-  openclaw models auth paste-api-key --provider vllm
-```
-
-> **Important:** `paste-api-key` triggers an in-process restart that breaks the OTel TracerProvider. You **must** do a full pod restart afterward — see [paste-api-key breaks OTel tracing](#paste-api-key-breaks-otel-tracing-in-process-restart) for details.
-
-```bash
-oc delete pod -l app=openclaw
-```
-
-Wait for the new `openclaw` pod to reach `2/2 Running`.
-
-The API key persists across pod restarts (stored in SQLite on the PVC), so you only need to do this once.
-
-### Step 6: Connect
+### Step 5: Connect
 
 Port-forward OpenClaw:
 
@@ -231,14 +211,6 @@ Navigate to the `openclaw-tracing` experiment in your workspace to view traces.
 ---
 
 ## Known Issues
-
-### paste-api-key breaks OTel tracing (in-process restart)
-
-**Symptom:** Startup diagnostic spans (`openclaw.diagnostic.phase`) export to MLflow, but runtime spans (`openclaw.model.call`, `openclaw.tool.execution`) never appear — even though the model responds fine and session trajectory files grow.
-
-**Root cause:** `paste-api-key` writes to `~/.openclaw/openclaw.json`, which triggers the gateway's config file watcher. The watcher detects changes in the `auth` and `meta` fields, determines a restart is required, and sends `SIGUSR1` to itself. The gateway does an in-process restart (keeping PID 1 alive for container health), but the `diagnostics-otel` plugin's `TracerProvider` / `BatchSpanProcessor` from the first initialization is left in a broken state. The second startup loads the plugin in 0.3s (vs 3.5s on first boot) and emits zero spans — not even startup diagnostics.
-
-**Fix:** Always do a full pod restart (`oc delete pod`) after `paste-api-key`. The API key persists in SQLite on the PVC, and the ConfigMap includes `auth.profiles`, so the gateway starts fully configured on the next boot with no config mutation needed.
 
 ### Traces not appearing (experiment 404)
 
@@ -264,7 +236,7 @@ The OpenShift Route terminates TLS at HAProxy, which disrupts the persistent Web
 
 3. **No session ID across traces.** Multi-turn conversations produce separate traces per turn with no shared identifier. Correlating turns into a conversation requires manual timestamp matching in the MLflow UI.
 
-4. **TracerProvider breaks on in-process restart.** The `diagnostics-otel` plugin does not re-initialize its `TracerProvider` / `BatchSpanProcessor` when the gateway receives SIGUSR1. Runtime spans are silently lost until a full pod restart. See [paste-api-key breaks OTel tracing](#paste-api-key-breaks-otel-tracing-in-process-restart).
+4. **TracerProvider breaks on in-process restart.** The `diagnostics-otel` plugin does not re-initialize its `TracerProvider` / `BatchSpanProcessor` when the gateway receives SIGUSR1. Runtime spans are silently lost until a full pod restart. This overlay avoids the issue by setting the API key via env var interpolation instead of `paste-api-key`, but any config mutation that triggers SIGUSR1 will still break tracing.
 
 ---
 
@@ -276,3 +248,4 @@ The OpenShift Route terminates TLS at HAProxy, which disrupts the persistent Web
 | OpenClaw Deployment Guide | [raw-deployment.md](raw-deployment.md) |
 | OTel Collector Contrib | <https://github.com/open-telemetry/opentelemetry-collector-contrib> |
 | MLflow OTLP Tracing | <https://mlflow.org/docs/latest/tracing/index.html> |
+| OpenShift Service CA Certificates | <https://docs.openshift.com/container-platform/4.17/security/certificates/service-serving-certificate.html> |
