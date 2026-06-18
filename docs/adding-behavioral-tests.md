@@ -27,6 +27,9 @@ agents/langgraph/templates/react_agent/tests/behavioral/
     └── golden_queries.yaml
 ```
 
+The deterministic cluster runner also expects template-layout agent IDs. Use
+`langgraph/templates/react_agent`, not the legacy `langgraph/react_agent` form.
+
 ## 2. Create conftest.py
 
 The conftest defines fixtures specific to your agent. Because agent tests live under `agents/` (a separate directory tree from `tests/behavioral/`), pytest's conftest discovery won't find the shared fixtures. You must define `http_client` and `eval_config` locally. At minimum you need:

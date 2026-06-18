@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # run-btests-pytest.sh — Run behavioral tests for agents in agentic-starter-kits.
 #
-# Usage:  ./run-btests-pytest.sh                          # run all agents
-#         ./run-btests-pytest.sh crewai/websearch_agent    # run one agent
-#         ./run-btests-pytest.sh langgraph/react_agent autogen/mcp_agent  # run multiple
+# Usage:  ./run-btests-pytest.sh
+#         ./run-btests-pytest.sh crewai/templates/websearch_agent
+#         ./run-btests-pytest.sh langgraph/templates/react_agent autogen/templates/mcp_agent
 #
 # Assumes:
 #   - Agents are deployed and healthy on OpenShift
@@ -38,7 +38,7 @@ RESET='\033[0m'
 # ---------------------------------------------------------------------------
 # Agent configuration
 # ---------------------------------------------------------------------------
-# Each entry: "agent_path|url_env_var|deployment_name"
+# Each entry: "agent_id|url_env_var|deployment_name"
 AGENTS=(
   "crewai/templates/websearch_agent|CREWAI_WEBSEARCH_AGENT_URL|crewai-websearch-agent"
   "langgraph/templates/react_agent|REACT_AGENT_URL|langgraph-react-agent"
@@ -50,6 +50,7 @@ AGENTS=(
   "langgraph/templates/human_in_the_loop|HITL_AGENT_URL|langgraph-hitl-agent"
   "google/templates/adk|GOOGLE_ADK_AGENT_URL|google-adk-agent"
 )
+ALL_AGENT_CONFIG=("${AGENTS[@]}")
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -81,6 +82,57 @@ separator() {
 agent_path()      { echo "$1" | cut -d'|' -f1; }
 agent_env_var()   { echo "$1" | cut -d'|' -f2; }
 agent_deploy()    { echo "$1" | cut -d'|' -f3; }
+
+validate_agent_url_map_sync() {
+  local agent_tuples=("$@")
+  if [[ ${#agent_tuples[@]} -eq 0 ]]; then
+    agent_tuples=("${ALL_AGENT_CONFIG[@]}")
+  fi
+
+  local conftest_vars
+  conftest_vars=$(uv run python -c "
+import sys, importlib.util
+spec = importlib.util.spec_from_file_location('conftest', '${REPO_ROOT}/tests/behavioral/conftest.py')
+mod = importlib.util.module_from_spec(spec)
+sys.modules['conftest'] = mod
+spec.loader.exec_module(mod)
+for v in mod._AGENT_URL_MAP.values():
+    print(v)
+" 2>/dev/null || true)
+
+  if [[ -z "$conftest_vars" ]]; then
+    warn "Could not validate against conftest (uv run python import failed)"
+    return 0
+  fi
+
+  local script_vars=""
+  for agent_tuple in "${agent_tuples[@]}"; do
+    script_vars+="$(agent_env_var "$agent_tuple")"$'\n'
+  done
+
+  local missing=""
+  while IFS= read -r var; do
+    if ! echo "$script_vars" | grep -qF "$var"; then
+      missing+="  $var"$'\n'
+    fi
+  done <<< "$conftest_vars"
+
+  if [[ -n "$missing" ]]; then
+    die "$(printf 'AGENTS array is out of sync with conftest._AGENT_URL_MAP:\n%s' "$missing")"
+  fi
+
+  ok "AGENTS array in sync with conftest._AGENT_URL_MAP"
+}
+
+resolve_test_path() {
+  local agent_id="$1"
+  echo "agents/${agent_id}/tests/behavioral/"
+}
+
+detect_cluster_domain() {
+  timeout 30 oc get routes -n "${NAMESPACE}" -o jsonpath='{.items[0].spec.host}' 2>/dev/null \
+    | sed 's/^[^.]*\.//' || true
+}
 
 # Parse pytest summary line.  Expected format:
 #   "= N passed, M failed, K skipped, J error in Xs ="
@@ -140,45 +192,16 @@ preflight() {
 
   # Validate AGENTS env vars match conftest._AGENT_URL_MAP
   log "Validating agent config against conftest..."
-  local conftest_vars
-  conftest_vars=$(uv run python -c "
-import sys, importlib.util
-spec = importlib.util.spec_from_file_location('conftest', '${REPO_ROOT}/tests/behavioral/conftest.py')
-mod = importlib.util.module_from_spec(spec)
-sys.modules['conftest'] = mod
-spec.loader.exec_module(mod)
-for v in mod._AGENT_URL_MAP.values():
-    print(v)
-" 2>/dev/null || true)
-
-  if [[ -n "$conftest_vars" ]]; then
-    local script_vars=""
-    for agent_tuple in "${AGENTS[@]}"; do
-      script_vars+="$(agent_env_var "$agent_tuple")"$'\n'
-    done
-    local missing=""
-    while IFS= read -r var; do
-      if ! echo "$script_vars" | grep -qF "$var"; then
-        missing+="  $var"$'\n'
-      fi
-    done <<< "$conftest_vars"
-    if [[ -n "$missing" ]]; then
-      die "$(printf 'AGENTS array is out of sync with conftest._AGENT_URL_MAP:\n%s' "$missing")"
-    else
-      ok "AGENTS array in sync with conftest._AGENT_URL_MAP"
-    fi
-  else
-    warn "Could not validate against conftest (uv run python import failed)"
-  fi
+  validate_agent_url_map_sync
 
   # Cluster domain — detect from any route in the namespace
   log "Detecting cluster domain..."
-  CLUSTER_DOMAIN=$(timeout 30 oc get routes -n "${NAMESPACE}" -o jsonpath='{.items[0].spec.host}' 2>/dev/null \
-    | sed 's/^[^.]*\.//' || true)
+  CLUSTER_DOMAIN=$(detect_cluster_domain)
   if [[ -z "$CLUSTER_DOMAIN" ]]; then
-    die "Could not detect cluster domain from routes in namespace '${NAMESPACE}'."
+    warn "Could not detect cluster domain from routes in namespace '${NAMESPACE}'. Continuing without it."
+  else
+    ok "Cluster domain: ${CLUSTER_DOMAIN}"
   fi
-  ok "Cluster domain: ${CLUSTER_DOMAIN}"
 
   # Verify each agent deployment exists and is healthy
   log "Checking agent deployments..."
@@ -305,7 +328,8 @@ run_tests() {
     fi
 
     local agent_url="https://${route_host}"
-    local test_path="agents/${path}/tests/behavioral/"
+    local test_path
+    test_path=$(resolve_test_path "$path")
 
     if [[ ! -d "${REPO_ROOT}/${test_path}" ]]; then
       warn "Test directory not found: ${test_path}. Skipping."
@@ -714,5 +738,9 @@ main() {
   run_tests
   print_summary
 }
+
+if [[ "${BTEST_LIB_ONLY:-0}" == "1" && "${BASH_SOURCE[0]}" != "${0}" ]]; then
+  return 0
+fi
 
 main "$@"

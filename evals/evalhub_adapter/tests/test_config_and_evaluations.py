@@ -395,7 +395,7 @@ class TestResolveScorers:
     """Tests for resolve_scorers()."""
 
     def test_resolve_scorers_specific(self):
-        """A benchmark with explicit scorers returns that exact list."""
+        """The tool-use benchmark resolves to its explicit scorer list."""
         bm = get_benchmark("agentic-tool-use")
         scorers = resolve_scorers(bm)
 

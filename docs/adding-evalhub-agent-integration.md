@@ -94,10 +94,8 @@ benchmarks:
 - `model.url` — agent base URL, not the `/chat/completions` path
 - `fixtures_path` — must match `<short_name>` from step 2
 - `provider_id` — from `evalhub providers list`
-
-See `evals/evalhub_adapter/eval-react-agent.yaml.example` and
-`eval-openai-responses-agent.yaml.example` for working examples. Full parameter
-reference is in the [adapter README](../evals/evalhub_adapter/README.md#jobspec-parameters).
+- Full parameter reference is in the
+  [adapter README](../evals/evalhub_adapter/README.md#jobspec-parameters).
 
 ## 4. Rebuild and Push the Adapter Image
 

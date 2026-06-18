@@ -476,9 +476,7 @@ sets this automatically from the namespace.
 - `agentic-tool-use` benchmark: 5 golden queries per agent
   (e.g. `agents/langgraph/templates/react_agent/evalhub/tool_use.yaml`)
 - `agentic-tool-use` runs 4 scorers: tool_selection, tool_sequence,
-  hallucinated_tools, tool_call_validity. 6 additional scorers
-  (plan_coherence, completeness, latency, pii_leakage, policy_adherence,
-  injection_resistance) have dispatch wiring but no benchmark invokes them yet
+  hallucinated_tools, tool_call_validity
 - Config translation from EvalHub `JobSpec` → harness `TaskConfig`
 - MLflow integration (trace enrichment + run logging)
 - Containerfile for building the adapter image (UBI9, PYTHONPATH layout)
@@ -494,13 +492,34 @@ sets this automatically from the namespace.
 - Unit tests (50) + integration tests (11) for adapter, config, evaluations,
   and orchestration pipeline
 
+## Inner-loop CI (RHAIENG-4158)
+
+The repository uses `.github/workflows/eval-gating.yml` for inner-loop CI
+coverage around the adapter and behavioral pytest suites:
+
+- **Deterministic Adapter Tests** (always runs on adapter-related PRs)
+  - Installs with `uv sync --frozen --extra test --extra test-mlflow`
+  - `pytest evals/evalhub_adapter/tests -m "unit or integration"`
+  - Publishes JUnit artifacts + check annotations
+- **Cluster Behavioral Tests** (conditional, cluster credentials required)
+  - Reuses the existing `tests/behavioral/` pytest inner loop against deployed
+    agents
+  - Runs `tests/behavioral/deterministic/run-btests-pytest.sh`
+  - Supports optional agent subsets via `EVAL_CLUSTER_BTESTS_AGENTS`, using
+    template-layout IDs such as `langgraph/templates/react_agent`
+
+Branch protection recommendation:
+
+- Mark `Deterministic Adapter Tests` as a **required** check for `main`.
+- Add `Cluster Behavioral Tests` as required only after cluster availability
+  and credentials management are reliable enough for routine PR gating.
+
 ## What's planned
 
 - Concurrent query execution (`asyncio.gather` with semaphore — queries
   currently run sequentially)
-- Additional evaluation suites: coherence, safety, latency (query files
-  not yet populated)
-- GitHub Actions workflow for CI / EvalHub integration (RHAIENG-4158)
+- Additional benchmark query sets for pre-wired scorers:
+  coherence, safety, latency
 - Regression dashboard
 
 ## Dependencies
@@ -520,9 +539,14 @@ uv pip install .[evalhub,test-mlflow]
 
 ## Running tests
 
-Tests stub `evalhub` imports if the package isn't installed (bootstrap
-lives in `conftest.py` so it runs before any test module, regardless of
-which files are selected). `uv pip install .[test]` alone is sufficient.
+Tests stub `evalhub` imports if the package isn't installed (bootstrap lives in
+`conftest.py` so it runs before any test module, regardless of which files are
+selected). For the full adapter suite, install both the `test` and
+`test-mlflow` extras.
+
+```bash
+uv sync --extra test --extra test-mlflow
+```
 
 ```bash
 # Unit tests only (fast, no network)
