@@ -323,7 +323,14 @@ class TestScoreCollector:
         assert collector.records[0].agent == ""
 
     def test_record_with_request_fixture(self) -> None:
-        node = type("Node", (), {"name": "test_hello", "iter_markers": lambda self: iter([type("M", (), {"name": "react"})()])})()
+        node = type(
+            "Node",
+            (),
+            {
+                "name": "test_hello",
+                "iter_markers": lambda self: iter([type("M", (), {"name": "react"})()]),
+            },
+        )()
         req = type("FakeRequest", (), {"node": node})()
         collector = ScoreCollector()
         collector.record("q", _make_score(), request=req)
@@ -336,7 +343,9 @@ class TestScoreCollector:
             type("M", (), {"name": "parametrize"})(),
             type("M", (), {"name": "my_agent"})(),
         ]
-        node = type("Node", (), {"name": "test_x", "iter_markers": lambda self: iter(markers)})()
+        node = type(
+            "Node", (), {"name": "test_x", "iter_markers": lambda self: iter(markers)}
+        )()
         req = type("FakeRequest", (), {"node": node})()
         collector = ScoreCollector()
         collector.record("q", _make_score(), request=req)
