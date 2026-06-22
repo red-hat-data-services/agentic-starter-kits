@@ -176,7 +176,7 @@ def _build_langchain_messages(messages: list[ChatMessage]) -> list[HumanMessage]
     raise ValueError("No user message found in messages list")
 
 
-def _extract_usage(messages) -> dict | None:
+def _extract_usage(messages: list) -> dict | None:
     """Sum token usage from AIMessage.usage_metadata across all LLM calls."""
     prompt_tokens = 0
     completion_tokens = 0
@@ -340,7 +340,7 @@ async def _handle_chat(
                 assistant_content = message.content
                 break
 
-        context_messages = _format_context_messages(all_messages)
+        context_messages = _format_context_messages(new_messages)
 
         return {
             "id": _make_completion_id(),

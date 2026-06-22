@@ -181,7 +181,7 @@ def _convert_dict_to_message(msg: ChatMessage):
         return HumanMessage(content=msg.content)
 
 
-def _extract_usage(messages) -> dict | None:
+def _extract_usage(messages: list) -> dict | None:
     """Sum token usage from AIMessage.usage_metadata across all LLM calls."""
     prompt_tokens = 0
     completion_tokens = 0
