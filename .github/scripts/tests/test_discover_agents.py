@@ -2,10 +2,8 @@
 """Tests for the agent discovery script."""
 
 import json
-import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from textwrap import dedent
 
