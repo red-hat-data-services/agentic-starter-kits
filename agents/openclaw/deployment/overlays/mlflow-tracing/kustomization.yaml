@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base OpenClaw manifests + RHOAI MLflow tracing resources
+resources:
+  - ../../manifests
+  - rbac.yaml
+  - otel-collector-config.yaml
+
+# Set your namespace
+namespace: YOUR-NAMESPACE
+
+patches:
+  # Add diagnostics-otel plugin + auth profile to OpenClaw config
+  - target:
+      kind: ConfigMap
+      name: openclaw-config
+    path: configmap-patch.yaml
+
+  # Add OTel collector sidecar + env vars to OpenClaw deployment
+  - target:
+      kind: Deployment
+      name: openclaw
+    path: deployment-patch.yaml

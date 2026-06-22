@@ -1,0 +1,74 @@
+# Replaces the full openclaw.json from the base ConfigMap (adds
+# diagnostics-otel plugin and OTel endpoint config).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openclaw-config
+data:
+  openclaw.json: |
+    {
+      "gateway": {
+        "port": 18789,
+        "bind": "lan",
+        "mode": "local",
+        "auth": {
+          "mode": "token"
+        },
+        "controlUi": {
+          "enabled": true
+        }
+      },
+      "channels": {},
+      "agents": {
+        "defaults": {
+          "model": "vllm/YOUR-MODEL-ID",
+          "sandbox": {
+            "mode": "off"
+          }
+        }
+      },
+      "models": {
+        "mode": "replace",
+        "providers": {
+          "vllm": {
+            "baseUrl": "https://YOUR-VLLM-OR-OGX-ENDPOINT/v1",
+            "api": "openai-completions",
+            "apiKey": "${VLLM_API_KEY}",
+            "models": [
+              {
+                "id": "YOUR-MODEL-ID",
+                "name": "YOUR-MODEL-ID",
+                "reasoning": false,
+                "input": ["text"],
+                "contextWindow": 32768,
+                "maxTokens": 4096
+              }
+            ]
+          }
+        }
+      },
+      "plugins": {
+        "allow": ["diagnostics-otel"],
+        "entries": {
+          "diagnostics-otel": {
+            "enabled": true
+          }
+        }
+      },
+      "diagnostics": {
+        "enabled": true,
+        "otel": {
+          "enabled": true,
+          "endpoint": "http://localhost:4318",
+          "traces": true,
+          "metrics": true,
+          "logs": false
+        }
+      },
+      "tools": {
+        "deny": [
+          "group:web",
+          "browser"
+        ]
+      }
+    }
