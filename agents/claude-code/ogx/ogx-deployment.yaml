@@ -4,7 +4,7 @@
 # (/v1/messages) passthrough to a vLLM backend. When vLLM supports
 # /v1/messages natively, OGX forwards requests directly without translation.
 #
-# This deployment does not use the LlamaStack operator. The configuration
+# This deployment does not use the OGX Kubernetes operator. The configuration
 # is loaded from a ConfigMap mounted at /etc/ogx/config.yaml.
 #
 # Before applying, ensure the ogx-configmap.yaml has been applied first.

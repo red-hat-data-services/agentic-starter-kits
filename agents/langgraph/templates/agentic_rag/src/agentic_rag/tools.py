@@ -14,10 +14,10 @@ def get_retriever_components(
     base_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Get the LlamaStack client and vector store ID for retrieval.
+    Get the retrieval client and vector store ID.
 
     Args:
-        base_url: Base URL for the LlamaStack API
+        base_url: Base URL for the OGX server root.
 
     Returns:
         Dict containing client and vector_store_id
@@ -41,7 +41,7 @@ def get_retriever_components(
     if not base_url:
         raise ValueError("BASE_URL must be set in environment or passed as argument")
 
-    # LlamaStackClient internally appends /v1, so strip it from base_url if present
+    # The upstream client appends /v1, so strip it from base_url if present
     llama_base_url = base_url.rstrip("/").removesuffix("/v1")
     client = LlamaStackClient(
         base_url=llama_base_url,
@@ -89,7 +89,7 @@ def retriever_tool(query: str) -> str:
     client = components["client"]
     vector_store_id = components["vector_store_id"]
 
-    # Query the vector store using LlamaStack client
+    # Query the vector store using the retrieval client
     # The query parameter takes the text string, and the server handles embedding generation
     response = client.vector_io.query(
         vector_store_id=vector_store_id,

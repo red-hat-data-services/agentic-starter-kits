@@ -143,7 +143,7 @@ def json_schema_to_pydantic_model(
 def get_chat_from_env() -> ChatOpenAI:
     """
     ChatOpenAI from BASE_URL, MODEL_ID, and optional API_KEY (OpenAI-compatible API:
-    Llama Stack, Ollama, OpenAI, …). Configure everything in `.env` — no separate code path
+    OGX, Ollama, OpenAI, …). Configure everything in `.env` — no separate code path
     for Ollama; use e.g. BASE_URL=http://localhost:11434/v1, MODEL_ID=llama3.2, API_KEY=ollama.
     """
     from langchain_openai import ChatOpenAI
