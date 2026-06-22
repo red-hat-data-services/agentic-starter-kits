@@ -773,7 +773,9 @@ After login, select your workspace (the namespace name, e.g., `my-claude-code`) 
 
 Each session captures tool call sequences, token counts (input/output/total), session duration, model name, and status as OTel spans. The stop-hook fires after the session ends, so there is zero impact on agent response times. The trace schema works identically across all four backends.
 
-**Version note:** MLflow 3.13+ switches to an npm plugin that does not yet support RHOAI's `kubernetes-namespaced` auth or `x-mlflow-workspace` header. Pin to 3.12 until upstream adds support.
+### MLflow version options
+
+The default Containerfile uses MLflow 3.12 with a Python hook. MLflow 3.14+ also supports an npm plugin approach — uncomment the npm plugin env var in your deployment manifest to enable it. The plugin must be built from [upstream master](https://github.com/mlflow/mlflow/tree/master/libs/typescript) until the next plugin release syncs the fix. See [mlflow-tracing.md](mlflow-tracing.md) for a comparison of both approaches.
 
 For detailed tracing investigation results and benchmark data, see [mlflow-tracing.md](mlflow-tracing.md).
 

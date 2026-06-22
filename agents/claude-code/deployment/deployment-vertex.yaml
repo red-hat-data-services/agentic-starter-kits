@@ -183,7 +183,7 @@ spec:
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/var/secrets/google/key.json"
             # ===========================================
-            # MLflow Tracing (Optional)
+            # MLflow Tracing (Optional) — Python hook (default, MLflow 3.12)
             # ===========================================
             # Uncomment and configure to enable.
             # See the MLflow Tracing section in ../README.md for details.
@@ -197,6 +197,12 @@ spec:
             #   value: "claude-code-traces"
             # - name: MLFLOW_TRACKING_INSECURE_TLS
             #   value: "true"
+            # ---
+            # MLflow Tracing — npm plugin (MLflow 3.14+)
+            # To use the npm plugin instead of the Python hook, uncomment
+            # the block above AND add this env var.
+            # - name: NODE_TLS_REJECT_UNAUTHORIZED
+            #   value: "0"
             # ===========================================
             # Claude Code Configuration
             # ===========================================
