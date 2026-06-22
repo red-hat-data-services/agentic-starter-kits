@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from harness.scorers import Score
 from harness.scorers.plan_coherence import score_plan_coherence
 from harness.scorers.tool_sequence import score_tool_selection
 
@@ -59,6 +60,15 @@ async def test_pass_at_k_tool_usage(
                 passed_count += 1
 
     pass_rate = passed_count / k
+    score_collector.record(
+        query,
+        Score(
+            name="pass_at_k_tool_selection",
+            value=pass_rate,
+            passed=pass_rate >= threshold,
+            details={"k": k, "passed": passed_count, "errors": failures},
+        ),
+    )
     assert pass_rate >= threshold, (
         f"pass@{k} tool selection = {pass_rate:.2f} "
         f"(threshold={threshold:.2f}, passed={passed_count}/{k}, "
@@ -91,6 +101,15 @@ async def test_pass_at_k_response_quality(
             passed_count += 1
 
     pass_rate = passed_count / k
+    score_collector.record(
+        query,
+        Score(
+            name="pass_at_k_coherence",
+            value=pass_rate,
+            passed=pass_rate >= threshold,
+            details={"k": k, "passed": passed_count, "errors": failures},
+        ),
+    )
     assert pass_rate >= threshold, (
         f"pass@{k} coherence = {pass_rate:.2f} "
         f"(threshold={threshold:.2f}, passed={passed_count}/{k}, "
