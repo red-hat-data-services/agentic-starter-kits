@@ -9,16 +9,19 @@ Compatible with OpenAI API and any OpenAI-compatible endpoint (e.g. base_url ove
 import asyncio
 import csv
 import inspect
+import logging
 import re
 from io import StringIO
 from os import getenv
 from typing import Any, Callable, Dict, List, Optional
 
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import APIStatusError, OpenAI
 
 from openai_responses_agent.tools import search_price, search_reviews
 from openai_responses_agent.tracing import wrap_func_with_mlflow_trace
+
+logger = logging.getLogger(__name__)
 
 
 def get_agent_closure(
@@ -291,9 +294,11 @@ class AIAgent:
                     # No Action: line – treat the whole response as the final answer
                     return result.strip() if result else None
 
+        except APIStatusError:
+            raise
         except Exception as e:
-            print(f"Agent error: {e}")
-            return None
+            logger.exception("Agent error during query execution")
+            raise RuntimeError(f"Agent error: {e}") from e
 
         return None
 

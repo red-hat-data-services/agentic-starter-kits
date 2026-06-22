@@ -18,6 +18,8 @@ agents/langflow/templates/simple_tool_calling_agent/local/.ollama-enabled
 *.db
 CLAUDE.local.md
 .cursor
+.pre-commit-cache/
+.worktrees/
 **/REFACTORING.md
 STATUS.md
 .e2e-workdir
