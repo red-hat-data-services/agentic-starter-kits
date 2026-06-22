@@ -41,6 +41,11 @@ make dry-run    # preview Helm manifests
 - Never commit `.env` files -- only `.env.example` templates
 - Standard containers: UBI9 base (`registry.access.redhat.com/ubi9/python-312`), non-root UID 1001, port 8080
 
+## Tooling preferences
+
+- Prefer the Atlassian MCP server for Jira and Confluence access in this repository when it is available and authorized
+- Fall back to direct HTTP/API calls only when the Atlassian MCP server is unavailable or does not expose the needed capability
+
 ## Boundaries
 
 - Don't modify `agents/<framework>/deployment/` chart templates unless explicitly requested
