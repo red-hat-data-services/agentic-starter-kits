@@ -24,6 +24,17 @@ _CATEGORY_MARKERS = frozenset(
     }
 )
 
+_SKIP_MARKERS = _CATEGORY_MARKERS | frozenset(
+    {
+        "parametrize",
+        "usefixtures",
+        "filterwarnings",
+        "skip",
+        "skipif",
+        "xfail",
+    }
+)
+
 
 class ScoreCollector:
     """Accumulates ScoreRecords throughout a pytest session."""
@@ -45,7 +56,7 @@ class ScoreCollector:
         test_name = request.node.name
         agent = ""
         for marker in request.node.iter_markers():
-            if marker.name not in _CATEGORY_MARKERS:
+            if marker.name not in _SKIP_MARKERS:
                 agent = marker.name
                 break
         return (test_name, agent)
@@ -132,7 +143,7 @@ class ScoreCollector:
             self._records.append(record)
             if score.name == "latency" and "latency_seconds" in score.details:
                 self._latency.add(score.details["latency_seconds"])
-            elif "latency" in score.name and "latency_seconds" not in score.details:
+            elif score.name == "latency" and "latency_seconds" not in score.details:
                 warnings.warn(
                     f"Score '{score.name}' contains 'latency' but details "
                     f"is missing 'latency_seconds' key; latency percentiles "
