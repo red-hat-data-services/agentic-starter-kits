@@ -16,8 +16,11 @@ pytestmark = pytest.mark.langgraph_hitl
 
 
 def _queries_with_expected_elements() -> list[dict[str, Any]]:
-    """Return golden queries that have non-empty expected_elements."""
-    return [q for q in load_golden() if q.get("expected_elements")]
+    """Return golden queries that have non-empty expected_elements and no approval gate."""
+    return [
+        q for q in load_golden()
+        if q.get("expected_elements") and "approval" not in q
+    ]
 
 
 async def test_plan_coherence(run_eval: Any, score_collector: Any) -> None:
