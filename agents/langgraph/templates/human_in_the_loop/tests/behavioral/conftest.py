@@ -174,6 +174,7 @@ def run_eval(
                     success=True,
                     error=None,
                 )
+                result._request_start_ms = request_start_ms  # type: ignore[attr-defined]
 
         if enrich and mlflow is not None and result.success:
             try:
