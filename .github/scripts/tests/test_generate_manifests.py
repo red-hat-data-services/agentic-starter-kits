@@ -54,8 +54,13 @@ def test_odhdocument_structure(tmp_path):
     doc = yaml.safe_load(doc_path.read_text())
     assert doc["apiVersion"] == "dashboard.opendatahub.io/v1"
     assert doc["kind"] == "OdhDocument"
-    assert doc["metadata"]["name"] == "agentic-starter-kits-langgraph-react-agent-tutorial"
-    assert doc["metadata"]["annotations"]["opendatahub.io/categories"] == "Agent Templates,Getting started"
+    assert (
+        doc["metadata"]["name"] == "agentic-starter-kits-langgraph-react-agent-tutorial"
+    )
+    assert (
+        doc["metadata"]["annotations"]["opendatahub.io/categories"]
+        == "Agent Templates,Getting started"
+    )
     assert doc["spec"]["type"] == "tutorial"
     assert doc["spec"]["displayName"] == "LangGraph ReAct Agent"
     assert doc["spec"]["url"] == "https://red.ht/abc123"

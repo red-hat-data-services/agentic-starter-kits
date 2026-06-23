@@ -127,7 +127,10 @@ def generate_manifests(
 
 def main() -> None:
     if len(sys.argv) < 4:
-        print(f"Usage: {sys.argv[0]} AGENTS_JSON OUTPUT_DIR VERSION [SHORT_URLS_JSON]", file=sys.stderr)
+        print(
+            f"Usage: {sys.argv[0]} AGENTS_JSON OUTPUT_DIR VERSION [SHORT_URLS_JSON]",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     agents_json_path = sys.argv[1]

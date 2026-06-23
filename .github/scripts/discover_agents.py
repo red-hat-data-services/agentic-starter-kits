@@ -18,7 +18,6 @@ from pathlib import Path
 
 import yaml
 
-
 REQUIRED_FIELDS = ("name", "displayName", "description", "framework")
 
 
@@ -34,16 +33,21 @@ def discover_agents(repo_root: str) -> list[dict]:
         with open(agent_yaml) as f:
             data = yaml.safe_load(f)
         if not data or not all(data.get(k) for k in REQUIRED_FIELDS):
-            print(f"WARNING: skipping {agent_yaml} — missing required fields", file=sys.stderr)
+            print(
+                f"WARNING: skipping {agent_yaml} — missing required fields",
+                file=sys.stderr,
+            )
             continue
         agent_dir = agent_yaml.parent
-        agents.append({
-            "name": data["name"],
-            "displayName": data["displayName"],
-            "description": data["description"],
-            "framework": data["framework"],
-            "path": str(agent_dir.relative_to(root)),
-        })
+        agents.append(
+            {
+                "name": data["name"],
+                "displayName": data["displayName"],
+                "description": data["description"],
+                "framework": data["framework"],
+                "path": str(agent_dir.relative_to(root)),
+            }
+        )
 
     agents.sort(key=lambda a: a["name"])
     return agents

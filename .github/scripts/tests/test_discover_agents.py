@@ -20,7 +20,8 @@ def fake_repo(tmp_path):
     """Create a minimal fake repo with two agent.yaml files."""
     agent_a = tmp_path / "agents" / "framework_a" / "templates" / "agent_one"
     agent_a.mkdir(parents=True)
-    (agent_a / "agent.yaml").write_text(dedent("""\
+    (agent_a / "agent.yaml").write_text(
+        dedent("""\
         name: framework-a-agent-one
         displayName: "Framework A Agent One"
         framework: framework_a
@@ -28,16 +29,19 @@ def fake_repo(tmp_path):
         env:
           required:
             - API_KEY
-    """))
+    """)
+    )
 
     agent_b = tmp_path / "agents" / "framework_b" / "templates" / "agent_two"
     agent_b.mkdir(parents=True)
-    (agent_b / "agent.yaml").write_text(dedent("""\
+    (agent_b / "agent.yaml").write_text(
+        dedent("""\
         name: framework-b-agent-two
         displayName: "Framework B Agent Two"
         framework: framework_b
         description: "Second test agent."
-    """))
+    """)
+    )
     return tmp_path
 
 
@@ -79,13 +83,21 @@ def test_discover_real_repo():
     assert "langgraph-react-agent" in names
     assert "crewai-websearch-agent" in names
     for agent in agents:
-        assert all(k in agent for k in ("name", "displayName", "description", "framework", "path"))
+        assert all(
+            k in agent
+            for k in ("name", "displayName", "description", "framework", "path")
+        )
 
 
 def test_cli_outputs_json():
     result = subprocess.run(
-        [sys.executable, str(Path(__file__).resolve().parent.parent / "discover_agents.py"), str(REPO_ROOT)],
-        capture_output=True, text=True
+        [
+            sys.executable,
+            str(Path(__file__).resolve().parent.parent / "discover_agents.py"),
+            str(REPO_ROOT),
+        ],
+        capture_output=True,
+        text=True,
     )
     assert result.returncode == 0
     data = json.loads(result.stdout)
