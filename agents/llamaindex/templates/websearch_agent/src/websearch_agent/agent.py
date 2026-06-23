@@ -9,9 +9,9 @@ from websearch_agent.workflow import FunctionCallingAgent
 
 
 def get_workflow_closure(
-    model_id: str = None,
-    base_url: str = None,
-    api_key: str = None,
+    model_id: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
 ) -> Callable:
     """Workflow generator closure."""
 

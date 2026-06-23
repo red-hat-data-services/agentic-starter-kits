@@ -178,7 +178,7 @@ async def chat_completions(request: ChatCompletionRequest):
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
     langchain_messages = _build_langchain_messages(request.messages)
-    model_id = request.model or getenv("MODEL_ID", "model")
+    model_id = request.model or getenv("MODEL_ID") or "model"
 
     if request.stream:
         return await _handle_stream(langchain_messages, model_id)

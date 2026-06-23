@@ -24,6 +24,16 @@ make deploy     # deploy to OpenShift/K8s via Helm
 make dry-run    # preview Helm manifests
 ```
 
+## Single-file verification
+
+```bash
+# Lint a single file
+ruff check path/to/file.py
+
+# Format-check a single file
+ruff format --check path/to/file.py
+```
+
 ## Code style
 
 - Python >=3.12, <3.14. Use `uv` as package manager -- never `pip` directly
@@ -40,6 +50,11 @@ make dry-run    # preview Helm manifests
 - Run `make test` before committing (prefer over bare pytest). Some agents have placeholder tests only -- check before assuming coverage
 - Never commit `.env` files -- only `.env.example` templates
 - Standard containers: UBI9 base (`registry.access.redhat.com/ubi9/python-312`), non-root UID 1001, port 8080
+
+## Tooling preferences
+
+- Prefer the Atlassian MCP server for Jira and Confluence access in this repository when it is available and authorized
+- Fall back to direct HTTP/API calls only when the Atlassian MCP server is unavailable or does not expose the needed capability
 
 ## Boundaries
 

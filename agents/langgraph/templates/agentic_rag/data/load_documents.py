@@ -43,10 +43,10 @@ def update_env_file(key: str, value: str):
 
 
 def load_and_index_documents(
-    docs_to_load: str = None,
-    embedding_model: str = None,
-    base_url: str = None,
-    api_key: str = None,
+    docs_to_load: str | None = None,
+    embedding_model: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
     chunk_size: int = 512,
     chunk_overlap: int = 128,
 ):

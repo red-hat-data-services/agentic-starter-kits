@@ -8,9 +8,9 @@ from react_agent.tools import dummy_web_search
 
 
 def get_graph_closure(
-    model_id: str = None,
-    base_url: str = None,
-    api_key: str = None,
+    model_id: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
 ) -> Any:
     """Build and return a LangGraph ReAct agent with the configured LLM and tools.
 

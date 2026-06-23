@@ -17,9 +17,9 @@ APP_NAME = "adk_agent"
 
 
 def get_agent(
-    model_id: str = None,
-    base_url: str = None,
-    api_key: str = None,
+    model_id: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
 ) -> LlmAgent:
     """Build and return a Google ADK LlmAgent configured for LlamaStack via LiteLLM.
 
@@ -79,9 +79,9 @@ def get_agent(
 
 
 def get_runner(
-    model_id: str = None,
-    base_url: str = None,
-    api_key: str = None,
+    model_id: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
 ) -> InMemoryRunner:
     """Build an InMemoryRunner wrapping the ADK agent.
 

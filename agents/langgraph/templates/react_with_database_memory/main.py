@@ -238,7 +238,7 @@ async def chat_completions(request: ChatCompletionRequest):
         system_prompt = langchain_messages[0].content
         langchain_messages = langchain_messages[1:]
 
-    model_id = request.model or getenv("MODEL_ID", "model")
+    model_id = request.model or getenv("MODEL_ID") or "model"
 
     if request.stream:
         return await _handle_stream(

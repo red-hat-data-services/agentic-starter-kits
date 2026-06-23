@@ -179,7 +179,7 @@ async def chat_completions(request: ChatCompletionRequest):
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
     user_message = _build_user_message(request.messages)
-    model_id = request.model or getenv("MODEL_ID", "model")
+    model_id = request.model or getenv("MODEL_ID") or "model"
 
     if request.stream:
         return await _handle_stream(user_message, model_id)

@@ -16,7 +16,7 @@ from harness.runner import TaskConfig, TaskResult, run_task
 @pytest.fixture
 def agent_url() -> str:
     """Langflow agent URL from env var or default localhost."""
-    return os.environ.get("LANGFLOW_AGENT_URL", "http://localhost:7860")
+    return os.environ.get("LANGFLOW_TOOL_CALLING_AGENT_URL", "http://localhost:7860")
 
 
 @pytest.fixture

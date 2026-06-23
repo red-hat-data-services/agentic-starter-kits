@@ -231,7 +231,7 @@ async def chat_completions(request: ChatCompletionRequest):
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
     thread_id = request.thread_id or uuid.uuid4().hex
-    model_id = request.model or getenv("MODEL_ID", "model")
+    model_id = request.model or getenv("MODEL_ID") or "model"
     config = {"configurable": {"thread_id": thread_id}}
 
     if request.stream:

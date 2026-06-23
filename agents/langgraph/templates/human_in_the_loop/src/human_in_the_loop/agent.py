@@ -12,9 +12,9 @@ from human_in_the_loop import TOOLS
 
 
 def get_graph_closure(
-    model_id: str = None,
-    base_url: str = None,
-    api_key: str = None,
+    model_id: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
 ) -> Callable:
     """Build and return a closure that creates HITL agent graphs.
 
