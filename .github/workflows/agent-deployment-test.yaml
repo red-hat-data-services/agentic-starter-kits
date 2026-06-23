@@ -68,7 +68,6 @@ jobs:
             POSTGRES_PORT: ${{ vars.POSTGRES_PORT }}
             POSTGRES_DB: ${{ vars.POSTGRES_DB }}
             POSTGRES_USER: ${{ vars.POSTGRES_USER }}
-            POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
     env:
       API_KEY: ${{ vars.API_KEY }}
       BASE_URL: ${{ vars.BASE_URL }}
@@ -90,7 +89,7 @@ jobs:
           POSTGRES_PORT: ${{ matrix.POSTGRES_PORT }}
           POSTGRES_DB: ${{ matrix.POSTGRES_DB }}
           POSTGRES_USER: ${{ matrix.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ matrix.POSTGRES_PASSWORD }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: make test-integration
 
       - name: Upload test results
