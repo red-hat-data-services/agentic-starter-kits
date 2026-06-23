@@ -15,7 +15,7 @@ re-init: ## Activate venv and reload .env variables
 	  echo "Venv activated and .env variables loaded."
 
 init: ## Copy .env.example to .env for configuration
-	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from .env.example — edit it with your configuration"; else echo ".env already exists — skipping"; fi
+	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from .env.example - edit it with your configuration"; else echo ".env already exists - skipping"; fi
 
 env: ## Create venv, load .env, and install dependencies
 	@echo "==> Creating virtual environment and installing dependencies..." && \
@@ -127,6 +127,7 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	    IFS=',' read -r -a AUTH_ALLOWLIST_ITEMS <<< "$$AUTH_ALLOWLIST"; \
 	    for idx in "$${!AUTH_ALLOWLIST_ITEMS[@]}"; do \
 	      account="$${AUTH_ALLOWLIST_ITEMS[$$idx]}"; \
+	      account="$$(echo -n "$$account" | tr -d '[:space:]')"; \
 	      [ -n "$$account" ] || continue; \
 	      AUTH_ALLOWLIST_ARGS="$$AUTH_ALLOWLIST_ARGS --set-string auth.allowedServiceAccounts[$$idx]=$$account"; \
 	    done; \
@@ -173,6 +174,7 @@ dry-run: _check-env ## Render Helm templates without deploying
 	    IFS=',' read -r -a AUTH_ALLOWLIST_ITEMS <<< "$$AUTH_ALLOWLIST"; \
 	    for idx in "$${!AUTH_ALLOWLIST_ITEMS[@]}"; do \
 	      account="$${AUTH_ALLOWLIST_ITEMS[$$idx]}"; \
+	      account="$$(echo -n "$$account" | tr -d '[:space:]')"; \
 	      [ -n "$$account" ] || continue; \
 	      AUTH_ALLOWLIST_ARGS="$$AUTH_ALLOWLIST_ARGS --set-string auth.allowedServiceAccounts[$$idx]=$$account"; \
 	    done; \
