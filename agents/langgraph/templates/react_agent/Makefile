@@ -122,6 +122,15 @@ _check-env:
 deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	@source .env && \
 	  AUTH_ALLOWLIST="$${AUTH_ALLOWED_SERVICEACCOUNTS:-$${AUTH_ALLOWED_SERVICEACCOUNT}}" && \
+	  AUTH_ALLOWLIST_ARGS="" && \
+	  if [ -n "$$AUTH_ALLOWLIST" ]; then \
+	    IFS=',' read -r -a AUTH_ALLOWLIST_ITEMS <<< "$$AUTH_ALLOWLIST"; \
+	    for idx in "$${!AUTH_ALLOWLIST_ITEMS[@]}"; do \
+	      account="$${AUTH_ALLOWLIST_ITEMS[$$idx]}"; \
+	      [ -n "$$account" ] || continue; \
+	      AUTH_ALLOWLIST_ARGS="$$AUTH_ALLOWLIST_ARGS --set-string auth.allowedServiceAccounts[$$idx]=$$account"; \
+	    done; \
+	  fi && \
 	  [ -n "$${CONTAINER_IMAGE}" ] || { echo "ERROR: CONTAINER_IMAGE is not set in .env"; exit 1; } && \
 	  LAST_SEG="$${CONTAINER_IMAGE##*/}" && if [[ "$$LAST_SEG" == *:* ]]; then IMAGE_REPO="$${CONTAINER_IMAGE%:*}"; IMAGE_TAG="$${LAST_SEG##*:}"; else IMAGE_REPO="$${CONTAINER_IMAGE}"; IMAGE_TAG="latest"; fi && \
 	  trap 'rm -f .helm-secrets.yaml' EXIT && \
@@ -139,7 +148,7 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	    $${AUTH_ENABLED:+--set "auth.enabled=$${AUTH_ENABLED}"} \
 	    $${AUTH_ENABLED:+--set "serviceAccount.create=$${AUTH_ENABLED}"} \
 	    $${AUTH_AUDIENCE:+--set-string "auth.audience=$${AUTH_AUDIENCE}"} \
-	    $${AUTH_ALLOWLIST:+--set-string "auth.allowedServiceAccounts[0]=$${AUTH_ALLOWLIST}"} \
+	    $${AUTH_ALLOWLIST_ARGS} \
 	    $${MLFLOW_TRACKING_URI:+--set env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
 	    $${MLFLOW_EXPERIMENT_NAME:+--set env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
 	    $${MLFLOW_TRACKING_INSECURE_TLS:+--set env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
@@ -159,6 +168,15 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 dry-run: _check-env ## Render Helm templates without deploying
 	@source .env && \
 	  AUTH_ALLOWLIST="$${AUTH_ALLOWED_SERVICEACCOUNTS:-$${AUTH_ALLOWED_SERVICEACCOUNT}}" && \
+	  AUTH_ALLOWLIST_ARGS="" && \
+	  if [ -n "$$AUTH_ALLOWLIST" ]; then \
+	    IFS=',' read -r -a AUTH_ALLOWLIST_ITEMS <<< "$$AUTH_ALLOWLIST"; \
+	    for idx in "$${!AUTH_ALLOWLIST_ITEMS[@]}"; do \
+	      account="$${AUTH_ALLOWLIST_ITEMS[$$idx]}"; \
+	      [ -n "$$account" ] || continue; \
+	      AUTH_ALLOWLIST_ARGS="$$AUTH_ALLOWLIST_ARGS --set-string auth.allowedServiceAccounts[$$idx]=$$account"; \
+	    done; \
+	  fi && \
 	  [ -n "$${CONTAINER_IMAGE}" ] || { echo "ERROR: CONTAINER_IMAGE is not set in .env"; exit 1; } && \
 	  LAST_SEG="$${CONTAINER_IMAGE##*/}" && if [[ "$$LAST_SEG" == *:* ]]; then IMAGE_REPO="$${CONTAINER_IMAGE%:*}"; IMAGE_TAG="$${LAST_SEG##*:}"; else IMAGE_REPO="$${CONTAINER_IMAGE}"; IMAGE_TAG="latest"; fi && \
 	  helm template $(AGENT_NAME) $(CHART_DIR) \
@@ -171,7 +189,7 @@ dry-run: _check-env ## Render Helm templates without deploying
 	    $${AUTH_ENABLED:+--set "auth.enabled=$${AUTH_ENABLED}"} \
 	    $${AUTH_ENABLED:+--set "serviceAccount.create=$${AUTH_ENABLED}"} \
 	    $${AUTH_AUDIENCE:+--set-string "auth.audience=$${AUTH_AUDIENCE}"} \
-	    $${AUTH_ALLOWLIST:+--set-string "auth.allowedServiceAccounts[0]=$${AUTH_ALLOWLIST}"} \
+	    $${AUTH_ALLOWLIST_ARGS} \
 	    $${MLFLOW_TRACKING_URI:+--set env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
 	    $${MLFLOW_TRACKING_TOKEN:+--set secrets.mlflowTrackingToken="REDACTED"} \
 	    $${MLFLOW_EXPERIMENT_NAME:+--set env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
