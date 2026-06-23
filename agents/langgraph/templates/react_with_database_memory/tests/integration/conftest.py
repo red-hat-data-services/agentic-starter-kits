@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 import os
 
-import integration.conftest  # noqa: F401 — re-exports cluster_auth, repo_root
 import pytest
+from integration.conftest import cluster_auth, repo_root  # noqa: F401
 from integration.utils import (
     MakeTargetError,
     RouteNotFoundError,
@@ -63,7 +63,7 @@ def _write_env_file(agent_dir, container_image):
 
 
 @pytest.fixture(scope="module")
-def deployed_agent(cluster_auth, agent_dir, agent_name):
+def deployed_agent(cluster_auth, agent_dir, agent_name):  # noqa: F811
     namespace = cluster_auth["namespace"]
     container_image = f"{INTERNAL_REGISTRY}/{namespace}/{agent_name}:latest"
     env_path = _write_env_file(agent_dir, container_image)
