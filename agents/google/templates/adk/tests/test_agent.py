@@ -1,7 +1,6 @@
 import os
 
 import pytest
-
 from adk_agent.agent import APP_NAME, get_agent, get_runner
 
 ENV_KEYS = {"API_KEY", "BASE_URL", "MODEL_ID", "OPENAI_API_BASE", "OPENAI_API_KEY"}
@@ -44,7 +43,9 @@ def test_get_agent_uses_environment_defaults():
 
 
 def test_get_agent_requires_api_key_for_remote_base_url():
-    with pytest.raises(ValueError, match="API_KEY is required for non-local environments."):
+    with pytest.raises(
+        ValueError, match="API_KEY is required for non-local environments."
+    ):
         get_agent(model_id="demo-model", base_url="https://example.com")
 
 
