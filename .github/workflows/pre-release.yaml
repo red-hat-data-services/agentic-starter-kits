@@ -82,7 +82,7 @@ jobs:
       - name: Generate manifests
         run: |
           URLS_ARG=""
-          if [ "$(cat short_urls.json)" != "{}" ]; then
+          if python -c "import json,sys; sys.exit(0 if json.load(open('short_urls.json')) else 1)" 2>/dev/null; then
             URLS_ARG="short_urls.json"
           fi
           python .github/scripts/generate_manifests.py \
