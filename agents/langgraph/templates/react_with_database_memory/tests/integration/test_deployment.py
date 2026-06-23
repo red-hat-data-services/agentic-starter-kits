@@ -11,3 +11,4 @@ def test_health_endpoint(deployed_agent):
 
     assert result["status"] == "healthy"
     assert result["agent_initialized"] is True
+    assert result["database_connected"] is True

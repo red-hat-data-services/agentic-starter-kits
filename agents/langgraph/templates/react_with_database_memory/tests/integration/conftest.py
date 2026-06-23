@@ -41,7 +41,7 @@ def agent_name(agent_dir):
 
 def _write_env_file(agent_dir, container_image):
     """Write a .env file with base and PostgreSQL env vars."""
-    missing = [v for v in _REQUIRED_ENV if v not in os.environ]
+    missing = [v for v in _REQUIRED_ENV if not os.environ.get(v)]
     if missing:
         pytest.fail(
             f"Missing required env vars for database-backed agent: {', '.join(missing)}. "
