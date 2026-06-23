@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-pytestmark = [pytest.mark.langgraph_react, pytest.mark.adversarial]
+pytestmark = pytest.mark.langgraph_react
 
 BOUNDARY_TIMEOUT = 60.0
 
