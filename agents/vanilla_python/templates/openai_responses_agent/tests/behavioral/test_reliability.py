@@ -39,15 +39,25 @@ async def test_pass_at_k_single_tool(
     threshold = vanilla_python_thresholds.get("tool_selection_accuracy", 0.85)
     k = vanilla_python_thresholds.get("pass_at_k", DEFAULT_K)
 
-    passed_count = 0
-    failures = 0
-    used_fallback = 0
+    results = []
     for _ in range(k):
         result = await run_eval(
-            query, expected_tools=expected_tools, timeout_seconds=PASS_K_TIMEOUT
+            query,
+            expected_tools=expected_tools,
+            timeout_seconds=PASS_K_TIMEOUT,
+            enrich=False,
         )
+        results.append(result)
+
+    await run_eval.enrich_batch(results)
+
+    passed_count = 0
+    infra_failures = 0
+    inconclusive = 0
+    used_fallback = 0
+    for result in results:
         if not result.success:
-            failures += 1
+            infra_failures += 1
             continue
 
         if result.tool_calls:
@@ -55,13 +65,17 @@ async def test_pass_at_k_single_tool(
             score_collector.record(query, score)
             if score.passed:
                 passed_count += 1
+            else:
+                inconclusive += 1
         else:
             used_fallback += 1
             text_lower = result.response.lower()
             if any(term in text_lower for term in PRICE_EVIDENCE):
                 passed_count += 1
+            else:
+                inconclusive += 1
 
-    if used_fallback == k - failures:
+    if used_fallback == k - infra_failures:
         warnings.warn(
             "tool_calls not exposed in any response — pass@k scored via "
             "content keywords only (weaker signal)",
@@ -71,8 +85,8 @@ async def test_pass_at_k_single_tool(
     pass_rate = passed_count / k
     assert pass_rate >= threshold, (
         f"pass@{k} single-tool selection = {pass_rate:.2f} "
-        f"(threshold={threshold:.2f}, passed={passed_count}/{k}, "
-        f"errors={failures})"
+        f"(passed={passed_count}/{k}, inconclusive={inconclusive}, "
+        f"infra_errors={infra_failures}, threshold={threshold:.2f})"
     )
 
 
@@ -89,15 +103,25 @@ async def test_pass_at_k_multi_tool(
     threshold = vanilla_python_thresholds.get("multi_tool_accuracy", 0.75)
     k = vanilla_python_thresholds.get("pass_at_k", DEFAULT_K)
 
-    passed_count = 0
-    failures = 0
-    used_fallback = 0
+    results = []
     for _ in range(k):
         result = await run_eval(
-            query, expected_tools=expected_tools, timeout_seconds=PASS_K_TIMEOUT
+            query,
+            expected_tools=expected_tools,
+            timeout_seconds=PASS_K_TIMEOUT,
+            enrich=False,
         )
+        results.append(result)
+
+    await run_eval.enrich_batch(results)
+
+    passed_count = 0
+    infra_failures = 0
+    inconclusive = 0
+    used_fallback = 0
+    for result in results:
         if not result.success:
-            failures += 1
+            infra_failures += 1
             continue
 
         if result.tool_calls:
@@ -105,6 +129,8 @@ async def test_pass_at_k_multi_tool(
             score_collector.record(query, score)
             if score.passed:
                 passed_count += 1
+            else:
+                inconclusive += 1
         else:
             used_fallback += 1
             text_lower = result.response.lower()
@@ -112,8 +138,10 @@ async def test_pass_at_k_multi_tool(
             has_review = any(term in text_lower for term in REVIEW_EVIDENCE)
             if has_price and has_review:
                 passed_count += 1
+            else:
+                inconclusive += 1
 
-    if used_fallback == k - failures:
+    if used_fallback == k - infra_failures:
         warnings.warn(
             "tool_calls not exposed in any response — pass@k scored via "
             "content keywords only (weaker signal)",
@@ -123,8 +151,8 @@ async def test_pass_at_k_multi_tool(
     pass_rate = passed_count / k
     assert pass_rate >= threshold, (
         f"pass@{k} multi-tool selection = {pass_rate:.2f} "
-        f"(threshold={threshold:.2f}, passed={passed_count}/{k}, "
-        f"errors={failures})"
+        f"(passed={passed_count}/{k}, inconclusive={inconclusive}, "
+        f"infra_errors={infra_failures}, threshold={threshold:.2f})"
     )
 
 
@@ -140,21 +168,30 @@ async def test_pass_at_k_response_quality(
     threshold = vanilla_python_thresholds.get("response_coherence_accuracy", 0.75)
     k = vanilla_python_thresholds.get("pass_at_k", DEFAULT_K)
 
-    passed_count = 0
-    failures = 0
+    results = []
     for _ in range(k):
-        result = await run_eval(query, timeout_seconds=PASS_K_TIMEOUT)
+        result = await run_eval(query, timeout_seconds=PASS_K_TIMEOUT, enrich=False)
+        results.append(result)
+
+    await run_eval.enrich_batch(results)
+
+    passed_count = 0
+    infra_failures = 0
+    inconclusive = 0
+    for result in results:
         if not result.success:
-            failures += 1
+            infra_failures += 1
             continue
         score = score_plan_coherence(result)
         score_collector.record(query, score)
         if score.passed:
             passed_count += 1
+        else:
+            inconclusive += 1
 
     pass_rate = passed_count / k
     assert pass_rate >= threshold, (
         f"pass@{k} coherence = {pass_rate:.2f} "
-        f"(threshold={threshold:.2f}, passed={passed_count}/{k}, "
-        f"errors={failures})"
+        f"(passed={passed_count}/{k}, inconclusive={inconclusive}, "
+        f"infra_errors={infra_failures}, threshold={threshold:.2f})"
     )
