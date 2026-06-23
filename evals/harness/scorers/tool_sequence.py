@@ -9,7 +9,7 @@ from harness.scorers import Score
 
 
 def _normalize_tool_name(name: str) -> str:
-    return name.lower().replace(" ", "_").replace("-", "_")
+    return (name or "").lower().replace(" ", "_").replace("-", "_")
 
 
 def score_tool_sequence(result: TaskResult, expected_tools: list[str]) -> Score:
