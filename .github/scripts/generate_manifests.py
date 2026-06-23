@@ -108,7 +108,7 @@ def generate_manifests(
         url = short_urls.get(agent["name"], _fallback_url(agent["path"], version))
         content = ODHDOCUMENT_TEMPLATE.format(
             manifest_name=manifest_name,
-            display_name=agent["displayName"],
+            display_name=agent["displayName"].replace("'", "''"),
             description=agent["description"],
             url=url,
         )
