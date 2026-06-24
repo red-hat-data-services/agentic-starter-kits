@@ -20,23 +20,23 @@ Before writing code for a new agent template or example, validate that it belong
 
 > "As an AI engineer, I need to know how to build an agent using **\_\_\_\_\_** and integrate it with these RHOAI components: **\_\_\_\_\_** for **\_\_\_\_\_**"
 
-### Using the fit-check skill (recommended)
+### Step 1: Run the fit check
+
+The recommended path is to validate your idea **before writing any code**. Run the fit-check skill or answer the manual questionnaire, then post the result as a GitHub Discussion. Wait for maintainer approval before proceeding to implementation.
+
+**Using the fit-check skill (recommended):**
 
 If you have [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and the [agentic-starter-kits-skills](https://github.com/red-hat-data-services/agentic-starter-kits-skills) plugin installed:
 
 ```text
-# Before writing code (idea mode — interactive questionnaire):
 /agentic-starter-kits-skills:fit-check
-
-# After writing code (existing agent mode — auto-extracts from code):
-/agentic-starter-kits-skills:fit-check langgraph/templates/my_agent
 ```
 
-The skill generates a GitHub Discussion draft with a fit score (**GREEN** / **YELLOW** / **RED**) and recommendations.
+The skill asks a series of questions and generates a GitHub Discussion draft with a fit score (**GREEN** / **YELLOW** / **RED**) and recommendations.
 
-### Manual fit check
+**Manual fit check (no Claude Code):**
 
-If you don't use Claude Code, answer these questions and post them as a [GitHub Discussion](https://github.com/red-hat-data-services/agentic-starter-kits/discussions) before opening a PR:
+Answer these questions and post them as a [GitHub Discussion](https://github.com/red-hat-data-services/agentic-starter-kits/discussions):
 
 1. **Framework**: Which agent framework? (LangGraph, CrewAI, AutoGen, LlamaIndex, Google ADK, Langflow, vanilla Python, or new)
 2. **Type**: Template (reusable, general-purpose) or example (business use-case demo)?
@@ -45,17 +45,25 @@ If you don't use Claude Code, answer these questions and post them as a [GitHub 
 5. **API contract**: Will it expose `POST /chat/completions` and `GET /health`?
 6. **Container pattern**: Will it use UBI9, port 8080, non-root UID 1001?
 
-### What the scores mean
+### Step 2: Wait for approval, then implement
 
 | Score | Meaning | Action |
 |-------|---------|--------|
 | **GREEN** | Sentence completes, standard components, no overlap, standard conformance | Proceed to implementation |
-| **YELLOW** | Sentence completes but has flags (non-standard components, partial overlap, new framework) | Post discussion for maintainer + PM review before writing code |
+| **YELLOW** | Sentence completes but has flags (non-standard components, partial overlap, new framework) | Wait for maintainer + PM feedback in the Discussion before writing code |
 | **RED** | Can't complete the sentence (deployment-only, no RHOAI integration) or exact duplicate | Needs rethinking or PM decision on scope |
 
-### Already opened a PR?
+Link the approved Discussion in your PR description when you submit code.
 
-Run the fit check against your agent directory — the skill extracts the details from your code. Post the generated discussion and add the link to your PR. Review continues once the proposal is approved.
+### Already opened a PR without a fit check?
+
+This is a fallback for PRs already in flight. Run the fit check against your agent directory — the skill auto-extracts details from your code:
+
+```text
+/agentic-starter-kits-skills:fit-check langgraph/templates/my_agent
+```
+
+Post the generated Discussion and add the link to your PR. Review is paused until the proposal Discussion is approved.
 
 ## Development setup
 
