@@ -2,9 +2,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # Base OpenCode manifests + MLflow tracing
-# Requires: https://github.com/aicatalyst-team/opencode-openshift
+# Clone https://github.com/aicatalyst-team/opencode-openshift and adjust
+# the path below to point to its manifests/ directory.
 resources:
-  - ../../manifests
+  - ../../manifests  # adjust to your local opencode-openshift/manifests path
 
 namespace: YOUR-NAMESPACE
 

@@ -6,14 +6,14 @@ For trace schema, backend comparisons, and latency benchmarks, see [mlflow-traci
 
 ## Prerequisites
 
-- OpenCode deployment manifests from [aicatalyst-team/opencode-openshift](https://github.com/aicatalyst-team/opencode-openshift/pull/1)
+- OpenCode deployment manifests from [aicatalyst-team/opencode-openshift](https://github.com/aicatalyst-team/opencode-openshift)
 - MLflow instance running on your RHOAI cluster with a workspace matching your namespace
 
 ## Setup
 
 ### 1. Build the image
 
-Follow the [aicatalyst-team/opencode-openshift](https://github.com/aicatalyst-team/opencode-openshift/pull/1) deployment guide, but use [`Containerfile.mlflow`](../Containerfile.mlflow) instead of the base Containerfile. It extends the base OpenCode image with `mlflow[kubernetes]` and the pre-built `@mlflow/opencode` plugin.
+Follow the [aicatalyst-team/opencode-openshift](https://github.com/aicatalyst-team/opencode-openshift) deployment guide, but use [`Containerfile.mlflow`](../Containerfile.mlflow) instead of the base Containerfile. It extends the base OpenCode image with `mlflow[kubernetes]` and the pre-built `@mlflow/opencode` plugin.
 
 ### 2. Grant RBAC
 

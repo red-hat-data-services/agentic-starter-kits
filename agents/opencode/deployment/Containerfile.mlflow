@@ -2,21 +2,22 @@
 #
 # Extends the pre-built OpenCode image with:
 # - mlflow[kubernetes] for experiment creation and SA token auth
-# - Pre-built @mlflow/core from upstream master (workspace header fix)
+# - Pre-built @mlflow/core from v3.14.0 (workspace header fix)
 
-FROM quay.io/opendatahub/odh-opencode-rhel9:latest
+FROM quay.io/opendatahub/odh-opencode-rhel9:1.4.4
 
 USER 0
 
-RUN pip3 install --no-cache-dir 'mlflow[kubernetes]>=3.14'
+RUN pip3 install --no-cache-dir 'mlflow[kubernetes]==3.14.*'
 
-# Build @mlflow/core and @mlflow/opencode from upstream master.
-# The workspace header fix (mlflow#23927) is in mlflow 3.14 pip package
+# Build @mlflow/core and @mlflow/opencode from v3.14.0.
+# The workspace header fix (mlflow#23927) is in the mlflow 3.14 pip package
 # but the npm plugin bundle (@mlflow/opencode) has not been re-released
-# with this fix yet. Building from master includes it.
+# with this fix yet. Building from the release tag includes it.
 # The base image already has nodejs 16 — just need npm.
 RUN microdnf install -y --nodocs npm \
-    && git clone --depth 1 https://github.com/mlflow/mlflow.git /tmp/mlflow \
+    && git clone https://github.com/mlflow/mlflow.git /tmp/mlflow \
+    && cd /tmp/mlflow && git checkout 4953f67599d1 && cd .. \
     && cd /tmp/mlflow/libs/typescript && npm install && npm run build \
     && mkdir -p /opt/mlflow-plugin/core /opt/mlflow-plugin/opencode \
     && cp -r /tmp/mlflow/libs/typescript/core/dist /opt/mlflow-plugin/core/ \
