@@ -1,7 +1,5 @@
 # OpenCode on Red Hat OpenShift AI — Deployment Guide
 
-> Tested: 2026-06-22 on OpenShift 4.21 (ROSA) with vLLM and OGX model serving
-
 This guide covers deploying [OpenCode](https://opencode.ai) as a coding agent on Red Hat OpenShift AI, including image versioning, configuration, and two deployment modes (web and CLI).
 
 ## Container Image
@@ -106,5 +104,3 @@ oc apply -k overlays/my-env
 ## Related resources
 
 - [opencode-openshift](https://github.com/aicatalyst-team/opencode-openshift) — kustomize manifests, overlays, and full README
-- [RHAIENG-5526](https://redhat.atlassian.net/browse/RHAIENG-5526) — validated RHOAI container image story
-- [RHAISTRAT-1854](https://redhat.atlassian.net/browse/RHAISTRAT-1854) — OpenCode on RHOAI feature
