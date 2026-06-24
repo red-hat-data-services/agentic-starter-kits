@@ -777,6 +777,8 @@ Each session captures tool call sequences, token counts (input/output/total), se
 
 The default Containerfile uses MLflow 3.12 with a Python hook. MLflow 3.14+ also supports an npm plugin approach — uncomment the npm plugin env var in your deployment manifest to enable it. The plugin must be built from [upstream master](https://github.com/mlflow/mlflow/tree/master/libs/typescript) until the next plugin release syncs the fix. See [mlflow-tracing.md](mlflow-tracing.md) for a comparison of both approaches.
 
+> **TLS note:** The npm plugin currently requires `NODE_TLS_REJECT_UNAUTHORIZED=0` or `NODE_EXTRA_CA_CERTS` for clusters with non-public TLS certificates. Both are process-wide Node.js settings. Upstream work is in progress to support `MLFLOW_TRACKING_INSECURE_TLS` and `MLFLOW_TRACKING_SERVER_CERT_PATH` scoped to MLflow connections only ([mlflow#24140](https://github.com/mlflow/mlflow/issues/24140)). Kubernetes-native auth (`MLFLOW_TRACKING_AUTH`) is also being added to the TypeScript SDK ([mlflow#24141](https://github.com/mlflow/mlflow/issues/24141)).
+
 For detailed tracing investigation results and benchmark data, see [mlflow-tracing.md](mlflow-tracing.md).
 
 ---
