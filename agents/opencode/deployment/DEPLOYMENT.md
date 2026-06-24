@@ -82,6 +82,7 @@ oc apply -k overlays/my-env
 | Model name | `manifests/kustomization.yaml` (`MODEL_NAME`) | Must match the model loaded in vLLM |
 | Storage class | `manifests/kustomization.yaml` (patch section) | Default PVC is 10Gi |
 | MCP servers | ConfigMap `opencode-web-mcp` | Optional; merged into config at startup |
+| Skills | ConfigMap (volume mount) | Optional; injectable skills via ConfigMap |
 | Provider (vLLM vs OGX) | `manifests/config-template.json` (`enabled_providers`) | Default: `["vllm"]` |
 
 ## Security
