@@ -87,3 +87,5 @@ Navigate to your workspace and experiment name to see traces.
 - `MLFLOW_TRACKING_TOKEN` is read from the pod's SA token automatically
 - The entrypoint handles plugin install, experiment creation, and auth — no manual plugin setup needed
 - Until the next `@mlflow/opencode` npm release includes the workspace header fix, the entrypoint replaces the cached plugin with a build from upstream master
+
+> **TLS note:** `NODE_TLS_REJECT_UNAUTHORIZED=0` disables TLS verification for all Node.js connections in the container, not just MLflow. For production, use `NODE_EXTRA_CA_CERTS` instead. Upstream work is in progress to support `MLFLOW_TRACKING_INSECURE_TLS` and `MLFLOW_TRACKING_SERVER_CERT_PATH` scoped to MLflow connections only ([mlflow#24140](https://github.com/mlflow/mlflow/issues/24140)). Kubernetes-native auth (`MLFLOW_TRACKING_AUTH`) is also being added to the TypeScript SDK ([mlflow#24141](https://github.com/mlflow/mlflow/issues/24141)).
