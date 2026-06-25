@@ -97,7 +97,7 @@ class ScoreCollector:
                     mark_name = getattr(mark, "name", None) or getattr(
                         getattr(mark, "mark", None), "name", None
                     )
-                    if mark_name and mark_name not in _CATEGORY_MARKERS:
+                    if mark_name and mark_name not in _SKIP_MARKERS:
                         agent = mark_name
                         break
 
@@ -145,7 +145,7 @@ class ScoreCollector:
                 self._latency.add(score.details["latency_seconds"])
             elif score.name == "latency" and "latency_seconds" not in score.details:
                 warnings.warn(
-                    f"Score '{score.name}' contains 'latency' but details "
+                    f"Score '{score.name}' is named 'latency' but details "
                     f"is missing 'latency_seconds' key; latency percentiles "
                     f"will not track this score",
                     stacklevel=2,
