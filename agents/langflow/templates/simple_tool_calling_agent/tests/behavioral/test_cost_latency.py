@@ -23,11 +23,12 @@ async def test_latency_under_threshold(
 ) -> None:
     """Response latency must stay within the p95 threshold."""
     max_latency = langflow_tool_calling_thresholds["max_latency_p95"]
-    result = await run_eval("What is the weather like in Boston today?")
+    query = "What is the weather like in Boston today?"
+    result = await run_eval(query)
     assert result.success, f"Agent request failed: {result.error}"
 
     score = score_latency(result, max_latency)
-    score_collector.record("What is the weather like in Boston today?", score)
+    score_collector.record(query, score)
     assert score.passed, (
         f"Latency exceeded threshold: {result.latency_seconds:.2f}s > "
         f"{max_latency}s (details: {score.details})"

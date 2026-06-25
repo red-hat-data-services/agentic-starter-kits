@@ -1,5 +1,5 @@
+from collections.abc import Callable
 from os import getenv
-from typing import Callable
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ModelFamily
@@ -13,7 +13,7 @@ def get_agent_chat(
     base_url: str | None = None,
     api_key: str | None = None,
     tools: list | None = None,
-) -> Callable:
+) -> Callable[[str], AssistantAgent]:
     """Workflow generator closure using OpenAI or OpenAI-compatible API.
 
     Args:

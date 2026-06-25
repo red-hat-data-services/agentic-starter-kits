@@ -1,7 +1,7 @@
 import logging
 import time
 from os import getenv
-from typing import Callable, Literal, Optional
+from typing import Any, Callable, Literal
 
 from dotenv import load_dotenv
 
@@ -63,8 +63,10 @@ def check_mlflow_health(
 
 
 def wrap_func_with_mlflow_trace(
-    func: Callable, span_type: Literal["tool", "agent"], name: Optional[str] = None
-) -> Callable:
+    func: Callable[..., Any],
+    span_type: Literal["tool", "agent"],
+    name: str | None = None,
+) -> Callable[..., Any]:
     """
     Wrap a function with MLflow.trace(span_type=SpanType.<type>) if MLflow is enabled.
 
@@ -97,7 +99,7 @@ def enable_tracing() -> None:
        - If the server is unreachable: log a warning and continue without tracing.
     """
     load_dotenv()
-    tracking_uri: Optional[str] = getenv("MLFLOW_TRACKING_URI")
+    tracking_uri: str | None = getenv("MLFLOW_TRACKING_URI")
     if not tracking_uri:
         logger.info("[Tracing] MLFLOW_TRACKING_URI not set. Tracing is disabled.")
         return

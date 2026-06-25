@@ -60,10 +60,26 @@ RUN microdnf install -y --nodocs \
     && microdnf clean all \
     && rm -rf /var/cache/yum
 
-# Install MLflow with Kubernetes auth plugin for RHOAI tracing (optional)
-# Note: MLflow 3.13+ switches to an npm plugin that does not yet support
-# RHOAI's kubernetes-namespaced auth. Pin to 3.12 until upstream adds support.
+# =============================================================================
+# MLflow Tracing (Optional) — choose one:
+# =============================================================================
+
+# Option A: Python hook (default)
 RUN python3.12 -m pip install --no-cache-dir 'mlflow[kubernetes]==3.12.0'
+
+# Option B: npm plugin (MLflow 3.14+)
+# Uncomment the lines below and comment out Option A above.
+# Also add nodejs and npm to the microdnf install line above.
+#
+# RUN python3.12 -m pip install --no-cache-dir 'mlflow[kubernetes]>=3.14'
+# RUN mkdir -p /home/${USER_NAME}/.npm \
+#     && chown -R ${USER_UID}:${USER_GID} /home/${USER_NAME}/.npm \
+#     && chmod -R 775 /home/${USER_NAME}/.npm
+# RUN git clone --depth 1 https://github.com/mlflow/mlflow.git /tmp/mlflow \
+#     && cd /tmp/mlflow/libs/typescript && npm install && npm run build \
+#     && mkdir -p /opt/mlflow-plugin \
+#     && cp /tmp/mlflow/libs/typescript/integrations/claude-code/bundle/stop.cjs /opt/mlflow-plugin/ \
+#     && rm -rf /tmp/mlflow
 
 # =============================================================================
 # Create Non-Root User

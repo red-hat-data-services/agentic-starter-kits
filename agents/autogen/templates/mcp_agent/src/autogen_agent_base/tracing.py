@@ -1,7 +1,7 @@
 import logging
 import time
 from os import getenv
-from typing import Optional
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -72,7 +72,7 @@ def enable_tracing() -> None:
        - If the server is unreachable: log a warning and continue without tracing.
     """
     load_dotenv()
-    tracking_uri: Optional[str] = getenv("MLFLOW_TRACKING_URI")
+    tracking_uri: str | None = getenv("MLFLOW_TRACKING_URI")
     if not tracking_uri:
         logger.info("[Tracing] MLFLOW_TRACKING_URI not set. Tracing is disabled.")
         return
@@ -150,7 +150,9 @@ def _patch_execute_tool_call() -> None:
     original_execute = AssistantAgent._execute_tool_call
 
     @staticmethod
-    async def traced_execute_tool_call(tool_call, *args, **kwargs):
+    async def traced_execute_tool_call(
+        tool_call: Any, *args: Any, **kwargs: Any
+    ) -> tuple[Any, Any]:
         span_ctx = mlflow.start_span(name=tool_call.name, span_type=SpanType.TOOL)
         span = span_ctx.__enter__()
         try:

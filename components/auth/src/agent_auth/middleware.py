@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class SATokenAuthMiddleware:
     """ASGI middleware that authenticates/authorizes ServiceAccount tokens."""
 
-    def __init__(self, app: ASGIApp):
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
         self.enabled = os.getenv("AUTH_ENABLED", "false").strip().lower() == "true"
         self.audience = os.getenv("AUTH_AUDIENCE", "").strip()

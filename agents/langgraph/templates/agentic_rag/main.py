@@ -2,9 +2,11 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
+from typing import Any
 
 from agentic_rag.agent import get_graph_closure
 from agentic_rag.tracing import enable_tracing
@@ -44,7 +46,9 @@ class ChatCompletionRequest(BaseModel):
     """
 
     messages: list[ChatMessage] = Field(
-        ..., description="A list of messages comprising the conversation so far."
+        ...,
+        min_length=1,
+        description="A list of messages comprising the conversation so far.",
     )
     model: str | None = Field(
         None,
@@ -118,7 +122,7 @@ agent_graph = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize the RAG agent graph on startup and clear it on shutdown."""
     global agent_graph
     enable_tracing()
@@ -160,6 +164,28 @@ def _build_langchain_messages(messages: list[ChatMessage]) -> list[HumanMessage]
     raise ValueError("No user message found in messages list")
 
 
+def _extract_usage(messages: list) -> dict | None:
+    """Sum token usage from AIMessage.usage_metadata across all LLM calls."""
+    prompt_tokens = 0
+    completion_tokens = 0
+    total_tokens = 0
+    found = False
+    for message in messages:
+        if isinstance(message, AIMessage) and getattr(message, "usage_metadata", None):
+            meta = message.usage_metadata
+            prompt_tokens += meta.get("input_tokens", 0) or 0
+            completion_tokens += meta.get("output_tokens", 0) or 0
+            total_tokens += meta.get("total_tokens", 0) or 0
+            found = True
+    if not found:
+        return None
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
+    }
+
+
 def _make_completion_id() -> str:
     return f"chatcmpl-{uuid.uuid4().hex[:12]}"
 
@@ -186,7 +212,7 @@ async def chat_completions(request: ChatCompletionRequest):
         return await _handle_chat(langchain_messages, model_id)
 
 
-async def _handle_chat(messages: list[HumanMessage], model_id: str):
+async def _handle_chat(messages: list[HumanMessage], model_id: str) -> dict[str, Any]:
     """Handle non-streaming chat completion."""
     global agent_graph
 
@@ -252,7 +278,7 @@ async def _handle_chat(messages: list[HumanMessage], model_id: str):
                 }
             ],
             "context": context_messages,
-            "usage": None,
+            "usage": _extract_usage(result.get("messages", [])),
         }
 
     except Exception as e:
@@ -261,14 +287,16 @@ async def _handle_chat(messages: list[HumanMessage], model_id: str):
         )
 
 
-async def _handle_stream(messages: list[HumanMessage], model_id: str):
+async def _handle_stream(
+    messages: list[HumanMessage], model_id: str
+) -> StreamingResponse:
     """Handle streaming chat completion with OpenAI-compatible SSE chunks."""
     global agent_graph
 
     completion_id = _make_completion_id()
     created = int(time.time())
 
-    async def event_generator():
+    async def event_generator() -> AsyncIterator[str]:
         try:
             async for event in agent_graph.astream_events(
                 {"messages": messages},

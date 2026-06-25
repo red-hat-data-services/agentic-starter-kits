@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from io import StringIO
 
 import pytest
@@ -297,7 +298,8 @@ class TestScoreCollector:
     def test_latency_without_details_key(self) -> None:
         collector = ScoreCollector()
         score = _make_score(name="latency", value=0.8, details={"max_seconds": 5})
-        collector.record("q", score, test_name="t")
+        with pytest.warns(UserWarning, match="missing 'latency_seconds' key"):
+            collector.record("q", score, test_name="t")
         assert collector.latency.count == 0
 
     def test_auto_populates_test_name(self) -> None:
@@ -319,6 +321,48 @@ class TestScoreCollector:
         collector = ScoreCollector()
         collector.record("q", _make_score())
         assert collector.records[0].agent == ""
+
+    def test_record_with_request_fixture(self) -> None:
+        node = type(
+            "Node",
+            (),
+            {
+                "name": "test_hello",
+                "iter_markers": lambda self: iter([type("M", (), {"name": "react"})()]),
+            },
+        )()
+        req = type("FakeRequest", (), {"node": node})()
+        collector = ScoreCollector()
+        collector.record("q", _make_score(), request=req)
+        assert collector.records[0].test_name == "test_hello"
+        assert collector.records[0].agent == "react"
+
+    def test_request_ignores_category_markers(self) -> None:
+        markers = [
+            type("M", (), {"name": "slow"})(),
+            type("M", (), {"name": "parametrize"})(),
+            type("M", (), {"name": "my_agent"})(),
+        ]
+        node = type(
+            "Node", (), {"name": "test_x", "iter_markers": lambda self: iter(markers)}
+        )()
+        req = type("FakeRequest", (), {"node": node})()
+        collector = ScoreCollector()
+        collector.record("q", _make_score(), request=req)
+        assert collector.records[0].agent == "my_agent"
+
+    def test_latency_warning_on_missing_key(self) -> None:
+        collector = ScoreCollector()
+        score = _make_score(name="latency", value=0.8, details={"max_seconds": 5})
+        with pytest.warns(UserWarning, match="missing 'latency_seconds' key"):
+            collector.record("q", score, test_name="t")
+
+    def test_no_warning_for_non_exact_latency_name(self) -> None:
+        collector = ScoreCollector()
+        score = _make_score(name="api_latency", value=0.8, details={})
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            collector.record("q", score, test_name="t")
 
     def test_records_returns_copy(self) -> None:
         collector = ScoreCollector()

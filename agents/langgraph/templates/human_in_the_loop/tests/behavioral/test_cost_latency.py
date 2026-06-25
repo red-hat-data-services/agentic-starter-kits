@@ -19,11 +19,12 @@ async def test_latency_under_threshold(
 ) -> None:
     """Response latency must stay within the p95 threshold."""
     max_latency = hitl_thresholds["max_latency_p95"]
-    result = await run_eval("Hello, how are you?")
+    query = "Hello, how are you?"
+    result = await run_eval(query)
     assert result.success, f"Agent request failed: {result.error}"
 
     score = score_latency(result, max_latency)
-    score_collector.record("Hello, how are you?", score)
+    score_collector.record(query, score)
     assert score.passed, (
         f"Latency exceeded threshold: {result.latency_seconds:.2f}s > "
         f"{max_latency}s (details: {score.details})"

@@ -5,6 +5,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 from typing_extensions import TypedDict
 
@@ -95,7 +96,7 @@ def get_graph_closure(
 
         return agent
 
-    def generate(state: AgentState):
+    def generate(state: AgentState) -> dict:
         """
         Generate final answer based on retrieved context.
 
@@ -176,7 +177,9 @@ Answer[start response with 'based on provided documents]:"""
                 ]
             }
 
-    def get_graph(instruction_prompt: SystemMessage | None = None):
+    def get_graph(
+        instruction_prompt: SystemMessage | None = None,
+    ) -> CompiledStateGraph:
         """Create and compile the RAG workflow graph.
 
         Args:

@@ -12,7 +12,7 @@ def get_workflow_closure(
     model_id: str | None = None,
     base_url: str | None = None,
     api_key: str | None = None,
-) -> Callable:
+) -> Callable[..., FunctionCallingAgent]:
     """Workflow generator closure."""
 
     if not api_key:
