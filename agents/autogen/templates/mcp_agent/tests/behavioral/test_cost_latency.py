@@ -19,11 +19,12 @@ async def test_latency_single_tool(
 ) -> None:
     """Response latency for a single-tool call must stay within the p95 threshold."""
     max_latency = autogen_mcp_thresholds["max_latency_p95"]
-    result = await run_eval("Use the add tool to compute 55555 + 44444")
+    query = "Use the add tool to compute 55555 + 44444"
+    result = await run_eval(query)
     assert result.success, f"Agent request failed: {result.error}"
 
     score = score_latency(result, max_latency)
-    score_collector.record("Use the add tool to compute 55555 + 44444", score)
+    score_collector.record(query, score)
     assert score.passed, (
         f"Latency exceeded threshold: {result.latency_seconds:.2f}s > "
         f"{max_latency}s (details: {score.details})"

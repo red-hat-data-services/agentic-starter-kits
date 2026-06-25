@@ -46,7 +46,9 @@ class ChatCompletionRequest(BaseModel):
     """
 
     messages: list[ChatMessage] = Field(
-        ..., description="A list of messages comprising the conversation so far."
+        ...,
+        min_length=1,
+        description="A list of messages comprising the conversation so far.",
     )
     model: str | None = Field(
         None,
@@ -223,6 +225,15 @@ async def _handle_chat(user_message: str, model_id: str):
 
         assistant_content = _clean_content(str(result))
 
+        usage = None
+        token_usage = getattr(result, "token_usage", None)
+        if token_usage:
+            usage = {
+                "prompt_tokens": getattr(token_usage, "prompt_tokens", 0) or 0,
+                "completion_tokens": getattr(token_usage, "completion_tokens", 0) or 0,
+                "total_tokens": getattr(token_usage, "total_tokens", 0) or 0,
+            }
+
         return {
             "id": _make_completion_id(),
             "object": "chat.completion",
@@ -238,7 +249,7 @@ async def _handle_chat(user_message: str, model_id: str):
                     "finish_reason": "stop",
                 }
             ],
-            "usage": None,
+            "usage": usage,
         }
 
     except Exception as e:
