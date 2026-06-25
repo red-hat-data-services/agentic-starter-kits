@@ -44,7 +44,9 @@ class ChatCompletionRequest(BaseModel):
     """
 
     messages: list[ChatMessage] = Field(
-        ..., description="A list of messages comprising the conversation so far."
+        ...,
+        min_length=1,
+        description="A list of messages comprising the conversation so far.",
     )
     model: str | None = Field(
         None,

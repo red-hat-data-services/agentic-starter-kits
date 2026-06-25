@@ -85,14 +85,15 @@ async def test_no_hallucinated_tools(
 
     Requires MLflow trace enrichment to populate tool_calls.
     """
-    result = await run_eval("Tell me about Kubernetes operators")
+    query = "Tell me about Kubernetes operators"
+    result = await run_eval(query)
     assert result.success, f"Agent request failed: {result.error}"
 
     if not result.tool_calls:
         pytest.skip("tool_calls not exposed — enable MLflow trace enrichment")
 
     score = score_hallucinated_tools(result, known_tools)
-    score_collector.record("Tell me about Kubernetes operators", score)
+    score_collector.record(query, score)
     assert score.passed, (
         f"Hallucinated tools detected: {score.details.get('hallucinated')}"
     )
@@ -103,14 +104,15 @@ async def test_tool_call_has_valid_args(run_eval: Any, score_collector: Any) -> 
 
     Requires MLflow trace enrichment to populate tool_calls.
     """
-    result = await run_eval("What is OpenShift AI?")
+    query = "What is OpenShift AI?"
+    result = await run_eval(query)
     assert result.success, f"Agent request failed: {result.error}"
 
     if not result.tool_calls:
         pytest.skip("tool_calls not exposed — enable MLflow trace enrichment")
 
     score = score_tool_call_validity(result)
-    score_collector.record("What is OpenShift AI?", score)
+    score_collector.record(query, score)
     assert score.passed, f"Invalid tool call arguments: {score.details.get('invalid')}"
 
 

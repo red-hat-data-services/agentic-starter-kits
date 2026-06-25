@@ -114,6 +114,9 @@ class ChatResponse(BaseModel):
             "`is_error` if applicable."
         ),
     )
+    usage: dict | None = Field(
+        None, description="Usage statistics for the completion request."
+    )
 
 
 class HealthResponse(BaseModel):

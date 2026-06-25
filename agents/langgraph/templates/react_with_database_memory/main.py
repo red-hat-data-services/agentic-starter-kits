@@ -49,7 +49,9 @@ class ChatCompletionRequest(BaseModel):
     """
 
     messages: list[ChatMessage] = Field(
-        ..., description="A list of messages comprising the conversation so far."
+        ...,
+        min_length=1,
+        description="A list of messages comprising the conversation so far.",
     )
     model: str | None = Field(
         None,
@@ -177,6 +179,28 @@ def _convert_dict_to_message(msg: ChatMessage):
         return AIMessage(content=msg.content)
     else:
         return HumanMessage(content=msg.content)
+
+
+def _extract_usage(messages: list) -> dict | None:
+    """Sum token usage from AIMessage.usage_metadata across all LLM calls."""
+    prompt_tokens = 0
+    completion_tokens = 0
+    total_tokens = 0
+    found = False
+    for message in messages:
+        if isinstance(message, AIMessage) and getattr(message, "usage_metadata", None):
+            meta = message.usage_metadata
+            prompt_tokens += meta.get("input_tokens", 0) or 0
+            completion_tokens += meta.get("output_tokens", 0) or 0
+            total_tokens += meta.get("total_tokens", 0) or 0
+            found = True
+    if not found:
+        return None
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
+    }
 
 
 def _make_completion_id() -> str:
@@ -310,7 +334,7 @@ async def _handle_chat(
                 }
             ],
             "context": context_messages,
-            "usage": None,
+            "usage": _extract_usage(new_messages),
         }
 
     except Exception as e:
