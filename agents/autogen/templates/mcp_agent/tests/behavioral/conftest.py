@@ -95,6 +95,8 @@ def run_eval(
         if tracking_uri and experiment:
             mlflow = MLflowTraceClient(tracking_uri, experiment)
 
+    _start_times: dict[int, int] = {}
+
     async def _run(
         query: str,
         expected_tools: list[str] | None = None,
@@ -114,7 +116,7 @@ def run_eval(
         )
         request_start_ms = int(time.time() * 1000)
         result = await run_task(config, client=http_client)
-        result._request_start_ms = request_start_ms  # type: ignore[attr-defined]
+        _start_times[id(result)] = request_start_ms
 
         if enrich and mlflow is not None and result.success:
             try:
@@ -134,7 +136,7 @@ def run_eval(
         for result in results:
             if not result.success:
                 continue
-            since_ms = getattr(result, "_request_start_ms", None)
+            since_ms = _start_times.pop(id(result), None)
             if since_ms is None:
                 continue
             try:
