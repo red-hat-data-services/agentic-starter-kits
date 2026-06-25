@@ -48,7 +48,6 @@ spec:
   podSelector:
     matchLabels:
       app: ogx
-      app.kubernetes.io/instance: ogx-gateway
   ingress:
   - from:
     - namespaceSelector:
