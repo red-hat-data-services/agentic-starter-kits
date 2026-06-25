@@ -26,9 +26,7 @@ class TestEmptyMessagesValidation:
         assert "messages" in str(exc_info.value)
 
     def test_single_message_accepted(self):
-        req = ChatCompletionRequest(
-            messages=[{"role": "user", "content": "hello"}]
-        )
+        req = ChatCompletionRequest(messages=[{"role": "user", "content": "hello"}])
         assert len(req.messages) == 1
 
 
