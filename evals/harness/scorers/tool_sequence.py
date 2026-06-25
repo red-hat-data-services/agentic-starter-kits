@@ -8,7 +8,7 @@ from harness.runner import TaskResult
 from harness.scorers import Score
 
 
-def _normalize_tool_name(name: str) -> str:
+def _normalize_tool_name(name: str | None) -> str:
     return (name or "").lower().replace(" ", "_").replace("-", "_")
 
 
