@@ -64,6 +64,7 @@ jobs:
           - { name: llamaindex-websearch-agent, dir: agents/llamaindex/templates/websearch_agent }
           - { name: langgraph-db-memory-agent, dir: agents/langgraph/templates/react_with_database_memory }
           - { name: autogen-mcp-agent, dir: agents/autogen/templates/mcp_agent }
+          - { name: vanilla-python-openai-responses-agent, dir: agents/vanilla_python/templates/openai_responses_agent }
         include:
           - agent: { name: langgraph-db-memory-agent, dir: agents/langgraph/templates/react_with_database_memory }
             POSTGRES_HOST: ${{ vars.POSTGRES_HOST }}
@@ -72,6 +73,9 @@ jobs:
             POSTGRES_USER: ${{ vars.POSTGRES_USER }}
           - agent: { name: autogen-mcp-agent, dir: agents/autogen/templates/mcp_agent }
             MCP_SERVER_URL: ${{ vars.MCP_SERVER_URL }}
+          - agent: { name: vanilla-python-openai-responses-agent, dir: agents/vanilla_python/templates/openai_responses_agent }
+            BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+            MODEL_ID: ${{ vars.OPENAI_MODEL_ID }}
     env:
       API_KEY: ${{ vars.API_KEY }}
       BASE_URL: ${{ vars.BASE_URL }}
@@ -90,6 +94,9 @@ jobs:
         if: matrix.agent.name != 'autogen-mcp-agent' || vars.MCP_SERVER_URL != ''
         working-directory: ${{ matrix.agent.dir }}
         env:
+          API_KEY: ${{ matrix.API_KEY || vars.API_KEY }}
+          BASE_URL: ${{ matrix.BASE_URL || vars.BASE_URL }}
+          MODEL_ID: ${{ matrix.MODEL_ID || vars.MODEL_ID }}
           POSTGRES_HOST: ${{ matrix.POSTGRES_HOST }}
           POSTGRES_PORT: ${{ matrix.POSTGRES_PORT }}
           POSTGRES_DB: ${{ matrix.POSTGRES_DB }}
