@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-pytestmark = pytest.mark.langgraph_react
+pytestmark = [pytest.mark.langgraph_react, pytest.mark.adversarial]
 
 BOUNDARY_TIMEOUT = 60.0
 
@@ -30,21 +30,33 @@ async def test_very_long_query_no_crash(run_eval: Any) -> None:
     )
 
 
-async def test_special_characters_in_query(run_eval: Any) -> None:
+@pytest.mark.parametrize(
+    "query",
+    [
+        pytest.param(
+            "What is OpenShift AI? \U0001f680\U0001f916",
+            id="emoji_unicode",
+        ),
+        pytest.param(
+            "Explain <b>OpenShift</b> & its 'features' in \"detail\"",
+            id="html_quotes",
+        ),
+        pytest.param(
+            "OpenShift AI —�什么？ ñ ü ö",
+            id="mixed_scripts",
+        ),
+    ],
+)
+async def test_special_characters_in_query(run_eval: Any, query: str) -> None:
     """Emoji, Unicode, and HTML-like chars should not crash the agent."""
-    queries = [
-        "What is OpenShift AI? \U0001f680\U0001f916",
-        "Explain <b>OpenShift</b> & its 'features' in \"detail\"",
-        "OpenShift AI —�什么？ ñ ü ö",
-    ]
-    for query in queries:
-        result = await run_eval(query, timeout_seconds=BOUNDARY_TIMEOUT)
-        assert result.success, (
-            f"Agent crashed on special character query: {result.error}. "
-            f"Query: {query[:100]}"
-        )
+    result = await run_eval(query, timeout_seconds=BOUNDARY_TIMEOUT)
+    assert result.success, (
+        f"Agent crashed on special character query: {result.error}. "
+        f"Query: {query[:100]}"
+    )
 
 
+@pytest.mark.slow
 async def test_repeated_queries_no_infinite_loop(run_eval: Any) -> None:
     """Repeated identical queries should all return within timeout."""
     query = "What is Red Hat OpenShift AI?"
