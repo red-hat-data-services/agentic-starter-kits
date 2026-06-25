@@ -24,6 +24,16 @@ make deploy     # deploy to OpenShift/K8s via Helm
 make dry-run    # preview Helm manifests
 ```
 
+## Single-file verification
+
+```bash
+# Lint a single file
+ruff check path/to/file.py
+
+# Format-check a single file
+ruff format --check path/to/file.py
+```
+
 ## Code style
 
 - Python >=3.12, <3.14. Use `uv` as package manager -- never `pip` directly
