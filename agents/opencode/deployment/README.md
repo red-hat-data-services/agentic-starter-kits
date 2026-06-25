@@ -22,6 +22,10 @@ Builds on the shared base image (`quay.io/hmoghani/openshell-base`) which provid
 - Node.js and npm (from UBI repos)
 - OpenCode via npm (version pinned, MIT)
 
+## RHOAI Deployment
+
+For deploying OpenCode on Red Hat OpenShift AI with OAuth, kustomize manifests, and production configuration, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## Notes
 
 - OpenShell's supervisor takes over as PID 1 and does not automatically run OpenCode. Start it manually inside the sandbox.

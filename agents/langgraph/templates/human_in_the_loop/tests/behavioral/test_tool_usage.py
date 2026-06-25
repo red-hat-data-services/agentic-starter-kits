@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 from conftest import load_golden
+from harness.scorers import Score
 from harness.scorers.tool_sequence import (
     score_hallucinated_tools,
     score_tool_call_validity,
@@ -77,7 +78,9 @@ async def test_tool_selection_accuracy(
     _rejection_queries(),
     ids=lambda q: q["query"][:60],
 )
-async def test_tool_rejection(run_eval: Any, golden: dict[str, Any]) -> None:
+async def test_tool_rejection(
+    run_eval: Any, golden: dict[str, Any], score_collector: Any
+) -> None:
     """Agent should handle tool rejection gracefully."""
     result = await run_eval(
         golden["query"],
@@ -88,10 +91,19 @@ async def test_tool_rejection(run_eval: Any, golden: dict[str, Any]) -> None:
     assert len(result.response) > 0, "Response is empty after rejection"
 
     expected_elements = golden.get("expected_elements", [])
+    passed = True
     if expected_elements:
         text_lower = result.response.lower()
         found = [e for e in expected_elements if e.lower() in text_lower]
-        assert len(found) > 0, (
+        passed = len(found) > 0
+        score = Score(
+            name="tool_rejection_handling",
+            value=1.0 if passed else 0.0,
+            passed=passed,
+            details={"expected": expected_elements, "found": found},
+        )
+        score_collector.record(golden["query"], score)
+        assert passed, (
             f"Rejection response does not contain expected elements "
             f"{expected_elements}. Response: {result.response[:300]}"
         )
@@ -101,19 +113,15 @@ async def test_no_hallucinated_tools(
     run_eval: Any, known_tools: list[str], score_collector: Any
 ) -> None:
     """Agent must only call tools that exist in its schema."""
-    result = await run_eval(
-        "Create a file called example.txt with 'test content'",
-        approval="yes",
-    )
+    query = "Create a file called example.txt with 'test content'"
+    result = await run_eval(query, approval="yes")
     assert result.success, f"Agent request failed: {result.error}"
 
     if not result.tool_calls:
         pytest.skip("tool_calls not exposed in response — cannot verify")
 
     score = score_hallucinated_tools(result, known_tools)
-    score_collector.record(
-        "Create a file called example.txt with 'test content'", score
-    )
+    score_collector.record(query, score)
     assert score.passed, (
         f"Hallucinated tools detected: {score.details.get('hallucinated')}"
     )
@@ -121,19 +129,15 @@ async def test_no_hallucinated_tools(
 
 async def test_tool_call_has_valid_args(run_eval: Any, score_collector: Any) -> None:
     """All tool call arguments must be valid JSON with required fields."""
-    result = await run_eval(
-        "Create a file called readme.txt with the content 'Getting started'",
-        approval="yes",
-    )
+    query = "Create a file called readme.txt with the content 'Getting started'"
+    result = await run_eval(query, approval="yes")
     assert result.success, f"Agent request failed: {result.error}"
 
     if not result.tool_calls:
         pytest.skip("tool_calls not exposed in response — cannot verify")
 
     score = score_tool_call_validity(result)
-    score_collector.record(
-        "Create a file called readme.txt with the content 'Getting started'", score
-    )
+    score_collector.record(query, score)
     assert score.passed, f"Invalid tool call arguments: {score.details.get('invalid')}"
 
 

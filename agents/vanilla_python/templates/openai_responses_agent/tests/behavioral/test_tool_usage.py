@@ -138,14 +138,15 @@ async def test_no_hallucinated_tools(
     When tool_calls are not exposed, this test passes trivially (no calls
     to check). It becomes meaningful once tool_calls are visible.
     """
-    result = await run_eval("Tell me about Nike products")
+    query = "Tell me about Nike products"
+    result = await run_eval(query)
     assert result.success, f"Agent request failed: {result.error}"
 
     if not result.tool_calls:
         pytest.skip("tool_calls not exposed in response — cannot verify")
 
     score = score_hallucinated_tools(result, known_tools)
-    score_collector.record("Tell me about Nike products", score)
+    score_collector.record(query, score)
     assert score.passed, (
         f"Hallucinated tools detected: {score.details.get('hallucinated')}"
     )
@@ -156,14 +157,15 @@ async def test_tool_call_has_valid_args(run_eval: Any, score_collector: Any) -> 
 
     When tool_calls are not exposed, this test is skipped.
     """
-    result = await run_eval("What is the price of Nike shoes?")
+    query = "What is the price of Nike shoes?"
+    result = await run_eval(query)
     assert result.success, f"Agent request failed: {result.error}"
 
     if not result.tool_calls:
         pytest.skip("tool_calls not exposed in response — cannot verify")
 
     score = score_tool_call_validity(result)
-    score_collector.record("What is the price of Nike shoes?", score)
+    score_collector.record(query, score)
     assert score.passed, f"Invalid tool call arguments: {score.details.get('invalid')}"
 
 
