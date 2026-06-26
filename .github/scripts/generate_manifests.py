@@ -110,7 +110,7 @@ def generate_manifests(
         content = ODHDOCUMENT_TEMPLATE.substitute(
             manifest_name=manifest_name,
             display_name=agent["displayName"].replace("'", "''"),
-            description=agent["description"],
+            description=agent["description"].replace("\n", "\n    "),
             url=url,
         )
         (out / filename).write_text(content)

@@ -37,6 +37,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Validate version format
@@ -72,6 +73,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        with:
+          ref: main
+
+      - name: Validate version format
+        env:
+          RHOAI_VERSION: ${{ inputs.rhoai_version }}
+        run: |
+          if ! echo "$RHOAI_VERSION" | grep -qE '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+            echo "::error::Invalid version format '$RHOAI_VERSION'. Expected semver-like (e.g., 3.6 or 3.6.1)"
+            exit 1
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
@@ -133,7 +145,7 @@ jobs:
     permissions:
       contents: read
     needs: [discover-and-generate]
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && secrets.DASHBOARD_PR_TOKEN != '' }}
     timeout-minutes: 10
     steps:
       - name: Download manifests

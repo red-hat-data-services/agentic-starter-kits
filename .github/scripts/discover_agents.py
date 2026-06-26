@@ -39,9 +39,9 @@ def discover_agents(repo_root: str) -> list[dict]:
                 file=sys.stderr,
             )
             continue
-        if not data or not all(data.get(k) for k in REQUIRED_FIELDS):
+        if not isinstance(data, dict) or not all(data.get(k) for k in REQUIRED_FIELDS):
             print(
-                f"WARNING: skipping {agent_yaml} — missing required fields",
+                f"WARNING: skipping {agent_yaml} — invalid structure or missing required fields",
                 file=sys.stderr,
             )
             continue
