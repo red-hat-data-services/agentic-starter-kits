@@ -47,7 +47,7 @@ make env
 
 ### Tracing (optional)
 
-Tracing is optional. If MLflow tracing is required, enable it by uncommenting and setting the following environment variables in the `.env` file.
+Tracing is optional. If MLflow tracing is required, enable it by uncommenting and setting the following environment variables in the `.env` file. For how tracing works under the hood (span structure, autolog behavior, verification steps), see [tracing.md](../../../../tracing.md).
 
 #### Tracing with a local MLflow server
 
@@ -62,30 +62,17 @@ Then start the MLflow server in a separate terminal:
 
 ```bash
 # Start the MLflow server
+cd agents/langgraph/templates/react_agent
 uv run --extra tracing mlflow server --port 5000
 ```
 
 When `MLFLOW_TRACKING_URI` is set, `make run-app` and `make run-cli` will automatically install the tracing dependency.
 
-#### Tracing with an OpenShift MLflow server
+#### Tracing with MLflow on OpenShift (RHOAI)
 
-To enable tracing and logging with MLflow on your OpenShift cluster, add the following environment variables to your `.env` file:
-
-```ini
-MLFLOW_TRACKING_URI="https://<openshift-dashboard-url>/mlflow"
-MLFLOW_TRACKING_TOKEN="<your-openshift-token>"
-MLFLOW_EXPERIMENT_NAME="langgraph-react-agent"
-MLFLOW_TRACKING_INSECURE_TLS="true"
-MLFLOW_WORKSPACE="default"
-```
+See `.env.example` for the supported configurations (local dev with manual token, in-pod with K8s service account auth). For TLS, authentication, and RBAC setup, see [MLflow on OpenShift: Authentication and TLS](../../../../docs/mlflow-openshift-auth-and-tls.md).
 
 **Notes:**
-
-- `MLFLOW_TRACKING_URI` - URL of your MLflow server. For local development, use `http://localhost:5000`. If using MLflow on an OpenShift cluster, replace `<openshift-dashboard-url>` with your cluster's data science gateway URL.
-- `MLFLOW_TRACKING_TOKEN` - Required for OpenShift only. Your OpenShift authentication token, obtained from the OpenShift console.
-- `MLFLOW_EXPERIMENT_NAME` - A descriptive name for your experiment (e.g., "LangGraph ReAct Demo")
-- `MLFLOW_TRACKING_INSECURE_TLS` - Required for OpenShift only. Set to `"true"` if your cluster does not use trusted certificates.
-- `MLFLOW_WORKSPACE` - Required for OpenShift only. Project name.
 
 - Tracing is optional; if you do not set `MLFLOW_TRACKING_URI`, the application will run without MLflow logging.
 

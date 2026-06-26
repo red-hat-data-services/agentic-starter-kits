@@ -1725,6 +1725,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/07/1f/d44140128356f2f5db37f9fb4d9da31123d839d49f3fe00a079cd35bfe20/mlflow-3.13.0-py3-none-any.whl", hash = "sha256:7ca9cb2f623f300dabadaf5e985c85af77c5db3d7c36f56769d22c101b132f6c", size = 10788121, upload-time = "2026-06-01T05:55:06.86Z" },
 ]
 
+[package.optional-dependencies]
+kubernetes = [
+    { name = "kubernetes" },
+]
+
 [[package]]
 name = "mlflow-skinny"
 version = "3.13.0"
@@ -2746,7 +2751,7 @@ eval = [
     { name = "unitxt" },
 ]
 tracing = [
-    { name = "mlflow" },
+    { name = "mlflow", extra = ["kubernetes"] },
 ]
 
 [package.metadata]
@@ -2761,7 +2766,7 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=1.1.10" },
     { name = "langgraph-prebuilt", specifier = ">=1.0.8" },
     { name = "milvus-lite", specifier = ">=2.5.1" },
-    { name = "mlflow", marker = "extra == 'tracing'", specifier = ">=3.10.0" },
+    { name = "mlflow", extras = ["kubernetes"], marker = "extra == 'tracing'", specifier = ">=3.10.0" },
     { name = "nltk", marker = "extra == 'eval'", specifier = ">=3.9.1" },
     { name = "openai", specifier = ">=2.24.0" },
     { name = "protobuf", specifier = "<7" },

@@ -75,7 +75,7 @@ MODEL_ID=llama3.2:3b
 ```
 
 ```bash
-make run
+make run-app
 ```
 
 The agent starts on `http://localhost:8000`.
