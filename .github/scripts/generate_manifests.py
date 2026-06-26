@@ -18,26 +18,27 @@ Usage:
 import json
 import sys
 from pathlib import Path
+from string import Template
 
 UPSTREAM_REPO = "red-hat-data-services/agentic-starter-kits"
 
-ODHDOCUMENT_TEMPLATE = """\
+ODHDOCUMENT_TEMPLATE = Template("""\
 apiVersion: dashboard.opendatahub.io/v1
 kind: OdhDocument
 metadata:
-  name: {manifest_name}
+  name: $manifest_name
   annotations:
     opendatahub.io/categories: 'Agent Templates,Getting started'
 spec:
   type: tutorial
-  displayName: '{display_name}'
+  displayName: '$display_name'
   description: >-
-    {description}
-  url: '{url}'
+    $description
+  url: '$url'
   appName: agentic-starter-kits
-"""
+""")
 
-ODHAPPLICATION_TEMPLATE = """\
+ODHAPPLICATION_TEMPLATE = Template("""\
 apiVersion: dashboard.opendatahub.io/v1
 kind: OdhApplication
 metadata:
@@ -62,7 +63,7 @@ spec:
   support: community
   provider: Red Hat
   docsLink: ''
-  getStartedLink: 'https://github.com/{upstream_repo}#how-to-use-this-repository'
+  getStartedLink: 'https://github.com/$upstream_repo#how-to-use-this-repository'
   quickStart: ''
   getStartedMarkDown: ''
   description: >-
@@ -71,14 +72,14 @@ spec:
     Python patterns.
   category: Self-managed
   hidden: true
-"""
+""")
 
-KUSTOMIZATION_TEMPLATE = """\
+KUSTOMIZATION_TEMPLATE = Template("""\
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-{resources}
-"""
+$resources
+""")
 
 
 def _fallback_url(agent_path: str, version: str) -> str:
@@ -98,7 +99,7 @@ def generate_manifests(
     generated = []
 
     app_filename = "agentic-starter-kits-app.yaml"
-    app_content = ODHAPPLICATION_TEMPLATE.format(upstream_repo=UPSTREAM_REPO)
+    app_content = ODHAPPLICATION_TEMPLATE.substitute(upstream_repo=UPSTREAM_REPO)
     (out / app_filename).write_text(app_content)
     generated.append(app_filename)
 
@@ -106,7 +107,7 @@ def generate_manifests(
         manifest_name = f"agentic-starter-kits-{agent['name']}-tutorial"
         filename = f"{manifest_name}.yaml"
         url = short_urls.get(agent["name"], _fallback_url(agent["path"], version))
-        content = ODHDOCUMENT_TEMPLATE.format(
+        content = ODHDOCUMENT_TEMPLATE.substitute(
             manifest_name=manifest_name,
             display_name=agent["displayName"].replace("'", "''"),
             description=agent["description"],
@@ -118,7 +119,9 @@ def generate_manifests(
     resource_lines = [f"  - {generated[0]}"]
     for f in sorted(generated[1:]):
         resource_lines.append(f"  - {f}")
-    kust_content = KUSTOMIZATION_TEMPLATE.format(resources="\n".join(resource_lines))
+    kust_content = KUSTOMIZATION_TEMPLATE.substitute(
+        resources="\n".join(resource_lines)
+    )
     (out / "kustomization.yaml").write_text(kust_content)
     generated.append("kustomization.yaml")
 

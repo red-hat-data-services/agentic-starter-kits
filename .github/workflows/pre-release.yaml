@@ -23,13 +23,14 @@ on:
         type: boolean
         default: true
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   create-release-branch:
     name: Create Release Branch
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     if: ${{ !inputs.skip_branch_creation }}
     timeout-minutes: 5
     steps:
@@ -63,6 +64,8 @@ jobs:
   discover-and-generate:
     name: Discover Agents & Generate Manifests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [create-release-branch]
     if: ${{ always() && (needs.create-release-branch.result == 'success' || needs.create-release-branch.result == 'skipped') }}
     timeout-minutes: 10
@@ -99,6 +102,8 @@ jobs:
           URLS_ARG=""
           if python -c "import json,sys; sys.exit(0 if json.load(open('short_urls.json')) else 1)" 2>/dev/null; then
             URLS_ARG="short_urls.json"
+          elif [ "$(cat short_urls.json)" != "{}" ]; then
+            echo "::warning::short_urls_json input was not valid JSON — using fallback GitHub URLs for all agents"
           fi
           python .github/scripts/generate_manifests.py \
             agents.json \
@@ -125,6 +130,8 @@ jobs:
   create-dashboard-pr:
     name: Create Dashboard PR
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [discover-and-generate]
     if: ${{ !inputs.dry_run }}
     timeout-minutes: 10
@@ -160,7 +167,7 @@ jobs:
           # Add agentic-starter-kits to parent kustomization if not already present
           PARENT_KUST="manifests/rhoai/apps/kustomization.yaml"
           if ! grep -q 'agentic-starter-kits' "$PARENT_KUST"; then
-            echo "  - ./agentic-starter-kits" >> "$PARENT_KUST"
+            yq -i '.resources += ["./agentic-starter-kits"]' "$PARENT_KUST"
           fi
 
           git add "$DEST" "$PARENT_KUST"

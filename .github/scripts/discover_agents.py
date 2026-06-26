@@ -30,8 +30,15 @@ def discover_agents(repo_root: str) -> list[dict]:
 
     agents = []
     for agent_yaml in sorted(agents_dir.rglob("agent.yaml")):
-        with open(agent_yaml) as f:
-            data = yaml.safe_load(f)
+        try:
+            with open(agent_yaml) as f:
+                data = yaml.safe_load(f)
+        except yaml.YAMLError as exc:
+            print(
+                f"WARNING: skipping {agent_yaml} — invalid YAML: {exc}",
+                file=sys.stderr,
+            )
+            continue
         if not data or not all(data.get(k) for k in REQUIRED_FIELDS):
             print(
                 f"WARNING: skipping {agent_yaml} — missing required fields",
