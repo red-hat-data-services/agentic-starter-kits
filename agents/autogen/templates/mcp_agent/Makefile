@@ -138,10 +138,10 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	    --set env.BASE_URL="$${BASE_URL}" \
 	    --set env.MODEL_ID="$${MODEL_ID}" \
 	    $${MCP_SERVER_URL:+--set env.MCP_SERVER_URL="$${MCP_SERVER_URL}"} \
-	    $${MLFLOW_TRACKING_URI:+--set env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
-	    $${MLFLOW_EXPERIMENT_NAME:+--set env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
-	    $${MLFLOW_TRACKING_INSECURE_TLS:+--set env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
-	    $${MLFLOW_WORKSPACE:+--set env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"} && \
+	    $${MLFLOW_TRACKING_URI:+--set-string env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
+	    $${MLFLOW_EXPERIMENT_NAME:+--set-string env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
+	    $${MLFLOW_TRACKING_INSECURE_TLS:+--set-string env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
+	    $${MLFLOW_WORKSPACE:+--set-string env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"} && \
 	  if command -v oc >/dev/null 2>&1; then \
 	    echo "" && echo "Waiting for rollout to complete..." && \
 	    if oc rollout status deployment/$(AGENT_NAME) --timeout=120s; then \
@@ -203,11 +203,11 @@ dry-run: _check-env ## Render Helm templates without deploying
 	    --set env.BASE_URL="$${BASE_URL}" \
 	    --set env.MODEL_ID="$${MODEL_ID}" \
 	    $${MCP_SERVER_URL:+--set env.MCP_SERVER_URL="$${MCP_SERVER_URL}"} \
-	    $${MLFLOW_TRACKING_URI:+--set env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
+	    $${MLFLOW_TRACKING_URI:+--set-string env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
 	    $${MLFLOW_TRACKING_TOKEN:+--set secrets.mlflowTrackingToken="REDACTED"} \
-	    $${MLFLOW_EXPERIMENT_NAME:+--set env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
-	    $${MLFLOW_TRACKING_INSECURE_TLS:+--set env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
-	    $${MLFLOW_WORKSPACE:+--set env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"}
+	    $${MLFLOW_EXPERIMENT_NAME:+--set-string env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
+	    $${MLFLOW_TRACKING_INSECURE_TLS:+--set-string env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
+	    $${MLFLOW_WORKSPACE:+--set-string env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"}
 
 undeploy: ## Remove agent deployment from cluster (does NOT remove MCP server)
 	helm uninstall $(AGENT_NAME)
