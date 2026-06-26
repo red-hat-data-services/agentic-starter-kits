@@ -2,9 +2,11 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import (
@@ -134,7 +136,7 @@ checkpointer = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize the HITL agent graph on startup and clear it on shutdown."""
     global agent_graph_closure, checkpointer
 
@@ -269,7 +271,7 @@ async def _handle_chat(
     model_id: str,
     thread_id: str,
     config: dict,
-):
+) -> dict[str, Any]:
     """Handle non-streaming chat completion with HITL support."""
     global agent_graph_closure, checkpointer
 
@@ -372,7 +374,7 @@ async def _handle_stream(
     model_id: str,
     thread_id: str,
     config: dict,
-):
+) -> StreamingResponse:
     """Handle streaming chat completion with HITL support.
 
     Uses astream with stream_mode="updates" to detect __interrupt__ keys
@@ -390,7 +392,7 @@ async def _handle_stream(
     completion_id = _make_completion_id()
     created = int(time.time())
 
-    async def event_generator():
+    async def event_generator() -> AsyncIterator[str]:
         try:
             agent = agent_graph_closure(checkpointer)
 

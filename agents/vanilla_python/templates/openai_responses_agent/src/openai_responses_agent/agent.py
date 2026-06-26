@@ -13,7 +13,7 @@ import logging
 import re
 from io import StringIO
 from os import getenv
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable
 
 from dotenv import load_dotenv
 from openai import APIStatusError, OpenAI
@@ -25,10 +25,10 @@ logger = logging.getLogger(__name__)
 
 
 def get_agent_closure(
-    base_url: Optional[str] = None,
-    model_id: Optional[str] = None,
-    api_key: Optional[str] = None,
-) -> Callable:
+    base_url: str | None = None,
+    model_id: str | None = None,
+    api_key: str | None = None,
+) -> Callable[[], "_AIAgentAdapter"]:
     """
     Return a callable that creates an agent instance (adapter with async run() for main.py).
     """
@@ -67,15 +67,15 @@ class _AIAgentAdapter:
         self,
         base_url: str,
         model_id: str,
-        api_key: Optional[str] = None,
-        tools: Optional[List[tuple]] = None,
-    ):
+        api_key: str | None = None,
+        tools: list[tuple] | None = None,
+    ) -> None:
         self._base_url = base_url
         self._model_id = model_id
         self._api_key = api_key
         self._tools = tools or []
 
-    async def run(self, input: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def run(self, input: list[dict[str, Any]]) -> dict[str, Any]:
         """
         Run the agent on the given messages; uses AIAgent.query() with the last user message.
         """
@@ -104,14 +104,16 @@ class _AIAgentAdapter:
         return {"messages": response_messages, "finish_reason": "stop"}
 
 
-def _messages_to_responses_input(messages: List[Dict]) -> tuple[str, List[Dict]]:
+def _messages_to_responses_input(
+    messages: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
     """
     Convert chat-style messages to Responses API format.
     Returns (instructions, input_items) where instructions is the system content
     and input_items is a list of {role, content} with content as [{type: 'input_text', text: '...'}].
     """
     instructions = ""
-    input_items: List[Dict] = []
+    input_items: list[dict[str, Any]] = []
     for m in messages:
         role = m.get("role", "user")
         content = m.get("content", "") or ""
@@ -149,11 +151,11 @@ class AIAgent:
 
     def __init__(
         self,
-        model: Optional[str] = None,
+        model: str | None = None,
         temperature: float = 0,
-        base_url: Optional[str] = None,
-        api_key: Optional[str] = None,
-    ):
+        base_url: str | None = None,
+        api_key: str | None = None,
+    ) -> None:
         """
         Initialize the agent with tools and OpenAI client configuration.
 
@@ -173,7 +175,7 @@ class AIAgent:
             api_key = getenv("API_KEY")
 
         # OpenAI client: works with api.openai.com or any OpenAI-compatible API (base_url)
-        client_kwargs: Dict[str, Any] = {}
+        client_kwargs: dict[str, Any] = {}
         if base_url:
             client_kwargs["base_url"] = base_url.rstrip("/")
         if api_key:
@@ -182,8 +184,8 @@ class AIAgent:
         self.client = OpenAI(**client_kwargs)
         self.model = model
         self.temperature = temperature
-        self.tools: Dict[str, Callable] = {}
-        self.messages: List[Dict] = []
+        self.tools: dict[str, Callable] = {}
+        self.messages: list[dict[str, Any]] = []
         self.action_re = re.compile(r"Action:\s*(\w+)\s*\((.*?)\)")
 
     def add_message(self, role: str, content: str) -> None:
@@ -198,7 +200,7 @@ class AIAgent:
         """Convert a function to its source code string."""
         return inspect.getsource(func)
 
-    def _parse_arguments(self, args_str: str) -> List[str]:
+    def _parse_arguments(self, args_str: str) -> list[str]:
         """Parse comma-separated arguments handling quoted strings."""
         reader = csv.reader(StringIO(args_str))
         args = next(reader, [])
@@ -206,10 +208,10 @@ class AIAgent:
 
     def _responses_create(
         self,
-        messages: Optional[List[Dict]] = None,
-        temperature: Optional[float] = None,
-        model: Optional[str] = None,
-    ):
+        messages: list[dict[str, Any]] | None = None,
+        temperature: float | None = None,
+        model: str | None = None,
+    ) -> Any:
         """
         Single Responses API call via OpenAI client.
 
@@ -226,7 +228,7 @@ class AIAgent:
         model_id = model if model is not None else self.model
 
         instructions, input_items = _messages_to_responses_input(msg_list)
-        kwargs: Dict[str, Any] = {
+        kwargs: dict[str, Any] = {
             "model": model_id,
             "instructions": instructions,
             "input": input_items,
@@ -246,8 +248,8 @@ class AIAgent:
         return _get_output_text_from_response(response)
 
     def query(
-        self, question: str, max_turns: int = 10, on_event: Optional[Callable] = None
-    ) -> Optional[str]:
+        self, question: str, max_turns: int = 10, on_event: Callable | None = None
+    ) -> str | None:
         """
         Process a question through multiple turns until getting final answer.
 

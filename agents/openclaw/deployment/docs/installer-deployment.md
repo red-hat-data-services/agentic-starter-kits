@@ -2,7 +2,7 @@
 
 > Tested: 2026-04-13 on OpenShift 4.19 (ROSA) with vLLM model serving
 
-Step-by-step guide for deploying OpenClaw on an OpenShift cluster using the [openclaw-installer](https://github.com/sallyom/claw-installer). This is the recommended deployment method — it handles OAuth proxy, ServiceAccounts, Routes, and lifecycle management automatically.
+Alternative deployment method using the [openclaw-installer](https://github.com/sallyom/claw-installer), which handles OAuth proxy, ServiceAccounts, Routes, and lifecycle management automatically. For the recommended raw manifests approach, see [raw-deployment.md](raw-deployment.md).
 
 ## Table of Contents
 

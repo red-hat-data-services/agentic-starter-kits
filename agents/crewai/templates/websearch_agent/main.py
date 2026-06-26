@@ -4,9 +4,11 @@ import logging
 import re
 import time
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
+from typing import Any
 
 from crewai import LLM
 from crewai_web_search.crew import AssistanceAgents
@@ -153,7 +155,7 @@ def _make_completion_id() -> str:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize the CrewAI LLM on startup."""
     global llm
     enable_tracing()
@@ -210,7 +212,7 @@ async def chat_completions(request: ChatCompletionRequest):
         return await _handle_chat(user_message, model_id)
 
 
-async def _handle_chat(user_message: str, model_id: str):
+async def _handle_chat(user_message: str, model_id: str) -> dict[str, Any]:
     """Handle non-streaming chat completion."""
     global llm
 
@@ -258,14 +260,14 @@ async def _handle_chat(user_message: str, model_id: str):
         )
 
 
-async def _handle_stream(user_message: str, model_id: str):
+async def _handle_stream(user_message: str, model_id: str) -> StreamingResponse:
     """Handle streaming chat completion with OpenAI-compatible SSE chunks."""
     global llm
 
     completion_id = _make_completion_id()
     created = int(time.time())
 
-    async def event_generator():
+    async def event_generator() -> AsyncIterator[str]:
         try:
             inputs = {
                 "user_prompt": user_message,

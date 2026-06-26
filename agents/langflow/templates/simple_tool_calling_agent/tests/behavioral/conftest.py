@@ -105,6 +105,7 @@ def run_eval(
         timeout_seconds: float = 45.0,
         max_tokens_budget: int | None = None,
         model: str | None = None,
+        enrich: bool = True,
     ) -> TaskResult:
         config = TaskConfig(
             agent_url=agent_url,
@@ -120,4 +121,8 @@ def run_eval(
         result = await run_task(config, client=http_client)
         return result
 
+    async def _enrich_batch(results: list[TaskResult]) -> None:  # noqa: ARG001
+        return  # Langflow does not use MLflow enrichment
+
+    _run.enrich_batch = _enrich_batch  # type: ignore[attr-defined]
     return _run

@@ -2,9 +2,11 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import (
@@ -13,7 +15,13 @@ from fastapi.responses import (
     JSONResponse,
     StreamingResponse,
 )
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from pydantic import BaseModel, Field
@@ -134,7 +142,7 @@ DB_URI = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize the ReAct agent graph on startup and clear it on shutdown."""
     global agent_graph_closure, DB_URI
 
@@ -171,7 +179,9 @@ app = FastAPI(
 )
 
 
-def _convert_dict_to_message(msg: ChatMessage):
+def _convert_dict_to_message(
+    msg: ChatMessage,
+) -> SystemMessage | AIMessage | HumanMessage:
     """Convert ChatMessage to LangChain message object."""
     if msg.role == "system":
         return SystemMessage(content=msg.content)
@@ -207,7 +217,7 @@ def _make_completion_id() -> str:
     return f"chatcmpl-{uuid.uuid4().hex[:12]}"
 
 
-def _format_context_messages(messages) -> list[dict]:
+def _format_context_messages(messages: list[BaseMessage]) -> list[dict]:
     """Convert LangChain messages to OpenAI-compatible context dicts."""
     context = []
     for message in messages:
@@ -279,7 +289,7 @@ async def _handle_chat(
     model_id: str,
     thread_id: str | None,
     system_prompt: str | None,
-):
+) -> dict[str, Any]:
     """Handle non-streaming chat completion."""
     global agent_graph_closure, DB_URI
 
@@ -348,14 +358,14 @@ async def _handle_stream(
     model_id: str,
     thread_id: str | None,
     system_prompt: str | None,
-):
+) -> StreamingResponse:
     """Handle streaming chat completion with OpenAI-compatible SSE chunks."""
     global agent_graph_closure, DB_URI
 
     completion_id = _make_completion_id()
     created = int(time.time())
 
-    async def event_generator():
+    async def event_generator() -> AsyncIterator[str]:
         try:
             async with AsyncPostgresSaver.from_conn_string(DB_URI) as saver:
                 await saver.setup()

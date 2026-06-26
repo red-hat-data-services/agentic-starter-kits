@@ -2,9 +2,11 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import (
@@ -120,7 +122,7 @@ get_agent = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize the LlamaIndex workflow closure on startup and clear it on shutdown."""
     global get_agent
 
@@ -151,7 +153,7 @@ app = FastAPI(
 )
 
 
-def _get_message_content(msg) -> str:
+def _get_message_content(msg: Any) -> str:
     """Extract text content from a LlamaIndex ChatMessage."""
     if hasattr(msg, "blocks") and msg.blocks:
         # Find the first block with text content (skip ToolCallBlock)
@@ -169,7 +171,7 @@ def _get_message_content(msg) -> str:
     return ""
 
 
-def _message_to_response_dict(msg):
+def _message_to_response_dict(msg: Any) -> dict[str, Any] | None:
     """Map a LlamaIndex ChatMessage to OpenAI-compatible format."""
     role = getattr(msg, "role", "user")
     content = _get_message_content(msg)
@@ -275,7 +277,7 @@ async def chat_completions(request: ChatCompletionRequest):
         return await _handle_chat(user_message, model_id)
 
 
-async def _handle_chat(user_message: str, model_id: str):
+async def _handle_chat(user_message: str, model_id: str) -> dict[str, Any]:
     """Handle non-streaming chat completion."""
     global get_agent
 
@@ -328,14 +330,14 @@ async def _handle_chat(user_message: str, model_id: str):
         )
 
 
-async def _handle_stream(user_message: str, model_id: str):
+async def _handle_stream(user_message: str, model_id: str) -> StreamingResponse:
     """Handle streaming chat completion with OpenAI-compatible SSE chunks."""
     global get_agent
 
     completion_id = _make_completion_id()
     created = int(time.time())
 
-    async def event_generator():
+    async def event_generator() -> AsyncIterator[str]:
         try:
             agent = get_agent()
             messages = [{"role": "user", "content": user_message}]

@@ -2,7 +2,9 @@
 
 > Tested: 2026-04-13 on OpenShift 4.19 (ROSA) with vLLM model serving
 
-Deploy [OpenClaw](https://github.com/openclaw/openclaw) on Red Hat OpenShift with vLLM model serving, OAuth SSO, and production-grade security — no cluster-admin required.
+Deploy [OpenClaw](https://github.com/openclaw/openclaw) on Red Hat OpenShift with vLLM model serving — no cluster-admin required.
+
+For the full deployment guide, see [docs/raw-deployment.md](docs/raw-deployment.md).
 
 ## Prerequisites
 
@@ -12,21 +14,6 @@ Deploy [OpenClaw](https://github.com/openclaw/openclaw) on Red Hat OpenShift wit
 
 ## Quick Start
 
-### Option A: Using claw-installer (recommended)
-
-The [claw-installer](https://github.com/sallyom/claw-installer) handles OAuth proxy, Routes, ServiceAccounts, and lifecycle management automatically.
-
-```bash
-git clone https://github.com/sallyom/claw-installer.git
-cd claw-installer
-npm install && npm run build && npm run dev
-# Open http://localhost:3000, select OpenShift, fill in the form
-```
-
-See [docs/installer-deployment.md](docs/installer-deployment.md) for the full walkthrough, validation, and rollback procedures.
-
-### Option B: Raw Manifests (Kustomize or direct apply)
-
 ```bash
 oc new-project my-openclaw
 
@@ -35,8 +22,6 @@ oc new-project my-openclaw
 
 oc apply -k manifests/
 ```
-
-See [docs/raw-deployment.md](docs/raw-deployment.md) for the full walkthrough, configuration details, and troubleshooting.
 
 ## Architecture
 
@@ -48,17 +33,21 @@ See [docs/raw-deployment.md](docs/raw-deployment.md) for the full walkthrough, c
                                  |
                                  v
               +------------------+------------------+
+              |            Service                   |
+              |        (ClusterIP :18789)            |
+              +------------------+------------------+
+                                 |
+                                 v
+              +------------------+------------------+
               |              Pod                     |
-              |  +---------------+  +-------------+  |
-              |  | oauth-proxy   |  | gateway     |  |
-              |  | port 8443     +->| port 18789  |  |
-              |  | (OpenShift    |  | (loopback)  |  |
-              |  |  OAuth SSO)   |  |             |  |
-              |  +---------------+  +------+------+  |
-              |                            |          |
-              |                     +------+------+   |
-              |                     | PVC (5Gi)   |   |
-              |                     +-------------+   |
+              |  +--------------------------------+  |
+              |  | gateway                        |  |
+              |  | port 18789                     |  |
+              |  +---------------+----------------+  |
+              |                  |                   |
+              |           +------+------+            |
+              |           | PVC (5Gi)   |            |
+              |           +-------------+            |
               +--------------------------------------+
                          |
                          | OpenAI-compatible API
@@ -67,6 +56,21 @@ See [docs/raw-deployment.md](docs/raw-deployment.md) for the full walkthrough, c
               |  vLLM / KServe / API      |
               +---------------------------+
 ```
+
+## Files
+
+| File | Description |
+|------|-------------|
+| `manifests/01-secret.yaml` | Gateway authentication token |
+| `manifests/02-configmap.yaml` | Model endpoint and gateway configuration |
+| `manifests/03-pvc.yaml` | Persistent storage for gateway state |
+| `manifests/04-deployment.yaml` | OpenClaw gateway deployment |
+| `manifests/05-service.yaml` | ClusterIP service |
+| `manifests/06-route.yaml` | TLS edge route |
+| `manifests/kustomization.yaml` | Kustomize entrypoint |
+| `overlays/example/` | Example overlay for environment-specific config |
+| `overlays/mlflow-tracing/` | MLflow tracing via OTel collector sidecar |
+| `Containerfile.openshell` | OpenShell sandbox image build |
 
 ## Customization
 
@@ -82,16 +86,17 @@ See [docs/raw-deployment.md](docs/raw-deployment.md) for the full walkthrough, c
 
 | Document | Description |
 |----------|-------------|
-| [docs/installer-deployment.md](docs/installer-deployment.md) | Full deployment guide: prerequisites, validation, rollback, appendix |
-| [docs/raw-deployment.md](docs/raw-deployment.md) | Step-by-step guide for deploying with raw Kustomize manifests |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues and fixes (route 503, model override, heartbeat, config clobber) |
+| [docs/raw-deployment.md](docs/raw-deployment.md) | Full deployment guide: configuration, validation, troubleshooting |
+| [docs/mlflow-tracing.md](docs/mlflow-tracing.md) | MLflow tracing with OTel collector sidecar |
 | [docs/model-compatibility.md](docs/model-compatibility.md) | Model testing results for agentic tool-calling |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues and fixes |
+| [docs/installer-deployment.md](docs/installer-deployment.md) | Alternative deployment via [claw-installer](https://github.com/sallyom/claw-installer) |
 
 ## Related Projects
 
+- [OpenClaw](https://github.com/openclaw/openclaw) — Upstream project
 - [claw-installer](https://github.com/sallyom/claw-installer) — Web-based deployment tool with OpenShift plugin
 - [openclaw-on-openshift](https://github.com/aakankshaduggal/openclaw-on-openshift) — Source repo with full docs
-- [OpenClaw](https://github.com/openclaw/openclaw) — Upstream project
 
 ---
 
