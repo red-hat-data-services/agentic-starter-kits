@@ -48,9 +48,8 @@ async def chat_loop() -> None:
             tools = await load_mcp_tools(session)
             formatted_tools = tools
 
-            # System prompt for Llama 3.1 8B: only use tools if truly necessary, otherwise answer directly.
-            # For increased agency, guide the model to avoid tool use unless it cannot answer from its own knowledge.
-            # The system prompt for Llama 3.1 8B should specifically instruct the model to do two things:
+            # Only use tools if truly necessary, otherwise answer directly.
+            # Guide the model to avoid tool use unless it cannot answer from its own knowledge.
             # 1. If a tool is used and a response is returned as a list of objects containing a 'text' field,
             #    extract the answer from the 'text' field and present that as the final user-facing response.
             # 2. Always ensure that the user receives a direct, clear answer to their question, whether from the model's own knowledge or from an extracted tool response.
