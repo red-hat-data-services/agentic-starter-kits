@@ -19,8 +19,8 @@ dependencies = [
     { name = "langchain-milvus" },
     { name = "langchain-openai" },
     { name = "langgraph-prebuilt" },
-    { name = "llama-stack-client" },
     { name = "milvus-lite" },
+    { name = "ogx-client" },
     { name = "openai" },
     { name = "pymilvus" },
     { name = "pypdf" },
@@ -48,9 +48,9 @@ requires-dist = [
     { name = "langchain-milvus", specifier = "==0.3.3" },
     { name = "langchain-openai", specifier = ">=1.1.10" },
     { name = "langgraph-prebuilt", specifier = ">=1.0.0" },
-    { name = "llama-stack-client", specifier = ">=0.5.0" },
     { name = "milvus-lite", specifier = ">=2.5.1" },
     { name = "mlflow", marker = "extra == 'tracing'", specifier = ">=3.10.0" },
+    { name = "ogx-client", specifier = ">=1.1.0" },
     { name = "openai", specifier = ">=2.24.0" },
     { name = "pymilvus", specifier = "==2.6.9" },
     { name = "pypdf", specifier = "==6.9.1" },
@@ -1225,32 +1225,6 @@ wheels = [
 ]
 
 [[package]]
-name = "llama-stack-client"
-version = "0.7.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "anyio" },
-    { name = "click" },
-    { name = "distro" },
-    { name = "fire" },
-    { name = "httpx" },
-    { name = "pandas" },
-    { name = "prompt-toolkit" },
-    { name = "pyaml" },
-    { name = "pydantic" },
-    { name = "requests" },
-    { name = "rich" },
-    { name = "sniffio" },
-    { name = "termcolor" },
-    { name = "tqdm" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/d7/3d/c4a268a4b60feb6f7e6da3fad2504aa157a52384529766560f8f3cfca43f/llama_stack_client-0.7.2.tar.gz", hash = "sha256:0e3458800af6a18fd8fc5e0760ed626931a416f6c1fdf24aeba4001e6fca9aec", size = 372953, upload-time = "2026-04-08T14:19:32.02Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/78/a8/cc7fa209471abcaac51139b3e6655c3b18ea718f0afa7cfa6ad974dd9eab/llama_stack_client-0.7.2-py3-none-any.whl", hash = "sha256:8b86156f2522c241ae46280e59287b7716c3cdaf016b6477630eb64bd8cbf150", size = 375337, upload-time = "2026-04-08T14:19:30.444Z" },
-]
-
-[[package]]
 name = "mako"
 version = "1.3.12"
 source = { registry = "https://pypi.org/simple" }
@@ -1581,6 +1555,32 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c2/c9/fcfd5d0639222c6eac7f304829b04892ef51c96a75d479214d77e3ce6e33/numpy-2.4.4-cp313-cp313t-win32.whl", hash = "sha256:9c585a1790d5436a5374bac930dad6ed244c046ed91b2b2a3634eb2971d21008", size = 6083477, upload-time = "2026-03-29T13:20:20.195Z" },
     { url = "https://files.pythonhosted.org/packages/d5/e3/3938a61d1c538aaec8ed6fd6323f57b0c2d2d2219512434c5c878db76553/numpy-2.4.4-cp313-cp313t-win_amd64.whl", hash = "sha256:93e15038125dc1e5345d9b5b68aa7f996ec33b98118d18c6ca0d0b7d6198b7e8", size = 12457487, upload-time = "2026-03-29T13:20:22.946Z" },
     { url = "https://files.pythonhosted.org/packages/97/6a/7e345032cc60501721ef94e0e30b60f6b0bd601f9174ebd36389a2b86d40/numpy-2.4.4-cp313-cp313t-win_arm64.whl", hash = "sha256:0dfd3f9d3adbe2920b68b5cd3d51444e13a10792ec7154cd0a2f6e74d4ab3233", size = 10292002, upload-time = "2026-03-29T13:20:25.909Z" },
+]
+
+[[package]]
+name = "ogx-client"
+version = "1.1.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "click" },
+    { name = "distro" },
+    { name = "fire" },
+    { name = "httpx" },
+    { name = "pandas" },
+    { name = "prompt-toolkit" },
+    { name = "pyaml" },
+    { name = "pydantic" },
+    { name = "requests" },
+    { name = "rich" },
+    { name = "sniffio" },
+    { name = "termcolor" },
+    { name = "tqdm" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7b/ac/2fd77ab57ef26b8689d29d3f0a2e9020966282797b715ecf537806ca3486/ogx_client-1.1.3.tar.gz", hash = "sha256:d61a6f4cd996a5ce5cd6eb1389215f520cc1ca49d485b454d00faa021d4f4f0a", size = 440850, upload-time = "2026-06-24T15:07:27.342Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a7/f0/be21078666dc51b30a92dcd83e7711f923230b2cdd4a274994c36059233d/ogx_client-1.1.3-py3-none-any.whl", hash = "sha256:56390f857807f99c1927ab2de46d3427d63970d55533945c92e575fbe51d2252", size = 314011, upload-time = "2026-06-24T15:07:25.85Z" },
 ]
 
 [[package]]

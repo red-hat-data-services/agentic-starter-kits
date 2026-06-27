@@ -1,5 +1,5 @@
 """
-Script to load documents from text files into a vector store via LlamaStack.
+Script to load documents from text files into a vector store via OGX.
 
 If VECTOR_STORE_ID is set, documents are added to the existing store.
 Otherwise, a new vector store is created using VECTOR_STORE_NAME,
@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from langchain_community.document_loaders import TextLoader
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from llama_stack_client import LlamaStackClient
+from ogx_client import OgxClient
 
 load_dotenv(verbose=True)
 
@@ -76,10 +76,10 @@ def load_and_index_documents(
     if not base_url:
         raise ValueError("BASE_URL must be set in environment or passed as argument")
 
-    # LlamaStackClient internally appends /v1, so strip it from base_url if present
-    llama_base_url = base_url.rstrip("/").removesuffix("/v1")
-    client = LlamaStackClient(
-        base_url=llama_base_url,
+    # OgxClient internally appends /v1, so strip it from base_url if present
+    ogx_base_url = base_url.rstrip("/").removesuffix("/v1")
+    client = OgxClient(
+        base_url=ogx_base_url,
         api_key=api_key,
     )
 

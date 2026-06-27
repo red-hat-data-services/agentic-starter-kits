@@ -2,7 +2,7 @@ from os import getenv
 from typing import Any, Dict, Optional
 
 from langchain_core.tools import tool
-from llama_stack_client import LlamaStackClient
+from ogx_client import OgxClient
 from pydantic import BaseModel, Field
 
 # Cache to avoid re-initializing on every tool call
@@ -14,10 +14,10 @@ def get_retriever_components(
     base_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Get the LlamaStack client and vector store ID for retrieval.
+    Get the OGX client and vector store ID for retrieval.
 
     Args:
-        base_url: Base URL for the LlamaStack API
+        base_url: Base URL for the OGX API
 
     Returns:
         Dict containing client and vector_store_id
@@ -41,10 +41,10 @@ def get_retriever_components(
     if not base_url:
         raise ValueError("BASE_URL must be set in environment or passed as argument")
 
-    # LlamaStackClient internally appends /v1, so strip it from base_url if present
-    llama_base_url = base_url.rstrip("/").removesuffix("/v1")
-    client = LlamaStackClient(
-        base_url=llama_base_url,
+    # OgxClient internally appends /v1, so strip it from base_url if present
+    ogx_base_url = base_url.rstrip("/").removesuffix("/v1")
+    client = OgxClient(
+        base_url=ogx_base_url,
         api_key=getenv("API_KEY"),
     )
 
@@ -89,7 +89,7 @@ def retriever_tool(query: str) -> str:
     client = components["client"]
     vector_store_id = components["vector_store_id"]
 
-    # Query the vector store using LlamaStack client
+    # Query the vector store using OGX client
     # The query parameter takes the text string, and the server handles embedding generation
     response = client.vector_io.query(
         vector_store_id=vector_store_id,
