@@ -38,7 +38,7 @@ eval = [
     "rouge-score>=0.1.2",
 ]
 tracing = [
-    "mlflow[kubernetes]>=3.10.0",
+    "mlflow[kubernetes]>=3.11.0",
 ]
 
 [tool.setuptools.packages.find]

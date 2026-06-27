@@ -101,7 +101,7 @@ def check_mlflow_health(
                     f"  Status Code: {response.status_code}\n"
                     f"  Reason: {response.reason}"
                 )
-        except requests.exceptions.RequestException as e:
+        except (requests.exceptions.RequestException, OSError) as e:
             logger.warning(f"Failed to connect to MLflow at {mlflow_url}: {e}")
 
         logger.warning(f"Retrying in {retry_interval} seconds...")

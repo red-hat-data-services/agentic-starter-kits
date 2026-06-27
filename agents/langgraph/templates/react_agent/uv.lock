@@ -2766,7 +2766,7 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=1.1.10" },
     { name = "langgraph-prebuilt", specifier = ">=1.0.8" },
     { name = "milvus-lite", specifier = ">=2.5.1" },
-    { name = "mlflow", extras = ["kubernetes"], marker = "extra == 'tracing'", specifier = ">=3.10.0" },
+    { name = "mlflow", extras = ["kubernetes"], marker = "extra == 'tracing'", specifier = ">=3.11.0" },
     { name = "nltk", marker = "extra == 'eval'", specifier = ">=3.9.1" },
     { name = "openai", specifier = ">=2.24.0" },
     { name = "protobuf", specifier = "<7" },
