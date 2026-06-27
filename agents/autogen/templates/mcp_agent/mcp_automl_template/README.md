@@ -78,6 +78,7 @@ mcp_automl_template/
    - `DEPLOYMENT_TOKEN` – Bearer token for that endpoint
    - `OGX_BASE_URL` – OGX base URL (for `interact_with_mcp.py` via `get_chat_ogx()`)
    - `OGX_API_KEY` – OGX API key
+   - `MODEL_ID` – model identifier for the OGX endpoint (e.g. `llama-3.1-8b-instruct`)
 
    Replace the placeholders with your actual values. For local LLM testing with Ollama only, the deployment and OGX vars can stay as placeholders if you do not use those features.
 

@@ -29,8 +29,8 @@ help_message = textwrap.dedent(
 )
 
 
-# Function to send a query to the agent
 async def ask_question(agent: Any, user_input: str) -> None:
+    """Send a query to the agent and pretty-print each response message."""
     response = await agent.ainvoke(
         {"messages": [{"role": "user", "content": user_input}]}
     )
@@ -38,8 +38,8 @@ async def ask_question(agent: Any, user_input: str) -> None:
         msg.pretty_print()
 
 
-# Main chat loop
 async def chat_loop() -> None:
+    """Connect to the MCP server and run an interactive LangGraph ReAct agent loop."""
     mcp_url = getenv("MCP_SERVER_URL", "http://127.0.0.1:8080/sse")
     print(mcp_url)
     async with sse_client(url=mcp_url) as (read, write):
