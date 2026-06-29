@@ -94,7 +94,7 @@ jobs:
         if: matrix.agent.name != 'autogen-mcp-agent' || vars.MCP_SERVER_URL != ''
         working-directory: ${{ matrix.agent.dir }}
         env:
-          API_KEY: ${{ matrix.API_KEY || vars.API_KEY }}
+          API_KEY: ${{ matrix.agent.name == 'vanilla-python-openai-responses-agent' && secrets.OPENAI_API_KEY || vars.API_KEY }}
           BASE_URL: ${{ matrix.BASE_URL || vars.BASE_URL }}
           MODEL_ID: ${{ matrix.MODEL_ID || vars.MODEL_ID }}
           POSTGRES_HOST: ${{ matrix.POSTGRES_HOST }}
