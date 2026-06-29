@@ -61,6 +61,7 @@ jobs:
           - { name: langgraph-hitl-agent, dir: agents/langgraph/templates/human_in_the_loop }
           - { name: crewai-websearch-agent, dir: agents/crewai/templates/websearch_agent }
           - { name: google-adk-agent, dir: agents/google/templates/adk }
+          - { name: llamaindex-websearch-agent, dir: agents/llamaindex/templates/websearch_agent }
     env:
       API_KEY: ${{ vars.API_KEY }}
       BASE_URL: ${{ vars.BASE_URL }}
