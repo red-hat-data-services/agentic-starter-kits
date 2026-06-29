@@ -291,7 +291,7 @@ Claude Code pod  ──HTTP──>  OGX (API Gateway)  ──HTTP──>  vLLM s
 
 #### Prerequisites
 
-- OGX deployed and serving. See [`ogx/README.md`](ogx/README.md) for deployment instructions. Some versions require PostgreSQL as storage backend; check your OGX version's requirements.
+- OGX deployed and serving `GET /v1/health`, `GET /v1/models`, and `POST /v1/messages`. See [`ogx/README.md`](ogx/README.md) for one standalone deployment pattern, or reuse an existing OGX endpoint in your cluster.
 - A vLLM server accessible from OGX.
 - **Context window**: minimum 32K tokens. **128K+ strongly recommended** for realistic coding work.
 
@@ -303,7 +303,7 @@ Edit `deployment-ogx-vllm.yaml`. Search for placeholder values and replace them:
 
 - `ANTHROPIC_BASE_URL`: Your OGX route URL (replace `YOUR_OGX_URL`)
 
-Replace model IDs in the **ConfigMap** and the **Deployment** env vars. OGX uses the `vllm/` prefix to route requests to the vLLM backend, so all model IDs must use `vllm/<model-id>` format. If OGX serves only one model, use the same value everywhere. If it serves multiple models, you can assign different models to each role.
+Replace model IDs in the **ConfigMap** and the **Deployment** env vars. OGX uses the `vllm/` prefix to route requests to the vLLM backend, so all model IDs must use the exact `vllm/<model-id>` value returned by `GET /v1/models`. If OGX serves only one model, use the same value everywhere. If it serves multiple models, you can assign different models to each role.
 
 | Variable | Purpose | Example (single model) |
 |----------|---------|----------------------|
@@ -910,10 +910,10 @@ curl -s -X POST "https://YOUR_VLLM_ENDPOINT/v1/messages" \
   }'
 ```
 
-**OGX:** Use the same commands with the OGX URL and `vllm/` model prefix:
+**OGX:** Use the same commands with your OGX route URL and the `vllm/` model prefix reported by `GET /v1/models`:
 
 ```bash
-OGX_URL=$(oc get route ogx -o jsonpath='{.spec.host}')
+OGX_URL=<your-ogx-route-host>
 curl -s "https://$OGX_URL/v1/health"
 curl -s "https://$OGX_URL/v1/models"
 

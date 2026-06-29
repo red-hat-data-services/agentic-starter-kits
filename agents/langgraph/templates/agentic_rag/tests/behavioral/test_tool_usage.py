@@ -2,7 +2,7 @@
 
 Validates that the agent selects, calls, and uses the retriever tool
 correctly for various query types. The agent has a single tool:
-``retriever`` (LlamaStack vector_io) that searches a knowledge base.
+``retriever`` tool backed by OGX vector search.
 
 NOTE: The Agentic RAG agent does not expose tool_calls in the OpenAI-
 compatible response context. When tool_calls are absent we verify tool
