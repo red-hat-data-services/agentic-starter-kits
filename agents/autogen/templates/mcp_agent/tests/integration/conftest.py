@@ -4,7 +4,7 @@ import logging
 import os
 
 import pytest
-import integration.conftest  # noqa: F401 — re-exports cluster_auth, repo_root
+from integration.conftest import cluster_auth, repo_root  # noqa: F401
 from integration.utils import (
     MakeTargetError,
     RouteNotFoundError,
