@@ -2,9 +2,11 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
+from typing import Any
 
 from adk_agent.agent import APP_NAME, get_runner
 from adk_agent.tracing import enable_tracing
@@ -125,7 +127,7 @@ USER_ID = "api_user"
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize the ADK agent runner on startup and clear it on shutdown."""
     global runner
 
@@ -205,7 +207,7 @@ async def chat_completions(request: ChatCompletionRequest):
         return await _handle_chat(user_content, model_id)
 
 
-async def _handle_chat(user_content: str, model_id: str):
+async def _handle_chat(user_content: str, model_id: str) -> dict[str, Any]:
     """Handle non-streaming chat completion."""
     global runner
 
@@ -297,14 +299,14 @@ async def _handle_chat(user_content: str, model_id: str):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-async def _handle_stream(user_content: str, model_id: str):
+async def _handle_stream(user_content: str, model_id: str) -> StreamingResponse:
     """Handle streaming chat completion with OpenAI-compatible SSE chunks."""
     global runner
 
     completion_id = _make_completion_id()
     created = int(time.time())
 
-    async def event_generator():
+    async def event_generator() -> AsyncIterator[str]:
         try:
             session = await runner.session_service.create_session(
                 app_name=APP_NAME, user_id=USER_ID

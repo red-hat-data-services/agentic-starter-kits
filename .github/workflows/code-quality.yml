@@ -123,24 +123,55 @@ jobs:
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
-          cache: pip
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+        with:
+          version: "0.11.21"
+          enable-cache: true
 
       - name: Install ty
-        run: pip install ty==0.0.51
+        run: uv tool install ty==0.0.51
 
       - name: Run type-check
-        # ty (Astral) — same toolchain as ruff/uv.
-        # --ignore rules suppress noise from third-party deps not installed
-        # in this job and framework-specific dynamic patterns (decorators,
-        # monkey-patching, global None|Callable singletons).
-        run: >
-          ty check
-          --ignore unresolved-import
-          --ignore unresolved-attribute
-          --ignore call-non-callable
-          --ignore invalid-argument-type
-          --ignore unsupported-operator
-          --ignore invalid-assignment
-          --ignore invalid-type-form
-          --ignore invalid-yield
-          agents/ components/
+        # Auto-discovers agents, installs all deps (including extras),
+        # then runs ty from the repo root so ty.toml overrides apply.
+        # No CLI --ignore flags — all suppressions live in ty.toml.
+        shell: bash
+        run: |
+          failed=0
+          while IFS= read -r pyproject; do
+            dir="$(dirname "$pyproject")"
+            name=$(echo "$dir" | sed 's|^\./||;s|agents/||;s|/templates/|/|')
+
+            # Build the list of paths to check (relative to repo root)
+            check=()
+            [ -d "$dir/src" ] && check+=("$dir/src/")
+            [ -f "$dir/main.py" ] && check+=("$dir/main.py")
+            [ -d "$dir/examples" ] && check+=("$dir/examples/")
+            if [ ${#check[@]} -eq 0 ]; then
+              while IFS= read -r f; do
+                check+=("$f")
+              done < <(find "$dir" -maxdepth 1 -name '*.py' -not -name '__init__.py')
+            fi
+            [ ${#check[@]} -eq 0 ] && continue
+
+            echo "::group::$name"
+            echo "Installing deps (all extras) in $dir..."
+            if ! (cd "$dir" && uv sync --frozen --all-extras); then
+              echo "::error::uv sync failed for $name"
+              failed=1
+              echo "::endgroup::"
+              continue
+            fi
+            echo "Running ty check on: ${check[*]}"
+            if ty check --python "$dir/.venv" --error unresolved-import "${check[@]}"; then
+              echo "✅ $name passed"
+            else
+              echo "::error::ty check failed for $name"
+              failed=1
+            fi
+            echo "::endgroup::"
+          done < <(find ./agents ./components -name pyproject.toml \
+                        ! -path '*/.venv/*' ! -path '*/egg-info/*' | sort)
+          exit $failed

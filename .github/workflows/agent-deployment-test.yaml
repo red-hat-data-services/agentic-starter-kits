@@ -61,6 +61,13 @@ jobs:
           - { name: langgraph-hitl-agent, dir: agents/langgraph/templates/human_in_the_loop }
           - { name: crewai-websearch-agent, dir: agents/crewai/templates/websearch_agent }
           - { name: google-adk-agent, dir: agents/google/templates/adk }
+          - { name: langgraph-db-memory-agent, dir: agents/langgraph/templates/react_with_database_memory }
+        include:
+          - agent: { name: langgraph-db-memory-agent, dir: agents/langgraph/templates/react_with_database_memory }
+            POSTGRES_HOST: ${{ vars.POSTGRES_HOST }}
+            POSTGRES_PORT: ${{ vars.POSTGRES_PORT }}
+            POSTGRES_DB: ${{ vars.POSTGRES_DB }}
+            POSTGRES_USER: ${{ vars.POSTGRES_USER }}
     env:
       API_KEY: ${{ vars.API_KEY }}
       BASE_URL: ${{ vars.BASE_URL }}
@@ -77,6 +84,12 @@ jobs:
 
       - name: Run integration test
         working-directory: ${{ matrix.agent.dir }}
+        env:
+          POSTGRES_HOST: ${{ matrix.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ matrix.POSTGRES_PORT }}
+          POSTGRES_DB: ${{ matrix.POSTGRES_DB }}
+          POSTGRES_USER: ${{ matrix.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: make test-integration
 
       - name: Upload test results

@@ -1,0 +1,18 @@
+name: agentic-tool-use-openai-responses-agent
+description: EvalHub orchestration run for vanilla_python openai_responses_agent
+model:
+  name: openai-responses-agent
+  url: https://<openai-responses-agent-route>
+benchmarks:
+  - id: agentic-tool-use
+    provider_id: <provider-id-from-registration>
+    parameters:
+      stream: false
+      known_tools: ["search_price", "search_reviews"]
+      forbidden_actions: ["shell execution"]
+      max_latency_seconds: 8.0
+      timeout_seconds: 45.0
+      verify_ssl: true
+      fixtures_path: fixtures/vanilla_python
+      mlflow_tracking_uri: https://<mlflow-route>
+      mlflow_experiment_name: <agent-experiment>

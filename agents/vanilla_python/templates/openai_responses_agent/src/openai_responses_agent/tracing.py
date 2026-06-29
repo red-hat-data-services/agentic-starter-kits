@@ -1,7 +1,7 @@
 import logging
 import time
 from os import getenv
-from typing import Callable, Literal, Optional
+from typing import Callable, Literal
 
 from dotenv import load_dotenv
 
@@ -98,7 +98,7 @@ def enable_tracing() -> None:
     """
     global _TRACING_ENABLED
     load_dotenv()
-    tracking_uri: Optional[str] = getenv("MLFLOW_TRACKING_URI")
+    tracking_uri: str | None = getenv("MLFLOW_TRACKING_URI")
     if not tracking_uri:
         logger.info("[Tracing] MLFLOW_TRACKING_URI not set. Tracing is disabled.")
         return

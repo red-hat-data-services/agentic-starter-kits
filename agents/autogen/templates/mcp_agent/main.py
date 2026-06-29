@@ -4,9 +4,11 @@ import logging
 import time
 import traceback
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
+from typing import Any
 
 from autogen_agent_base.agent import get_agent_chat
 from autogen_agent_base.tracing import enable_tracing
@@ -78,7 +80,7 @@ class ChatRequest(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _need_user_input(self):
+    def _need_user_input(self) -> "ChatRequest":
         if self.messages:
             if not any(m.role == "user" for m in self.messages):
                 raise ValueError("messages must include at least one role=user entry")
@@ -143,7 +145,7 @@ MCP_SYSTEM_PROMPT = (
 
 async def _mcp_agent_holder(
     app: FastAPI, shutdown_event: asyncio.Event, ready_event: asyncio.Event
-):
+) -> None:
     """Hold MCP session and AutoGen agent; signal when ready, wait until shutdown."""
     mcp_url = getenv("MCP_SERVER_URL")
     base_url = getenv("BASE_URL")
@@ -177,7 +179,7 @@ async def _mcp_agent_holder(
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Connect to MCP server, build AutoGen agent with MCP tools, keep connection until shutdown."""
     enable_tracing()
 
@@ -212,7 +214,7 @@ app = FastAPI(
 )
 
 
-def _assistant_content_from_result(result) -> str:
+def _assistant_content_from_result(result: Any) -> str:
     if not result.messages:
         return ""
     last = result.messages[-1]
@@ -230,7 +232,7 @@ def _truncate_tool_result(text: str) -> str:
     return text
 
 
-def _invocation_row(call, res) -> dict:
+def _invocation_row(call: Any, res: Any) -> dict[str, Any]:
     """Pair FunctionCall + FunctionExecutionResult for API / playground."""
     args_raw = getattr(call, "arguments", "") or ""
     try:
@@ -246,7 +248,7 @@ def _invocation_row(call, res) -> dict:
     }
 
 
-def _invocation_row_result_only(res) -> dict:
+def _invocation_row_result_only(res: Any) -> dict[str, Any]:
     content = (getattr(res, "content", None) or "") or ""
     return {
         "name": getattr(res, "name", "") or "",
@@ -256,8 +258,8 @@ def _invocation_row_result_only(res) -> dict:
     }
 
 
-def _invocations_from_tool_summary(msg: ToolCallSummaryMessage) -> list[dict]:
-    rows: list[dict] = []
+def _invocations_from_tool_summary(msg: ToolCallSummaryMessage) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
     calls = msg.tool_calls or []
     results = msg.results or []
     for i, call in enumerate(calls):
@@ -267,13 +269,13 @@ def _invocations_from_tool_summary(msg: ToolCallSummaryMessage) -> list[dict]:
     return rows
 
 
-def _tool_invocations_from_task_messages(messages) -> list[dict]:
+def _tool_invocations_from_task_messages(messages: Any) -> list[dict[str, Any]]:
     """Collect tool rows from AssistantAgent stream/run messages.
 
     With ``reflect_on_tool_use=True`` (default), tools appear as
     ``ToolCallRequestEvent`` + ``ToolCallExecutionEvent``, not ``ToolCallSummaryMessage``.
     """
-    out: list[dict] = []
+    out: list[dict[str, Any]] = []
     last_request_calls: list | None = None
 
     for m in messages or []:
@@ -334,13 +336,13 @@ async def chat(request: ChatRequest):
 
     if request.stream:
 
-        async def event_generator():
+        async def event_generator() -> AsyncIterator[str]:
             completion_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
             created = int(time.time())
             cancel_token = CancellationToken()
             logger = logging.getLogger(__name__)
             try:
-                stream_tools: list[dict] = []
+                stream_tools: list[dict[str, Any]] = []
                 async for ev in agent.run_stream(
                     task=user_text,
                     cancellation_token=cancel_token,

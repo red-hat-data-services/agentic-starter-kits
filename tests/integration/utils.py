@@ -40,6 +40,11 @@ _REDACT_PATTERNS = [
     re.compile(r"(VECTOR_STORE_ID=)\S+"),
     re.compile(r'(--set\s+env\.VECTOR_STORE_ID=")[^"]*"'),
     re.compile(r"(--set\s+env\.VECTOR_STORE_ID=)\S+"),
+    re.compile(r"(POSTGRES_PASSWORD=)\S+"),
+    re.compile(r'(postgresPassword:\s*")[^"]*"'),
+    re.compile(r'(--set\s+secrets\.postgresPassword=")[^"]*"'),
+    re.compile(r"(--set\s+secrets\.postgresPassword=)\S+"),
+    re.compile(r"(POSTGRES_USER=)\S+"),
 ]
 
 

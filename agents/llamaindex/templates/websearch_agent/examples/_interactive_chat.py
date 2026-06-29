@@ -57,7 +57,7 @@ class InteractiveChat:
             f"\n\033[31m\n> Questions:\033[0m\n{self._ordered_list(self._questions)}\n"
         )
 
-    def _user_input_loop(self) -> Generator[str, bool, None]:
+    def _user_input_loop(self) -> Generator[tuple[str, str], None, None]:
         print(self._help_message)
         while True:
             print(self._questions_prompt)

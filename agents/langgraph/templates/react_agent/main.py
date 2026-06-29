@@ -2,9 +2,11 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import (
@@ -120,7 +122,7 @@ agent_graph = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize the ReAct agent graph on startup and clear it on shutdown."""
     global agent_graph
 
@@ -229,7 +231,7 @@ async def chat_completions(request: ChatCompletionRequest):
         return await _handle_chat(langchain_messages, model_id)
 
 
-async def _handle_chat(messages: list[HumanMessage], model_id: str):
+async def _handle_chat(messages: list[HumanMessage], model_id: str) -> dict[str, Any]:
     """Handle non-streaming chat completion."""
     global agent_graph
 
@@ -304,14 +306,16 @@ async def _handle_chat(messages: list[HumanMessage], model_id: str):
         )
 
 
-async def _handle_stream(messages: list[HumanMessage], model_id: str):
+async def _handle_stream(
+    messages: list[HumanMessage], model_id: str
+) -> StreamingResponse:
     """Handle streaming chat completion with OpenAI-compatible SSE chunks."""
     global agent_graph
 
     completion_id = _make_completion_id()
     created = int(time.time())
 
-    async def event_generator():
+    async def event_generator() -> AsyncIterator[str]:
         try:
             async for event in agent_graph.astream_events(
                 {"messages": messages},

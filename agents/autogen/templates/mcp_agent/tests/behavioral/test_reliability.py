@@ -38,14 +38,24 @@ async def test_pass_at_k_single_tool(
     expected_tools = ["add"]
     threshold = autogen_mcp_thresholds.get("tool_selection_accuracy", 0.85)
 
-    passed_count = 0
-    failures = 0
+    results = []
     for _ in range(k):
         result = await run_eval(
-            query, expected_tools=expected_tools, timeout_seconds=PASS_K_TIMEOUT
+            query,
+            expected_tools=expected_tools,
+            timeout_seconds=PASS_K_TIMEOUT,
+            enrich=False,
         )
+        results.append(result)
+
+    await run_eval.enrich_batch(results)
+
+    passed_count = 0
+    infra_failures = 0
+    inconclusive = 0
+    for result in results:
         if not result.success:
-            failures += 1
+            infra_failures += 1
             continue
 
         if result.tool_calls:
@@ -53,12 +63,16 @@ async def test_pass_at_k_single_tool(
             score_collector.record(query, score)
             if score.passed:
                 passed_count += 1
+            else:
+                inconclusive += 1
         else:
             text_normalized = re.sub(
                 r"[\s,\u00a0\u2009\u202f]+", "", result.response.lower()
             )
             if any(term in text_normalized for term in _COMPUTATION_EVIDENCE):
                 passed_count += 1
+            else:
+                inconclusive += 1
 
     pass_rate = passed_count / k
     score_collector.record(
@@ -67,13 +81,18 @@ async def test_pass_at_k_single_tool(
             name="pass_at_k_tool_selection",
             value=pass_rate,
             passed=pass_rate >= threshold,
-            details={"k": k, "passed": passed_count, "errors": failures},
+            details={
+                "k": k,
+                "passed": passed_count,
+                "errors": infra_failures,
+                "inconclusive": inconclusive,
+            },
         ),
     )
     assert pass_rate >= threshold, (
         f"pass@{k} tool selection = {pass_rate:.2f} "
-        f"(threshold={threshold:.2f}, passed={passed_count}/{k}, "
-        f"errors={failures})"
+        f"(passed={passed_count}/{k}, inconclusive={inconclusive}, "
+        f"infra_errors={infra_failures}, threshold={threshold:.2f})"
     )
 
 
@@ -89,17 +108,26 @@ async def test_pass_at_k_response_quality(
     query = "Use the add tool to compute 847392 + 293847 and explain the result"
     threshold = autogen_mcp_thresholds.get("response_coherence_accuracy", 0.75)
 
-    passed_count = 0
-    failures = 0
+    results = []
     for _ in range(k):
-        result = await run_eval(query, timeout_seconds=PASS_K_TIMEOUT)
+        result = await run_eval(query, timeout_seconds=PASS_K_TIMEOUT, enrich=False)
+        results.append(result)
+
+    await run_eval.enrich_batch(results)
+
+    passed_count = 0
+    infra_failures = 0
+    inconclusive = 0
+    for result in results:
         if not result.success:
-            failures += 1
+            infra_failures += 1
             continue
         score = score_plan_coherence(result)
         score_collector.record(query, score)
         if score.passed:
             passed_count += 1
+        else:
+            inconclusive += 1
 
     pass_rate = passed_count / k
     score_collector.record(
@@ -108,11 +136,16 @@ async def test_pass_at_k_response_quality(
             name="pass_at_k_coherence",
             value=pass_rate,
             passed=pass_rate >= threshold,
-            details={"k": k, "passed": passed_count, "errors": failures},
+            details={
+                "k": k,
+                "passed": passed_count,
+                "errors": infra_failures,
+                "inconclusive": inconclusive,
+            },
         ),
     )
     assert pass_rate >= threshold, (
         f"pass@{k} coherence = {pass_rate:.2f} "
-        f"(threshold={threshold:.2f}, passed={passed_count}/{k}, "
-        f"errors={failures})"
+        f"(passed={passed_count}/{k}, inconclusive={inconclusive}, "
+        f"infra_errors={infra_failures}, threshold={threshold:.2f})"
     )
