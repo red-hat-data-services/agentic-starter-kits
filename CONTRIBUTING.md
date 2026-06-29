@@ -38,11 +38,11 @@ The skill asks a series of questions and generates a GitHub Discussion draft wit
 
 Answer these questions and post them as a [GitHub Discussion](https://github.com/red-hat-data-services/agentic-starter-kits/discussions):
 
-1. **Framework**: Which agent framework? (LangGraph, CrewAI, AutoGen, LlamaIndex, Google ADK, Langflow, vanilla Python, or new)
+1. **Framework**: Which agent framework? (See `agents/` for existing frameworks, or name a new one)
 2. **Type**: Template (reusable, general-purpose) or example (business use-case demo)?
 3. **RHOAI components**: Which platform components does it integrate with? (OGX/vLLM for inference, MLflow for tracing, Milvus for vector search, PostgreSQL for memory, MCP servers for tools)
 4. **Differentiation**: What does this agent teach that the existing agents don't?
-5. **API contract**: Will it expose `POST /chat/completions` and `GET /health`?
+5. **API contract**: Will it expose `POST /chat/completions` (JSON + SSE streaming) and `GET /health`?
 6. **Container pattern**: Will it use UBI9, port 8080, non-root UID 1001?
 
 ### Step 2: Wait for approval, then implement
