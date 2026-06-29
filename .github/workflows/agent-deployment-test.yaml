@@ -50,7 +50,9 @@ jobs:
   test-agent:
     name: "${{ matrix.agent.name }}"
     needs: verify-cluster-connection
-    if: github.repository == 'red-hat-data-services/agentic-starter-kits'
+    if: >-
+      github.repository == 'red-hat-data-services/agentic-starter-kits'
+      && (matrix.agent.name != 'autogen-mcp-agent' || vars.MCP_SERVER_URL != '')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
