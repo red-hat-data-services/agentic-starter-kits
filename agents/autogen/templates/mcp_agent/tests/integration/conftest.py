@@ -4,7 +4,7 @@ import logging
 import os
 
 import pytest
-from integration.conftest import cluster_auth, repo_root  # noqa: F401
+import integration.conftest  # noqa: F401 — re-exports cluster_auth, repo_root
 from integration.utils import (
     MakeTargetError,
     RouteNotFoundError,
@@ -33,7 +33,7 @@ def agent_name(agent_dir):
 
 def _write_env_file(agent_dir, container_image):
     """Write a .env file with base and MCP-specific env vars."""
-    missing = [v for v in _REQUIRED_ENV if v not in os.environ]
+    missing = [v for v in _REQUIRED_ENV if not os.environ.get(v)]
     if missing:
         pytest.fail(
             f"Missing required env vars for MCP-backed agent: {', '.join(missing)}. "
@@ -52,7 +52,7 @@ def _write_env_file(agent_dir, container_image):
 
 
 @pytest.fixture(scope="module")
-def deployed_agent(cluster_auth, agent_dir, agent_name):
+def deployed_agent(cluster_auth, agent_dir, agent_name):  # noqa: F811
     namespace = cluster_auth["namespace"]
     container_image = f"{INTERNAL_REGISTRY}/{namespace}/{agent_name}:latest"
     env_path = _write_env_file(agent_dir, container_image)
