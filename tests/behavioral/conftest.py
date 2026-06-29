@@ -29,6 +29,7 @@ _AGENT_URL_MAP = {
     "llamaindex_websearch": "LLAMAINDEX_WEBSEARCH_AGENT_URL",
     "langgraph_hitl": "HITL_AGENT_URL",
     "google_adk": "GOOGLE_ADK_AGENT_URL",
+    "langflow_tool_calling": "LANGFLOW_TOOL_CALLING_AGENT_URL",
 }
 
 

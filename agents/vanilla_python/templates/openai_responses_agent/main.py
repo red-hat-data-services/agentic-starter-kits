@@ -3,9 +3,11 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import (
@@ -45,7 +47,9 @@ class ChatCompletionRequest(BaseModel):
     """
 
     messages: list[ChatMessage] = Field(
-        ..., description="A list of messages comprising the conversation so far."
+        ...,
+        min_length=1,
+        description="A list of messages comprising the conversation so far.",
     )
     model: str | None = Field(
         None,
@@ -119,7 +123,7 @@ get_agent = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize the agent closure on startup and clear it on shutdown.
 
     Reads BASE_URL and MODEL_ID from the environment and sets the global get_agent
@@ -179,7 +183,7 @@ async def chat_completions(request: ChatCompletionRequest):
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
     user_message = _build_user_message(request.messages)
-    model_id = request.model or getenv("MODEL_ID", "model")
+    model_id = request.model or getenv("MODEL_ID") or "model"
 
     if request.stream:
         return await _handle_stream(user_message, model_id)
@@ -187,11 +191,12 @@ async def chat_completions(request: ChatCompletionRequest):
         return await _handle_chat(user_message, model_id)
 
 
-async def _handle_chat(user_message: str, model_id: str):
+async def _handle_chat(user_message: str, model_id: str) -> dict[str, Any]:
     """Handle non-streaming chat completion."""
     global get_agent
 
     try:
+        assert get_agent is not None
         agent = get_agent()
         messages = [{"role": "user", "content": user_message}]
 
@@ -238,21 +243,22 @@ async def _handle_chat(user_message: str, model_id: str):
         )
 
 
-async def _handle_stream(user_message: str, model_id: str):
+async def _handle_stream(user_message: str, model_id: str) -> StreamingResponse:
     """Handle streaming chat completion with OpenAI-compatible SSE chunks."""
     global get_agent
 
     completion_id = _make_completion_id()
     created = int(time.time())
 
-    async def event_generator():
+    async def event_generator() -> AsyncIterator[str]:
         try:
             queue: asyncio.Queue = asyncio.Queue()
 
-            def on_event(event_type: str, data: dict):
+            def on_event(event_type: str, data: dict) -> None:
                 queue.put_nowait((event_type, data))
 
-            def run_agent():
+            def run_agent() -> str | None:
+                assert get_agent is not None
                 adapter = get_agent()
                 agent = AIAgent(
                     model=adapter._model_id,

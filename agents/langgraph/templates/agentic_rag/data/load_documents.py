@@ -1,5 +1,5 @@
 """
-Script to load documents from text files into a vector store via LlamaStack.
+Script to load documents from text files into an OGX-backed vector store.
 
 If VECTOR_STORE_ID is set, documents are added to the existing store.
 Otherwise, a new vector store is created using VECTOR_STORE_NAME,
@@ -43,10 +43,10 @@ def update_env_file(key: str, value: str):
 
 
 def load_and_index_documents(
-    docs_to_load: str = None,
-    embedding_model: str = None,
-    base_url: str = None,
-    api_key: str = None,
+    docs_to_load: str | None = None,
+    embedding_model: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
     chunk_size: int = 512,
     chunk_overlap: int = 128,
 ):
@@ -76,7 +76,7 @@ def load_and_index_documents(
     if not base_url:
         raise ValueError("BASE_URL must be set in environment or passed as argument")
 
-    # LlamaStackClient internally appends /v1, so strip it from base_url if present
+    # The upstream client appends /v1, so strip it from base_url if present
     llama_base_url = base_url.rstrip("/").removesuffix("/v1")
     client = LlamaStackClient(
         base_url=llama_base_url,

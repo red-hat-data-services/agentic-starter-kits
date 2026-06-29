@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opencode-web-entrypoint
+data:
+  entrypoint.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    git config --global init.defaultBranch main
+    git config --global user.email "opencode@openshift.local"
+    git config --global user.name "OpenCode"
+    git config --global --add safe.directory /opt/app-root/workspace
+
+    cd /opt/app-root/workspace
+    if [ ! -d .git ]; then
+      git init
+      git commit --allow-empty -m "init"
+    fi
+
+    CONFIG=$(cat /config-template/config-template.json)
+    CONFIG=${CONFIG//\$\{BASE_URL\}/$BASE_URL}
+    CONFIG=${CONFIG//\$\{API_KEY\}/$API_KEY}
+    CONFIG=${CONFIG//\$\{MODEL_NAME\}/$MODEL_NAME}
+
+    if [ -f /mcp-config/mcp-servers.json ]; then
+      MCP_SERVERS=$(cat /mcp-config/mcp-servers.json)
+      CONFIG=$(echo "$CONFIG" | jq --argjson mcp "$MCP_SERVERS" '. + {mcp: $mcp}')
+    fi
+
+    # ===========================================
+    # MLflow Tracing (enabled when MLFLOW_TRACKING_URI is set)
+    # ===========================================
+    if [ -n "${MLFLOW_TRACKING_URI:-}" ]; then
+      echo "[entrypoint] Configuring MLflow tracing"
+
+      CONFIG=$(echo "$CONFIG" | jq '. + {plugin: ["@mlflow/opencode"]}')
+
+      opencode plugin @mlflow/opencode 2>&1 \
+        && echo "[entrypoint] MLflow plugin installed" \
+        || echo "[entrypoint] WARN: MLflow plugin install failed"
+
+      CACHED_CORE=$(find "$HOME/.cache/opencode/packages" -path "*/@mlflow/core/dist" -type d 2>/dev/null | head -1)
+      CACHED_OC=$(find "$HOME/.cache/opencode/packages" -path "*/@mlflow/opencode/dist" -type d 2>/dev/null | head -1)
+      [ -d "/opt/mlflow-plugin/core/dist" ] && [ -n "${CACHED_CORE:-}" ] && cp -r /opt/mlflow-plugin/core/dist/* "$CACHED_CORE/"
+      [ -d "/opt/mlflow-plugin/opencode/dist" ] && [ -n "${CACHED_OC:-}" ] && cp -r /opt/mlflow-plugin/opencode/dist/* "$CACHED_OC/"
+
+      SA_TOKEN_PATH="/var/run/secrets/kubernetes.io/serviceaccount/token"
+      [ -f "$SA_TOKEN_PATH" ] && export MLFLOW_TRACKING_TOKEN=$(cat "$SA_TOKEN_PATH")
+
+      if [ -n "${MLFLOW_EXPERIMENT_NAME:-}" ]; then
+        EXPERIMENT_ID=$(python3 -c '
+    import warnings; warnings.filterwarnings("ignore")
+    import os, mlflow
+    os.environ.setdefault("MLFLOW_TRACKING_INSECURE_TLS", "false")
+    mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
+    name = os.environ["MLFLOW_EXPERIMENT_NAME"]
+    exp = mlflow.get_experiment_by_name(name)
+    print(exp.experiment_id if exp else mlflow.create_experiment(name))
+    ' 2>/dev/null) && export MLFLOW_EXPERIMENT_ID="$EXPERIMENT_ID" \
+        && echo "[entrypoint] MLflow experiment: ${MLFLOW_EXPERIMENT_NAME} (ID: ${MLFLOW_EXPERIMENT_ID})" \
+        || echo "[entrypoint] WARN: Could not resolve MLflow experiment ID"
+      fi
+
+      cat > "$HOME/.mlflow-env" <<MLENV
+    export MLFLOW_TRACKING_TOKEN=\$(cat /var/run/secrets/kubernetes.io/serviceaccount/token 2>/dev/null)
+    export MLFLOW_EXPERIMENT_ID="${MLFLOW_EXPERIMENT_ID:-}"
+    MLENV
+      echo 'source $HOME/.mlflow-env 2>/dev/null' >> "$HOME/.bashrc" 2>/dev/null || true
+    fi
+
+    export OPENCODE_CONFIG_CONTENT="$CONFIG"
+
+    MODE="${OPENCODE_MODE:-web}"
+    case "$MODE" in
+      web)
+        exec opencode web --hostname 0.0.0.0 --port 8003
+        ;;
+      cli)
+        echo "[entrypoint] CLI mode — attach with: oc exec -it deployment/<name> -- bash -c 'source \$HOME/.mlflow-env && cd /opt/app-root/workspace && opencode'"
+        exec sleep infinity
+        ;;
+      *)
+        echo "[entrypoint] Unknown mode: $MODE"
+        exit 1
+        ;;
+    esac

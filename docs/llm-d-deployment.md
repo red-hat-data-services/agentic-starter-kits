@@ -1,11 +1,11 @@
 # Deploying llm-d on OpenShift AI
 
-Deploy multiple vLLM instances across separate GPU nodes with llm-d orchestrating intelligent request routing (prefix-cache-aware, queue-based, active-request scoring). Optionally integrate with Llama Stack for the Responses API.
+Deploy multiple vLLM instances across separate GPU nodes with llm-d orchestrating intelligent request routing (prefix-cache-aware, queue-based, active-request scoring). Optionally integrate with OGX for the Responses API.
 
 ## Architecture
 
 ```text
-Client → Llama Stack (optional) → Gateway → llm-d scheduler → vLLM pods (N x GPU nodes)
+Client → OGX (optional) → Gateway → llm-d scheduler → vLLM pods (N x GPU nodes)
 ```
 
 llm-d is a **routing and orchestration layer**, not a model-sharding tool. Each vLLM instance holds a complete copy of the model. llm-d intelligently routes requests across replicas to maximize KV cache hits and balance load.
@@ -53,7 +53,7 @@ The following values are specific to your environment. Replace all `<PLACEHOLDER
 | `<PULL_SECRET_NAME>` | Name of the pull secret in the cluster | `my-pull-secret` |
 | `<VLLM_IMAGE>` | vLLM container image — get the latest digest from the [Red Hat Ecosystem Catalog](https://catalog.redhat.com/en/software/containers/rhaiis/vllm-cuda-rhel9) | `registry.redhat.io/rhaiis/vllm-cuda-rhel9@sha256:...` |
 | `<GATEWAY_HOST>` | The maas-default-gateway external hostname (auto-assigned ELB or manually configured) | `a1b2c3.us-east-2.elb.amazonaws.com` |
-| `<LLAMASTACK_ROUTE>` | Llama Stack external route hostname (if using Llama Stack) | `llamastack-route-redhat-ods-applications.apps.example.com` |
+| `<OGX_ROUTE>` | OGX external route hostname (if using OGX) | `ogx-route-redhat-ods-applications.apps.example.com` |
 
 ## Recommended Models
 
@@ -107,7 +107,7 @@ oc apply -f infrastructure/llm-d/llminferenceservice.yaml
 
 **Important:** `spec.router.scheduler: {}` must be explicitly set. Without it, the controller skips scheduler/router creation and you get vLLM pods but no intelligent routing.
 
-**Gateway choice:** The YAML uses `maas-default-gateway` instead of `data-science-gateway`. The `data-science-gateway` has an OAuth proxy designed for browser access, which blocks programmatic API calls. The `maas-default-gateway` has no OAuth proxy and is suitable for API clients like Llama Stack.
+**Gateway choice:** The YAML uses `maas-default-gateway` instead of `data-science-gateway`. The `data-science-gateway` has an OAuth proxy designed for browser access, which blocks programmatic API calls. The `maas-default-gateway` has no OAuth proxy and is suitable for API clients like OGX.
 
 ## Step 4: Create Network Policies
 
@@ -119,9 +119,9 @@ oc apply -f infrastructure/llm-d/network-policies.yaml
 
 See [`infrastructure/llm-d/network-policies.yaml`](../infrastructure/llm-d/network-policies.yaml) for details.
 
-## Step 5: Configure Llama Stack (Optional)
+## Step 5: Configure OGX (Optional)
 
-If integrating with Llama Stack, set these environment variables in your Llama Stack deployment:
+If integrating with OGX, set these environment variables in your OGX deployment:
 
 | Variable | Value | Notes |
 |----------|-------|-------|
@@ -135,7 +135,7 @@ To find your `<GATEWAY_HOST>`:
 oc get llminferenceservice <SERVICE_NAME> -n redhat-ods-applications -o jsonpath='{.status.url}'
 ```
 
-If deploying Llama Stack in the same namespace with an external route, apply the Llama Stack network policy from `network-policies.yaml` to allow ingress from the OpenShift router.
+If deploying OGX in the same namespace with an external route, apply the OGX network policy from `network-policies.yaml` to allow ingress from the OpenShift router.
 
 ## Verification
 
@@ -160,8 +160,8 @@ curl -s http://<GATEWAY_HOST>/redhat-ods-applications/<SERVICE_NAME>/v1/chat/com
   -H "Content-Type: application/json" \
   -d '{"model":"<MODEL_NAME>","messages":[{"role":"user","content":"Hello"}],"max_tokens":10}'
 
-# Through Llama Stack (if configured)
-curl -s https://<LLAMASTACK_ROUTE>/v1/responses \
+# Through OGX (if configured)
+curl -s https://<OGX_ROUTE>/v1/responses \
   -H "Content-Type: application/json" \
   -d '{"model":"<MODEL_NAME>","input":"Who is the president of the United States?"}'
 ```

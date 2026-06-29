@@ -24,7 +24,7 @@ Agents are organized by framework. Pick one and follow its README:
 | **CrewAI** | [WebSearch Agent](./agents/crewai/templates/websearch_agent/) | CrewAI-based agent with a web search tool to query the internet and answer user questions. |
 | **Vanilla Python** | [OpenAI Responses Agent](./agents/vanilla_python/templates/openai_responses_agent/) | Minimal agent with no framework: only the OpenAI Python client and an Action/Observation loop with tools. Use with OpenAI or any compatible API. |
 | **AutoGen** | [MCP Agent](./agents/autogen/templates/mcp_agent/) | AutoGen AssistantAgent with MCP tools over SSE (e.g. churn prediction, math tools), FastAPI `/chat/completions`. |
-| **Google ADK** | [ADK Agent](./agents/google/templates/adk/) | General-purpose agent using Google ADK 2.0 with LiteLLM to route inference through a LlamaStack-compatible endpoint. |
+| **Google ADK** | [ADK Agent](./agents/google/templates/adk/) | General-purpose agent using Google ADK 2.0 with LiteLLM to route inference through an OGX-compatible endpoint. |
 | **Langflow** | [Simple Tool Calling Agent](./agents/langflow/templates/simple_tool_calling_agent/) | Tool-calling agent built with Langflow's visual flow builder. Calls external APIs as tools and reasons over results. Includes Langfuse v3 tracing. Runs locally via `podman-compose`. |
 | **A2A** | [LangGraph + CrewAI Agent](./agents/a2a/templates/langgraph_crewai_agent/) | Multi-agent system using the Agent-to-Agent (A2A) protocol. A LangGraph orchestrator delegates tasks to a CrewAI worker agent. Uses a dedicated Helm chart. |
 | **Claude Code** | [Claude Code on OpenShift](./agents/claude-code/) | Deploy Claude Code on OpenShift with multiple backend options (Anthropic API, Vertex AI, vLLM, OGX). Includes deployment manifests and configuration guides. |
@@ -105,7 +105,7 @@ Tests require a running agent. Set the target URL via environment variables:
 | `AGENTIC_RAG_AGENT_URL` | LangGraph Agentic RAG agent tests |
 | `DB_MEMORY_AGENT_URL` | LangGraph DB Memory agent tests |
 | `LLAMAINDEX_WEBSEARCH_AGENT_URL` | LlamaIndex Websearch agent tests |
-| `LANGFLOW_AGENT_URL` | Langflow Simple Tool Calling agent tests |
+| `LANGFLOW_TOOL_CALLING_AGENT_URL` | Langflow Simple Tool Calling agent tests |
 | `LANGFLOW_FLOW_ID` | Langflow flow ID (changes on re-import) |
 | `HITL_AGENT_URL` | LangGraph Human-in-the-Loop agent tests |
 | `GOOGLE_ADK_AGENT_URL` | Google ADK agent tests |

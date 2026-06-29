@@ -290,7 +290,7 @@ class TestRunTaskLangflow:
         result = asyncio.run(run_task(config, client=mock_client))
 
         assert result.success is False
-        assert "500" in result.error
+        assert result.error is not None and "500" in result.error
 
 
 # ---------------------------------------------------------------------------

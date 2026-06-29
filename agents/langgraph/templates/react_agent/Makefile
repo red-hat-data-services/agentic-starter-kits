@@ -5,7 +5,7 @@ VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
 
-.PHONY: init re-init env ollama ogx-server run-app run-app-fresh run-cli build push build-openshift deploy undeploy test test-integration dry-run help
+.PHONY: init re-init env ollama ogx-server run-app run-app-fresh run-cli build push build-openshift deploy undeploy test test-integration test-auth-integration dry-run help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -15,7 +15,7 @@ re-init: ## Activate venv and reload .env variables
 	  echo "Venv activated and .env variables loaded."
 
 init: ## Copy .env.example to .env for configuration
-	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from .env.example — edit it with your configuration"; else echo ".env already exists — skipping"; fi
+	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from .env.example - edit it with your configuration"; else echo ".env already exists - skipping"; fi
 
 env: ## Create venv, load .env, and install dependencies
 	@echo "==> Creating virtual environment and installing dependencies..." && \
@@ -88,7 +88,9 @@ build: ## Build container image locally (podman/docker)
 	@[ -n "$(CONTAINER_CLI)" ] || { echo "ERROR: neither podman nor docker found in PATH"; exit 1; } && \
 	  source .env && \
 	  [ -n "$${CONTAINER_IMAGE}" ] || { echo "ERROR: CONTAINER_IMAGE is not set in .env"; exit 1; } && \
-	  cp -r ../../../../images ./images && trap 'rm -rf ./images' EXIT && \
+	  cp -r ../../../../images ./images && \
+	  mkdir -p ./components && cp -r ../../../../components/auth ./components/auth && \
+	  trap 'rm -rf ./images ./components/auth; rmdir ./components 2>/dev/null || true' EXIT && \
 	  $(CONTAINER_CLI) build --platform linux/amd64 -t "$${CONTAINER_IMAGE}" -f Dockerfile .
 
 push: ## Push container image to registry
@@ -98,7 +100,9 @@ push: ## Push container image to registry
 	  $(CONTAINER_CLI) push "$${CONTAINER_IMAGE}"
 
 build-openshift: ## Build image in-cluster via OpenShift BuildConfig (no podman/docker needed)
-	@cp -r ../../../../images ./images && trap 'rm -rf ./images' EXIT && \
+	@cp -r ../../../../images ./images && \
+	  mkdir -p ./components && cp -r ../../../../components/auth ./components/auth && \
+	  trap 'rm -rf ./images ./components/auth; rmdir ./components 2>/dev/null || true' EXIT && \
 	  oc new-build --strategy=docker --binary --name=$(AGENT_NAME) --to=$(AGENT_NAME):latest 2>/dev/null || true && \
 	  oc start-build $(AGENT_NAME) --from-dir=. --follow && \
 	  NS=$$(oc project -q) && \
@@ -117,6 +121,17 @@ _check-env:
 
 deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	@source .env && \
+	  AUTH_ALLOWLIST="$${AUTH_ALLOWED_SERVICEACCOUNTS:-$${AUTH_ALLOWED_SERVICEACCOUNT}}" && \
+	  AUTH_ALLOWLIST_ARGS="" && \
+	  if [ -n "$$AUTH_ALLOWLIST" ]; then \
+	    IFS=',' read -r -a AUTH_ALLOWLIST_ITEMS <<< "$$AUTH_ALLOWLIST"; \
+	    for idx in "$${!AUTH_ALLOWLIST_ITEMS[@]}"; do \
+	      account="$${AUTH_ALLOWLIST_ITEMS[$$idx]}"; \
+	      account="$$(echo -n "$$account" | tr -d '[:space:]')"; \
+	      [ -n "$$account" ] || continue; \
+	      AUTH_ALLOWLIST_ARGS="$$AUTH_ALLOWLIST_ARGS --set-string auth.allowedServiceAccounts[$$idx]=$$account"; \
+	    done; \
+	  fi && \
 	  [ -n "$${CONTAINER_IMAGE}" ] || { echo "ERROR: CONTAINER_IMAGE is not set in .env"; exit 1; } && \
 	  LAST_SEG="$${CONTAINER_IMAGE##*/}" && if [[ "$$LAST_SEG" == *:* ]]; then IMAGE_REPO="$${CONTAINER_IMAGE%:*}"; IMAGE_TAG="$${LAST_SEG##*:}"; else IMAGE_REPO="$${CONTAINER_IMAGE}"; IMAGE_TAG="latest"; fi && \
 	  trap 'rm -f .helm-secrets.yaml' EXIT && \
@@ -131,6 +146,10 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	    --set image.tag="$${IMAGE_TAG}" \
 	    --set env.BASE_URL="$${BASE_URL}" \
 	    --set env.MODEL_ID="$${MODEL_ID}" \
+	    $${AUTH_ENABLED:+--set "auth.enabled=$${AUTH_ENABLED}"} \
+	    $${AUTH_ENABLED:+--set "serviceAccount.create=$${AUTH_ENABLED}"} \
+	    $${AUTH_AUDIENCE:+--set-string "auth.audience=$${AUTH_AUDIENCE}"} \
+	    $${AUTH_ALLOWLIST_ARGS} \
 	    $${MLFLOW_TRACKING_URI:+--set env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
 	    $${MLFLOW_EXPERIMENT_NAME:+--set env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
 	    $${MLFLOW_TRACKING_INSECURE_TLS:+--set env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
@@ -149,6 +168,17 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 
 dry-run: _check-env ## Render Helm templates without deploying
 	@source .env && \
+	  AUTH_ALLOWLIST="$${AUTH_ALLOWED_SERVICEACCOUNTS:-$${AUTH_ALLOWED_SERVICEACCOUNT}}" && \
+	  AUTH_ALLOWLIST_ARGS="" && \
+	  if [ -n "$$AUTH_ALLOWLIST" ]; then \
+	    IFS=',' read -r -a AUTH_ALLOWLIST_ITEMS <<< "$$AUTH_ALLOWLIST"; \
+	    for idx in "$${!AUTH_ALLOWLIST_ITEMS[@]}"; do \
+	      account="$${AUTH_ALLOWLIST_ITEMS[$$idx]}"; \
+	      account="$$(echo -n "$$account" | tr -d '[:space:]')"; \
+	      [ -n "$$account" ] || continue; \
+	      AUTH_ALLOWLIST_ARGS="$$AUTH_ALLOWLIST_ARGS --set-string auth.allowedServiceAccounts[$$idx]=$$account"; \
+	    done; \
+	  fi && \
 	  [ -n "$${CONTAINER_IMAGE}" ] || { echo "ERROR: CONTAINER_IMAGE is not set in .env"; exit 1; } && \
 	  LAST_SEG="$${CONTAINER_IMAGE##*/}" && if [[ "$$LAST_SEG" == *:* ]]; then IMAGE_REPO="$${CONTAINER_IMAGE%:*}"; IMAGE_TAG="$${LAST_SEG##*:}"; else IMAGE_REPO="$${CONTAINER_IMAGE}"; IMAGE_TAG="latest"; fi && \
 	  helm template $(AGENT_NAME) $(CHART_DIR) \
@@ -158,6 +188,10 @@ dry-run: _check-env ## Render Helm templates without deploying
 	    --set image.tag="$${IMAGE_TAG}" \
 	    --set env.BASE_URL="$${BASE_URL}" \
 	    --set env.MODEL_ID="$${MODEL_ID}" \
+	    $${AUTH_ENABLED:+--set "auth.enabled=$${AUTH_ENABLED}"} \
+	    $${AUTH_ENABLED:+--set "serviceAccount.create=$${AUTH_ENABLED}"} \
+	    $${AUTH_AUDIENCE:+--set-string "auth.audience=$${AUTH_AUDIENCE}"} \
+	    $${AUTH_ALLOWLIST_ARGS} \
 	    $${MLFLOW_TRACKING_URI:+--set env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
 	    $${MLFLOW_TRACKING_TOKEN:+--set secrets.mlflowTrackingToken="REDACTED"} \
 	    $${MLFLOW_EXPERIMENT_NAME:+--set env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
@@ -174,3 +208,8 @@ test-integration: ## Run integration deployment test
 	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \
 	  uv run --extra dev python -m pytest tests/integration/test_deployment.py \
 	    -v --tb=long --junitxml=results.xml
+
+test-auth-integration: ## Run auth-enabled integration deployment test
+	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \
+	  uv run --extra dev python -m pytest tests/integration/test_auth.py \
+	    -v --tb=long --junitxml=results-auth.xml

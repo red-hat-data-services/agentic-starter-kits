@@ -11,7 +11,6 @@
 #   <VLLM_SERVICE>  - vLLM Kubernetes service name (e.g., gpt-oss-120b)
 #   <NAMESPACE>     - Namespace where vLLM is running (e.g., redhat-ods-applications)
 #   <VLLM_PORT>     - vLLM service port (default: 8000)
-#   <MODEL_ID>      - Model name as registered in vLLM (e.g., my-custom-120b)
 #
 # Usage:
 #   oc apply -f ogx-configmap.yaml -n <NAMESPACE>
@@ -21,10 +20,12 @@ metadata:
   name: ogx-config
   labels:
     app: ogx
+    ogx.io/watch: "true"
 data:
   config.yaml: |
     version: 2
-    distro_name: ogx-rhoai
+    distro_name: rh
+    image_name: rh
 
     apis:
     - inference
@@ -43,13 +44,12 @@ data:
           base_url: http://<VLLM_SERVICE>.<NAMESPACE>.svc.cluster.local:<VLLM_PORT>/v1
           api_token: fake        # vLLM default: no auth. Replace if vLLM is configured with --api-key
           max_tokens: 4096
+          refresh_models: true   # Keep the OGX model registry in sync with vLLM
 
       messages:
       - provider_id: builtin
         provider_type: inline::builtin
-
-    models:
-    - model_id: <MODEL_ID>
-      provider_id: vllm
-      provider_model_id: <MODEL_ID>
-      model_type: llm
+        config:
+          kvstore:
+            namespace: message_batches
+            backend: kv_default

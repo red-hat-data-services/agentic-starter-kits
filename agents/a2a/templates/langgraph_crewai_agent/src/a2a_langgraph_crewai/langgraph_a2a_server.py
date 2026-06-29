@@ -38,6 +38,7 @@ from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
+from langgraph.graph.state import CompiledStateGraph
 from starlette.applications import Starlette
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -90,7 +91,7 @@ async def ask_crew_specialist(question: str) -> str:
     return await send_a2a_text_message(_crew_base_url(), question)
 
 
-def _build_graph():
+def _build_graph() -> CompiledStateGraph:
     base_url = getenv("BASE_URL")
     model_id = getenv("MODEL_ID")
     api_key = getenv("API_KEY") or "no-key"
@@ -122,7 +123,7 @@ def _build_graph():
     )
 
 
-def _ensure_graph():
+def _ensure_graph() -> CompiledStateGraph:
     global _graph
     if _graph is None:
         _graph = _build_graph()

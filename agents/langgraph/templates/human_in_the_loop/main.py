@@ -2,9 +2,11 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import (
@@ -46,7 +48,9 @@ class ChatCompletionRequest(BaseModel):
     """
 
     messages: list[ChatMessage] = Field(
-        ..., description="A list of messages comprising the conversation so far."
+        ...,
+        min_length=1,
+        description="A list of messages comprising the conversation so far.",
     )
     model: str | None = Field(
         None,
@@ -132,7 +136,7 @@ checkpointer = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize the HITL agent graph on startup and clear it on shutdown."""
     global agent_graph_closure, checkpointer
 
@@ -172,6 +176,28 @@ def _build_langchain_messages(messages: list[ChatMessage]) -> list[HumanMessage]
         if msg.role == "user":
             return [HumanMessage(content=msg.content)]
     raise ValueError("No user message found in messages list")
+
+
+def _extract_usage(messages: list) -> dict | None:
+    """Sum token usage from AIMessage.usage_metadata across all LLM calls."""
+    prompt_tokens = 0
+    completion_tokens = 0
+    total_tokens = 0
+    found = False
+    for message in messages:
+        if isinstance(message, AIMessage) and getattr(message, "usage_metadata", None):
+            meta = message.usage_metadata
+            prompt_tokens += meta.get("input_tokens", 0) or 0
+            completion_tokens += meta.get("output_tokens", 0) or 0
+            total_tokens += meta.get("total_tokens", 0) or 0
+            found = True
+    if not found:
+        return None
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
+    }
 
 
 def _make_completion_id() -> str:
@@ -231,7 +257,7 @@ async def chat_completions(request: ChatCompletionRequest):
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
     thread_id = request.thread_id or uuid.uuid4().hex
-    model_id = request.model or getenv("MODEL_ID", "model")
+    model_id = request.model or getenv("MODEL_ID") or "model"
     config = {"configurable": {"thread_id": thread_id}}
 
     if request.stream:
@@ -245,12 +271,20 @@ async def _handle_chat(
     model_id: str,
     thread_id: str,
     config: dict,
-):
+) -> dict[str, Any]:
     """Handle non-streaming chat completion with HITL support."""
     global agent_graph_closure, checkpointer
 
     try:
+        assert agent_graph_closure is not None
         agent = agent_graph_closure(checkpointer)
+
+        prior_count = 0
+        prior = checkpointer.get_tuple(config)
+        if prior and prior.checkpoint:
+            prior_count = len(
+                prior.checkpoint.get("channel_values", {}).get("messages", [])
+            )
 
         if request.approval:
             # Resume from interrupt with human decision
@@ -300,15 +334,16 @@ async def _handle_chat(
             }
 
         all_messages = result.value.get("messages", [])
+        new_messages = all_messages[prior_count:]
 
         # Extract the final assistant content
         assistant_content = ""
-        for message in reversed(all_messages):
+        for message in reversed(new_messages):
             if isinstance(message, AIMessage) and message.content:
                 assistant_content = message.content
                 break
 
-        context_messages = _format_context_messages(all_messages)
+        context_messages = _format_context_messages(new_messages)
 
         return {
             "id": _make_completion_id(),
@@ -327,7 +362,7 @@ async def _handle_chat(
             ],
             "context": context_messages,
             "thread_id": thread_id,
-            "usage": None,
+            "usage": _extract_usage(new_messages),
         }
 
     except Exception:
@@ -340,7 +375,7 @@ async def _handle_stream(
     model_id: str,
     thread_id: str,
     config: dict,
-):
+) -> StreamingResponse:
     """Handle streaming chat completion with HITL support.
 
     Uses astream with stream_mode="updates" to detect __interrupt__ keys
@@ -358,8 +393,9 @@ async def _handle_stream(
     completion_id = _make_completion_id()
     created = int(time.time())
 
-    async def event_generator():
+    async def event_generator() -> AsyncIterator[str]:
         try:
+            assert agent_graph_closure is not None
             agent = agent_graph_closure(checkpointer)
 
             if request.approval:
