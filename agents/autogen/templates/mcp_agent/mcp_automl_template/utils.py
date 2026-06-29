@@ -167,31 +167,3 @@ def get_chat_from_env() -> ChatOpenAI:
         api_key=api_key or "not-needed",
         temperature=0.1,
     )
-
-
-def get_chat_ogx() -> ChatOpenAI:
-    """ChatOpenAI pointing at an OGX endpoint via OGX_BASE_URL, OGX_API_KEY, and MODEL_ID."""
-    from langchain_openai import ChatOpenAI
-
-    ogx_base_url = getenv("OGX_BASE_URL")
-    ogx_api_key = getenv("OGX_API_KEY")
-    model_id = getenv("MODEL_ID")
-    if ogx_base_url is not None:
-        ogx_base_url = ogx_base_url.strip().rstrip("/")
-    if model_id is not None:
-        model_id = model_id.strip()
-    if ogx_api_key is not None:
-        ogx_api_key = ogx_api_key.strip()
-    if not ogx_base_url or not model_id:
-        raise ValueError("OGX_BASE_URL and MODEL_ID must be set")
-
-    url = ogx_base_url
-    if not url.endswith("/v1"):
-        url = url + "/v1"
-
-    return ChatOpenAI(
-        base_url=url,
-        model=model_id,
-        api_key=ogx_api_key or "not-needed",
-        temperature=0.1,
-    )
