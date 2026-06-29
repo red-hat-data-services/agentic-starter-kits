@@ -36,7 +36,7 @@ data:
 
       CONFIG=$(echo "$CONFIG" | jq '. + {plugin: ["@mlflow/opencode"]}')
 
-      opencode plugin @mlflow/opencode 2>/dev/null \
+      opencode plugin @mlflow/opencode 2>&1 \
         && echo "[entrypoint] MLflow plugin installed" \
         || echo "[entrypoint] WARN: MLflow plugin install failed"
 
@@ -62,8 +62,8 @@ data:
         || echo "[entrypoint] WARN: Could not resolve MLflow experiment ID"
       fi
 
-      cat > "$HOME/.mlflow-env" <<'MLENV'
-    export MLFLOW_TRACKING_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token 2>/dev/null)
+      cat > "$HOME/.mlflow-env" <<MLENV
+    export MLFLOW_TRACKING_TOKEN=\$(cat /var/run/secrets/kubernetes.io/serviceaccount/token 2>/dev/null)
     export MLFLOW_EXPERIMENT_ID="${MLFLOW_EXPERIMENT_ID:-}"
     MLENV
       echo 'source $HOME/.mlflow-env 2>/dev/null' >> "$HOME/.bashrc" 2>/dev/null || true

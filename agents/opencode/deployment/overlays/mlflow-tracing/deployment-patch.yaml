@@ -16,10 +16,10 @@ spec:
               value: "opencode-traces"
             - name: MLFLOW_TRACKING_INSECURE_TLS
               value: "true"  # dev/test only
-            # WARNING: NODE_TLS_REJECT_UNAUTHORIZED=0 disables TLS verification
-            # for ALL Node.js connections in the container (not just MLflow).
-            # Only use in dev/test clusters with self-signed certs.
-            # For production, mount the cluster CA bundle instead:
-            #   NODE_EXTRA_CA_CERTS=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
-            - name: NODE_TLS_REJECT_UNAUTHORIZED
-              value: "0"
+            # TLS: uncomment ONE of the following for clusters with non-public certs.
+            # Option A (production): mount the cluster CA bundle
+            # - name: NODE_EXTRA_CA_CERTS
+            #   value: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+            # Option B (dev/test only): disable TLS for ALL Node.js connections
+            # - name: NODE_TLS_REJECT_UNAUTHORIZED
+            #   value: "0"
