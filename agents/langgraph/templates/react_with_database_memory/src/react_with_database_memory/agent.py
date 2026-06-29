@@ -1,8 +1,9 @@
 from os import getenv
-from typing import Callable
+from typing import Any, Callable
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import AgentMiddleware
+from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
@@ -19,24 +20,24 @@ class FIFOMessageTrimmer(AgentMiddleware):
     Supports both sync (invoke/stream) and async (ainvoke/astream) execution.
     """
 
-    def __init__(self, max_messages: int = 5):
+    def __init__(self, max_messages: int = 5) -> None:
         self.max_messages = max_messages
 
     @staticmethod
-    def _drop_orphaned_tool_messages(messages):
+    def _drop_orphaned_tool_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
         """Remove leading tool messages that lost their preceding ai tool_calls."""
         while messages and messages[0].type == "tool":
             messages = messages[1:]
         return messages
 
-    def wrap_model_call(self, request, handler):
+    def wrap_model_call(self, request: Any, handler: Any) -> Any:
         messages = request.messages
         if len(messages) > self.max_messages:
             messages = messages[-self.max_messages :]
             messages = self._drop_orphaned_tool_messages(messages)
         return handler(request.override(messages=messages))
 
-    async def awrap_model_call(self, request, handler):
+    async def awrap_model_call(self, request: Any, handler: Any) -> Any:
         messages = request.messages
         if len(messages) > self.max_messages:
             messages = messages[-self.max_messages :]
@@ -45,9 +46,9 @@ class FIFOMessageTrimmer(AgentMiddleware):
 
 
 def get_graph_closure(
-    model_id: str = None,
-    base_url: str = None,
-    api_key: str = None,
+    model_id: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
 ) -> Callable:
     """Graph generator closure with OpenAI-compatible LLM client.
 
@@ -73,6 +74,10 @@ def get_graph_closure(
         base_url = base_url.rstrip("/") + "/v1"
 
     # Validate API key for non-local environments
+    if not base_url:
+        raise ValueError(
+            "BASE_URL is required. Set it via argument or BASE_URL env var."
+        )
     is_local = any(host in base_url for host in ["localhost", "127.0.0.1"])
     if not is_local and not api_key:
         raise ValueError("API_KEY is required for non-local environments.")
@@ -91,7 +96,9 @@ def get_graph_closure(
     max_messages_in_context = 5
 
     def get_graph(
-        memory: BaseCheckpointSaver, thread_id=None, system_prompt=default_system_prompt
+        memory: BaseCheckpointSaver,
+        thread_id: str | None = None,
+        system_prompt: str = default_system_prompt,
     ) -> CompiledStateGraph:
         """Get compiled graph with overwritten system prompt, if provided"""
 

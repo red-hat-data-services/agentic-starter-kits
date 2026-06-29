@@ -8,13 +8,18 @@ from harness.runner import TaskResult
 from harness.scorers import Score
 
 
+def _normalize_tool_name(name: str | None) -> str:
+    return (name or "").lower().replace(" ", "_").replace("-", "_")
+
+
 def score_tool_sequence(result: TaskResult, expected_tools: list[str]) -> Score:
     """Check if tools were called in the expected order.
 
     Uses longest common subsequence to measure how well the actual
     tool call order matches the expected sequence.
     """
-    actual = [tc["name"] for tc in result.tool_calls]
+    expected_tools = [_normalize_tool_name(t) for t in expected_tools]
+    actual = [_normalize_tool_name(tc["name"]) for tc in result.tool_calls]
 
     if not expected_tools:
         return Score(
@@ -72,8 +77,8 @@ def score_tool_selection(result: TaskResult, expected_tools: list[str]) -> Score
 
     Measures set overlap between expected and actual tools.
     """
-    actual = [tc["name"] for tc in result.tool_calls]
-    expected_set = set(expected_tools)
+    actual = [_normalize_tool_name(tc["name"]) for tc in result.tool_calls]
+    expected_set = set(_normalize_tool_name(t) for t in expected_tools)
     actual_set = set(actual)
 
     if not expected_set:
@@ -165,9 +170,11 @@ def score_hallucinated_tools(result: TaskResult, known_tools: list[str]) -> Scor
             details={"reason": "no tool calls"},
         )
 
-    known_set = set(known_tools)
+    known_set = set(_normalize_tool_name(t) for t in known_tools)
     hallucinated = [
-        tc["name"] for tc in result.tool_calls if tc["name"] not in known_set
+        tc["name"]
+        for tc in result.tool_calls
+        if _normalize_tool_name(tc["name"]) not in known_set
     ]
 
     legitimate_count = len(result.tool_calls) - len(hallucinated)

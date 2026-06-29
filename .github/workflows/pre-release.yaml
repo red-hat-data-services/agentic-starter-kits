@@ -1,0 +1,219 @@
+name: Pre-Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      rhoai_version:
+        description: 'RHOAI version (e.g., 3.6)'
+        required: true
+        type: string
+      short_urls_json:
+        description: 'JSON mapping of agent name → red.ht URL (optional)'
+        required: false
+        type: string
+        default: '{}'
+      skip_branch_creation:
+        description: 'Skip release branch creation (if branch already exists)'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Generate and validate manifests without creating PR'
+        required: false
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  create-release-branch:
+    name: Create Release Branch
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: ${{ !inputs.skip_branch_creation }}
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate version format
+        env:
+          RHOAI_VERSION: ${{ inputs.rhoai_version }}
+        run: |
+          if ! echo "$RHOAI_VERSION" | grep -qE '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+            echo "::error::Invalid version format '$RHOAI_VERSION'. Expected semver-like (e.g., 3.6 or 3.6.1)"
+            exit 1
+          fi
+
+      - name: Create release branch
+        env:
+          RHOAI_VERSION: ${{ inputs.rhoai_version }}
+        run: |
+          BRANCH="rhoai-${RHOAI_VERSION}"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "::error::Branch $BRANCH already exists. Use skip_branch_creation=true to skip."
+            exit 1
+          fi
+          git checkout -b "$BRANCH"
+          git push origin "$BRANCH"
+          echo "Created and pushed branch: $BRANCH"
+
+  discover-and-generate:
+    name: Discover Agents & Generate Manifests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: [create-release-branch]
+    if: ${{ always() && (needs.create-release-branch.result == 'success' || needs.create-release-branch.result == 'skipped') }}
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        with:
+          ref: main
+
+      - name: Validate version format
+        env:
+          RHOAI_VERSION: ${{ inputs.rhoai_version }}
+        run: |
+          if ! echo "$RHOAI_VERSION" | grep -qE '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+            echo "::error::Invalid version format '$RHOAI_VERSION'. Expected semver-like (e.g., 3.6 or 3.6.1)"
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Discover agents
+        run: |
+          python .github/scripts/discover_agents.py . > agents.json
+          echo "Discovered agents:"
+          cat agents.json
+
+      - name: Write short URLs file
+        env:
+          SHORT_URLS: ${{ inputs.short_urls_json }}
+        run: |
+          echo "$SHORT_URLS" > short_urls.json
+          echo "Short URLs:"
+          cat short_urls.json
+
+      - name: Generate manifests
+        env:
+          RHOAI_VERSION: ${{ inputs.rhoai_version }}
+        run: |
+          URLS_ARG=""
+          if python -c "import json,sys; sys.exit(0 if json.load(open('short_urls.json')) else 1)" 2>/dev/null; then
+            URLS_ARG="short_urls.json"
+          elif [ "$(cat short_urls.json)" != "{}" ]; then
+            echo "::warning::short_urls_json input was not valid JSON — using fallback GitHub URLs for all agents"
+          fi
+          python .github/scripts/generate_manifests.py \
+            agents.json \
+            manifests-output \
+            "$RHOAI_VERSION" \
+            $URLS_ARG
+
+      - name: Validate with kustomize build
+        run: |
+          kustomize build manifests-output
+
+      - name: Upload manifests artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: dashboard-manifests-rhoai-${{ inputs.rhoai_version }}
+          path: manifests-output/
+
+      - name: Upload agents metadata
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: agents-metadata
+          path: agents.json
+
+  create-dashboard-pr:
+    name: Create Dashboard PR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: [discover-and-generate]
+    if: ${{ !inputs.dry_run }}
+    timeout-minutes: 10
+    steps:
+      - name: Check for dashboard token
+        env:
+          HAS_TOKEN: ${{ secrets.DASHBOARD_PR_TOKEN != '' }}
+        run: |
+          if [ "$HAS_TOKEN" != "true" ]; then
+            echo "::error::DASHBOARD_PR_TOKEN secret is not configured. Set it in repo settings to enable dashboard PR creation."
+            exit 1
+          fi
+
+      - name: Download manifests
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: dashboard-manifests-rhoai-${{ inputs.rhoai_version }}
+          path: manifests-output/
+
+      - name: Checkout odh-dashboard
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        with:
+          repository: opendatahub-io/odh-dashboard
+          token: ${{ secrets.DASHBOARD_PR_TOKEN }}
+          path: odh-dashboard
+
+      - name: Place manifests and create PR
+        env:
+          GH_TOKEN: ${{ secrets.DASHBOARD_PR_TOKEN }}
+          RHOAI_VERSION: ${{ inputs.rhoai_version }}
+        run: |
+          cd odh-dashboard
+          BRANCH="agentic-starter-kits-rhoai-${RHOAI_VERSION}"
+          DEST="manifests/rhoai/apps/agentic-starter-kits"
+
+          git checkout -b "$BRANCH"
+
+          rm -rf "$DEST"
+          mkdir -p "$DEST"
+          cp ../manifests-output/* "$DEST/"
+
+          # Add agentic-starter-kits to parent kustomization if not already present
+          PARENT_KUST="manifests/rhoai/apps/kustomization.yaml"
+          if ! grep -q 'agentic-starter-kits' "$PARENT_KUST"; then
+            yq -i '.resources += ["./agentic-starter-kits"]' "$PARENT_KUST"
+          fi
+
+          git add "$DEST" "$PARENT_KUST"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "feat: add agentic-starter-kits manifests for RHOAI ${RHOAI_VERSION}"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --repo opendatahub-io/odh-dashboard \
+            --base main \
+            --head "$BRANCH" \
+            --title "feat: add agentic-starter-kits manifests for RHOAI ${RHOAI_VERSION}" \
+            --body "$(cat <<PRBODY
+          ## Summary
+
+          Adds OdhDocument tutorial manifests for agentic-starter-kits agents (RHOAI ${RHOAI_VERSION}).
+
+          - Auto-generated by the pre-release workflow in red-hat-data-services/agentic-starter-kits
+          - Manifests validated with \`kustomize build\`
+
+          ## References
+
+          - Release branch: \`rhoai-${RHOAI_VERSION}\`
+          - Jira: RHAIENG-5072
+          - Prior art: #7524
+          PRBODY
+          )"

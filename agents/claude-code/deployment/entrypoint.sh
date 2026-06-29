@@ -289,11 +289,29 @@ env = s.setdefault("env", {})
 env["MLFLOW_TRACKING_AUTH"] = os.environ.get("MLFLOW_TRACKING_AUTH", "kubernetes-namespaced")
 env["MLFLOW_WORKSPACE"] = os.environ.get("MLFLOW_WORKSPACE", "")
 env["MLFLOW_TRACKING_INSECURE_TLS"] = os.environ.get("MLFLOW_TRACKING_INSECURE_TLS", "false")
+# Inject SA token for npm plugin (Python SDK reads it automatically, Node.js does not)
+sa_token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+try:
+    with open(sa_token_path) as f:
+        env["MLFLOW_TRACKING_TOKEN"] = f.read().strip()
+except FileNotFoundError:
+    pass
 with open(sf, "w") as f:
     json.dump(s, f, indent=2)
 print("[entrypoint] INFO: MLflow settings injected into " + sf)
 '; then
         log_warn "MLflow settings injection failed. Tracing may not authenticate correctly."
+    fi
+
+    # Replace installed plugin bundle with pre-built version if available
+    # (needed until the npm plugin release includes the workspace header fix)
+    if [[ -f "/opt/mlflow-plugin/stop.cjs" ]]; then
+        local cached_stop
+        cached_stop=$(find "${CLAUDE_CONFIG_DIR:-/workspace/.claude}/plugins" -name "stop.cjs" -path "*/mlflow*" 2>/dev/null | head -1)
+        if [[ -n "${cached_stop}" ]]; then
+            cp /opt/mlflow-plugin/stop.cjs "${cached_stop}"
+            log_info "Replaced plugin bundle with pre-built version"
+        fi
     fi
 }
 

@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import json
 from os import getenv
-from typing import Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import pandas as pd
 from dotenv import load_dotenv
 from pydantic import BaseModel, create_model
+
+if TYPE_CHECKING:
+    from langchain_llama_stack import ChatLlamaStack
+    from langchain_openai import ChatOpenAI
 
 load_dotenv()
 
@@ -15,7 +21,7 @@ def dataframe_to_json_schema(
     exclude_columns: list[str] | None = None,
     max_enum_size: int = 50,
     required_columns: list[str] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """
     Retrieve a JSON Schema (dict) from a pandas DataFrame.
 
@@ -105,6 +111,7 @@ def json_schema_to_pydantic_model(
             )
         typ = prop.get("type", "string")
         enum_vals = prop.get("enum")
+        py_type = None
 
         if enum_vals is not None:
             if not enum_vals:
@@ -125,17 +132,18 @@ def json_schema_to_pydantic_model(
                         f"Unsupported JSON Schema type {typ!r} for field {name!r}"
                     )
 
+        assert py_type is not None
         field_definitions[name] = (
-            (py_type, ...) if name in required else (py_type | None, None)
+            (py_type, ...) if name in required else (py_type | None, None)  # ty: ignore[unsupported-operator]
         )
 
     return create_model(class_name, **field_definitions)
 
 
-def get_chat_from_env():
+def get_chat_from_env() -> ChatOpenAI:
     """
     ChatOpenAI from BASE_URL, MODEL_ID, and optional API_KEY (OpenAI-compatible API:
-    Llama Stack, Ollama, OpenAI, …). Configure everything in `.env` — no separate code path
+    OGX, Ollama, OpenAI, …). Configure everything in `.env` — no separate code path
     for Ollama; use e.g. BASE_URL=http://localhost:11434/v1, MODEL_ID=llama3.2, API_KEY=ollama.
     """
     from langchain_openai import ChatOpenAI
@@ -162,7 +170,7 @@ def get_chat_from_env():
     )
 
 
-def get_chat_llama_stack():
+def get_chat_llama_stack() -> ChatLlamaStack:
     from langchain_llama_stack import ChatLlamaStack
 
     llama_base_url = getenv("LLAMA_STACK_CLIENT_BASE_URL")

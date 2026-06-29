@@ -10,7 +10,7 @@ services:
       LANGFLOW_DATABASE_URL: "postgresql://${POSTGRES_USER:-langflow}:${POSTGRES_PASSWORD:-langflow}@postgres:5432/${POSTGRES_DB:-langflow}"
       LANGFLOW_CONFIG_DIR: /var/lib/langflow
       LANGFLOW_AUTO_LOGIN: "true"
-      # Allow Langflow to reach host-local services (Ollama, LlamaStack).
+      # Allow Langflow to reach host-local services (Ollama, OGX).
       # SSRF protection is on by default in 1.9+ and blocks private IPs.
       LANGFLOW_SSRF_PROTECTION_ENABLED: "true"
       LANGFLOW_SSRF_ALLOWED_HOSTS: "host.containers.internal"

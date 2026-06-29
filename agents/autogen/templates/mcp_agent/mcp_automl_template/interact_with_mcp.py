@@ -1,6 +1,7 @@
 import asyncio
 import textwrap
 from os import getenv
+from typing import Any
 
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langgraph.prebuilt import create_react_agent
@@ -29,7 +30,7 @@ help_message = textwrap.dedent(
 
 
 # Function to send a query to the agent
-async def ask_question(agent, user_input: str):
+async def ask_question(agent: Any, user_input: str) -> None:
     response = await agent.ainvoke(
         {"messages": [{"role": "user", "content": user_input}]}
     )
@@ -38,7 +39,7 @@ async def ask_question(agent, user_input: str):
 
 
 # Main chat loop
-async def chat_loop():
+async def chat_loop() -> None:
     mcp_url = getenv("MCP_SERVER_URL", "http://127.0.0.1:8080/sse")
     print(mcp_url)
     async with sse_client(url=mcp_url) as (read, write):

@@ -49,7 +49,7 @@ from .evaluations import QuerySpec, get_benchmark, load_queries, resolve_scorers
 try:
     from harness.mlflow_client import MLflowTraceClient
 except ImportError:
-    MLflowTraceClient = None  # type: ignore[misc,assignment]
+    MLflowTraceClient = None  # type: ignore[misc,assignment]  # ty: ignore[invalid-assignment]
 
 logger = logging.getLogger(__name__)
 

@@ -291,7 +291,7 @@ Claude Code pod  ──HTTP──>  OGX (API Gateway)  ──HTTP──>  vLLM s
 
 #### Prerequisites
 
-- OGX deployed and serving. See [`ogx/README.md`](ogx/README.md) for deployment instructions. Some versions require PostgreSQL as storage backend; check your OGX version's requirements.
+- OGX deployed and serving `GET /v1/health`, `GET /v1/models`, and `POST /v1/messages`. See [`ogx/README.md`](ogx/README.md) for one standalone deployment pattern, or reuse an existing OGX endpoint in your cluster.
 - A vLLM server accessible from OGX.
 - **Context window**: minimum 32K tokens. **128K+ strongly recommended** for realistic coding work.
 
@@ -303,7 +303,7 @@ Edit `deployment-ogx-vllm.yaml`. Search for placeholder values and replace them:
 
 - `ANTHROPIC_BASE_URL`: Your OGX route URL (replace `YOUR_OGX_URL`)
 
-Replace model IDs in the **ConfigMap** and the **Deployment** env vars. OGX uses the `vllm/` prefix to route requests to the vLLM backend, so all model IDs must use `vllm/<model-id>` format. If OGX serves only one model, use the same value everywhere. If it serves multiple models, you can assign different models to each role.
+Replace model IDs in the **ConfigMap** and the **Deployment** env vars. OGX uses the `vllm/` prefix to route requests to the vLLM backend, so all model IDs must use the exact `vllm/<model-id>` value returned by `GET /v1/models`. If OGX serves only one model, use the same value everywhere. If it serves multiple models, you can assign different models to each role.
 
 | Variable | Purpose | Example (single model) |
 |----------|---------|----------------------|
@@ -773,7 +773,11 @@ After login, select your workspace (the namespace name, e.g., `my-claude-code`) 
 
 Each session captures tool call sequences, token counts (input/output/total), session duration, model name, and status as OTel spans. The stop-hook fires after the session ends, so there is zero impact on agent response times. The trace schema works identically across all four backends.
 
-**Version note:** MLflow 3.13+ switches to an npm plugin that does not yet support RHOAI's `kubernetes-namespaced` auth or `x-mlflow-workspace` header. Pin to 3.12 until upstream adds support.
+### MLflow version options
+
+The default Containerfile uses MLflow 3.12 with a Python hook. MLflow 3.14+ also supports an npm plugin approach — uncomment the npm plugin env var in your deployment manifest to enable it. The plugin must be built from [upstream master](https://github.com/mlflow/mlflow/tree/master/libs/typescript) until the next plugin release syncs the fix. See [mlflow-tracing.md](mlflow-tracing.md) for a comparison of both approaches.
+
+> **TLS note:** The npm plugin currently requires `NODE_TLS_REJECT_UNAUTHORIZED=0` or `NODE_EXTRA_CA_CERTS` for clusters with non-public TLS certificates. Both are process-wide Node.js settings. Upstream work is in progress to support `MLFLOW_TRACKING_INSECURE_TLS` and `MLFLOW_TRACKING_SERVER_CERT_PATH` scoped to MLflow connections only ([mlflow#24140](https://github.com/mlflow/mlflow/issues/24140)). Kubernetes-native auth (`MLFLOW_TRACKING_AUTH`) is also being added to the TypeScript SDK ([mlflow#24141](https://github.com/mlflow/mlflow/issues/24141)).
 
 For detailed tracing investigation results and benchmark data, see [mlflow-tracing.md](mlflow-tracing.md).
 
@@ -906,10 +910,10 @@ curl -s -X POST "https://YOUR_VLLM_ENDPOINT/v1/messages" \
   }'
 ```
 
-**OGX:** Use the same commands with the OGX URL and `vllm/` model prefix:
+**OGX:** Use the same commands with your OGX route URL and the `vllm/` model prefix reported by `GET /v1/models`:
 
 ```bash
-OGX_URL=$(oc get route ogx -o jsonpath='{.spec.host}')
+OGX_URL=<your-ogx-route-host>
 curl -s "https://$OGX_URL/v1/health"
 curl -s "https://$OGX_URL/v1/models"
 

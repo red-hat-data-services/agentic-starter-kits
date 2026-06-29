@@ -264,7 +264,7 @@ cd /path/to/agentic-starter-kits
 uv run --extra test python -m pytest agents/langflow/templates/simple_tool_calling_agent/tests/behavioral/ --collect-only
 
 # Run against live agent
-LANGFLOW_AGENT_URL=<langflow-url> \
+LANGFLOW_TOOL_CALLING_AGENT_URL=<langflow-url> \
 LANGFLOW_FLOW_ID=<flow-id> \
 uv run --extra test python -m pytest agents/langflow/templates/simple_tool_calling_agent/tests/behavioral/ -v
 
@@ -274,7 +274,7 @@ uv run --extra test python -m pytest agents/langflow/templates/simple_tool_calli
 
 | Env var | Description |
 |---------|-------------|
-| `LANGFLOW_AGENT_URL` | Langflow instance URL (default: `http://localhost:7860`) |
+| `LANGFLOW_TOOL_CALLING_AGENT_URL` | Langflow instance URL (default: `http://localhost:7860`) |
 | `LANGFLOW_FLOW_ID` | **Required.** Flow ID — changes on re-import, discover via `GET /api/v1/flows/` |
 
 **Differences from standard agents:**

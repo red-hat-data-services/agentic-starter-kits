@@ -52,7 +52,7 @@ markers = [
     "vanilla_python: Vanilla Python OpenAI Responses agent (search_price + search_reviews)",
     "autogen_mcp: AutoGen MCP agent (add + sub via MCP)",
     "crewai_websearch: CrewAI web search agent (Web Search tool)",
-    "agentic_rag: LangGraph Agentic RAG agent (retriever tool via LlamaStack)",
+    "agentic_rag: LangGraph Agentic RAG agent (retriever tool via OGX vector_io)",
     "langgraph_db_memory: LangGraph DB Memory agent (search + PostgreSQL conversation memory)",
     "llamaindex_websearch: LlamaIndex Websearch agent (dummy_web_search tool)",
     "langflow_tool_calling: Langflow Simple Tool Calling Agent (get_forecast + search_parks + park_alerts)",

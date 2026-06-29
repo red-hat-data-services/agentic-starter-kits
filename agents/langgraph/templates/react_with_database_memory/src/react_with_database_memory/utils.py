@@ -19,6 +19,24 @@ def get_database_uri() -> str:
     database = getenv("POSTGRES_DB")
     port = getenv("POSTGRES_PORT")
 
+    missing = [
+        name
+        for name, val in [
+            ("POSTGRES_HOST", host),
+            ("POSTGRES_USER", user),
+            ("POSTGRES_PASSWORD", password),
+            ("POSTGRES_DB", database),
+            ("POSTGRES_PORT", port),
+        ]
+        if not val
+    ]
+    if missing:
+        raise ValueError(
+            f"Required environment variables not set: {', '.join(missing)}"
+        )
+
+    assert host and user and password and database and port
+
     safe_host = quote_plus(host)
     safe_user = quote_plus(user)
     safe_password = quote_plus(password)
