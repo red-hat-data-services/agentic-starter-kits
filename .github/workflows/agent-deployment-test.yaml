@@ -50,9 +50,7 @@ jobs:
   test-agent:
     name: "${{ matrix.agent.name }}"
     needs: verify-cluster-connection
-    if: >-
-      github.repository == 'red-hat-data-services/agentic-starter-kits'
-      && (matrix.agent.name != 'autogen-mcp-agent' || vars.MCP_SERVER_URL != '')
+    if: github.repository == 'red-hat-data-services/agentic-starter-kits'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -88,6 +86,7 @@ jobs:
           cluster-api-url: ${{ secrets.CLUSTER_API_URL }}
 
       - name: Run integration test
+        if: matrix.agent.name != 'autogen-mcp-agent' || vars.MCP_SERVER_URL != ''
         working-directory: ${{ matrix.agent.dir }}
         env:
           POSTGRES_HOST: ${{ matrix.POSTGRES_HOST }}
