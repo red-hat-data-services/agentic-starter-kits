@@ -31,18 +31,19 @@ def agent_name(agent_dir):
 
 def _write_env_file(agent_dir, container_image):
     """Write a .env file so Makefile targets can source it."""
-    missing = [v for v in ("BASE_URL", "MODEL_ID") if v not in os.environ]
+    missing = [v for v in ("API_KEY", "BASE_URL", "MODEL_ID") if v not in os.environ]
     if missing:
         pytest.fail(
             f"Missing required env vars: {', '.join(missing)}. "
-            "Set them in the CI workflow or export locally."
+            "This agent requires a real OpenAI API key — set OPENAI_API_KEY "
+            "in CI secrets or export API_KEY locally."
         )
     env_path = agent_dir / ".env"
     orig_env = None
     if env_path.exists():
         orig_env = env_path.read_text(encoding="utf-8")
     env_path.write_text(
-        f"API_KEY={os.environ.get('API_KEY', 'not-needed')}\n"
+        f"API_KEY={os.environ['API_KEY']}\n"
         f"BASE_URL={os.environ['BASE_URL']}\n"
         f"MODEL_ID={os.environ['MODEL_ID']}\n"
         f"CONTAINER_IMAGE={container_image}\n",
