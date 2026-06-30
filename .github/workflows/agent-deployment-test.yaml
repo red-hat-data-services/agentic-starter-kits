@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup cluster tools
         uses: ./.github/actions/setup-cluster
@@ -61,13 +61,21 @@ jobs:
           - { name: langgraph-hitl-agent, dir: agents/langgraph/templates/human_in_the_loop }
           - { name: crewai-websearch-agent, dir: agents/crewai/templates/websearch_agent }
           - { name: google-adk-agent, dir: agents/google/templates/adk }
+          - { name: llamaindex-websearch-agent, dir: agents/llamaindex/templates/websearch_agent }
+          - { name: langgraph-db-memory-agent, dir: agents/langgraph/templates/react_with_database_memory }
+        include:
+          - agent: { name: langgraph-db-memory-agent, dir: agents/langgraph/templates/react_with_database_memory }
+            POSTGRES_HOST: ${{ vars.POSTGRES_HOST }}
+            POSTGRES_PORT: ${{ vars.POSTGRES_PORT }}
+            POSTGRES_DB: ${{ vars.POSTGRES_DB }}
+            POSTGRES_USER: ${{ vars.POSTGRES_USER }}
     env:
       API_KEY: ${{ vars.API_KEY }}
       BASE_URL: ${{ vars.BASE_URL }}
       MODEL_ID: ${{ vars.MODEL_ID }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup cluster tools
         uses: ./.github/actions/setup-cluster
@@ -77,6 +85,12 @@ jobs:
 
       - name: Run integration test
         working-directory: ${{ matrix.agent.dir }}
+        env:
+          POSTGRES_HOST: ${{ matrix.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ matrix.POSTGRES_PORT }}
+          POSTGRES_DB: ${{ matrix.POSTGRES_DB }}
+          POSTGRES_USER: ${{ matrix.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: make test-integration
 
       - name: Upload test results

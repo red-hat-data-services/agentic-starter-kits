@@ -110,12 +110,15 @@ def run_eval(
         if tracking_uri and experiment:
             mlflow = MLflowTraceClient(tracking_uri, experiment)
 
+    _start_times: dict[int, int] = {}
+
     async def _run(
         query: str,
         expected_tools: list[str] | None = None,
         timeout_seconds: float = 30.0,
         max_tokens_budget: int | None = None,
         model: str | None = None,
+        enrich: bool = True,
     ) -> TaskResult:
         config = TaskConfig(
             agent_url=agent_url,
@@ -128,8 +131,9 @@ def run_eval(
         )
         request_start_ms = int(time.time() * 1000)
         result = await run_task(config, client=http_client)
+        _start_times[id(result)] = request_start_ms
 
-        if mlflow is not None and result.success:
+        if enrich and mlflow is not None and result.success:
             try:
                 await asyncio.to_thread(
                     mlflow.enrich_eval_result, result, since_ms=request_start_ms
@@ -141,4 +145,23 @@ def run_eval(
 
         return result
 
+    async def _enrich_batch(results: list[TaskResult]) -> None:
+        if mlflow is None:
+            return
+        for result in results:
+            if not result.success:
+                continue
+            since_ms = _start_times.pop(id(result), None)
+            if since_ms is None:
+                continue
+            try:
+                await asyncio.to_thread(
+                    mlflow.enrich_eval_result, result, since_ms=since_ms
+                )
+            except Exception:
+                msg = "MLflow enrichment failed — tool scoring will degrade to content heuristics"
+                logging.getLogger(__name__).warning(msg, exc_info=True)
+                warnings.warn(msg, stacklevel=2)
+
+    _run.enrich_batch = _enrich_batch  # type: ignore[attr-defined]
     return _run

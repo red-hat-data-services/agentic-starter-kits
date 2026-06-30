@@ -80,14 +80,15 @@ async def test_no_hallucinated_tools(
     run_eval: Any, known_tools: list[str], score_collector: Any
 ) -> None:
     """Agent must only call tools that exist in its schema."""
-    result = await run_eval("What is the weather in New York?")
+    query = "What is the weather in New York?"
+    result = await run_eval(query)
     assert result.success, f"Agent request failed: {result.error}"
 
     if not result.tool_calls:
         pytest.skip("tool_calls not exposed — check Langflow content_blocks parsing")
 
     score = score_hallucinated_tools(result, known_tools)
-    score_collector.record("What is the weather in New York?", score)
+    score_collector.record(query, score)
     assert score.passed, (
         f"Hallucinated tools detected: {score.details.get('hallucinated')}"
     )
@@ -95,14 +96,15 @@ async def test_no_hallucinated_tools(
 
 async def test_tool_call_has_valid_args(run_eval: Any, score_collector: Any) -> None:
     """All tool call arguments must be valid JSON with required fields."""
-    result = await run_eval("What is the weather in Chicago?")
+    query = "What is the weather in Chicago?"
+    result = await run_eval(query)
     assert result.success, f"Agent request failed: {result.error}"
 
     if not result.tool_calls:
         pytest.skip("tool_calls not exposed — check Langflow content_blocks parsing")
 
     score = score_tool_call_validity(result)
-    score_collector.record("What is the weather in Chicago?", score)
+    score_collector.record(query, score)
     assert score.passed, f"Invalid tool call arguments: {score.details.get('invalid')}"
 
 

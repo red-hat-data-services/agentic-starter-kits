@@ -70,10 +70,10 @@ def _make_tool_handler_flat(
             )
     sig = inspect.Signature(parameters=params_list)
 
-    def handler(**kwargs: Any) -> dict | str:
+    def handler(**kwargs: Any) -> dict[str, Any] | str:
         cleaned = _coerce_null_in_kwargs(kwargs)
         # All model fields: use provided value or None when not required / not provided
-        valid = {name: cleaned.get(name) for name in fields}
+        valid: dict[str, Any] = {name: cleaned.get(name) for name in fields}
         instance = model_class(**valid)
         if deployment_url_env and deployment_token_env:
             url = getenv(deployment_url_env)

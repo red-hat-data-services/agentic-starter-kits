@@ -1,0 +1,72 @@
+# ty config for local dev and CI.
+# Global rules suppress noise when deps are not installed (local dev).
+# CI overrides unresolved-import via --error so it validates imports
+# against installed deps.
+
+[rules]
+unresolved-import = "ignore"
+unresolved-attribute = "ignore"
+invalid-argument-type = "ignore"
+
+# ── Per-file overrides for framework/library quirks ──────────────────
+# These suppress errors that cannot be fixed without changing the
+# framework or library itself. Each override documents why.
+
+# CrewAI @agent/@task decorators inject constructor args from YAML config;
+# ty cannot see the decorator's runtime kwarg injection. Also uses mlflow
+# monkey-patching for tool tracing.
+[[overrides]]
+include = ["agents/crewai/templates/websearch_agent/src/crewai_web_search/crew.py"]
+rules = { missing-argument = "ignore", invalid-assignment = "ignore" }
+
+# langchain_llama_stack is installed from a non-standard source and
+# lacks py.typed / stub packages.
+[[overrides]]
+include = ["agents/autogen/templates/mcp_agent/mcp_automl_template/utils.py"]
+rules = { unresolved-import = "ignore", no-matching-overload = "ignore" }
+
+# create_react_agent is deprecated in langgraph but not yet migrated
+# in this demo script.
+[[overrides]]
+include = ["agents/autogen/templates/mcp_agent/mcp_automl_template/interact_with_mcp.py"]
+rules = { deprecated = "ignore" }
+
+# litellm mistypes suppress_debug_info as Literal[False] and telemetry
+# as Literal[True] — setting them to other values is intentional.
+[[overrides]]
+include = ["agents/google/templates/adk/src/adk_agent/agent.py"]
+rules = { invalid-assignment = "ignore" }
+
+# workflow.compile() returns CompiledStateGraph with generic params that
+# don't match the bare CompiledStateGraph annotation (variance mismatch).
+[[overrides]]
+include = ["agents/langgraph/templates/agentic_rag/src/agentic_rag/agent.py"]
+rules = { invalid-return-type = "ignore" }
+
+# Monkey-patching methods with mlflow trace wrappers — intentional
+# signature mismatch (wrapper uses broader *args/**kwargs).
+[[overrides]]
+include = [
+    "agents/autogen/templates/mcp_agent/src/autogen_agent_base/tracing.py",
+    "agents/vanilla_python/templates/openai_responses_agent/main.py",
+    "agents/vanilla_python/templates/openai_responses_agent/src/openai_responses_agent/agent.py",
+    "agents/a2a/templates/langgraph_crewai_agent/src/a2a_langgraph_crewai/crew_a2a_server.py",
+]
+rules = { invalid-assignment = "ignore" }
+
+# LangChain response objects use dynamic attributes (tool_calls, content)
+# that ty cannot resolve statically.
+[[overrides]]
+include = ["agents/langgraph/templates/*/examples/ai_service.py"]
+rules = { not-subscriptable = "ignore" }
+
+# Example script uses sibling-file imports (run from examples/ dir at
+# runtime); ty cannot resolve them from the repo root.
+[[overrides]]
+include = ["agents/langgraph/templates/react_with_database_memory/examples/execute_ai_service_locally.py"]
+rules = { unresolved-import = "ignore" }
+
+# CI-only script — github package not installed in agent venvs.
+[[overrides]]
+include = [".github/scripts/*.py"]
+rules = { unresolved-import = "ignore" }

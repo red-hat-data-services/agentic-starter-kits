@@ -193,13 +193,12 @@ Edit `.env` with your model endpoint, RAG configuration, and container image.
 
 #### Using an OGX server on the cluster
 
-If an OGX server is already deployed on the cluster (e.g., in the `ogx-serving` namespace), use its
-external route URL so both LLM and vector store operations go through OGX:
+If an OGX server is already deployed on the cluster, use its external route URL so both LLM and vector store operations go through OGX:
 
 ```ini
 API_KEY=not-needed
 BASE_URL=https://ogx-route-host/v1
-MODEL_ID=vllm//mnt/models
+MODEL_ID=vllm/qwen2-5-7b-instruct
 CONTAINER_IMAGE=quay.io/your-username/langgraph-agentic-rag:latest
 
 # RAG Configuration
@@ -213,8 +212,8 @@ DOCS_TO_LOAD=./data/sample_knowledge.txt
 To discover the OGX route URL and available models on your cluster:
 
 ```bash
-# Get the OGX route
-oc get route -n ogx-serving ogx -o jsonpath='{.spec.host}'
+# Pick the OGX route you want to use
+oc get route -A | rg ogx
 
 # Check available models
 curl -s https://<route-host>/v1/models | python3 -m json.tool
@@ -226,7 +225,7 @@ curl -s https://<route-host>/v1/models | python3 -m json.tool
 - `BASE_URL` - should end with `/v1`. For local OGX, use `http://localhost:8321/v1`. For OGX on the cluster, use the external route URL.
 - `MODEL_ID` - model identifier available on your endpoint
   - **Local OGX:** requires `ollama/` prefix (e.g., `ollama/Llama3.1:8B`)
-  - **Cluster deployment:** discover available models via `curl $BASE_URL/models` (see example above) or check your model serving dashboard
+  - **Cluster deployment:** discover available models via `curl $BASE_URL/models` (see example above) and use the exact value OGX returns, such as `vllm/qwen2-5-7b-instruct`
 - `VECTOR_STORE_PROVIDER` - vector store backend configured in your OGX server. Use `pgvector` or `milvus` depending on your OGX deployment.
 - `CONTAINER_IMAGE` -- full image path where the agent container will be pushed and pulled from. The image is built
   locally, pushed to this registry, and then deployed to OpenShift.

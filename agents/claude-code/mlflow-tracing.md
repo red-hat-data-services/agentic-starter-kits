@@ -4,6 +4,22 @@
 
 Deploy Claude Code as a containerized agent on Red Hat OpenShift AI and wire it up to the MLflow instance running on the same cluster. To validate the full tracing stack, the same prompt, **"build me a tetris game"**, was run through three different backends: Vertex AI (Google Cloud), vLLM directly, and OGX routing to vLLM. In all three cases, MLflow captured the complete session trace including every tool call, token usage, latency, and the full execution waterfall. The sections below document the telemetry investigation, the tracing prototype, and session-level metrics.
 
+## Tracing Approaches
+
+There are two ways to wire up MLflow tracing with Claude Code on RHOAI:
+
+| | Python hook (MLflow 3.12) | npm plugin (MLflow 3.14+) |
+|---|---|---|
+| **How it works** | Python stop-hook processes the session file and sends traces via the Python SDK | Node.js stop-hook (Claude Code plugin) processes the session file and sends traces via the TypeScript SDK |
+| **Auth** | `kubernetes-namespaced` plugin handles token and workspace automatically | `MLFLOW_TRACKING_TOKEN` and `MLFLOW_WORKSPACE` must be set manually (entrypoint injects these from the pod's service account) |
+| **Containerfile deps** | `python3.12`, `python3.12-pip` | `python3.12`, `python3.12-pip`, `nodejs`, `npm` |
+| **Workspace header** | Handled by Python SDK (`X-MLFLOW-WORKSPACE`) | Added upstream in [mlflow#23927](https://github.com/mlflow/mlflow/pull/23927), included in MLflow 3.14 |
+| **Status** | Default, works out of the box | Requires building plugin from upstream master until a new plugin version is released |
+
+Both approaches produce the same trace schema and capture the same data (tool calls, token counts, latency, session metadata). The npm plugin is the recommended approach once the plugin bundle is officially released with workspace support, as it adds write-ahead-log durability and lower latency. For setup instructions, see the [MLflow Tracing section of the deployment guide](README.md#mlflow-tracing-optional).
+
+To use the npm plugin, uncomment Option B in the [Containerfile](deployment/Containerfile) and the npm plugin env var in your deployment manifest.
+
 ---
 
 ## Inventory OGX Telemetry Hooks and MLflow Integration Points

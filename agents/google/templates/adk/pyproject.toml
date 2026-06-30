@@ -1,7 +1,7 @@
 [project]
 name = "adk_agent"
 version = "0.1.0"
-description = "A template for a Google ADK 2.0 LLM app deployable on RHOAI Cloud as an ai_service. This example uses ADK with LiteLLM to connect to a LlamaStack-compatible endpoint."
+description = "A template for a Google ADK 2.0 LLM app deployable on RHOAI Cloud as an ai_service. This example uses ADK with LiteLLM to connect to an OGX-compatible endpoint."
 authors = [{ name = "Your Name", email = "you@example.com" }]
 license = { text = "MIT" }
 requires-python = ">=3.12,<=3.14"

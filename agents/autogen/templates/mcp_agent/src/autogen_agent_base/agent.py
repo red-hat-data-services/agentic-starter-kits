@@ -1,5 +1,5 @@
+from collections.abc import Callable
 from os import getenv
-from typing import Callable
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ModelFamily
@@ -13,12 +13,12 @@ def get_agent_chat(
     base_url: str | None = None,
     api_key: str | None = None,
     tools: list | None = None,
-) -> Callable:
+) -> Callable[..., AssistantAgent]:
     """Workflow generator closure using OpenAI or OpenAI-compatible API.
 
     Args:
         model_id: LLM model identifier.
-        base_url: Base URL for the API (e.g. OpenAI-compatible or Llama Stack).
+        base_url: Base URL for the API (e.g. OpenAI-compatible or OGX).
         api_key: API key (optional for some endpoints).
         tools: Optional list of tools (e.g. MCP tool adapters). When None, uses TOOLS from this module.
     """

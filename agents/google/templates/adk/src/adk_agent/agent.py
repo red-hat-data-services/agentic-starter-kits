@@ -17,14 +17,14 @@ APP_NAME = "adk_agent"
 
 
 def get_agent(
-    model_id: str = None,
-    base_url: str = None,
-    api_key: str = None,
+    model_id: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
 ) -> LlmAgent:
-    """Build and return a Google ADK LlmAgent configured for LlamaStack via LiteLLM.
+    """Build and return a Google ADK LlmAgent configured for OGX via LiteLLM.
 
     Uses the LiteLlm model connector with the "openai/" provider prefix to route
-    inference requests through LlamaStack's OpenAI-compatible API.
+    inference requests through OGX's OpenAI-compatible API.
 
     Args:
         model_id: LLM model identifier. Uses MODEL_ID env if omitted.
@@ -53,7 +53,7 @@ def get_agent(
     if not is_local and not api_key:
         raise ValueError("API_KEY is required for non-local environments.")
 
-    # Configure LiteLLM's OpenAI provider environment for LlamaStack
+    # Configure LiteLLM's OpenAI provider environment for OGX
     os.environ["OPENAI_API_BASE"] = base_url
     os.environ["OPENAI_API_KEY"] = api_key or "not-needed-for-local-development"
 
@@ -79,9 +79,9 @@ def get_agent(
 
 
 def get_runner(
-    model_id: str = None,
-    base_url: str = None,
-    api_key: str = None,
+    model_id: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
 ) -> InMemoryRunner:
     """Build an InMemoryRunner wrapping the ADK agent.
 
