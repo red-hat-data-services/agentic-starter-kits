@@ -85,6 +85,7 @@ Only present in agents that need manual tracing (Vanilla Python and CrewAI). Lan
 #### `check_mlflow_health(mlflow_tracking_uri, max_wait_time, retry_interval)`
 
 Polls `{mlflow_tracking_uri}/health` with retry logic. Raises `RuntimeError` if the server is unreachable after `max_wait_time` seconds. The timeout for each individual HTTP request is capped at `min(5, remaining_budget)` to respect the overall time budget. When auth or TLS env vars are set (`MLFLOW_TRACKING_TOKEN`, `MLFLOW_TRACKING_AUTH`, `MLFLOW_TRACKING_SERVER_CERT_PATH`, `MLFLOW_TRACKING_INSECURE_TLS`), the health check applies them to the raw `requests.get()` call — the MLflow SDK is not yet configured at this point. See [MLflow on OpenShift: Authentication and TLS](docs/mlflow-openshift-auth-and-tls.md) for details on each variable.
+NOTE : Currently only [`react_agent`](agents/langgraph/templates/react_agent/) implements this — other python agents' health checks do not yet handle auth or TLS.
 
 ### Startup Flow
 
