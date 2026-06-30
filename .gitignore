@@ -20,6 +20,7 @@ CLAUDE.local.md
 .cursor
 .pre-commit-cache/
 .worktrees/
+.build-context.*
 **/REFACTORING.md
 STATUS.md
 .e2e-workdir

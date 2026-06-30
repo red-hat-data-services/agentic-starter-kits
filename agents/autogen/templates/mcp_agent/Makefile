@@ -5,6 +5,15 @@ VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
 
+STAGE_BUILD_CONTEXT = \
+	BUILD_CONTEXT=$$(mktemp -d ./.build-context.XXXXXX) && \
+	trap 'rm -rf "$$BUILD_CONTEXT"' EXIT && \
+	cp Dockerfile pyproject.toml main.py "$$BUILD_CONTEXT"/ && \
+	cp -r src playground "$$BUILD_CONTEXT"/ && \
+	cp -r ../../../../images "$$BUILD_CONTEXT"/images && \
+	if [ -d ./images ]; then cp -r ./images/. "$$BUILD_CONTEXT"/images/; fi && \
+	mkdir -p "$$BUILD_CONTEXT"/components && cp -r ../../../../components/auth "$$BUILD_CONTEXT"/components/auth
+
 .PHONY: init env ollama ogx-server run-app run-app-fresh run-mcp interact-mcp build push build-openshift deploy deploy-mcp undeploy undeploy-mcp test test-integration dry-run dry-run-mcp help
 
 help: ## Show this help
@@ -94,13 +103,7 @@ build: ## Build container image locally (podman/docker)
 	@[ -n "$(CONTAINER_CLI)" ] || { echo "ERROR: neither podman nor docker found in PATH"; exit 1; } && \
 	  source .env && \
 	  [ -n "$${CONTAINER_IMAGE}" ] || { echo "ERROR: CONTAINER_IMAGE is not set in .env"; exit 1; } && \
-	  BUILD_CONTEXT=$$(mktemp -d ./.build-context.XXXXXX) && \
-	  trap 'rm -rf "$$BUILD_CONTEXT"' EXIT && \
-	  cp Dockerfile pyproject.toml main.py "$$BUILD_CONTEXT"/ && \
-	  cp -r src playground "$$BUILD_CONTEXT"/ && \
-	  cp -r ../../../../images "$$BUILD_CONTEXT"/images && \
-	  if [ -d ./images ]; then cp -r ./images/. "$$BUILD_CONTEXT"/images/; fi && \
-	  mkdir -p "$$BUILD_CONTEXT"/components && cp -r ../../../../components/auth "$$BUILD_CONTEXT"/components/auth && \
+	  $(STAGE_BUILD_CONTEXT) && \
 	  $(CONTAINER_CLI) build --platform linux/amd64 -t "$${CONTAINER_IMAGE}" -f "$$BUILD_CONTEXT/Dockerfile" "$$BUILD_CONTEXT"
 
 push: ## Push container image to registry
@@ -110,13 +113,7 @@ push: ## Push container image to registry
 	  $(CONTAINER_CLI) push "$${CONTAINER_IMAGE}"
 
 build-openshift: ## Build image in-cluster via OpenShift BuildConfig (no podman/docker needed)
-	@BUILD_CONTEXT=$$(mktemp -d ./.build-context.XXXXXX) && \
-	  trap 'rm -rf "$$BUILD_CONTEXT"' EXIT && \
-	  cp Dockerfile pyproject.toml main.py "$$BUILD_CONTEXT"/ && \
-	  cp -r src playground "$$BUILD_CONTEXT"/ && \
-	  cp -r ../../../../images "$$BUILD_CONTEXT"/images && \
-	  if [ -d ./images ]; then cp -r ./images/. "$$BUILD_CONTEXT"/images/; fi && \
-	  mkdir -p "$$BUILD_CONTEXT"/components && cp -r ../../../../components/auth "$$BUILD_CONTEXT"/components/auth && \
+	@$(STAGE_BUILD_CONTEXT) && \
 	  oc new-build --strategy=docker --binary --name=$(AGENT_NAME) --to=$(AGENT_NAME):latest 2>/dev/null || true && \
 	  oc start-build $(AGENT_NAME) --from-dir="$$BUILD_CONTEXT" --follow && \
 	  NS=$$(oc project -q) && \
