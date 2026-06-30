@@ -11,7 +11,9 @@ NORMALIZED_DOCKERFILE = re.sub(r"\s+", " ", DOCKERFILE)
 
 
 def test_makefile_stages_auth_component_for_container_builds() -> None:
-    build_context_pattern = r"BUILD_CONTEXT=\$\$\(mktemp -d \./\.build-context\.XXXXXX\)"
+    build_context_pattern = (
+        r"BUILD_CONTEXT=\$\$\(mktemp -d \./\.build-context\.XXXXXX\)"
+    )
     copy_pattern = (
         r'mkdir -p "\$\$BUILD_CONTEXT"/components && cp -r '
         r'\.\./\.\./\.\./\.\./components/auth "\$\$BUILD_CONTEXT"/components/auth'
@@ -27,9 +29,7 @@ def test_makefile_preserves_tracked_images_during_container_builds() -> None:
     shared_stage_pattern = (
         r'cp -r \.\./\.\./\.\./\.\./images "\$\$BUILD_CONTEXT"/images'
     )
-    merge_pattern = (
-        r'if \[ -d \./images \]; then cp -r \./images/\. "\$\$BUILD_CONTEXT"/images/; fi'
-    )
+    merge_pattern = r'if \[ -d \./images \]; then cp -r \./images/\. "\$\$BUILD_CONTEXT"/images/; fi'
 
     assert len(re.findall(shared_stage_pattern, NORMALIZED_MAKEFILE)) == 2
     assert len(re.findall(merge_pattern, NORMALIZED_MAKEFILE)) == 2
@@ -49,5 +49,9 @@ def test_makefile_builds_from_temporary_context() -> None:
 
 
 def test_dockerfile_consumes_staged_auth_component() -> None:
-    assert re.search(r"COPY components/auth/ \./components/auth/", NORMALIZED_DOCKERFILE)
-    assert re.search(r"RUN uv pip install --no-cache \./components/auth", NORMALIZED_DOCKERFILE)
+    assert re.search(
+        r"COPY components/auth/ \./components/auth/", NORMALIZED_DOCKERFILE
+    )
+    assert re.search(
+        r"RUN uv pip install --no-cache \./components/auth", NORMALIZED_DOCKERFILE
+    )
