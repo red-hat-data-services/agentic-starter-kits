@@ -15,7 +15,7 @@ def ai_stream_service(context, base_url=None, model_id=None):
 
     Args:
         context: Object with get_json() used to read the request payload.
-        base_url: LLM API base URL (OpenAI-compatible / llama-stack).
+        base_url: LLM API base URL (OpenAI-compatible / OGX).
         model_id: LLM model id; will be prefixed with 'openai/'.
 
     Returns:

@@ -5,7 +5,16 @@ VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
 
-.PHONY: init env ollama ogx-server run-app run-app-fresh run-mcp interact-mcp build push build-openshift deploy deploy-mcp undeploy undeploy-mcp test dry-run dry-run-mcp help
+STAGE_BUILD_CONTEXT = \
+	BUILD_CONTEXT=$$(mktemp -d ./.build-context.XXXXXX) && \
+	trap 'rm -rf "$$BUILD_CONTEXT"' EXIT && \
+	cp Dockerfile pyproject.toml main.py "$$BUILD_CONTEXT"/ && \
+	cp -r src playground "$$BUILD_CONTEXT"/ && \
+	cp -r ../../../../images "$$BUILD_CONTEXT"/images && \
+	if [ -d ./images ]; then cp -r ./images/. "$$BUILD_CONTEXT"/images/; fi && \
+	mkdir -p "$$BUILD_CONTEXT"/components && cp -r ../../../../components/auth "$$BUILD_CONTEXT"/components/auth
+
+.PHONY: init env ollama ogx-server run-app run-app-fresh run-mcp interact-mcp build push build-openshift deploy deploy-mcp undeploy undeploy-mcp test test-integration dry-run dry-run-mcp help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -94,8 +103,8 @@ build: ## Build container image locally (podman/docker)
 	@[ -n "$(CONTAINER_CLI)" ] || { echo "ERROR: neither podman nor docker found in PATH"; exit 1; } && \
 	  source .env && \
 	  [ -n "$${CONTAINER_IMAGE}" ] || { echo "ERROR: CONTAINER_IMAGE is not set in .env"; exit 1; } && \
-	  cp -r ../../../../images ./images && trap 'rm -rf ./images' EXIT && \
-	  $(CONTAINER_CLI) build --platform linux/amd64 -t "$${CONTAINER_IMAGE}" -f Dockerfile .
+	  $(STAGE_BUILD_CONTEXT) && \
+	  $(CONTAINER_CLI) build --platform linux/amd64 -t "$${CONTAINER_IMAGE}" -f "$$BUILD_CONTEXT/Dockerfile" "$$BUILD_CONTEXT"
 
 push: ## Push container image to registry
 	@[ -n "$(CONTAINER_CLI)" ] || { echo "ERROR: neither podman nor docker found in PATH"; exit 1; } && \
@@ -104,9 +113,9 @@ push: ## Push container image to registry
 	  $(CONTAINER_CLI) push "$${CONTAINER_IMAGE}"
 
 build-openshift: ## Build image in-cluster via OpenShift BuildConfig (no podman/docker needed)
-	@cp -r ../../../../images ./images && trap 'rm -rf ./images' EXIT && \
+	@$(STAGE_BUILD_CONTEXT) && \
 	  oc new-build --strategy=docker --binary --name=$(AGENT_NAME) --to=$(AGENT_NAME):latest 2>/dev/null || true && \
-	  oc start-build $(AGENT_NAME) --from-dir=. --follow && \
+	  oc start-build $(AGENT_NAME) --from-dir="$$BUILD_CONTEXT" --follow && \
 	  NS=$$(oc project -q) && \
 	  echo "" && \
 	  echo "Image built. To deploy, set in .env:" && \
@@ -127,7 +136,9 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	  LAST_SEG="$${CONTAINER_IMAGE##*/}" && if [[ "$$LAST_SEG" == *:* ]]; then IMAGE_REPO="$${CONTAINER_IMAGE%:*}"; IMAGE_TAG="$${LAST_SEG##*:}"; else IMAGE_REPO="$${CONTAINER_IMAGE}"; IMAGE_TAG="latest"; fi && \
 	  trap 'rm -f .helm-secrets.yaml' EXIT && \
 	  umask 077 && \
-	  printf 'secrets:\n  apiKey: "%s"\n' "$${API_KEY}" > .helm-secrets.yaml && \
+	  { printf 'secrets:\n  apiKey: "%s"\n' "$${API_KEY}"; \
+	    [ -z "$${MLFLOW_TRACKING_TOKEN}" ] || printf '  mlflowTrackingToken: "%s"\n' "$${MLFLOW_TRACKING_TOKEN}"; \
+	  } > .helm-secrets.yaml && \
 	  helm upgrade --install $(AGENT_NAME) $(CHART_DIR) \
 	    -f $(VALUES_FILE) \
 	    -f .helm-secrets.yaml \
@@ -135,7 +146,11 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	    --set image.tag="$${IMAGE_TAG}" \
 	    --set env.BASE_URL="$${BASE_URL}" \
 	    --set env.MODEL_ID="$${MODEL_ID}" \
-	    $${MCP_SERVER_URL:+--set env.MCP_SERVER_URL="$${MCP_SERVER_URL}"} && \
+	    $${MCP_SERVER_URL:+--set env.MCP_SERVER_URL="$${MCP_SERVER_URL}"} \
+	    $${MLFLOW_TRACKING_URI:+--set-string env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
+	    $${MLFLOW_EXPERIMENT_NAME:+--set-string env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
+	    $${MLFLOW_TRACKING_INSECURE_TLS:+--set-string env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
+	    $${MLFLOW_WORKSPACE:+--set-string env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"} && \
 	  if command -v oc >/dev/null 2>&1; then \
 	    echo "" && echo "Waiting for rollout to complete..." && \
 	    if oc rollout status deployment/$(AGENT_NAME) --timeout=120s; then \
@@ -196,10 +211,20 @@ dry-run: _check-env ## Render Helm templates without deploying
 	    --set image.tag="$${IMAGE_TAG}" \
 	    --set env.BASE_URL="$${BASE_URL}" \
 	    --set env.MODEL_ID="$${MODEL_ID}" \
-	    $${MCP_SERVER_URL:+--set env.MCP_SERVER_URL="$${MCP_SERVER_URL}"}
+	    $${MCP_SERVER_URL:+--set env.MCP_SERVER_URL="$${MCP_SERVER_URL}"} \
+	    $${MLFLOW_TRACKING_URI:+--set-string env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
+	    $${MLFLOW_TRACKING_TOKEN:+--set secrets.mlflowTrackingToken="REDACTED"} \
+	    $${MLFLOW_EXPERIMENT_NAME:+--set-string env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
+	    $${MLFLOW_TRACKING_INSECURE_TLS:+--set-string env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
+	    $${MLFLOW_WORKSPACE:+--set-string env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"}
 
 undeploy: ## Remove agent deployment from cluster (does NOT remove MCP server)
 	helm uninstall $(AGENT_NAME)
 
 test: ## Run unit tests
 	uv run --extra dev python -m pytest tests/ --ignore=tests/integration --ignore=tests/behavioral $(PYTEST_ARGS)
+
+test-integration: ## Run integration deployment test
+	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \
+	  uv run --extra dev python -m pytest tests/integration/test_deployment.py \
+	    -v --tb=long --junitxml=results.xml

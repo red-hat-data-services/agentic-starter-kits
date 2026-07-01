@@ -43,6 +43,19 @@ spec:
               value: {{ .Values.env.BASE_URL | quote }}
             - name: MODEL_ID
               value: {{ .Values.env.MODEL_ID | quote }}
+            {{- range $key, $value := .Values.env }}
+            {{- if and (ne $key "BASE_URL") (ne $key "MODEL_ID") (ne $key "API_KEY") (ne $key "MLFLOW_TRACKING_TOKEN") }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.secrets.mlflowTrackingToken }}
+            - name: MLFLOW_TRACKING_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "a2a.secretName" . }}
+                  key: mlflow-tracking-token
+            {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           livenessProbe:

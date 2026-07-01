@@ -4,10 +4,11 @@
 # (/v1/messages) passthrough to a vLLM backend. When vLLM supports
 # /v1/messages natively, OGX forwards requests directly without translation.
 #
-# This deployment does not use the LlamaStack operator. The configuration
+# This deployment does not use the OGX Kubernetes operator. The configuration
 # is loaded from a ConfigMap mounted at /etc/ogx/config.yaml.
 #
 # Before applying, ensure the ogx-configmap.yaml has been applied first.
+# Update the image reference if your RHOAI release ships a different OGX build.
 #
 # Usage:
 #   oc apply -f ogx-deployment.yaml -n <NAMESPACE>
@@ -28,19 +29,60 @@ spec:
         app: ogx
     spec:
       securityContext:
+        fsGroup: 1001
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
       - name: ogx
-        image: quay.io/rhoai/odh-ogx-core-rhel9:rhoai-3.5-ea.1
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+
+          VERSION_CODE=$(python -c "
+          import sys
+          from importlib.metadata import version
+          from packaging import version as pkg_version
+
+          try:
+              ogx_version = version('ogx')
+              print(f'Detected ogx version: {ogx_version}', file=sys.stderr)
+
+              v = pkg_version.parse(ogx_version)
+              base_v = pkg_version.parse(v.base_version)
+
+              if base_v < pkg_version.parse('0.2.17'):
+                  print(0)
+              elif base_v < pkg_version.parse('0.3.0'):
+                  print(1)
+              else:
+                  print(2)
+          except Exception as e:
+              print(f'Version detection failed, defaulting to new CLI: {e}', file=sys.stderr)
+              print(2)
+          ")
+
+          PORT=${OGX_PORT:-8321}
+          WORKERS=${OGX_WORKERS:-1}
+
+          case "$VERSION_CODE" in
+              0) exec python3 -m ogx.distribution.server.server --config /etc/ogx/config.yaml ;;
+              1) exec python3 -m ogx.core.server.server /etc/ogx/config.yaml ;;
+              2) exec uvicorn ogx.core.server.server:create_app --host 0.0.0.0 --port "$PORT" --workers "$WORKERS" --factory ;;
+              *) echo "Invalid version code: $VERSION_CODE"; exit 1 ;;
+          esac
+        image: registry.redhat.io/rhoai/odh-ogx-core-rhel9@sha256:8cca913e20b0f22de690ad0975365d933beccadf5110b698832fad3c5124518b
         env:
-        - name: RUN_CONFIG_PATH
+        - name: HF_HOME
+          value: /.ogx
+        - name: OGX_WORKERS
+          value: "1"
+        - name: OGX_PORT
+          value: "8321"
+        - name: OGX_CONFIG
           value: /etc/ogx/config.yaml
-        - name: HOME
-          value: /tmp
-        - name: OGX_HOME
-          value: /tmp/.ogx
         ports:
         - containerPort: 8321
           name: http
@@ -78,15 +120,11 @@ spec:
         - name: config
           mountPath: /etc/ogx
           readOnly: true
-        - name: ogx-home
-          mountPath: /tmp/.ogx
-        - name: ogx-distributions
-          mountPath: /opt/app-root/src/.ogx
+        - name: ogx-storage
+          mountPath: /.ogx
       volumes:
       - name: config
         configMap:
           name: ogx-config
-      - name: ogx-home
-        emptyDir: {}
-      - name: ogx-distributions
+      - name: ogx-storage
         emptyDir: {}

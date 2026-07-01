@@ -2,6 +2,16 @@
 
 This guide explains how to add a new agent template to this repository.
 
+## 0. Validate Fit
+
+Before writing code, confirm your agent belongs in this repo. Run the fit-check skill or complete the manual questionnaire described in [CONTRIBUTING.md — Proposing a new agent](../CONTRIBUTING.md#proposing-a-new-agent).
+
+Your agent should complete this sentence:
+
+> "As an AI engineer, I need to know how to build an agent using **\_\_\_\_\_** and integrate it with these RHOAI components: **\_\_\_\_\_** for **\_\_\_\_\_**"
+
+**GREEN** fit score: proceed to Step 1. **YELLOW**: post the discussion for team review first. **RED**: the agent likely does not belong in this repo in its current form — see the recommendations in the fit check output.
+
 ## 1. Choose the Right Location
 
 Agents are organized by framework:

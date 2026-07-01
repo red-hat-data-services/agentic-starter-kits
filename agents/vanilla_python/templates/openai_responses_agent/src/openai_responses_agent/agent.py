@@ -2,7 +2,7 @@
 Agent without any agentic framework: OpenAI client and pure Python.
 
 Uses only the official OpenAI Python client (openai package) and Responses API.
-No LlamaStack, LangChain, LlamaIndex, etc. - to show it can be done without frameworks.
+No framework dependencies (pure OpenAI client) - to show it can be done without frameworks.
 Compatible with OpenAI API and any OpenAI-compatible endpoint (e.g. base_url override).
 """
 

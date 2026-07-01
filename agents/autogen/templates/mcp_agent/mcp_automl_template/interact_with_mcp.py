@@ -29,8 +29,8 @@ help_message = textwrap.dedent(
 )
 
 
-# Function to send a query to the agent
 async def ask_question(agent: Any, user_input: str) -> None:
+    """Send a query to the agent and pretty-print each response message."""
     response = await agent.ainvoke(
         {"messages": [{"role": "user", "content": user_input}]}
     )
@@ -38,8 +38,8 @@ async def ask_question(agent: Any, user_input: str) -> None:
         msg.pretty_print()
 
 
-# Main chat loop
 async def chat_loop() -> None:
+    """Connect to the MCP server and run an interactive LangGraph ReAct agent loop."""
     mcp_url = getenv("MCP_SERVER_URL", "http://127.0.0.1:8080/sse")
     print(mcp_url)
     async with sse_client(url=mcp_url) as (read, write):
@@ -48,9 +48,8 @@ async def chat_loop() -> None:
             tools = await load_mcp_tools(session)
             formatted_tools = tools
 
-            # System prompt for Llama 3.1 8B: only use tools if truly necessary, otherwise answer directly.
-            # For increased agency, guide the model to avoid tool use unless it cannot answer from its own knowledge.
-            # The system prompt for Llama 3.1 8B should specifically instruct the model to do two things:
+            # Only use tools if truly necessary, otherwise answer directly.
+            # Guide the model to avoid tool use unless it cannot answer from its own knowledge.
             # 1. If a tool is used and a response is returned as a list of objects containing a 'text' field,
             #    extract the answer from the 'text' field and present that as the final user-facing response.
             # 2. Always ensure that the user receives a direct, clear answer to their question, whether from the model's own knowledge or from an extracted tool response.

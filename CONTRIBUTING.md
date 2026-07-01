@@ -14,6 +14,57 @@ Thank you for your interest in contributing. This document gives a short overvie
 
 Before submitting, please read our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you agree to uphold it.
 
+## Proposing a new agent
+
+Before writing code for a new agent template or example, validate that it belongs in this repository. Every agent in this repo should complete the sentence:
+
+> "As an AI engineer, I need to know how to build an agent using **\_\_\_\_\_** and integrate it with these RHOAI components: **\_\_\_\_\_** for **\_\_\_\_\_**"
+
+### Step 1: Run the fit check
+
+The recommended path is to validate your idea **before writing any code**. Run the fit-check skill or answer the manual questionnaire, then post the result as a GitHub Discussion. Wait for maintainer approval before proceeding to implementation.
+
+**Using the fit-check skill (recommended):**
+
+If you have [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and the [agentic-starter-kits-skills](https://github.com/red-hat-data-services/agentic-starter-kits-skills) plugin installed:
+
+```text
+/agentic-starter-kits-skills:fit-check
+```
+
+The skill asks a series of questions and generates a GitHub Discussion draft with a fit score (**GREEN** / **YELLOW** / **RED**) and recommendations.
+
+**Manual fit check (no Claude Code):**
+
+Answer these questions and post them as a [GitHub Discussion](https://github.com/red-hat-data-services/agentic-starter-kits/discussions):
+
+1. **Framework**: Which agent framework? (See `agents/` for existing frameworks, or name a new one)
+2. **Type**: Template (reusable, general-purpose) or example (business use-case demo)?
+3. **RHOAI components**: Which platform components does it integrate with? (OGX/vLLM for inference, MLflow for tracing, Milvus for vector search, PostgreSQL for memory, MCP servers for tools)
+4. **Differentiation**: What does this agent teach that the existing agents don't?
+5. **API contract**: Will it expose `POST /chat/completions` (JSON + SSE streaming) and `GET /health`?
+6. **Container pattern**: Will it use UBI9, port 8080, non-root UID 1001?
+
+### Step 2: Wait for approval, then implement
+
+| Score | Meaning | Action |
+|-------|---------|--------|
+| **GREEN** | Sentence completes, standard components, no overlap, standard conformance | Proceed to implementation |
+| **YELLOW** | Sentence completes but has flags (non-standard components, partial overlap, new framework) | Wait for maintainer + PM feedback in the Discussion before writing code |
+| **RED** | Can't complete the sentence (deployment-only, no RHOAI integration) or exact duplicate | Needs rethinking or PM decision on scope |
+
+Link the approved Discussion in your PR description when you submit code.
+
+### Already opened a PR without a fit check?
+
+This is a fallback for PRs already in flight. Run the fit check against your agent directory — the skill auto-extracts details from your code:
+
+```text
+/agentic-starter-kits-skills:fit-check langgraph/templates/my_agent
+```
+
+Post the generated Discussion and add the link to your PR. Review is paused until the proposal Discussion is approved.
+
 ## Development setup
 
 This repository uses [pre-commit](https://pre-commit.com/) hooks to enforce code quality checks before each commit. Set it up once after cloning:
@@ -307,6 +358,7 @@ This project uses [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 
 | `test-tracing` | Live end-to-end trace testing |
 | `kagenti-deploy` | Deploy A2A-compliant agents to OpenShift with kagenti integration |
 | `deploy-agents` | Deploy agents to OpenShift with auto-detected cluster config and MLflow token refresh |
+| `fit-check` | Validate whether a new agent belongs in the repo (idea mode or existing code) |
 | `add-behavioral-tests` | Scaffold behavioral testing (pytest + EvalHub) for an agent |
 | `run-behavioral-tests` | Run and validate behavioral tests for an agent |
 | `add-integration-tests` | Add integration tests for agent deployment verification |

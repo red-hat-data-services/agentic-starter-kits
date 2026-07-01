@@ -2,7 +2,7 @@
 OpenAI Responses Agent Base – agent without any agentic framework.
 
 Uses only the OpenAI Python client and pure Python (Responses API).
-No LlamaStack, LangChain, LlamaIndex, etc. Compatible with OpenAI and OpenAI-compatible endpoints.
+No framework dependencies (pure OpenAI client). Compatible with OpenAI and OpenAI-compatible endpoints.
 """
 
 from openai_responses_agent.agent import AIAgent, get_agent_closure

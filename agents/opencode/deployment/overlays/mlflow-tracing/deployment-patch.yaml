@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencode-web
+spec:
+  template:
+    spec:
+      containers:
+        - name: opencode-web
+          env:
+            - name: MLFLOW_TRACKING_URI
+              value: "https://mlflow.<rhoai-namespace>.svc:8443/mlflow"
+            - name: MLFLOW_WORKSPACE
+              value: "YOUR-NAMESPACE"
+            - name: MLFLOW_EXPERIMENT_NAME
+              value: "opencode-traces"
+            - name: MLFLOW_TRACKING_INSECURE_TLS
+              value: "true"  # dev/test only
+            # TLS: uncomment ONE of the following for clusters with non-public certs.
+            # Option A (production): mount the cluster CA bundle
+            # - name: NODE_EXTRA_CA_CERTS
+            #   value: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+            # Option B (dev/test only): disable TLS for ALL Node.js connections
+            # - name: NODE_TLS_REJECT_UNAUTHORIZED
+            #   value: "0"

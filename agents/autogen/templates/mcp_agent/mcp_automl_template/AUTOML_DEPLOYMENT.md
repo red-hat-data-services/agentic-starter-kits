@@ -166,7 +166,7 @@ Edit `.env`:
 - **DEPLOYMENT_URL** = full predict URL, e.g. `https://my-model-myproject.apps.example.com/v1/models/my-churn-model:predict`
 - **DEPLOYMENT_TOKEN** = token from the deployment’s Token secret (leave empty or omit if you did not enable token auth)
 
-Keep `LLAMA_STACK_CLIENT_*` (or other LLM vars) if you use the demo client; see main [README](README.md).
+Keep `BASE_URL`/`API_KEY`/`MODEL_ID` (LLM vars) if you use the demo client; see main [README](README.md).
 
 ### 3.3 Run the MCP server and call the tool
 

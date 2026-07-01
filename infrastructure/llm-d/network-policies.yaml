@@ -34,21 +34,20 @@ spec:
   policyTypes:
   - Ingress
 ---
-# Policy 2: Allow ingress to Llama Stack from the OpenShift router
-# Only needed if you deploy Llama Stack in the same namespace and expose it
-# via an OpenShift Route. The Llama Stack operator creates its own network
-# policy that restricts ingress to the same namespace, which blocks the
-# OpenShift router (running in openshift-ingress namespace).
+# Policy 2: Allow ingress to OGX from the OpenShift router
+# Only needed if you deploy OGX in the same namespace and expose it
+# via an OpenShift Route. OGX deployments often use a namespace-local
+# network policy that blocks ingress from the OpenShift router
+# (running in openshift-ingress namespace).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-llamastack-from-router
+  name: allow-ogx-from-router
   namespace: redhat-ods-applications
 spec:
   podSelector:
     matchLabels:
-      app: llama-stack
-      app.kubernetes.io/instance: llamastack-distribution
+      app: ogx
   ingress:
   - from:
     - namespaceSelector:

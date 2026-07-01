@@ -18,7 +18,7 @@ def get_agent_chat(
 
     Args:
         model_id: LLM model identifier.
-        base_url: Base URL for the API (e.g. OpenAI-compatible or Llama Stack).
+        base_url: Base URL for the API (e.g. OpenAI-compatible or OGX).
         api_key: API key (optional for some endpoints).
         tools: Optional list of tools (e.g. MCP tool adapters). When None, uses TOOLS from this module.
     """

@@ -43,7 +43,7 @@ mcp_automl_template/
 ├── register_tools.py   # Loads tools_config.yaml, builds tools from JSON schemas
 ├── tools_config.yaml   # Tool definitions: name, description, schema_path, deployment env vars
 ├── churn_schema.json   # JSON Schema for churn prediction tool input
-├── utils.py            # json_schema_to_pydantic_model, LLM clients (OpenAI/Ollama, OGX)
+├── utils.py            # json_schema_to_pydantic_model, LLM client (OpenAI-compatible)
 ├── interact_with_mcp.py # Client: connects via SSE, loads MCP tools, runs LangGraph agent
 └── README.md
 ```
@@ -76,10 +76,11 @@ mcp_automl_template/
 
    - `DEPLOYMENT_URL` – prediction endpoint URL (e.g. AutoML deployment)
    - `DEPLOYMENT_TOKEN` – Bearer token for that endpoint
-   - `LLAMA_STACK_CLIENT_BASE_URL` – OGX base URL (for `interact_with_mcp.py`)
-   - `LLAMA_STACK_CLIENT_API_KEY` – OGX API key
+   - `BASE_URL` – LLM base URL (for `interact_with_mcp.py` via `get_chat_from_env()`)
+   - `API_KEY` – LLM API key
+   - `MODEL_ID` – model identifier (e.g. `llama-3.1-8b-instruct`)
 
-   Replace the placeholders with your actual values. For local LLM testing with Ollama only, the deployment and OGX vars can stay as placeholders if you do not use those features.
+   Replace the placeholders with your actual values. For local LLM testing with Ollama only, the deployment vars can stay as placeholders if you do not use those features.
 
 ## Configuration
 

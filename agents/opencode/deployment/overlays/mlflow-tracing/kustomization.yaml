@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base OpenCode manifests + MLflow tracing
+# Clone https://github.com/aicatalyst-team/opencode-openshift and adjust
+# the path below to point to its manifests/ directory.
+resources:
+  - ../../manifests  # adjust to your local opencode-openshift/manifests path
+
+namespace: YOUR-NAMESPACE
+
+patches:
+  - target:
+      kind: Deployment
+      name: opencode-web
+    path: deployment-patch.yaml
+
+  - target:
+      kind: ConfigMap
+      name: opencode-web-entrypoint
+    path: entrypoint-patch.yaml

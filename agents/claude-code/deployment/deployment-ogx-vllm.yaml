@@ -12,20 +12,17 @@
 #   /workspace/projects/       - Working directory (WORKDIR) - where users run Claude
 #   /workspace/projects/.claude/ - Local auto-memory (separate from global config)
 #
-# OGX Requirements:
-# - PostgreSQL database (check your OGX version's requirements)
-#
 # Prerequisites:
-# 1. OGX deployed (with PostgreSQL if required by your version)
+# 1. OGX deployed and exposing /v1/health, /v1/models, and /v1/messages
 # 2. vLLM server accessible from OGX (context window >= 32K tokens)
 # 3. The vLLM model must have a context window >= 32K tokens
 #    (Claude Code's system prompt is ~23K tokens)
 #
 # Before applying this manifest:
-# 1. Deploy OGX (with PostgreSQL if required by your version)
+# 1. Deploy or identify an existing OGX endpoint
 # 2. Update the ANTHROPIC_BASE_URL to point to your OGX route
 # 3. Update the model ID in the claude-ogx-vllm-settings ConfigMap
-#    (use "vllm/<model-id>" format for OGX routing)
+#    (use the exact "vllm/<model-id>" value returned by /v1/models)
 
 ---
 # ImageStream to hold the built image

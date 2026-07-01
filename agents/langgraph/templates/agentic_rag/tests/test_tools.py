@@ -31,7 +31,7 @@ def test_retriever_input_schema():
 @patch("src.agentic_rag.tools.get_retriever_components")
 def test_retriever_tool_invoke_with_string_query(mock_get_components):
     """Test that the retriever tool can be invoked with a string query."""
-    # Mock the LlamaStack client and vector store response
+    # Mock the OGX client and vector store response
     mock_client = Mock()
     mock_chunk = Mock()
     mock_chunk.content = "LangGraph is a library for building stateful, multi-actor applications with LLMs."
@@ -168,7 +168,7 @@ def test_retriever_tool_filters_empty_chunks(mock_get_components):
     assert "Document 2" not in result
 
 
-@patch("src.agentic_rag.tools.LlamaStackClient")
+@patch("src.agentic_rag.tools.OgxClient")
 @patch("src.agentic_rag.tools.getenv")
 def test_get_retriever_components_initialization(mock_get_env, mock_client_class):
     """Test that retriever components are properly initialized."""
@@ -199,7 +199,7 @@ def test_get_retriever_components_initialization(mock_get_env, mock_client_class
     )
 
 
-@patch("src.agentic_rag.tools.LlamaStackClient")
+@patch("src.agentic_rag.tools.OgxClient")
 @patch("src.agentic_rag.tools.getenv")
 def test_get_retriever_components_caching(mock_get_env, mock_client_class):
     """Test that retriever components are cached after first call."""
@@ -211,13 +211,13 @@ def test_get_retriever_components_caching(mock_get_env, mock_client_class):
     # Call function
     result = get_retriever_components()
 
-    # Should return cached values without calling LlamaStackClient
+    # Should return cached values without calling OgxClient
     assert result["client"] == mock_cached_client
     assert result["vector_store_id"] == "cached-vector-store-id"
     mock_client_class.assert_not_called()
 
 
-@patch("src.agentic_rag.tools.LlamaStackClient")
+@patch("src.agentic_rag.tools.OgxClient")
 @patch("src.agentic_rag.tools.getenv")
 def test_get_retriever_components_with_base_url(mock_get_env, mock_client_class):
     """Test that base_url parameter is used when provided."""

@@ -137,7 +137,9 @@ deploy: _check-env ## Two-phase Helm deploy (Routes first, then Deployments with
 	fi && \
 	trap 'rm -f .helm-secrets.yaml' EXIT && \
 	umask 077 && \
-	printf 'secrets:\n  apiKey: "%s"\n' "$${API_KEY}" > .helm-secrets.yaml && \
+	{ printf 'secrets:\n  apiKey: "%s"\n' "$${API_KEY}"; \
+	  [ -z "$${MLFLOW_TRACKING_TOKEN}" ] || printf '  mlflowTrackingToken: "%s"\n' "$${MLFLOW_TRACKING_TOKEN}"; \
+	} > .helm-secrets.yaml && \
 	echo "=== Helm phase 1: Service, Route, Secret (no Deployments yet) ===" && \
 	helm upgrade --install $(AGENT_NAME) $(CHART_DIR) \
 	  -f $(VALUES_FILE) \
@@ -148,7 +150,11 @@ deploy: _check-env ## Two-phase Helm deploy (Routes first, then Deployments with
 	  --set-string image.langgraph.repository="$$LG_REPO" \
 	  --set-string image.langgraph.tag="$$LG_TAG" \
 	  --set-string env.BASE_URL="$$BASE_URL" \
-	  --set-string env.MODEL_ID="$$MODEL_ID" && \
+	  --set-string env.MODEL_ID="$$MODEL_ID" \
+	  $${MLFLOW_TRACKING_URI:+--set-string env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
+	  $${MLFLOW_EXPERIMENT_NAME:+--set-string env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
+	  $${MLFLOW_TRACKING_INSECURE_TLS:+--set-string env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
+	  $${MLFLOW_WORKSPACE:+--set-string env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"} && \
 	echo "=== Waiting for OpenShift Route hostnames ===" && \
 	CREW_HOST=""; LG_HOST=""; \
 	for _ in $$(seq 1 60); do \
@@ -168,7 +174,11 @@ deploy: _check-env ## Two-phase Helm deploy (Routes first, then Deployments with
 	  --reuse-values \
 	  --set deploymentsEnabled=true \
 	  --set-string crewPublicUrl="https://$$CREW_HOST" \
-	  --set-string langgraphPublicUrl="https://$$LG_HOST" && \
+	  --set-string langgraphPublicUrl="https://$$LG_HOST" \
+	  $${MLFLOW_TRACKING_URI:+--set-string env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
+	  $${MLFLOW_EXPERIMENT_NAME:+--set-string env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
+	  $${MLFLOW_TRACKING_INSECURE_TLS:+--set-string env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
+	  $${MLFLOW_WORKSPACE:+--set-string env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"} && \
 	oc rollout status deployment/a2a-crew-agent --timeout=300s && \
 	oc rollout status deployment/a2a-langgraph-agent --timeout=300s && \
 	echo "=== Done ===" && oc get route a2a-crew-agent a2a-langgraph-agent
@@ -197,4 +207,9 @@ dry-run: _check-env ## Render Helm manifests (secrets redacted)
 	  --set-string image.langgraph.repository="$$LG_REPO" \
 	  --set-string image.langgraph.tag="$$LG_TAG" \
 	  --set-string env.BASE_URL="$$BASE_URL" \
-	  --set-string env.MODEL_ID="$$MODEL_ID"
+	  --set-string env.MODEL_ID="$$MODEL_ID" \
+	  $${MLFLOW_TRACKING_URI:+--set-string env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
+	  $${MLFLOW_TRACKING_TOKEN:+--set secrets.mlflowTrackingToken="REDACTED"} \
+	  $${MLFLOW_EXPERIMENT_NAME:+--set-string env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
+	  $${MLFLOW_TRACKING_INSECURE_TLS:+--set-string env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
+	  $${MLFLOW_WORKSPACE:+--set-string env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"}

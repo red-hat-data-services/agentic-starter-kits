@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, create_model
 
 if TYPE_CHECKING:
-    from langchain_llama_stack import ChatLlamaStack
     from langchain_openai import ChatOpenAI
 
 load_dotenv()
@@ -143,7 +142,7 @@ def json_schema_to_pydantic_model(
 def get_chat_from_env() -> ChatOpenAI:
     """
     ChatOpenAI from BASE_URL, MODEL_ID, and optional API_KEY (OpenAI-compatible API:
-    Llama Stack, Ollama, OpenAI, …). Configure everything in `.env` — no separate code path
+    OGX, Ollama, OpenAI, …). Configure everything in `.env` — no separate code path
     for Ollama; use e.g. BASE_URL=http://localhost:11434/v1, MODEL_ID=llama3.2, API_KEY=ollama.
     """
     from langchain_openai import ChatOpenAI
@@ -166,32 +165,5 @@ def get_chat_from_env() -> ChatOpenAI:
         base_url=url,
         model=model_id,
         api_key=api_key or "not-needed",
-        temperature=0.1,
-    )
-
-
-def get_chat_llama_stack() -> ChatLlamaStack:
-    from langchain_llama_stack import ChatLlamaStack
-
-    llama_base_url = getenv("LLAMA_STACK_CLIENT_BASE_URL")
-    llama_api_key = getenv("LLAMA_STACK_CLIENT_API_KEY")
-    model_id = getenv("MODEL_ID")
-    if llama_base_url is not None:
-        llama_base_url = llama_base_url.strip().rstrip("/")
-    if model_id is not None:
-        model_id = model_id.strip()
-    if llama_api_key is not None:
-        llama_api_key = llama_api_key.strip()
-    if not llama_base_url or not model_id:
-        raise ValueError("LLAMA_STACK_CLIENT_BASE_URL and MODEL_ID must be set")
-
-    url = llama_base_url
-    if not url.endswith("/v1"):
-        url = url + "/v1"
-
-    return ChatLlamaStack(
-        base_url=url,
-        api_key=llama_api_key,
-        model=model_id,
         temperature=0.1,
     )
