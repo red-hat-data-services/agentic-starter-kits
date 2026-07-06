@@ -23,9 +23,7 @@ env: ## Create venv and install dependencies (uv sync)
 	echo "Done. Next: configure .env (make init), then make run-app"
 
 test: ## Run tests (pytest)
-	@[ -d .venv ] || { echo "ERROR: No .venv — run: make env"; exit 1; }
-	@set -a && source .env 2>/dev/null && set +a && \
-	uv run --project . --with pytest pytest tests/ -v
+	uv run --with pytest pytest tests/ --ignore=tests/integration --ignore=tests/behavioral -v $(PYTEST_ARGS)
 
 run-crew: ## Run CrewAI A2A server only (CREW_A2A_PORT, default 9100)
 	@[ -d .venv ] || { echo "ERROR: No .venv — run: make env  (or: uv venv --python 3.12 && uv sync)"; exit 1; }
