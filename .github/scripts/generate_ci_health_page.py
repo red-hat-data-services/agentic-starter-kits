@@ -117,9 +117,9 @@ def format_duration(seconds: int | None) -> str:
 def is_relevant_run(run: WorkflowRun) -> bool:
     if run.event not in RELEVANT_EVENTS:
         return False
-    if run.event == "push" and run.head_branch != "main":
-        return False
-    return True
+    if run.event == "schedule":
+        return True
+    return run.head_branch == "main"
 
 
 def conclusion_label(conclusion: str | None, status: str) -> tuple[str, str]:
@@ -178,20 +178,49 @@ class GitHubActionsClient:
             raise RuntimeError(
                 f"GitHub API error {exc.code} for {path}: {body}"
             ) from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(
+                f"GitHub API request failed for {path}: {exc.reason}"
+            ) from exc
 
     def list_workflow_runs(
-        self, workflow_file: str, *, per_page: int = 30
+        self,
+        workflow_file: str,
+        *,
+        per_page: int = 100,
+        lookback_days: int = 7,
+        max_pages: int = 10,
     ) -> list[WorkflowRun]:
         path = f"/repos/{self.repository}/actions/workflows/{workflow_file}/runs"
-        payload = self._request(path, {"per_page": per_page})
-        return [WorkflowRun.from_api(item) for item in payload.get("workflow_runs", [])]
+        cutoff = datetime.now(UTC) - timedelta(days=lookback_days)
+        runs: list[WorkflowRun] = []
+        for page in range(1, max_pages + 1):
+            payload = self._request(path, {"per_page": per_page, "page": page})
+            batch = [
+                WorkflowRun.from_api(item) for item in payload.get("workflow_runs", [])
+            ]
+            if not batch:
+                break
+            runs.extend(batch)
+            timestamps = [
+                parse_timestamp(run.created_at) for run in batch if run.created_at
+            ]
+            if timestamps and min(timestamps) < cutoff:
+                break
+            if len(batch) < per_page:
+                break
+        return runs
 
 
 def summarize_workflow(
     workflow: dict,
     runs: list[WorkflowRun],
 ) -> WorkflowSummary:
-    relevant = [run for run in runs if is_relevant_run(run)]
+    relevant = sorted(
+        (run for run in runs if is_relevant_run(run)),
+        key=lambda run: run.created_at,
+        reverse=True,
+    )
     latest = relevant[0] if relevant else None
     pass_rate, total, passed = compute_pass_rate(runs)
     return WorkflowSummary(

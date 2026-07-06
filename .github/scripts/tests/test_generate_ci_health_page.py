@@ -2,12 +2,14 @@
 """Tests for the CI health dashboard generator."""
 
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from generate_ci_health_page import (  # noqa: E402
     WorkflowRun,
     compute_pass_rate,
+    is_relevant_run,
     main,
     summaries_from_fixture,
 )
@@ -33,6 +35,9 @@ def test_qg4_latest_failure_is_surfaced():
 
 
 def test_pass_rate_ignores_pull_requests():
+    now = datetime.now(UTC)
+    earlier = (now - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    later = (now - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
     runs = [
         WorkflowRun(
             id=1,
@@ -42,9 +47,9 @@ def test_pass_rate_ignores_pull_requests():
             status="completed",
             conclusion="failure",
             html_url="https://example.com/1",
-            created_at="2026-07-05T10:00:00Z",
-            updated_at="2026-07-05T10:05:00Z",
-            run_started_at="2026-07-05T10:00:10Z",
+            created_at=earlier,
+            updated_at=later,
+            run_started_at=earlier,
         ),
         WorkflowRun(
             id=2,
@@ -54,15 +59,31 @@ def test_pass_rate_ignores_pull_requests():
             status="completed",
             conclusion="success",
             html_url="https://example.com/2",
-            created_at="2026-07-05T11:00:00Z",
-            updated_at="2026-07-05T11:05:00Z",
-            run_started_at="2026-07-05T11:00:10Z",
+            created_at=later,
+            updated_at=(now - timedelta(minutes=55)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            run_started_at=later,
         ),
     ]
     rate, total, passed = compute_pass_rate(runs, days=7)
     assert total == 1
     assert passed == 1
     assert rate == 100.0
+
+
+def test_workflow_dispatch_on_feature_branch_is_ignored():
+    run = WorkflowRun(
+        id=3,
+        name="Code Quality",
+        event="workflow_dispatch",
+        head_branch="feature-branch",
+        status="completed",
+        conclusion="success",
+        html_url="https://example.com/3",
+        created_at=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        updated_at=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        run_started_at=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    )
+    assert is_relevant_run(run) is False
 
 
 def test_main_writes_html(tmp_path):
