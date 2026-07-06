@@ -25,7 +25,9 @@ def test_fixture_loads_all_workflows():
 
 def test_qg4_latest_failure_is_surfaced():
     summaries = summaries_from_fixture(FIXTURE)
-    qg4 = next(item for item in summaries if item.workflow_file == "agent-deployment-test.yaml")
+    qg4 = next(
+        item for item in summaries if item.workflow_file == "agent-deployment-test.yaml"
+    )
     assert qg4.latest is not None
     assert qg4.latest.conclusion == "failure"
 

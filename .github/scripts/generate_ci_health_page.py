@@ -136,7 +136,9 @@ def conclusion_label(conclusion: str | None, status: str) -> tuple[str, str]:
     return mapping.get(conclusion or "", ("Unknown", "status-neutral"))
 
 
-def compute_pass_rate(runs: list[WorkflowRun], *, days: int = 7) -> tuple[float | None, int, int]:
+def compute_pass_rate(
+    runs: list[WorkflowRun], *, days: int = 7
+) -> tuple[float | None, int, int]:
     cutoff = datetime.now(UTC) - timedelta(days=days)
     scoped = [
         run
@@ -173,9 +175,13 @@ class GitHubActionsClient:
                 return json.load(response)
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"GitHub API error {exc.code} for {path}: {body}") from exc
+            raise RuntimeError(
+                f"GitHub API error {exc.code} for {path}: {body}"
+            ) from exc
 
-    def list_workflow_runs(self, workflow_file: str, *, per_page: int = 30) -> list[WorkflowRun]:
+    def list_workflow_runs(
+        self, workflow_file: str, *, per_page: int = 30
+    ) -> list[WorkflowRun]:
         path = f"/repos/{self.repository}/actions/workflows/{workflow_file}/runs"
         payload = self._request(path, {"per_page": per_page})
         return [WorkflowRun.from_api(item) for item in payload.get("workflow_runs", [])]
@@ -203,7 +209,9 @@ def summarize_workflow(
 def load_fixture(path: Path) -> dict[str, list[dict]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise ValueError("Fixture root must be a JSON object keyed by workflow file name")
+        raise ValueError(
+            "Fixture root must be a JSON object keyed by workflow file name"
+        )
     return payload
 
 
@@ -211,7 +219,9 @@ def summaries_from_fixture(path: Path) -> list[WorkflowSummary]:
     payload = load_fixture(path)
     summaries: list[WorkflowSummary] = []
     for workflow in WORKFLOWS:
-        runs = [WorkflowRun.from_api(item) for item in payload.get(workflow["file"], [])]
+        runs = [
+            WorkflowRun.from_api(item) for item in payload.get(workflow["file"], [])
+        ]
         summaries.append(summarize_workflow(workflow, runs))
     return summaries
 
@@ -436,7 +446,9 @@ def main(argv: list[str] | None = None) -> int:
         data_source = f"fixture: {args.input.as_posix()}"
     else:
         if not args.repository:
-            print("error: --repository or GITHUB_REPOSITORY is required", file=sys.stderr)
+            print(
+                "error: --repository or GITHUB_REPOSITORY is required", file=sys.stderr
+            )
             return 1
         if not args.token:
             print("error: --token or GITHUB_TOKEN is required", file=sys.stderr)
