@@ -168,7 +168,7 @@ def _jsonrpc_message_send_envelope(user_text: str) -> dict[str, Any]:
         "params": {
             "message": {
                 "role": "user",
-                "parts": [{"kind": "text", "text": user_text}],
+                "parts": [{"text": user_text}],
                 "messageId": msg_id,
             },
         },
@@ -183,7 +183,7 @@ def _jsonrpc_ok_envelope(request_id: str, assistant_text: str) -> dict[str, Any]
         "result": {
             "_note": "Simplified playground trace; full A2A responses may include tasks, artifacts, etc.",
             "assistantMessage": {
-                "parts": [{"kind": "text", "text": assistant_text}],
+                "parts": [{"text": assistant_text}],
             },
         },
     }

@@ -28,9 +28,21 @@ def test_type_imports():
 
 
 def test_helper_imports():
-    from a2a.helpers import get_artifact_text, get_message_text, new_text_message
+    from a2a.helpers import (
+        get_artifact_text,
+        get_message_text,
+        get_stream_response_text,
+        new_text_message,
+    )
 
-    assert all([get_artifact_text, get_message_text, new_text_message])
+    assert all(
+        [
+            get_artifact_text,
+            get_message_text,
+            get_stream_response_text,
+            new_text_message,
+        ]
+    )
 
 
 def test_client_imports():
