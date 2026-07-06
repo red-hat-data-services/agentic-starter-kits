@@ -4,7 +4,7 @@ CHART_DIR      := ../../deployment
 VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 
-.PHONY: init re-init env run-app run-app-fresh run-crew run-langgraph build push deploy undeploy dry-run help
+.PHONY: init re-init env test run-app run-app-fresh run-crew run-langgraph build push deploy undeploy dry-run help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -21,6 +21,11 @@ env: ## Create venv and install dependencies (uv sync)
 	uv sync --python 3.12 && \
 	echo "" && \
 	echo "Done. Next: configure .env (make init), then make run-app"
+
+test: ## Run tests (pytest)
+	@[ -d .venv ] || { echo "ERROR: No .venv — run: make env"; exit 1; }
+	@set -a && source .env 2>/dev/null && set +a && \
+	uv run --project . --with pytest pytest tests/ -v
 
 run-crew: ## Run CrewAI A2A server only (CREW_A2A_PORT, default 9100)
 	@[ -d .venv ] || { echo "ERROR: No .venv — run: make env  (or: uv venv --python 3.12 && uv sync)"; exit 1; }

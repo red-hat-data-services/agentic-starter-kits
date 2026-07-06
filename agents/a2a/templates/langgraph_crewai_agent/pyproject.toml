@@ -5,7 +5,7 @@ description = "A2A demo: LangGraph orchestrator and CrewAI specialist for OpenSh
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "a2a-sdk[http-server]>=0.3.25,<1.0.0",
+    "a2a-sdk[http-server]>=1.0.0,<2.0.0",
     "crewai[litellm]>=1.10.1",
     "litellm>=1.83.0",
     "httpx>=0.28.1",

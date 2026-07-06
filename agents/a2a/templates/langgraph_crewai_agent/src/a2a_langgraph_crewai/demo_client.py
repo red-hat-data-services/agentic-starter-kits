@@ -6,22 +6,13 @@ import asyncio
 import logging
 import os
 import sys
-import warnings
-from typing import Any
 from uuid import uuid4
 
-import httpx
+from a2a.client import create_client
+from a2a.helpers import get_stream_response_text
+from a2a.types import Message, Part, Role, SendMessageRequest
 from dotenv import load_dotenv
-
-# Suppress deprecation on import (A2AClient); must run before a2a imports.
-warnings.filterwarnings(
-    "ignore",
-    message=".*A2AClient is deprecated.*",
-    category=DeprecationWarning,
-)
-
-from a2a.client import A2ACardResolver, A2AClient  # noqa: E402
-from a2a.types import MessageSendParams, SendMessageRequest  # noqa: E402
+from google.protobuf.json_format import MessageToDict
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -38,24 +29,23 @@ async def main() -> None:
         else "Use the specialist tool: in one sentence, what is the A2A protocol?"
     )
 
-    async with httpx.AsyncClient(timeout=300.0) as client:
-        resolver = A2ACardResolver(httpx_client=client, base_url=base)
-        card = await resolver.get_agent_card()
-        a2a = A2AClient(httpx_client=client, agent_card=card)
-        payload: dict[str, Any] = {
-            "message": {
-                "role": "user",
-                "parts": [{"kind": "text", "text": text}],
-                "messageId": uuid4().hex,
-            },
-        }
-        req = SendMessageRequest(
-            id=str(uuid4()),
-            params=MessageSendParams(**payload),
-        )
-        logger.info("Sending to %s …", base)
-        resp = await a2a.send_message(req)
-        print(resp.model_dump(mode="json", exclude_none=True))
+    logger.info("Sending to %s ...", base)
+    msg = Message(
+        message_id=uuid4().hex,
+        role=Role.ROLE_USER,
+        parts=[Part(text=text)],
+    )
+    req = SendMessageRequest(message=msg)
+    client = await create_client(base)
+    try:
+        async for response in client.send_message(req):
+            resp_text = get_stream_response_text(response)
+            if resp_text:
+                print(resp_text)
+            else:
+                print(MessageToDict(response, preserving_proto_field_name=True))
+    finally:
+        await client.close()
 
 
 if __name__ == "__main__":
