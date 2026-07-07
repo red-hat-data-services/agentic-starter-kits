@@ -50,6 +50,7 @@ AGENTS=(
   "langgraph/templates/human_in_the_loop|HITL_AGENT_URL|langgraph-hitl-agent"
   "google/templates/adk|GOOGLE_ADK_AGENT_URL|google-adk-agent"
   "langflow/templates/simple_tool_calling_agent|LANGFLOW_TOOL_CALLING_AGENT_URL|langflow-tool-calling-agent"
+  "a2a/templates/langgraph_crewai_agent|A2A_LANGGRAPH_CREWAI_AGENT_URL|a2a-langgraph-agent"
 )
 ALL_AGENT_CONFIG=("${AGENTS[@]}")
 
