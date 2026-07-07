@@ -7,11 +7,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from generate_ci_health_page import (  # noqa: E402
+    WORKFLOWS,
     WorkflowRun,
     compute_pass_rate,
     is_relevant_run,
     main,
+    render_workflow_card,
+    summaries_from_api,
     summaries_from_fixture,
+    summarize_workflow,
+    unavailable_workflow_summary,
 )
 
 FIXTURE = Path(__file__).resolve().parent.parent / "fixtures" / "ci-runs-sample.json"
@@ -84,6 +89,62 @@ def test_workflow_dispatch_on_feature_branch_is_ignored():
         run_started_at=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
     )
     assert is_relevant_run(run) is False
+
+
+def test_schedule_run_is_always_relevant():
+    run = WorkflowRun(
+        id=4,
+        name="QG4: Agent Deployment Integration Tests",
+        event="schedule",
+        head_branch="",
+        status="completed",
+        conclusion="success",
+        html_url="https://example.com/4",
+        created_at=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        updated_at=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        run_started_at=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    )
+    assert is_relevant_run(run) is True
+
+
+def test_empty_workflow_summary():
+    summary = summarize_workflow(WORKFLOWS[0], [])
+    assert summary.latest is None
+    assert summary.pass_rate_7d is None
+    assert summary.recent_runs == ()
+
+
+def test_unavailable_workflow_renders_error_card():
+    summary = unavailable_workflow_summary(
+        WORKFLOWS[2],
+        "GitHub API error 404 for /repos/example/actions/workflows/eval-gating.yml/runs",
+    )
+    card = render_workflow_card(summary)
+    assert "Data unavailable" in card
+    assert "Inner Loop Gating" in card
+    assert "404" in card
+
+
+def test_summaries_from_api_continues_after_workflow_failure(monkeypatch):
+    class FakeClient:
+        def list_workflow_runs(self, workflow_file: str) -> list[WorkflowRun]:
+            if workflow_file == "eval-gating.yml":
+                raise RuntimeError("GitHub API error 404")
+            return []
+
+    monkeypatch.setattr(
+        "generate_ci_health_page.GitHubActionsClient",
+        lambda token, repository: FakeClient(),
+    )
+
+    summaries = summaries_from_api(
+        "red-hat-data-services/agentic-starter-kits", "token"
+    )
+    assert len(summaries) == 4
+    gating = next(item for item in summaries if item.workflow_file == "eval-gating.yml")
+    assert gating.error_message is not None
+    assert "404" in gating.error_message
+    assert all(item.error_message is None for item in summaries if item != gating)
 
 
 def test_main_writes_html(tmp_path):

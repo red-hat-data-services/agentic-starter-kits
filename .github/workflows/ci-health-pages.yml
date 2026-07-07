@@ -2,21 +2,25 @@
 #
 # Bootstrap:
 #   1. Repo admin enables Settings -> Pages -> Source: GitHub Actions
-#   2. Merge this workflow, or run workflow_dispatch from the PR branch to demo
-#   3. After merge to main, scheduled runs refresh the page daily
+#   2. Merge this workflow to main, then run workflow_dispatch for a first deploy
+#   3. After merge, each qualifying CI workflow completion rebuilds the page
 
 name: CI Health Pages
 
 on:
+  workflow_run:
+    workflows:
+      - Code Quality
+      - Agent Tests
+      - Inner Loop Gating
+      - "QG4: Agent Deployment Integration Tests"
+    types: [completed]
   workflow_dispatch:
     inputs:
       use_fixture:
         description: "Generate from sample fixture instead of live GitHub API"
         type: boolean
         default: false
-  schedule:
-  # Refresh after the QG4 nightly window (03:00 UTC) and morning review time.
-    - cron: "0 6 * * *"
   push:
     branches: [main]
     paths:
@@ -32,11 +36,19 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
-    if: github.repository == 'red-hat-data-services/agentic-starter-kits'
+    # Only publish from main; workflow_dispatch on feature branches must not
+    # overwrite the production Pages site.
+    if: >-
+      github.repository == 'red-hat-data-services/agentic-starter-kits' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name != 'workflow_run' ||
+        (github.event.workflow_run.event != 'pull_request' &&
+         (github.event.workflow_run.head_branch == 'main' ||
+          github.event.workflow_run.event == 'schedule')))
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -53,20 +65,18 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Generate CI health page (fixture)
-        if: github.event_name == 'workflow_dispatch' && inputs.use_fixture == true
-        run: |
-          python .github/scripts/generate_ci_health_page.py \
-            --input .github/scripts/fixtures/ci-runs-sample.json \
-            --output site/index.html
-
-      - name: Generate CI health page (live)
-        if: github.event_name != 'workflow_dispatch' || inputs.use_fixture != true
+      - name: Generate CI health page
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          python .github/scripts/generate_ci_health_page.py --output site/index.html
+          if [[ "${{ github.event_name == 'workflow_dispatch' && inputs.use_fixture == true }}" == "true" ]]; then
+            python .github/scripts/generate_ci_health_page.py \
+              --input .github/scripts/fixtures/ci-runs-sample.json \
+              --output site/index.html
+          else
+            python .github/scripts/generate_ci_health_page.py --output site/index.html
+          fi
 
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d  # v5.0.0

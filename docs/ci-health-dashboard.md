@@ -18,12 +18,13 @@ Pull request runs are excluded from the summary to keep the page focused on shar
 ## Data source
 
 - **Live mode:** GitHub Actions REST API via `GITHUB_TOKEN` with `actions: read`
-- **Fixture mode:** `.github/scripts/fixtures/ci-runs-sample.json` for offline generation and demos
+- **Fixture mode:** `.github/scripts/fixtures/ci-runs-sample.json` for offline generation and demos (timestamps must be within the last 7 days for pass-rate display)
 
 ## Update cadence
 
-- Daily at `06:00 UTC` via `.github/workflows/ci-health-pages.yml`
+- **Push model:** rebuilds when any in-scope CI workflow completes on `main` or via `schedule` (`workflow_run` trigger in `.github/workflows/ci-health-pages.yml`)
 - Manual refresh via **Actions → CI Health Pages → Run workflow**
+- Also rebuilds when dashboard generator or workflow files change on `main`
 
 ## Enable GitHub Pages before merge
 
@@ -40,7 +41,7 @@ After the workflow file exists on your PR branch:
 3. Optional: enable **use_fixture** for a deterministic demo before merge
 4. Open the deployment URL from the workflow summary
 
-Once the PR merges to `main`, scheduled runs keep the page current.
+Once the PR merges to `main`, each qualifying CI completion keeps the page current.
 
 ## Local preview
 

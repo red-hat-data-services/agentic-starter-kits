@@ -3,7 +3,8 @@
 Generate a static CI health dashboard from GitHub Actions workflow runs.
 
 Used by the ci-health-pages workflow to publish a read-only summary for the
-QG8 in-scope workflows on main and scheduled/nightly executions.
+QG8 in-scope workflows. The page rebuilds when those workflows complete on
+main or via schedule.
 
 Environment variables (optional):
     GITHUB_TOKEN      Token with actions:read (defaults to GITHUB_TOKEN in CI)
@@ -89,6 +90,7 @@ class WorkflowSummary:
     pass_rate_7d: float | None
     total_runs_7d: int
     passed_runs_7d: int
+    error_message: str | None = None
 
 
 def parse_timestamp(value: str) -> datetime:
@@ -235,6 +237,20 @@ def summarize_workflow(
     )
 
 
+def unavailable_workflow_summary(workflow: dict, error: str) -> WorkflowSummary:
+    return WorkflowSummary(
+        workflow_file=workflow["file"],
+        display_name=workflow["name"],
+        description=workflow["description"],
+        latest=None,
+        recent_runs=(),
+        pass_rate_7d=None,
+        total_runs_7d=0,
+        passed_runs_7d=0,
+        error_message=error,
+    )
+
+
 def load_fixture(path: Path) -> dict[str, list[dict]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
@@ -259,12 +275,26 @@ def summaries_from_api(repository: str, token: str) -> list[WorkflowSummary]:
     client = GitHubActionsClient(token, repository)
     summaries: list[WorkflowSummary] = []
     for workflow in WORKFLOWS:
-        runs = client.list_workflow_runs(workflow["file"])
-        summaries.append(summarize_workflow(workflow, runs))
+        try:
+            runs = client.list_workflow_runs(workflow["file"])
+            summaries.append(summarize_workflow(workflow, runs))
+        except RuntimeError as exc:
+            print(f"WARNING: skipping {workflow['file']}: {exc}", file=sys.stderr)
+            summaries.append(unavailable_workflow_summary(workflow, str(exc)))
     return summaries
 
 
 def render_workflow_card(summary: WorkflowSummary) -> str:
+    if summary.error_message:
+        return f"""
+    <section class="card">
+      <h2>{html.escape(summary.display_name)}</h2>
+      <p class="muted">{html.escape(summary.description)}</p>
+      <p><span class="pill status-neutral">Data unavailable</span></p>
+      <p class="muted">{html.escape(summary.error_message)}</p>
+    </section>
+    """
+
     latest = summary.latest
     if latest is None:
         body = "<p class='muted'>No recent runs on <code>main</code> or scheduled triggers.</p>"
@@ -424,7 +454,8 @@ def render_page(
     <section class="hero">
       <h1>agentic-starter-kits CI Health</h1>
       <p class="muted">
-        Daily summary for QG8 in-scope workflows on <code>main</code> and scheduled runs.
+        CI health summary for QG8 in-scope workflows on <code>main</code> and
+        scheduled runs. Rebuilds when those workflows complete.
       </p>
       <p><strong>Repository:</strong> <code>{html.escape(repository)}</code></p>
       <p><strong>Last updated:</strong> {html.escape(generated_at.strftime("%Y-%m-%d %H:%M:%S UTC"))}</p>
