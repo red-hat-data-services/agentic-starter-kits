@@ -26,11 +26,6 @@ from starlette.applications import Starlette
 from .custom_tool import DummyWebSearchTool
 from .tracing import enable_tracing_crewai, wrap_func_with_mlflow_trace
 
-load_dotenv()
-logging.basicConfig(
-    level=logging.INFO,
-    format="[CREW] %(levelname)s:%(name)s:%(message)s",
-)
 logger = logging.getLogger(__name__)
 
 _llm: LLM | None = None
@@ -123,6 +118,11 @@ class CrewA2AExecutor(AgentExecutor):
 
 
 def main() -> None:
+    load_dotenv()
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[CREW] %(levelname)s:%(name)s:%(message)s",
+    )
     enable_tracing_crewai()
 
     public_base = getenv("CREW_A2A_PUBLIC_URL", "http://127.0.0.1:9100").rstrip("/")
@@ -145,7 +145,7 @@ def main() -> None:
         supported_interfaces=[
             AgentInterface(
                 url=f"{public_base}/",
-                protocol_binding="jsonrpc/http",
+                protocol_binding="JSONRPC",
             ),
         ],
         version="0.1.0",

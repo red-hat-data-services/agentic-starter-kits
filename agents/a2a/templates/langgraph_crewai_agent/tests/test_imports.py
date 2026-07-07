@@ -46,9 +46,9 @@ def test_helper_imports():
 
 
 def test_client_imports():
-    from a2a.client import A2ACardResolver, create_client
+    from a2a.client import ClientConfig, create_client
 
-    assert all([A2ACardResolver, create_client])
+    assert all([ClientConfig, create_client])
 
 
 def test_module_crew_a2a_server():

@@ -7,7 +7,8 @@ import logging
 from typing import Any
 from uuid import uuid4
 
-from a2a.client import create_client
+import httpx
+from a2a.client import ClientConfig, create_client
 from a2a.helpers import get_stream_response_text
 from a2a.types import Message, Part, Role, SendMessageRequest
 from google.protobuf.json_format import MessageToDict
@@ -55,7 +56,8 @@ async def send_a2a_text_message(base_url: str, text: str) -> str:
     req = SendMessageRequest(message=msg)
     logger.debug("A2A -> request: %s", _json_for_log(req))
 
-    client = await create_client(base)
+    config = ClientConfig(httpx_client=httpx.AsyncClient(timeout=120.0))
+    client = await create_client(base, client_config=config)
     try:
         parts: list[str] = []
         async for response in client.send_message(req):
@@ -64,6 +66,10 @@ async def send_a2a_text_message(base_url: str, text: str) -> str:
             if chunk_text:
                 parts.append(chunk_text)
         out = "\n".join(parts) if parts else ""
+        if not out:
+            logger.warning(
+                "A2A <- peer=%s msg_id=%s returned empty response", base, msg_id
+            )
         logger.info(
             "A2A <- peer=%s msg_id=%s ok result_len=%d",
             base,
@@ -75,5 +81,8 @@ async def send_a2a_text_message(base_url: str, text: str) -> str:
             out if len(out) <= 4000 else f"{out[:4000]}...",
         )
         return out
+    except Exception:
+        logger.exception("A2A <- peer=%s msg_id=%s stream failed", base, msg_id)
+        raise
     finally:
         await client.close()
