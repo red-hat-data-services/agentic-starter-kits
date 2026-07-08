@@ -73,9 +73,20 @@ echo "Starting opencode serve on port 4096..."
 opencode serve &
 OPENCODE_PID=$!
 
-# Set up trap to cleanly shutdown background opencode serve process
-# when container receives SIGTERM/SIGINT or when script exits
-trap "echo 'Shutting down opencode serve...'; kill $OPENCODE_PID 2>/dev/null; wait $OPENCODE_PID 2>/dev/null; exit 0" EXIT INT TERM
+# Cleanup function for background opencode serve process
+cleanup() {
+    echo 'Shutting down opencode serve...'
+    kill $OPENCODE_PID 2>/dev/null
+    wait $OPENCODE_PID 2>/dev/null
+}
+
+# Set up traps to cleanly shutdown background process
+# EXIT trap: cleanup on normal exit or crash (preserves exit code)
+# TERM trap: cleanup on SIGTERM, exit 143 (128 + 15)
+# INT trap: cleanup on SIGINT, exit 130 (128 + 2)
+trap cleanup EXIT
+trap 'cleanup; exit 143' TERM
+trap 'cleanup; exit 130' INT
 
 # Wait for opencode serve to be ready
 echo "Waiting for opencode serve to be ready..."

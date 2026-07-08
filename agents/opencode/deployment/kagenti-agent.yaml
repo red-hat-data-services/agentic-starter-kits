@@ -138,6 +138,14 @@ objects:
                 initialDelaySeconds: 10
                 periodSeconds: 5
                 failureThreshold: 12
+              livenessProbe:
+                httpGet:
+                  path: /.well-known/agent-card.json
+                  port: 8000
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                failureThreshold: 3
+                timeoutSeconds: 5
               resources:
                 requests:
                   cpu: 100m
