@@ -43,6 +43,7 @@ def _write_env_file(agent_dir):
             "Set them in the CI workflow or export locally."
         )
     env_path = agent_dir / ".env"
+    env_path.touch(mode=0o600)
     env_path.write_text(
         f"API_KEY={os.environ.get('API_KEY', 'not-needed')}\n"
         f"BASE_URL={os.environ['BASE_URL']}\n"
@@ -90,8 +91,8 @@ def deployed_agent(cluster_auth, agent_dir, agent_name):
             primary = next(iter(_discovered_routes.values()))
         except (MakeTargetError, RouteNotFoundError) as exc:
             pytest.fail(f"Deployment failed: {exc}")
-        except Exception:
-            pytest.fail("Deployment failed — see logs")
+        except Exception as exc:
+            pytest.fail(f"Deployment failed — {exc}")
 
         yield primary
 

@@ -27,7 +27,6 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "pytest" },
-    { name = "requests" },
 ]
 tracing = [
     { name = "mlflow" },
@@ -45,7 +44,6 @@ requires-dist = [
     { name = "mlflow", marker = "extra == 'tracing'", specifier = ">=3.11.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "requests", marker = "extra == 'dev'", specifier = ">=2.28" },
     { name = "starlette", specifier = ">=1.0.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
 ]
