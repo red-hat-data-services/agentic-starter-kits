@@ -216,9 +216,12 @@ helm upgrade kagenti /path/to/kagenti/chart \
 
 ## Verification
 
-### Check AgentCard Creation
+### Check AgentRuntime and AgentCard Creation
 
 ```bash
+# Check AgentRuntime was created
+oc get agentruntime -n your-namespace
+
 # List AgentCards in your namespace
 oc get agentcard -n your-namespace
 
@@ -226,7 +229,14 @@ oc get agentcard -n your-namespace
 oc get agentcard opencode-a2a-deployment-card -n your-namespace -o yaml
 ```
 
-Expected output shows `Synced=True`:
+Expected AgentRuntime output shows `Phase=Active`:
+
+```text
+NAME                       TYPE    TARGET          PHASE
+opencode-a2a-runtime       agent   opencode-a2a    Active
+```
+
+Expected AgentCard output shows `Synced=True`:
 
 ```text
 NAME                          PROTOCOL   KIND         TARGET        AGENT      VERIFIED   BOUND   SYNCED   LASTSYNC
@@ -438,7 +448,7 @@ Verify LLM_API_BASE is correct:
 
 ```bash
 oc exec -n your-namespace deployment/opencode-a2a -- \
-  curl -s $LLM_API_BASE/models
+  sh -c 'curl -s $LLM_API_BASE/models'
 ```
 
 Check OpenCode config was generated:
@@ -478,6 +488,6 @@ oc logs -n your-namespace deployment/opencode-a2a --previous
 
 Common issues:
 
-- Missing LLM_API_BASE: entrypoint will skip config generation
+- Missing LLM_API_BASE: Pod fails to start with validation error (required when LLM_MODEL is set)
 - Invalid LLM_API_BASE: OpenCode serve starts but can't reach LLM
 - Missing secret: Pod fails to start if `LLM_API_KEY_SECRET` doesn't exist

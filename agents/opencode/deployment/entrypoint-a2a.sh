@@ -29,15 +29,19 @@ if [[ -n "${LLM_API_BASE}" || -n "${LLM_MODEL}" ]]; then
     API_KEY="${LLM_API_KEY:-}"
     MODEL_NAME="${LLM_MODEL:-gpt-4o}"
 
-    echo "  LLM_PROVIDER=${PROVIDER_NAME}"
-    echo "  LLM_API_BASE=${BASE_URL}"
-    echo "  LLM_MODEL=${MODEL_NAME}"
-    if [[ -n "${API_KEY}" ]]; then
-        echo "  LLM_API_KEY=****"
+    # Validate required fields
+    if [[ -z "${BASE_URL}" ]]; then
+        echo "ERROR: LLM_API_BASE is required when generating OpenCode configuration"
+        echo "Please set the LLM_API_BASE environment variable to your LLM API endpoint"
+        exit 1
     fi
 
+    echo "  Provider: ${PROVIDER_NAME}, Model: ${MODEL_NAME}"
+
     # Generate full OpenCode provider config (following msager-opencode reference)
-    cat > "${CONFIG_DIR}/opencode.json" <<EOF
+    # Use umask 077 to ensure config file is created with 0600 permissions (owner-only read/write)
+    # since it contains sensitive API key
+    (umask 077 && cat > "${CONFIG_DIR}/opencode.json" <<EOF
 {
   "\$schema": "https://opencode.ai/config.json",
   "provider": {
@@ -60,6 +64,7 @@ if [[ -n "${LLM_API_BASE}" || -n "${LLM_MODEL}" ]]; then
   "enabled_providers": ["${PROVIDER_NAME}"]
 }
 EOF
+    )
     echo "  Config written to ${CONFIG_DIR}/opencode.json"
 fi
 
@@ -67,6 +72,10 @@ fi
 echo "Starting opencode serve on port 4096..."
 opencode serve &
 OPENCODE_PID=$!
+
+# Set up trap to cleanly shutdown background opencode serve process
+# when container receives SIGTERM/SIGINT or when script exits
+trap "echo 'Shutting down opencode serve...'; kill $OPENCODE_PID 2>/dev/null; wait $OPENCODE_PID 2>/dev/null; exit 0" EXIT INT TERM
 
 # Wait for opencode serve to be ready
 echo "Waiting for opencode serve to be ready..."
@@ -81,8 +90,8 @@ for i in {1..30}; do
     sleep 1
 done
 
-# Run opencode-a2a in foreground (PID 1 for signal handling)
+# Run opencode-a2a in foreground (shell remains PID 1 for trap handling)
 echo "Starting opencode-a2a on port 8000..."
-exec opencode-a2a \
+opencode-a2a \
     --port "${A2A_PORT:-8000}" \
     --opencode-url "${OPENCODE_BASE_URL:-http://127.0.0.1:4096}"

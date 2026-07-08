@@ -15,6 +15,8 @@ FROM quay.io/opendatahub/odh-opencode-rhel9:latest
 USER 0
 
 # Install opencode-a2a from agent-servers repo
+# TODO(RHAIENG-5826): Pin to specific version tag once A2A protocol support is complete
+# and agent-servers repo has established versioning
 RUN pip3 install --no-cache-dir \
     'opencode-a2a @ git+https://github.com/red-hat-data-services/agent-servers.git#subdirectory=opencode'
 
