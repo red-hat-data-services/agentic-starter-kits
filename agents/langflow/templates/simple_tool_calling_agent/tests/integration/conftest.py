@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 
+import integration.conftest  # noqa: F401 — re-exports cluster_auth, repo_root
 import pytest
-from integration.conftest import cluster_auth, repo_root  # noqa: F401
 from integration.utils import (
     RouteNotFoundError,
     get_route,
