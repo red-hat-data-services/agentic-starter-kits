@@ -65,6 +65,7 @@ jobs:
           - { name: langgraph-db-memory-agent, dir: agents/langgraph/templates/react_with_database_memory }
           - { name: autogen-mcp-agent, dir: agents/autogen/templates/mcp_agent }
           - { name: vanilla-python-openai-responses-agent, dir: agents/vanilla_python/templates/openai_responses_agent }
+          - { name: langflow-simple-tool-calling-agent, dir: agents/langflow/templates/simple_tool_calling_agent }
         include:
           - agent: { name: langgraph-db-memory-agent, dir: agents/langgraph/templates/react_with_database_memory }
             POSTGRES_HOST: ${{ vars.POSTGRES_HOST }}
