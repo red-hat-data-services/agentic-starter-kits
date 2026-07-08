@@ -61,7 +61,7 @@ def all_routes(deployed_agent):
 
 
 @pytest.fixture(scope="module")
-def deployed_agent(cluster_auth, agent_dir, agent_name):
+def deployed_agent(cluster_auth, agent_dir, agent_name):  # noqa: F811
     namespace = cluster_auth["namespace"]
     env_path = _write_env_file(agent_dir)
 

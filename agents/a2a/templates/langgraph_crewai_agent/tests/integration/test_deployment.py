@@ -9,7 +9,9 @@ _AGENT_CARD_FIELDS = ("name", "url", "version", "capabilities", "skills")
 @pytest.mark.integration
 def test_health_endpoint(deployed_agent):
     route_url = deployed_agent
-    card = health_check(f"{route_url}/.well-known/agent-card.json", retries=12, backoff=5.0)
+    card = health_check(
+        f"{route_url}/.well-known/agent-card.json", retries=12, backoff=5.0
+    )
 
     for field in _AGENT_CARD_FIELDS:
         assert field in card, f"Agent card missing '{field}' field"
