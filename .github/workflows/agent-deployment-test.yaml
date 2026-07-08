@@ -65,6 +65,7 @@ jobs:
           - { name: langgraph-db-memory-agent, dir: agents/langgraph/templates/react_with_database_memory }
           - { name: autogen-mcp-agent, dir: agents/autogen/templates/mcp_agent }
           - { name: vanilla-python-openai-responses-agent, dir: agents/vanilla_python/templates/openai_responses_agent }
+          - { name: a2a-langgraph-crewai, dir: agents/a2a/templates/langgraph_crewai_agent }
         include:
           - agent: { name: langgraph-db-memory-agent, dir: agents/langgraph/templates/react_with_database_memory }
             POSTGRES_HOST: ${{ vars.POSTGRES_HOST }}
@@ -76,6 +77,8 @@ jobs:
           - agent: { name: vanilla-python-openai-responses-agent, dir: agents/vanilla_python/templates/openai_responses_agent }
             BASE_URL: ${{ vars.OPENAI_BASE_URL }}
             MODEL_ID: ${{ vars.OPENAI_MODEL_ID }}
+          - agent: { name: a2a-langgraph-crewai, dir: agents/a2a/templates/langgraph_crewai_agent }
+            CONTAINER_IMAGE: ${{ vars.CONTAINER_IMAGE_A2A_LANGGRAPH_CREWAI }}
     env:
       API_KEY: ${{ vars.API_KEY }}
       BASE_URL: ${{ vars.BASE_URL }}
@@ -103,6 +106,7 @@ jobs:
           POSTGRES_USER: ${{ matrix.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           MCP_SERVER_URL: ${{ matrix.MCP_SERVER_URL }}
+          CONTAINER_IMAGE: ${{ matrix.CONTAINER_IMAGE }}
         run: make test-integration
 
       - name: Upload test results

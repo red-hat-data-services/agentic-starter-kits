@@ -4,7 +4,7 @@ CHART_DIR      := ../../deployment
 VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 
-.PHONY: init re-init env test run-app run-app-fresh run-crew run-langgraph build push deploy undeploy dry-run help
+.PHONY: init re-init env test run-app run-app-fresh run-crew run-langgraph build push deploy undeploy dry-run test-integration help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -188,6 +188,11 @@ deploy: _check-env ## Two-phase Helm deploy (Routes first, then Deployments with
 
 undeploy: ## Remove Helm release (all resources)
 	helm uninstall $(AGENT_NAME) --ignore-not-found
+
+test-integration: ## Run integration deployment test
+	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \
+	  uv run --extra dev python -m pytest tests/integration/test_deployment.py \
+	    -v --tb=long --junitxml=results.xml
 
 dry-run: _check-env ## Render Helm manifests (secrets redacted)
 	@set -a && source .env && set +a && \
