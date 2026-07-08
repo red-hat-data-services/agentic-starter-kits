@@ -84,6 +84,6 @@ logs: ## Tail logs from all services
 
 test-integration: ## Run integration deployment test
 	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \
-	  uv run --with pytest --with httpx --with pyyaml --with requests \
+	  uv run --with pytest --with httpx --with pyyaml \
 	  python -m pytest tests/integration/test_deployment.py \
 	    -v --tb=long --junitxml=results.xml
