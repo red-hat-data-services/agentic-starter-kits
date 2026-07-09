@@ -6,7 +6,7 @@ This guide covers deploying [OpenCode](https://opencode.ai) as a coding agent on
 
 | Field | Value |
 |-------|-------|
-| Image | `quay.io/opendatahub/odh-opencode-rhel9:latest` |
+| Image | `quay.io/opendatahub/odh-opencode-rhel9:20260619-194847e` |
 | OpenCode version | Built from [opendatahub-io/opencode](https://github.com/opendatahub-io/opencode) |
 | Base | UBI 9 minimal |
 | License | MIT (OpenCode), Apache 2.0 (deployment manifests) |

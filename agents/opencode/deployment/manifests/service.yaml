@@ -11,10 +11,6 @@ spec:
       port: 8443
       targetPort: 8443
       protocol: TCP
-    - name: app
-      port: 8003
-      targetPort: 8003
-      protocol: TCP
   selector:
-    app: opencode
+    app.kubernetes.io/name: opencode
   type: ClusterIP

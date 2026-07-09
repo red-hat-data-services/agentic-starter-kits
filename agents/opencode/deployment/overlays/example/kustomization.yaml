@@ -31,6 +31,6 @@ secretGenerator:
     behavior: replace
     type: Opaque
     literals:
-      - session_secret=CHANGE-ME  # generate with: openssl rand -base64 32
+      - session_secret=<generate-with-openssl-rand-base64-32>
     options:
       disableNameSuffixHash: true

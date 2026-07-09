@@ -14,11 +14,8 @@ if [ ! -d .git ]; then
   git commit --allow-empty -m "init"
 fi
 
-# Build OpenCode config from template
-CONFIG=$(cat /config-template/config-template.json)
-CONFIG=${CONFIG//\$\{BASE_URL\}/$BASE_URL}
-CONFIG=${CONFIG//\$\{API_KEY\}/$API_KEY}
-CONFIG=${CONFIG//\$\{MODEL_NAME\}/$MODEL_NAME}
+# Build OpenCode config from template (envsubst handles special chars safely)
+CONFIG=$(envsubst '${BASE_URL} ${API_KEY} ${MODEL_NAME}' < /config-template/config-template.json)
 
 # Merge MCP config if mounted
 if [ -f /mcp-config/mcp-servers.json ]; then
@@ -27,6 +24,7 @@ if [ -f /mcp-config/mcp-servers.json ]; then
 fi
 
 export OPENCODE_CONFIG_CONTENT="$CONFIG"
+unset API_KEY BASE_URL MODEL_NAME
 
 MODE="${OPENCODE_MODE:-web}"
 

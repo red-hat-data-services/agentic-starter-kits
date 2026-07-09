@@ -9,3 +9,4 @@ namespace: opencode
 patches:
   - path: deployment-patch.yaml
   - path: remove-route.yaml
+  - path: remove-service.yaml

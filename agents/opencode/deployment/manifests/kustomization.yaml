@@ -5,7 +5,8 @@ kind: Kustomization
 namespace: opencode
 
 commonLabels:
-  app: opencode
+  app.kubernetes.io/name: opencode
+  app.kubernetes.io/part-of: opencode-on-openshift
 
 resources:
   - namespace.yaml
@@ -34,7 +35,7 @@ patches:
     patch: |-
       - op: add
         path: /spec/storageClassName
-        value: <your-storage-class>
+        value: gp3-csi  # Change to your cluster's storage class
 
 secretGenerator:
   - name: opencode-web-secret
