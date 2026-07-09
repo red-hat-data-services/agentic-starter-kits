@@ -1,0 +1,14 @@
+name: opencode
+displayName: "OpenCode"
+framework: opencode
+description: "OpenCode agentic coding tool deployed on OpenShift via kustomize (web and CLI modes with OAuth) or in an OpenShell sandbox."
+labels: ["coding-agent", "cli"]
+logo: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSI+CiAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiM2MzY2RjEiLz4KICA8dGV4dCB4PSIzMiIgeT0iMjQiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCxIZWx2ZXRpY2Esc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMSIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IndoaXRlIj5PUEVOPC90ZXh0PgogIDx0ZXh0IHg9IjMyIiB5PSI0NCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsLEhlbHZldGljYSxzYW5zLXNlcmlmIiBmb250LXNpemU9IjE2IiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0id2hpdGUiPkNPREU8L3RleHQ+Cjwvc3ZnPg=="
+env:
+  required:
+    - BASE_URL
+    - API_KEY
+    - MODEL_NAME
+  optional:
+    - MLFLOW_TRACKING_URI
+    - MLFLOW_EXPERIMENT_NAME
