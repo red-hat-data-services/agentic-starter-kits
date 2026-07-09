@@ -20,6 +20,7 @@ spec:
         runAsNonRoot: true
       initContainers:
         - name: init-config
+          # WARNING: This is an upstream community image, not built or validated by Red Hat.
           image: ghcr.io/openclaw/openclaw@sha256:037f49ba1595be9502fb345138d727cd0cfaecf1392cbe0cfe053fb4681386cd
           command:
             - sh
@@ -44,6 +45,7 @@ spec:
                 - ALL
       containers:
         - name: gateway
+          # WARNING: This is an upstream community image, not built or validated by Red Hat.
           image: ghcr.io/openclaw/openclaw@sha256:037f49ba1595be9502fb345138d727cd0cfaecf1392cbe0cfe053fb4681386cd
           # Explicit entrypoint required — the image default doesn't start the gateway on OpenShift
           command:
