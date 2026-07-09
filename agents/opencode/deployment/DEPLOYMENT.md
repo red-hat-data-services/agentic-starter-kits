@@ -35,7 +35,7 @@ This guide covers deploying [OpenCode](https://opencode.ai) as a coding agent on
 
 ## Project Structure
 
-```
+```text
 deployment/
 ├── manifests/                    # Base kustomize manifests (web mode + OAuth)
 │   ├── kustomization.yaml        # Kustomize entrypoint
@@ -128,6 +128,7 @@ The web mode deployment runs a two-container pod:
 2. **opencode-web** — OpenCode application serving the web UI on port 8003
 
 The entrypoint script (`manifests/entrypoint.sh`) handles:
+
 - Git workspace initialization
 - Config template variable substitution (BASE_URL, API_KEY, MODEL_NAME)
 - Optional MCP server config injection from a ConfigMap
