@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencode-web
+spec:
+  template:
+    spec:
+      $patch: replace
+      serviceAccountName: opencode-web
+      containers:
+        - name: opencode-web
+          image: quay.io/opendatahub/odh-opencode-rhel9:latest
+          workingDir: /opt/app-root/
+          command: ["/bin/bash", "/entrypoint/entrypoint.sh"]
+          env:
+            - name: BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-web-secret
+                  key: BASE_URL
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-web-secret
+                  key: API_KEY
+            - name: MODEL_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-web-secret
+                  key: MODEL_NAME
+            - name: OPENCODE_MODE
+              value: "cli"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: opencode-web-pvc
+              mountPath: /opt/app-root/workspace
+            - name: config-template
+              mountPath: /config-template
+            - name: entrypoint
+              mountPath: /entrypoint
+            - name: mcp-config
+              mountPath: /mcp-config
+      volumes:
+        - name: opencode-web-pvc
+          persistentVolumeClaim:
+            claimName: opencode-web-pvc
+        - name: config-template
+          configMap:
+            name: opencode-web-config
+        - name: entrypoint
+          configMap:
+            name: opencode-web-entrypoint
+            defaultMode: 0755
+        - name: mcp-config
+          configMap:
+            name: opencode-web-mcp
+            optional: true

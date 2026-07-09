@@ -1,0 +1,14 @@
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: opencode-web
+spec:
+  to:
+    kind: Service
+    name: opencode-web
+    weight: 100
+  port:
+    targetPort: oauth-proxy
+  tls:
+    termination: reencrypt
