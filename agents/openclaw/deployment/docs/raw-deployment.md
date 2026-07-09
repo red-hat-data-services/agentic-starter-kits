@@ -174,6 +174,10 @@ Open <http://localhost:18789> in your browser. Paste the gateway token from Step
 
 On first connect, device pairing is auto-approved for local connections. You should see the chat interface ready to use.
 
+## Next: Enable tracing (optional)
+
+To send OpenTelemetry traces to RHOAI MLflow, see [mlflow-tracing.md](mlflow-tracing.md).
+
 ## References
 
 | Resource | URL |

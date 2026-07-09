@@ -705,36 +705,21 @@ The container image includes MLflow 3.12 with the `kubernetes-namespaced` auth p
 
 ### Prerequisites
 
-- An MLflow instance running on your RHOAI cluster with a workspace matching your namespace.
+- An MLflow instance running on your RHOAI cluster.
+- A RoleBinding granting your service account the `mlflow-integration` ClusterRole — see [Which service account?](../../docs/mlflow-openshift-auth-and-tls.md#which-service-account) for whether to use the `default` SA or create a dedicated one.
+- For RBAC, TLS, and authentication concepts, see [MLflow on OpenShift: Authentication and TLS](../../docs/mlflow-openshift-auth-and-tls.md).
 
-### 1. Grant RBAC
+### 1. Configure MLflow env vars
 
-```bash
-oc adm policy add-role-to-user edit -z default -n <your-namespace>
-```
+All four deployment files (`deployment.yaml`, `deployment-vllm.yaml`, `deployment-vertex.yaml`, `deployment-ogx-vllm.yaml`) include commented-out MLflow env vars — uncomment and configure them. The key settings are:
 
-For production, use a dedicated service account with least-privilege RBAC scoped to the permissions MLflow's `kubernetes-namespaced` auth plugin requires.
+- `MLFLOW_TRACKING_URI` — the MLflow server URL (internal service or external route)
+- `MLFLOW_TRACKING_AUTH=kubernetes-namespaced` — authenticates using the pod's service account and auto-detects the workspace from the namespace (no `MLFLOW_WORKSPACE` needed)
+- `MLFLOW_TRACKING_SERVER_CERT_PATH` — points to the service CA for TLS verification
 
-### 2. Add MLflow env vars to your deployment manifest
+The deployment manifests also document the MLflow Claude Code plugin path (MLflow 3.14+), which uses the MLflow TypeScript SDK and handles auth and TLS differently. See the comments in your chosen manifest for details.
 
-Uncomment the MLflow env vars in your deployment manifest (all four manifests include commented-out placeholders), or add these to the `env` section:
-
-```yaml
-- name: MLFLOW_TRACKING_URI
-  value: "https://mlflow.<rhoai-namespace>.svc:8443/mlflow"
-- name: MLFLOW_TRACKING_AUTH
-  value: "kubernetes-namespaced"
-- name: MLFLOW_WORKSPACE
-  value: "<your-namespace>"
-- name: MLFLOW_EXPERIMENT_NAME
-  value: "claude-code-traces"
-- name: MLFLOW_TRACKING_INSECURE_TLS
-  value: "true"  # dev/test only; production should use proper TLS certificates
-```
-
-The `<rhoai-namespace>` is commonly `redhat-ods-applications`. The `/mlflow` path suffix is required for MLflow 3.12+.
-
-If your deployment is already running, re-apply the manifest and restart the pod to pick up the new env vars:
+### 2. Deploy or restart
 
 ```bash
 oc apply -f <your-deployment-manifest>.yaml
@@ -775,9 +760,16 @@ Each session captures tool call sequences, token counts (input/output/total), se
 
 ### MLflow version options
 
-The default Containerfile uses MLflow 3.12 with a Python hook. MLflow 3.14+ also supports an npm plugin approach — uncomment the npm plugin env var in your deployment manifest to enable it. The plugin must be built from [upstream master](https://github.com/mlflow/mlflow/tree/master/libs/typescript) until the next plugin release syncs the fix. See [mlflow-tracing.md](mlflow-tracing.md) for a comparison of both approaches.
+The default Containerfile uses MLflow 3.12 with a Python hook. MLflow 3.14+ also supports the [MLflow Claude Code plugin](https://github.com/mlflow/mlflow/tree/master/libs/typescript/integrations/claude-code), a Claude Code plugin that uses the MLflow TypeScript SDK. Uncomment the `NODE_EXTRA_CA_CERTS` env var in your deployment manifest to enable TLS for it. The plugin must be built from upstream source until the next release syncs the fix. See [mlflow-tracing.md](mlflow-tracing.md) for a comparison of both approaches.
 
-> **TLS note:** The npm plugin currently requires `NODE_TLS_REJECT_UNAUTHORIZED=0` or `NODE_EXTRA_CA_CERTS` for clusters with non-public TLS certificates. Both are process-wide Node.js settings. Upstream work is in progress to support `MLFLOW_TRACKING_INSECURE_TLS` and `MLFLOW_TRACKING_SERVER_CERT_PATH` scoped to MLflow connections only ([mlflow#24140](https://github.com/mlflow/mlflow/issues/24140)). Kubernetes-native auth (`MLFLOW_TRACKING_AUTH`) is also being added to the TypeScript SDK ([mlflow#24141](https://github.com/mlflow/mlflow/issues/24141)).
+> **TLS note (MLflow Claude Code plugin):** The plugin path requires **two** TLS env vars when connecting to the internal MLflow service:
+>
+> - `MLFLOW_TRACKING_SERVER_CERT_PATH` — needed by `mlflow autolog claude`, which is a Python CLI that runs at container startup to install and configure the plugin.
+> - `NODE_EXTRA_CA_CERTS` — needed by the MLflow TypeScript SDK at runtime (it does not read `MLFLOW_TRACKING_SERVER_CERT_PATH`).
+>
+> Both point to the same file (`/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt`). Do not remove `MLFLOW_TRACKING_SERVER_CERT_PATH` when switching to the plugin path — the setup step will fail with an SSL error. Upstream work is in progress to support `MLFLOW_TRACKING_SERVER_CERT_PATH` in the TS SDK directly ([mlflow#24140](https://github.com/mlflow/mlflow/issues/24140)). Kubernetes-native auth (`MLFLOW_TRACKING_AUTH`) is also being added to the TypeScript SDK ([mlflow#24141](https://github.com/mlflow/mlflow/issues/24141)).
+>
+> **Workspace:** The MLflow Claude plugin path requires `MLFLOW_WORKSPACE` to be set to your namespace name in the deployment manifest. The Python hook path (3.12) does not need this — see [TypeScript SDK: What's Different](../../docs/mlflow-openshift-auth-and-tls.md#typescript-sdk-whats-different) for why.
 
 For detailed tracing investigation results and benchmark data, see [mlflow-tracing.md](mlflow-tracing.md).
 

@@ -29,9 +29,6 @@ spec:
           volumeMounts:
             - name: otel-config
               mountPath: /etc/otel
-            - name: service-ca-bundle
-              mountPath: /etc/ssl/service-ca
-              readOnly: true
           resources:
             requests:
               cpu: 100m
@@ -54,6 +51,3 @@ spec:
             items:
               - key: config.yaml
                 path: config.yaml
-        - name: service-ca-bundle
-          configMap:
-            name: service-ca-bundle

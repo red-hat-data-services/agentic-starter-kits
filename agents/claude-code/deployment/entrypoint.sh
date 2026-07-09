@@ -287,7 +287,7 @@ env = s.setdefault("env", {})
 env["MLFLOW_TRACKING_AUTH"] = os.environ.get("MLFLOW_TRACKING_AUTH", "kubernetes-namespaced")
 env["MLFLOW_WORKSPACE"] = os.environ.get("MLFLOW_WORKSPACE", "")
 env["MLFLOW_TRACKING_INSECURE_TLS"] = os.environ.get("MLFLOW_TRACKING_INSECURE_TLS", "false")
-# Inject SA token for npm plugin (Python SDK reads it automatically, Node.js does not)
+# Inject SA token for MLflow Claude Code plugin (Python SDK reads it automatically, TS SDK does not)
 sa_token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 try:
     with open(sa_token_path) as f:
@@ -301,8 +301,21 @@ print("[entrypoint] INFO: MLflow settings injected into " + sf)
         log_warn "MLflow settings injection failed. Tracing may not authenticate correctly."
     fi
 
+    # Auto-enable the MLflow Claude Code plugin (MLflow 3.14+).
+    # `mlflow autolog claude` installs the plugin but Claude Code requires
+    # explicit enablement via settings.local.json. Without this, the plugin
+    # starts disabled on every fresh PVC.
+    # On 3.12 (Python hook path), the plugin isn't used — skip.
+    local mlflow_version
+    mlflow_version=$(python3 -c 'import mlflow; print(mlflow.__version__)' 2>/dev/null || echo "unknown")
+    if [[ "${mlflow_version}" != 3.12* ]]; then
+        claude plugin enable mlflow-tracing@mlflow-plugins 2>/dev/null \
+            && log_info "MLflow Claude Code plugin enabled" \
+            || log_info "MLflow Claude Code plugin already enabled"
+    fi
+
     # Replace installed plugin bundle with pre-built version if available
-    # (needed until the npm plugin release includes the workspace header fix)
+    # (needed until the plugin release includes the workspace header fix)
     if [[ -f "/opt/mlflow-plugin/stop.cjs" ]]; then
         local cached_stop
         cached_stop=$(find "${CLAUDE_CONFIG_DIR:-/workspace/.claude}/plugins" -name "stop.cjs" -path "*/mlflow*" 2>/dev/null | head -1)

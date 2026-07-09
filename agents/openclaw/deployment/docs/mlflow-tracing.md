@@ -2,7 +2,9 @@
 
 > Tested: 2026-06-17 on OpenShift 4.19 (ROSA) with `ghcr.io/openclaw/openclaw@sha256:037f49ba1595be9502fb345138d727cd0cfaecf1392cbe0cfe053fb4681386cd`, vLLM `gpt-oss-120b`, RHOAI MLflow 3.x
 
-OpenClaw natively emits OpenTelemetry (OTLP) traces via its `diagnostics-otel` plugin — no custom instrumentation, no Python hooks, no stop scripts. This overlay deploys OpenClaw with an OTel collector sidecar that forwards spans to RHOAI's shared MLflow instance over TLS with bearer token auth and scoped RBAC. A multi-turn coding task with 8 model calls and 8 tool executions produced a 19-span trace with full tool names, latencies, request/response sizes, and context window stats — all visible in the MLflow UI.
+OpenClaw natively emits OpenTelemetry (OTLP) traces via its `diagnostics-otel` plugin — no custom instrumentation, no Python hooks, no stop scripts. The [`overlays/mlflow-tracing/`](../overlays/mlflow-tracing/) Kustomize overlay in this repo deploys OpenClaw with an OTel collector sidecar that forwards spans to RHOAI's shared MLflow instance using standard OpenShift authentication and TLS. A multi-turn coding task with 8 model calls and 8 tool executions produced a 19-span trace with full tool names, latencies, request/response sizes, and context window stats — all visible in the MLflow UI.
+
+For background on how RHOAI MLflow handles TLS and RBAC, see [MLflow on OpenShift: Authentication and TLS](../../../../docs/mlflow-openshift-auth-and-tls.md). This document covers the OpenClaw-specific OTel collector integration.
 
 ## Architecture
 
@@ -28,7 +30,7 @@ OpenClaw natively emits OpenTelemetry (OTLP) traces via its `diagnostics-otel` p
                               └──────────────────────────────┘
 ```
 
-The collector runs as a sidecar in the OpenClaw pod, receiving spans on localhost and forwarding to RHOAI's shared MLflow over the cluster network. Authentication uses a ServiceAccount token with a scoped ClusterRole (`openclaw-mlflow-traces`) that only grants access to MLflow API groups — no access to core Kubernetes resources.
+The collector runs as a sidecar in the OpenClaw pod, receiving spans on localhost and forwarding to RHOAI's shared MLflow over the cluster network. Authentication uses the pod's ServiceAccount token as a bearer token — the same RBAC mechanism described in the [shared guide](../../../../docs/mlflow-openshift-auth-and-tls.md#rbac-setup).
 
 ### Component versions
 
@@ -38,11 +40,16 @@ The collector runs as a sidecar in the OpenClaw pod, receiving spans on localhos
 | OTel Collector (0.120.0) | `ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917` |
 | MLflow | RHOAI-managed (3.x) |
 
-### Security model
+### RBAC and TLS
 
-The overlay creates a dedicated `openclaw-tracing` ServiceAccount bound to the pre-existing `openclaw-mlflow-traces` ClusterRole. This role is scoped to `mlflow.kubeflow.org` and `mlflow.opendatahub.io` API groups only — it cannot read secrets, modify deployments, or access any core Kubernetes resources.
+The overlay's [`rbac.yaml`](../overlays/mlflow-tracing/rbac.yaml) creates:
 
-TLS verification uses the OpenShift Service CA certificate, injected automatically via the [`service.beta.openshift.io/inject-cabundle` annotation](https://docs.openshift.com/container-platform/4.17/security/certificates/service-serving-certificate.html) on the `service-ca-bundle` ConfigMap.
+- A dedicated `openclaw-tracing` **ServiceAccount** for the OpenClaw pod
+- A **RoleBinding** to the operator-provided `mlflow-integration` ClusterRole (see [RBAC Setup](../../../../docs/mlflow-openshift-auth-and-tls.md#rbac-setup) for details)
+
+The OTel collector reads the SA token from `/var/run/secrets/kubernetes.io/serviceaccount/token` via its `bearertokenauth` extension and sends it as a bearer token with every request.
+
+For TLS, it uses the service CA certificate at `/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt`, which OpenShift auto-mounts into every pod. This is the same auth and TLS that the MLflow Python SDK handles via `MLFLOW_TRACKING_AUTH` and `MLFLOW_TRACKING_SERVER_CERT_PATH` — but since the OTel collector is not an MLflow SDK client, it's configured directly in the collector's [`config.yaml`](../overlays/mlflow-tracing/otel-collector-config.yaml).
 
 ---
 
@@ -116,7 +123,8 @@ The `openclaw.model.call` spans capture `time_to_first_byte_ms` (40–294ms), `r
 
 ### Prerequisites
 
-- **RHOAI with MLflow** — the `mlflow` service must be running in `redhat-ods-applications` with `--enable-workspaces`. The `openclaw-mlflow-traces` ClusterRole must exist (created by the RHOAI operator).
+- **RHOAI with MLflow** — the `mlflow` service must be running in `redhat-ods-applications` with `--enable-workspaces`
+- **The `mlflow-integration` ClusterRole** — shipped by the MLflow operator. Run `oc get clusterroles | grep mlflow-integration` to find the exact name (it may be prefixed, e.g. `mlflow-operator-mlflow-integration`). See [RBAC Setup](../../../../docs/mlflow-openshift-auth-and-tls.md#rbac-setup).
 - **OpenShift 4.17+** with namespace-scoped access (`oc login`)
 - **A vLLM-compatible model endpoint** (see [model-compatibility.md](model-compatibility.md))
 
@@ -131,6 +139,7 @@ Replace every `YOUR-*` placeholder across these files:
 | File | What to change |
 |---|---|
 | `kustomization.yaml` | `YOUR-NAMESPACE` |
+| `rbac.yaml` | `YOUR-MLFLOW-INTEGRATION-CLUSTERROLE` (the name from the prerequisite step above) |
 | `configmap-patch.yaml` | `YOUR-MODEL-ID`, `YOUR-VLLM-OR-OGX-ENDPOINT` |
 | `otel-collector-config.yaml` | `YOUR-NAMESPACE` and `YOUR-EXPERIMENT-ID` (set after Step 3) |
 
@@ -148,17 +157,8 @@ oc apply -f overlays/my-tracing/rbac.yaml -n YOUR-NAMESPACE
 
 This creates:
 
-- **`openclaw-tracing` ServiceAccount** — used by the OpenClaw pod, scoped to MLflow API groups only
-- **`openclaw-tracing-mlflow` RoleBinding** — binds the pre-existing `openclaw-mlflow-traces` ClusterRole
-- **`service-ca-bundle` ConfigMap** — auto-populated with the OpenShift Service CA certificate for TLS verification
-
-Verify the Service CA bundle was injected:
-
-```bash
-oc get configmap service-ca-bundle -o jsonpath='{.data.service-ca\.crt}' | head -1
-```
-
-You should see `-----BEGIN CERTIFICATE-----`.
+- **`openclaw-tracing` ServiceAccount** — used by the OpenClaw pod
+- **RoleBinding** — binds the `mlflow-integration` ClusterRole to the ServiceAccount
 
 ### Step 3: Create an MLflow experiment
 
@@ -166,7 +166,7 @@ RHOAI MLflow uses workspaces — your namespace maps to a workspace. Create an e
 
 ```bash
 MLFLOW_ROUTE=$(oc get route mlflow -n redhat-ods-applications -o jsonpath='{.spec.host}')
-TOKEN=$(oc whoami -t)
+TOKEN=$(oc create token openclaw-tracing)
 
 curl -s -X POST "https://${MLFLOW_ROUTE}/mlflow/api/2.0/mlflow/experiments/create" \
   -H "Authorization: Bearer ${TOKEN}" \
@@ -244,6 +244,7 @@ The OpenShift Route terminates TLS at HAProxy, which disrupts the persistent Web
 
 | Resource | URL |
 |---|---|
+| MLflow on OpenShift: Auth and TLS | [docs/mlflow-openshift-auth-and-tls.md](../../../../docs/mlflow-openshift-auth-and-tls.md) |
 | OpenClaw OTel Documentation | <https://docs.openclaw.ai/gateway/opentelemetry> |
 | OpenClaw Deployment Guide | [raw-deployment.md](raw-deployment.md) |
 | OTel Collector Contrib | <https://github.com/open-telemetry/opentelemetry-collector-contrib> |

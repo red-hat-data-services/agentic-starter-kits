@@ -18,6 +18,7 @@ For how the Python agents in this repo set up MLflow tracing, see [tracing.md](.
 - [Authentication](#authentication)
 - [Complete .env Examples](#complete-env-examples)
 - [TypeScript SDK: What's Different](#typescript-sdk-whats-different)
+- [Agent Implementations](#agent-implementations)
 
 ---
 
@@ -131,9 +132,30 @@ oc -n <namespace> create rolebinding <name>-mlflow-integration \
   --serviceaccount=<namespace>:<service-account-name>
 ```
 
-### Who needs a RoleBinding?
+### Which service account?
 
-The service account your agent uses. Create the RoleBinding above before deploying or generating tokens — without it, MLflow returns 403. See [Authentication](#authentication) for how to generate and configure the token.
+Every pod uses the identity of a service account. If your deployment doesn't set `serviceAccountName`, it uses the namespace's `default` SA — this is the simplest option and works well when the namespace is dedicated to a single agent:
+
+```bash
+# Bind the mlflow-integration role to the default SA
+oc -n <namespace> create rolebinding <namespace>-mlflow-integration \
+  --clusterrole=<mlflow-integration-clusterrole> \
+  --serviceaccount=<namespace>:default
+```
+
+If the namespace runs other pods that should not have MLflow access, create a dedicated service account:
+
+```bash
+oc -n <namespace> create sa <agent-name>-tracing
+
+oc -n <namespace> create rolebinding <agent-name>-mlflow-integration \
+  --clusterrole=<mlflow-integration-clusterrole> \
+  --serviceaccount=<namespace>:<agent-name>-tracing
+```
+
+Then set `serviceAccountName: <agent-name>-tracing` in your deployment spec.
+
+Create the RoleBinding before deploying or generating tokens — without it, MLflow returns 403. See [Authentication](#authentication) for how to generate and configure the token.
 
 ---
 
@@ -247,4 +269,12 @@ MLFLOW_WORKSPACE=<injected by entrypoint>
 NODE_EXTRA_CA_CERTS=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
 ```
 
-> A follow-up PR will demonstrate these workarounds with a concrete TS agent implementation (claude-code with the MLflow TS plugin).
+---
+
+## Agent Implementations
+
+Different agents use different clients to send traces to MLflow — the auth and TLS concepts above apply to all of them:
+
+- **react_agent** (MLflow Python SDK) — [tracing setup](../agents/langgraph/templates/react_agent/README.md#tracing-optional), reference implementation for Python framework agents
+- **claude-code** (MLflow TS SDK + Python hook) — [tracing setup](../agents/claude-code/README.md#mlflow-tracing-optional)
+- **openclaw** (OTel collector sidecar) — [tracing setup](../agents/openclaw/deployment/docs/mlflow-tracing.md)

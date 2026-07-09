@@ -46,7 +46,7 @@ data:
       otlphttp:
         endpoint: "https://mlflow.redhat-ods-applications.svc.cluster.local:8443"
         tls:
-          ca_file: /etc/ssl/service-ca/service-ca.crt
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
         headers:
           X-MLFLOW-WORKSPACE: YOUR-NAMESPACE
           x-mlflow-experiment-id: "YOUR-EXPERIMENT-ID"

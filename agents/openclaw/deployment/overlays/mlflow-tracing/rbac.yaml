@@ -1,9 +1,12 @@
-# RBAC and TLS resources for connecting to RHOAI shared MLflow
+# RBAC resources for connecting to RHOAI shared MLflow
 #
-# - ServiceAccount: used by the OpenClaw pod (scoped to MLflow API groups only)
-# - RoleBinding: binds the pre-existing openclaw-mlflow-traces ClusterRole
-# - ConfigMap: injected with the OpenShift Service CA for TLS verification
+# - ServiceAccount: used by the OpenClaw pod
+# - RoleBinding: binds the operator-provided mlflow-integration ClusterRole
 #
+# Find the exact ClusterRole name on your cluster:
+#   oc get clusterroles | grep mlflow-integration
+# Then replace YOUR-MLFLOW-INTEGRATION-CLUSTERROLE below.
+# See docs/mlflow-openshift-auth-and-tls.md for details.
 
 ---
 apiVersion: v1
@@ -22,16 +25,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: openclaw-mlflow-traces
+  name: YOUR-MLFLOW-INTEGRATION-CLUSTERROLE
 subjects:
   - kind: ServiceAccount
     name: openclaw-tracing
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: service-ca-bundle
-  annotations:
-    service.beta.openshift.io/inject-cabundle: "true"
-  labels:
-    app: openclaw

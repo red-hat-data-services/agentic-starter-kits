@@ -150,30 +150,29 @@ spec:
             #   value: "your-model"
             # ===========================================
             # MLflow Tracing (Optional) — Python hook (default, MLflow 3.12)
+            # See docs/mlflow-openshift-auth-and-tls.md for TLS and auth details.
             # ===========================================
             # Uncomment and configure to enable.
-            # See the MLflow Tracing section in ../README.md for details.
             # - name: MLFLOW_TRACKING_URI
             #   value: "https://mlflow.<rhoai-namespace>.svc:8443/mlflow"
             # - name: MLFLOW_TRACKING_AUTH
             #   value: "kubernetes-namespaced"
-            # - name: MLFLOW_WORKSPACE
-            #   value: "<your-namespace>"
             # - name: MLFLOW_EXPERIMENT_NAME
             #   value: "claude-code-traces"
+            # - name: MLFLOW_TRACKING_SERVER_CERT_PATH
+            #   value: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+            # Dev-only fallback (not recommended — prefer MLFLOW_TRACKING_SERVER_CERT_PATH):
             # - name: MLFLOW_TRACKING_INSECURE_TLS
             #   value: "true"
             # ---
-            # MLflow Tracing — npm plugin (MLflow 3.14+)
-            # To use the npm plugin instead of the Python hook, uncomment
-            # the block above AND add this env var.
-            # WARNING: NODE_TLS_REJECT_UNAUTHORIZED=0 disables TLS verification
-            # for ALL Node.js connections in the container (not just MLflow).
-            # Only use in dev/test clusters with self-signed certs.
-            # For production, mount the cluster CA bundle instead:
-            #   NODE_EXTRA_CA_CERTS=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-            # - name: NODE_TLS_REJECT_UNAUTHORIZED
-            #   value: "0"
+            # MLflow Claude Code plugin (MLflow 3.14+)
+            # Requires Option B in the Containerfile. Uncomment the env vars below
+            # in addition to the Python env vars above. See README.md "MLflow version
+            # options" for why both are needed.
+            # - name: NODE_EXTRA_CA_CERTS
+            #   value: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+            # - name: MLFLOW_WORKSPACE
+            #   value: "my-namespace"
             - name: MCP_CONFIG_FILE
               value: "/etc/mcp/config.json"
             # WARNING: Setting SKIP_PERMISSIONS=true disables all Claude permission checks.
