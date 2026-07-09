@@ -55,9 +55,12 @@ runs:
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "${api_url}")"; then
-            failed_jobs_json="$(
+            if ! failed_jobs_json="$(
               bash "${GITHUB_ACTION_PATH}/extract_failed_jobs.sh" <<<"${response}"
-            )"
+            )"; then
+              echo "::warning::Failed to extract failed jobs; sending Slack notification without job detail"
+              failed_jobs_json='[]'
+            fi
           else
             echo "::warning::Unable to query failed jobs for run ${RUN_ID}; sending Slack notification without job detail"
           fi
@@ -71,6 +74,7 @@ runs:
       id: render-payload
       shell: bash
       env:
+        RUN_ID: ${{ inputs.run_id }}
         WORKFLOW_NAME: ${{ inputs.workflow_name }}
         EVENT_NAME: ${{ inputs.event_name }}
         REF_NAME: ${{ inputs.ref_name }}
@@ -82,10 +86,14 @@ runs:
       run: |
         set -euo pipefail
 
-        payload_path="${RUNNER_TEMP}/slack-payload-${{ inputs.run_id }}.json"
-        TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-          bash "${GITHUB_ACTION_PATH}/render_payload.sh" > "${payload_path}"
-        echo "payload_path=${payload_path}" >> "${GITHUB_OUTPUT}"
+        payload_path="${RUNNER_TEMP}/slack-payload-${RUN_ID}.json"
+        if ! TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          bash "${GITHUB_ACTION_PATH}/render_payload.sh" > "${payload_path}"; then
+          echo "::warning::Failed to render Slack payload; skipping notification"
+          echo "payload_path=" >> "${GITHUB_OUTPUT}"
+        else
+          echo "payload_path=${payload_path}" >> "${GITHUB_OUTPUT}"
+        fi
 
     - name: Send Slack notification
       shell: bash
@@ -94,6 +102,11 @@ runs:
         PAYLOAD_PATH: ${{ steps.render-payload.outputs.payload_path }}
       run: |
         set -euo pipefail
+
+        if [[ -z "${PAYLOAD_PATH}" ]]; then
+          echo "No payload to send; skipping notification"
+          exit 0
+        fi
 
         args=()
         if [[ "${PREVIEW}" == "true" ]]; then

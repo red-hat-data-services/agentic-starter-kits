@@ -118,7 +118,10 @@ jobs:
 
   notify-slack:
     name: Notify Slack
-    if: always() && github.repository == 'red-hat-data-services/agentic-starter-kits'
+    if: >-
+      !cancelled() &&
+      github.repository == 'red-hat-data-services/agentic-starter-kits' &&
+      (github.event_name != 'workflow_dispatch' || github.ref_name == 'main')
     needs: [verify-cluster-connection, test-agent]
     runs-on: ubuntu-latest
     permissions:

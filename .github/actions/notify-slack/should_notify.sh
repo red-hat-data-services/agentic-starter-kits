@@ -29,6 +29,7 @@ else
     jq -r '
       [.[] | .result] as $results
       | if any($results[]?; . == "failure") then "failure"
+        elif any($results[]?; . == "timed_out") then "timed_out"
         elif any($results[]?; . == "cancelled") then "cancelled"
         else "success"
         end

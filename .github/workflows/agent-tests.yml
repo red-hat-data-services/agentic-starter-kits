@@ -109,7 +109,11 @@ jobs:
 
   notify-slack:
     name: Notify Slack
-    if: always()
+    if: >-
+      !cancelled() &&
+      github.event_name != 'pull_request' &&
+      github.repository == 'red-hat-data-services/agentic-starter-kits' &&
+      (github.event_name != 'workflow_dispatch' || github.ref_name == 'main')
     needs: [test]
     runs-on: ubuntu-latest
     permissions:

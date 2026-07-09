@@ -8,7 +8,6 @@ import os
 import subprocess
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 NOTIFY_DIR = REPO_ROOT / ".github" / "actions" / "notify-slack"
 RENDER_SCRIPT = NOTIFY_DIR / "render_payload.sh"
@@ -178,6 +177,34 @@ def test_should_notify_for_main_failure():
     assert output["status"] == "failure"
 
 
+def test_should_not_notify_on_all_success():
+    env = os.environ.copy()
+    env.update(
+        {
+            "EVENT_NAME": "push",
+            "REF_NAME": "main",
+            "NEEDS_JSON": json.dumps(
+                {
+                    "lint": {"result": "success"},
+                    "type-check": {"result": "success"},
+                }
+            ),
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(SHOULD_NOTIFY_SCRIPT)],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    output = parse_key_value_output(result.stdout)
+    assert output["should_notify"] == "false"
+    assert output["status"] == "success"
+
+
 def test_should_not_notify_for_pull_request_failure():
     env = os.environ.copy()
     env.update(
@@ -273,3 +300,26 @@ def test_should_notify_for_cancelled_run():
     output = parse_key_value_output(result.stdout)
     assert output["should_notify"] == "true"
     assert output["status"] == "cancelled"
+
+
+def test_should_notify_for_timed_out_run():
+    env = os.environ.copy()
+    env.update(
+        {
+            "EVENT_NAME": "push",
+            "REF_NAME": "main",
+            "NEEDS_JSON": json.dumps({"lint": {"result": "timed_out"}}),
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(SHOULD_NOTIFY_SCRIPT)],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    output = parse_key_value_output(result.stdout)
+    assert output["should_notify"] == "true"
+    assert output["status"] == "timed_out"
