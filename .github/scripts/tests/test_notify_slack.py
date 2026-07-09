@@ -58,7 +58,9 @@ def test_render_payload_includes_failed_jobs_and_links():
     assert "lint" in payload_text
     assert "type-check" in payload_text
     assert "https://github.com/example/repo/actions/runs/123" in payload_text
-    assert "https://red-hat-data-services.github.io/agentic-starter-kits/" in payload_text
+    assert (
+        "https://red-hat-data-services.github.io/agentic-starter-kits/" in payload_text
+    )
 
 
 def test_notify_preview_prints_payload(tmp_path):
@@ -129,9 +131,18 @@ def test_extract_failed_jobs_filters_matrix_results(tmp_path):
             {
                 "jobs": [
                     {"name": "verify-cluster-connection", "conclusion": "success"},
-                    {"name": "test-agent (langgraph-react-agent)", "conclusion": "failure"},
-                    {"name": "test-agent (google-adk-agent)", "conclusion": "cancelled"},
-                    {"name": "test-agent (crewai-websearch-agent)", "conclusion": "timed_out"},
+                    {
+                        "name": "test-agent (langgraph-react-agent)",
+                        "conclusion": "failure",
+                    },
+                    {
+                        "name": "test-agent (google-adk-agent)",
+                        "conclusion": "cancelled",
+                    },
+                    {
+                        "name": "test-agent (crewai-websearch-agent)",
+                        "conclusion": "timed_out",
+                    },
                 ]
             }
         ),
