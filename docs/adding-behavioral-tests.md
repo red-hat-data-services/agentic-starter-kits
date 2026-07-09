@@ -66,6 +66,7 @@ See existing agent implementations for working examples:
 - `agents/langgraph/templates/human_in_the_loop/tests/behavioral/conftest.py`
 - `agents/google/templates/adk/tests/behavioral/conftest.py`
 - `agents/langflow/templates/simple_tool_calling_agent/tests/behavioral/conftest.py` — **non-standard adapter**: uses `api_format="langflow_run"` + `flow_id` instead of `/chat/completions`, no MLflow enrichment (tool_calls from `content_blocks`). Follow the standard pattern above unless your agent also uses a non-standard API.
+- `agents/a2a/templates/langgraph_crewai_agent/tests/behavioral/conftest.py` — A2A multi-pod agent (LangGraph orchestrator + CrewAI specialist); tests target the LangGraph `/chat/completions` shim; tool_calls via MLflow enrichment.
 
 ## 3. Add Thresholds
 
@@ -121,6 +122,7 @@ See the existing implementations for reference:
 - `agents/langgraph/templates/human_in_the_loop/tests/behavioral/` (single tool: `create_file` with HITL approval workflow)
 - `agents/langflow/templates/simple_tool_calling_agent/tests/behavioral/` (three tools: `get_forecast`, `search_parks`, `park_alerts` — Langflow `api_format`)
 - `agents/google/templates/adk/tests/behavioral/` (single tool: `dummy_web_search`)
+- `agents/a2a/templates/langgraph_crewai_agent/tests/behavioral/` (single tool: `ask_crew_specialist` — A2A multi-pod delegation)
 
 ## 6. Register the Agent Marker
 

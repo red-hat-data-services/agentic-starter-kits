@@ -12,24 +12,20 @@ import logging
 from os import getenv
 
 import uvicorn
+from a2a.helpers import new_text_message
 from a2a.server.agent_execution import AgentExecutor, RequestContext
-from a2a.server.apps import A2AStarletteApplication
 from a2a.server.events import EventQueue
 from a2a.server.request_handlers import DefaultRequestHandler
+from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes
 from a2a.server.tasks import InMemoryTaskStore
-from a2a.types import AgentCapabilities, AgentCard, AgentSkill
-from a2a.utils import new_agent_text_message
+from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill
 from crewai import LLM, Agent, Crew, Task
 from dotenv import load_dotenv
+from starlette.applications import Starlette
 
 from .custom_tool import DummyWebSearchTool
 from .tracing import enable_tracing_crewai, wrap_func_with_mlflow_trace
 
-load_dotenv()
-logging.basicConfig(
-    level=logging.INFO,
-    format="[CREW] %(levelname)s:%(name)s:%(message)s",
-)
 logger = logging.getLogger(__name__)
 
 _llm: LLM | None = None
@@ -105,16 +101,16 @@ class CrewA2AExecutor(AgentExecutor):
         text = context.get_user_input()
         if not text.strip():
             await event_queue.enqueue_event(
-                new_agent_text_message("Error: empty user message.")
+                new_text_message("Error: empty user message.")
             )
             return
         try:
             result = await asyncio.to_thread(_run_crew, text)
-            await event_queue.enqueue_event(new_agent_text_message(result))
+            await event_queue.enqueue_event(new_text_message(result))
         except Exception:  # noqa: BLE001
             logger.exception("Crew kickoff failed")
             await event_queue.enqueue_event(
-                new_agent_text_message("CrewAI error: request failed.")
+                new_text_message("CrewAI error: request failed.")
             )
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
@@ -122,6 +118,11 @@ class CrewA2AExecutor(AgentExecutor):
 
 
 def main() -> None:
+    load_dotenv()
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[CREW] %(levelname)s:%(name)s:%(message)s",
+    )
     enable_tracing_crewai()
 
     public_base = getenv("CREW_A2A_PUBLIC_URL", "http://127.0.0.1:9100").rstrip("/")
@@ -141,25 +142,30 @@ def main() -> None:
     agent_card = AgentCard(
         name="CrewAI A2A Specialist",
         description="Minimal CrewAI agent speaking the A2A protocol.",
-        url=f"{public_base}/",
+        supported_interfaces=[
+            AgentInterface(
+                url=f"{public_base}/",
+                protocol_binding="JSONRPC",
+            ),
+        ],
         version="0.1.0",
         default_input_modes=["text"],
         default_output_modes=["text"],
         capabilities=AgentCapabilities(streaming=False),
         skills=[skill],
-        supports_authenticated_extended_card=False,
     )
 
     handler = DefaultRequestHandler(
         agent_executor=CrewA2AExecutor(),
         task_store=InMemoryTaskStore(),
-    )
-    app = A2AStarletteApplication(
         agent_card=agent_card,
-        http_handler=handler,
     )
-    logger.info("Crew A2A listening on 0.0.0.0:%s (card url=%s)", port, agent_card.url)
-    uvicorn.run(app.build(), host="0.0.0.0", port=port)
+    routes = []
+    routes.extend(create_agent_card_routes(agent_card))
+    routes.extend(create_jsonrpc_routes(handler, rpc_url="/"))
+    app = Starlette(routes=routes)
+    logger.info("Crew A2A listening on 0.0.0.0:%s (public_base=%s)", port, public_base)
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":

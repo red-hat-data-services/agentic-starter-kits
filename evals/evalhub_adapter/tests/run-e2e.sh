@@ -109,6 +109,7 @@ REQUIRED_FILES=(
   "agents/langflow/templates/simple_tool_calling_agent/evalhub/tool_use.yaml"
   "agents/langgraph/templates/human_in_the_loop/evalhub/tool_use.yaml"
   "agents/google/templates/adk/evalhub/tool_use.yaml"
+  "agents/a2a/templates/langgraph_crewai_agent/evalhub/tool_use.yaml"
 )
 for f in "${REQUIRED_FILES[@]}"; do
   if [[ -f "${REPO_ROOT}/${f}" ]]; then
@@ -257,6 +258,18 @@ else
   preflight_ok "Google ADK agent route (override): ${GOOGLE_ADK_AGENT_ROUTE}"
 fi
 
+if [[ -z "${A2A_LANGGRAPH_CREWAI_ROUTE:-}" ]]; then
+  A2A_LANGGRAPH_CREWAI_ROUTE=$(get_route "a2a-langgraph-agent" || true)
+  [[ -z "${A2A_LANGGRAPH_CREWAI_ROUTE}" ]] && A2A_LANGGRAPH_CREWAI_ROUTE=$(get_route_contains "a2a-langgraph")
+  if [[ -n "${A2A_LANGGRAPH_CREWAI_ROUTE}" ]]; then
+    preflight_ok "A2A LangGraph-CrewAI agent route: ${A2A_LANGGRAPH_CREWAI_ROUTE}"
+  else
+    preflight_warn "Could not discover a2a_langgraph_crewai route. Set A2A_LANGGRAPH_CREWAI_ROUTE manually."
+  fi
+else
+  preflight_ok "A2A LangGraph-CrewAI agent route (override): ${A2A_LANGGRAPH_CREWAI_ROUTE}"
+fi
+
 # Langflow agent route — lives in a separate namespace (langflow-agent)
 LANGFLOW_NAMESPACE="${LANGFLOW_NAMESPACE:-langflow-agent}"
 if [[ -z "${LANGFLOW_ROUTE:-}" ]]; then
@@ -397,6 +410,14 @@ if [[ -n "${GOOGLE_ADK_AGENT_ROUTE:-}" ]]; then
   fi
 fi
 
+if [[ -n "${A2A_LANGGRAPH_CREWAI_ROUTE:-}" ]]; then
+  if curl -sf --max-time 10 "https://${A2A_LANGGRAPH_CREWAI_ROUTE}/health" > /dev/null 2>&1; then
+    preflight_ok "a2a_langgraph_crewai_agent /health responded"
+  else
+    preflight_warn "a2a_langgraph_crewai_agent /health not reachable (https://${A2A_LANGGRAPH_CREWAI_ROUTE}/health)"
+  fi
+fi
+
 if [[ -n "${LANGFLOW_ROUTE:-}" ]]; then
   if curl -sf --max-time 10 "https://${LANGFLOW_ROUTE}/health" > /dev/null 2>&1; then
     preflight_ok "langflow_tool_calling_agent /health responded"
@@ -487,6 +508,7 @@ echo "  DB Memory agent:   ${DB_MEMORY_AGENT_ROUTE}"
 echo "  LlamaIndex Websearch: ${LLAMAINDEX_WEBSEARCH_ROUTE}"
 echo "  HITL agent:        ${HITL_AGENT_ROUTE}"
 echo "  Google ADK agent:  ${GOOGLE_ADK_AGENT_ROUTE}"
+echo "  A2A LangGraph-CrewAI: ${A2A_LANGGRAPH_CREWAI_ROUTE:-not discovered}"
 echo "  MLflow:            ${MLFLOW_TRACKING_URI}"
 echo "  Experiment:        ${MLFLOW_EXPERIMENT}"
 
@@ -562,6 +584,7 @@ cat > "${WORK_DIR}/provider-agentic.json" <<EOF
         {"name": "MLFLOW_WORKSPACE", "value": "${OC_NAMESPACE}"},
         {"name": "MLFLOW_TRACE_WAIT_SECONDS", "value": "5"},
         {"name": "MLFLOW_TRACE_MAX_RETRIES", "value": "6"},
+        {"name": "MLFLOW_TRACKING_INSECURE_TLS", "value": "true"},
         {"name": "EVALHUB_ALLOW_LOCALHOST", "value": "true"}
       ]
     }
@@ -806,6 +829,31 @@ EOF
 
 echo "  Created: eval-google-adk-agent.yaml"
 
+if [[ -n "${A2A_LANGGRAPH_CREWAI_ROUTE:-}" ]]; then
+cat > "${WORK_DIR}/eval-a2a-langgraph-crewai-agent.yaml" <<EOF
+name: agentic-tool-use-a2a-langgraph-crewai-agent
+description: EvalHub orchestration run for A2A LangGraph-CrewAI agent
+model:
+  name: a2a-langgraph-crewai-agent
+  url: https://${A2A_LANGGRAPH_CREWAI_ROUTE}
+benchmarks:
+  - id: agentic-tool-use
+    provider_id: ${PROVIDER_ID}
+    parameters:
+      known_tools: ["ask_crew_specialist", "web_search", "Web Search"]
+      forbidden_actions: ["shell execution"]
+      max_latency_seconds: 20.0
+      timeout_seconds: 60.0
+      verify_ssl: true
+      fixtures_path: fixtures/a2a_langgraph_crewai
+      mlflow_tracking_uri: ${MLFLOW_INTERNAL_URI}
+      mlflow_experiment_name: ${MLFLOW_EXPERIMENT}
+      mlflow_trace_experiment_name: ${MLFLOW_AGENT_EXPERIMENT}
+EOF
+
+echo "  Created: eval-a2a-langgraph-crewai-agent.yaml"
+fi
+
 # Langflow agent — discover flow_id dynamically and obtain auth token
 if [[ -n "${LANGFLOW_ROUTE:-}" ]]; then
   LANGFLOW_TOKEN=$(curl -sk --compressed "https://${LANGFLOW_ROUTE}/api/v1/auto_login" \
@@ -981,6 +1029,22 @@ for line in sys.stdin:
         break
 " 2>/dev/null || true)
 
+A2A_LANGGRAPH_CREWAI_JOB_ID=""
+if [[ -f "${WORK_DIR}/eval-a2a-langgraph-crewai-agent.yaml" ]]; then
+  echo ""
+  echo "=== Step 6: Submitting a2a_langgraph_crewai_agent eval ==="
+  A2A_LANGGRAPH_CREWAI_OUTPUT=$(evalhub eval run --config "${WORK_DIR}/eval-a2a-langgraph-crewai-agent.yaml" --wait --poll-interval 5 2>&1)
+  echo "${A2A_LANGGRAPH_CREWAI_OUTPUT}"
+  A2A_LANGGRAPH_CREWAI_JOB_ID=$(echo "${A2A_LANGGRAPH_CREWAI_OUTPUT}" | python3 -c "
+import sys, re
+for line in sys.stdin:
+    m = re.search(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', line)
+    if m:
+        print(m.group())
+        break
+" 2>/dev/null || true)
+fi
+
 LANGFLOW_JOB_ID=""
 if [[ -f "${WORK_DIR}/eval-langflow-tool-calling-agent.yaml" ]]; then
   echo ""
@@ -1072,6 +1136,10 @@ echo ""
 print_results "hitl_agent" "${HITL_JOB_ID:-}"
 echo ""
 print_results "google_adk_agent" "${GOOGLE_ADK_JOB_ID:-}"
+if [[ -n "${A2A_LANGGRAPH_CREWAI_JOB_ID:-}" ]]; then
+  echo ""
+  print_results "a2a_langgraph_crewai_agent" "${A2A_LANGGRAPH_CREWAI_JOB_ID:-}"
+fi
 if [[ -n "${LANGFLOW_JOB_ID:-}" ]]; then
   echo ""
   print_results "langflow_tool_calling_agent" "${LANGFLOW_JOB_ID:-}"

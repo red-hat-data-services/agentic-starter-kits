@@ -2,6 +2,13 @@
 
 > Tested: 2026-04-13 on OpenShift 4.19 (ROSA) with vLLM model serving
 
+**⚠ Important:** The container image used in this starter kit
+(`ghcr.io/openclaw/openclaw`) is built and published by the
+[OpenClaw upstream community](https://github.com/openclaw/openclaw),
+**not by Red Hat**. It has not been built, scanned, or validated
+according to Red Hat standards. Use it at your own discretion.
+A Red Hat supported image may be provided in a future release.
+
 Deploy [OpenClaw](https://github.com/openclaw/openclaw) on Red Hat OpenShift with vLLM model serving — no cluster-admin required.
 
 For the full deployment guide, see [docs/raw-deployment.md](docs/raw-deployment.md).

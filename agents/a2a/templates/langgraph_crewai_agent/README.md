@@ -415,6 +415,34 @@ For local runs, use `http://127.0.0.1:9200` instead of `https://<YOUR_ROUTE_URL>
 | `Service` + `Route` ×2 | HTTPS; hosts feed Agent Card URLs |
 | In-cluster | `CREW_A2A_URL=http://a2a-crew-agent:8080` |
 
+## Testing
+
+### Unit tests
+
+```bash
+make test
+```
+
+### Behavioral tests
+
+Behavioral tests validate tool selection, response quality, latency, and reliability of the LangGraph orchestrator via its `/chat/completions` endpoint.
+
+```bash
+# Set the agent URL (LangGraph server)
+export A2A_LANGGRAPH_CREWAI_AGENT_URL="https://<langgraph-route>"
+
+# Optional: enable MLflow trace enrichment for tool_calls extraction
+export MLFLOW_TRACKING_URI="https://<mlflow-route>"
+export MLFLOW_EXPERIMENT_NAME="<mlflow-experiment-name>"
+
+# Run behavioral tests
+pytest agents/a2a/templates/langgraph_crewai_agent/tests/behavioral/ -m a2a_langgraph_crewai -v
+```
+
+**Note:** This is a multi-pod agent. Behavioral tests target the **LangGraph server** (`a2a-langgraph-agent`), which delegates to the CrewAI specialist (`a2a-crew-agent`) via the A2A protocol. Both pods must be running for tool-delegation tests to pass.
+
+---
+
 ## Resources
 
 - [A2A Python SDK](https://pypi.org/project/a2a-sdk/)

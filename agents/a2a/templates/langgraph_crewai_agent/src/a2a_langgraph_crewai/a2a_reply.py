@@ -1,60 +1,27 @@
-"""Helpers: call another A2A agent and turn SendMessageResponse into plain text."""
+"""Helpers: call another A2A agent and turn streaming responses into plain text."""
 
 from __future__ import annotations
 
 import json
 import logging
-import warnings
 from typing import Any
 from uuid import uuid4
 
 import httpx
-from a2a.client import A2ACardResolver, A2AClient
-from a2a.types import (
-    JSONRPCErrorResponse,
-    Message,
-    MessageSendParams,
-    SendMessageRequest,
-    Task,
-)
-from a2a.utils import get_artifact_text, get_message_text
+from a2a.client import ClientConfig, create_client
+from a2a.helpers import get_stream_response_text
+from a2a.types import Message, Part, Role, SendMessageRequest
+from google.protobuf.json_format import MessageToDict
+from google.protobuf.message import Message as ProtoMessage
 
 logger = logging.getLogger(__name__)
-
-# Legacy client is still the simplest JSON-RPC surface used in a2a-samples.
-warnings.filterwarnings(
-    "ignore",
-    message=".*A2AClient is deprecated.*",
-    category=DeprecationWarning,
-)
-
-
-def _unwrap_send_result(response: Any) -> Any:
-    root = response.root
-    if isinstance(root, JSONRPCErrorResponse):
-        raise RuntimeError(f"A2A JSON-RPC error: {root.error}")
-    return root.result
-
-
-def a2a_result_to_text(result: Message | Task | Any) -> str:
-    if isinstance(result, Message):
-        return get_message_text(result)
-    if isinstance(result, Task):
-        chunks: list[str] = []
-        if result.artifacts:
-            for art in result.artifacts:
-                chunks.append(get_artifact_text(art))
-        if chunks:
-            return "\n".join(chunks)
-        if result.status and result.status.message:
-            return get_message_text(result.status.message)
-        return str(result)
-    return str(result)
 
 
 def _json_for_log(obj: Any) -> str:
     try:
-        if hasattr(obj, "model_dump"):
+        if isinstance(obj, ProtoMessage):
+            data = MessageToDict(obj, preserving_proto_field_name=True)
+        elif hasattr(obj, "model_dump"):
             data = obj.model_dump(mode="json", exclude_none=True)
         else:
             data = obj
@@ -63,58 +30,59 @@ def _json_for_log(obj: Any) -> str:
         return str(obj)
 
 
-async def send_a2a_text_message(
-    base_url: str, text: str, timeout: float = 120.0
-) -> str:
-    """Fetch agent card, send one user text message, return assistant text.
+async def send_a2a_text_message(base_url: str, text: str) -> str:
+    """Fetch agent card, send one user text message via streaming, return assistant text.
 
-    Logs inter-agent A2A traffic: INFO summarizes each call (peer, JSON-RPC id);
-    DEBUG logs full ``SendMessageRequest`` / response payloads (same objects the client
-    serializes over JSON-RPC). Use ``LOG_LEVEL=DEBUG`` or ``logging.getLogger("a2a_langgraph_crewai.a2a_reply").setLevel(logging.DEBUG)``.
+    Logs inter-agent A2A traffic: INFO summarises each call (peer, msg_id);
+    DEBUG logs full request/response payloads.  Use ``LOG_LEVEL=DEBUG`` or
+    ``logging.getLogger("a2a_langgraph_crewai.a2a_reply").setLevel(logging.DEBUG)``.
     """
     base = base_url.rstrip("/")
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        resolver = A2ACardResolver(httpx_client=client, base_url=base)
-        card = await resolver.get_agent_card()
-        a2a = A2AClient(httpx_client=client, agent_card=card)
-        payload: dict[str, Any] = {
-            "message": {
-                "role": "user",
-                "parts": [{"kind": "text", "text": text}],
-                "messageId": uuid4().hex,
-            },
-        }
-        req = SendMessageRequest(
-            id=str(uuid4()),
-            params=MessageSendParams(**payload),
-        )
-        preview = text if len(text) <= 240 else f"{text[:240]}…"
+    msg_id = uuid4().hex
+    preview = text if len(text) <= 240 else f"{text[:240]}..."
+    logger.info(
+        "A2A -> peer=%s message/send msg_id=%s text_len=%d preview=%r",
+        base,
+        msg_id,
+        len(text),
+        preview,
+    )
+
+    msg = Message(
+        message_id=msg_id,
+        role=Role.ROLE_USER,
+        parts=[Part(text=text)],
+    )
+    req = SendMessageRequest(message=msg)
+    logger.debug("A2A -> request: %s", _json_for_log(req))
+
+    config = ClientConfig(httpx_client=httpx.AsyncClient(timeout=120.0))
+    client = await create_client(base, client_config=config)
+    try:
+        parts: list[str] = []
+        async for response in client.send_message(req):
+            logger.debug("A2A <- stream chunk: %s", _json_for_log(response))
+            chunk_text = get_stream_response_text(response)
+            if chunk_text:
+                parts.append(chunk_text)
+        out = "\n".join(parts) if parts else ""
+        if not out:
+            logger.warning(
+                "A2A <- peer=%s msg_id=%s returned empty response", base, msg_id
+            )
         logger.info(
-            "A2A → peer=%s JSON-RPC message/send id=%s text_len=%d preview=%r",
+            "A2A <- peer=%s msg_id=%s ok result_len=%d",
             base,
-            req.id,
-            len(text),
-            preview,
-        )
-        logger.debug("A2A → request (message/send params): %s", _json_for_log(req))
-
-        try:
-            resp = await a2a.send_message(req)
-        except Exception:
-            logger.exception("A2A ← peer=%s message/send failed (id=%s)", base, req.id)
-            raise
-
-        logger.debug("A2A ← raw response object: %s", _json_for_log(resp))
-
-        result = _unwrap_send_result(resp)
-        out = a2a_result_to_text(result)
-        logger.info(
-            "A2A ← peer=%s id=%s ok result_len=%d",
-            base,
-            req.id,
+            msg_id,
             len(out),
         )
         logger.debug(
-            "A2A ← assistant text: %s", out if len(out) <= 4000 else f"{out[:4000]}…"
+            "A2A <- assistant text: %s",
+            out if len(out) <= 4000 else f"{out[:4000]}...",
         )
         return out
+    except Exception:
+        logger.exception("A2A <- peer=%s msg_id=%s stream failed", base, msg_id)
+        raise
+    finally:
+        await client.close()

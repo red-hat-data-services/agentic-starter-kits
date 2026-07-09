@@ -20,19 +20,13 @@ from typing import Any
 from uuid import uuid4
 
 import uvicorn
+from a2a.helpers import new_text_message
 from a2a.server.agent_execution import AgentExecutor, RequestContext
-from a2a.server.apps import A2AStarletteApplication
 from a2a.server.events import EventQueue
 from a2a.server.request_handlers import DefaultRequestHandler
+from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes
 from a2a.server.tasks import InMemoryTaskStore
-from a2a.types import (
-    AgentCapabilities,
-    AgentCard,
-    AgentSkill,
-    MessageSendParams,
-    SendMessageRequest,
-)
-from a2a.utils import new_agent_text_message
+from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill
 from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, HumanMessage
@@ -48,16 +42,6 @@ from starlette.routing import Route
 from .a2a_reply import send_a2a_text_message
 from .tracing import enable_tracing_langgraph
 
-load_dotenv()
-_log_level = getattr(
-    logging,
-    getenv("LOG_LEVEL", "INFO").upper(),
-    logging.INFO,
-)
-logging.basicConfig(
-    level=_log_level,
-    format="[LANGGRAPH] %(levelname)s:%(name)s:%(message)s",
-)
 logger = logging.getLogger(__name__)
 
 _graph = None
@@ -164,21 +148,21 @@ async def run_orchestrator(user_text: str) -> str:
 
 
 def _jsonrpc_message_send_envelope(user_text: str) -> dict[str, Any]:
-    """Same JSON-RPC body shape as demo_client / A2AClient.send_message (method message/send, POST /)."""
+    """Same JSON-RPC body shape as demo_client / a2a-sdk Client.send_message (method message/send, POST /)."""
     msg_id = uuid4().hex
     req_id = str(uuid4())
-    payload = {
-        "message": {
-            "role": "user",
-            "parts": [{"kind": "text", "text": user_text}],
-            "messageId": msg_id,
+    return {
+        "jsonrpc": "2.0",
+        "id": req_id,
+        "method": "message/send",
+        "params": {
+            "message": {
+                "role": "user",
+                "parts": [{"text": user_text}],
+                "messageId": msg_id,
+            },
         },
     }
-    send_req = SendMessageRequest(
-        id=req_id,
-        params=MessageSendParams(**payload),
-    )
-    return send_req.model_dump(mode="json", exclude_none=True)
 
 
 def _jsonrpc_ok_envelope(request_id: str, assistant_text: str) -> dict[str, Any]:
@@ -189,7 +173,7 @@ def _jsonrpc_ok_envelope(request_id: str, assistant_text: str) -> dict[str, Any]
         "result": {
             "_note": "Simplified playground trace; full A2A responses may include tasks, artifacts, etc.",
             "assistantMessage": {
-                "parts": [{"kind": "text", "text": assistant_text}],
+                "parts": [{"text": assistant_text}],
             },
         },
     }
@@ -367,17 +351,15 @@ class LangGraphA2AExecutor(AgentExecutor):
         user = context.get_user_input()
         if not user.strip():
             await event_queue.enqueue_event(
-                new_agent_text_message("Error: empty user message.")
+                new_text_message("Error: empty user message.")
             )
             return
         try:
             reply = await run_orchestrator(user)
-            await event_queue.enqueue_event(new_agent_text_message(reply))
+            await event_queue.enqueue_event(new_text_message(reply))
         except Exception as e:  # noqa: BLE001
             logger.exception("LangGraph invoke failed")
-            await event_queue.enqueue_event(
-                new_agent_text_message(f"LangGraph error: {e!s}")
-            )
+            await event_queue.enqueue_event(new_text_message(f"LangGraph error: {e!s}"))
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         raise NotImplementedError("cancel not supported in this demo")
@@ -471,20 +453,29 @@ async def _chat_completions(request: Request) -> JSONResponse | StreamingRespons
 def _build_starlette_app(
     agent_card: AgentCard, handler: DefaultRequestHandler
 ) -> Starlette:
-    a2a_factory = A2AStarletteApplication(
-        agent_card=agent_card,
-        http_handler=handler,
-    )
+    a2a_routes: list[Route] = []
+    a2a_routes.extend(create_agent_card_routes(agent_card))
+    a2a_routes.extend(create_jsonrpc_routes(handler, rpc_url="/"))
     playground_routes = [
         Route("/", _playground_page, methods=["GET"]),
         Route("/health", _health, methods=["GET"]),
         Route("/chat/completions", _chat_completions, methods=["POST"]),
         Route("/images/{filename:path}", _serve_image, methods=["GET"]),
     ]
-    return Starlette(routes=playground_routes + list(a2a_factory.routes()))
+    return Starlette(routes=playground_routes + a2a_routes)
 
 
 def main() -> None:
+    load_dotenv()
+    _log_level = getattr(
+        logging,
+        getenv("LOG_LEVEL", "INFO").upper(),
+        logging.INFO,
+    )
+    logging.basicConfig(
+        level=_log_level,
+        format="[LANGGRAPH] %(levelname)s:%(name)s:%(message)s",
+    )
     enable_tracing_langgraph()
 
     public_base = getenv("LANGGRAPH_A2A_PUBLIC_URL", "http://127.0.0.1:9200").rstrip(
@@ -506,18 +497,23 @@ def main() -> None:
     agent_card = AgentCard(
         name="LangGraph A2A Orchestrator",
         description="LangGraph agent using A2A JSON-RPC to call a CrewAI specialist.",
-        url=f"{public_base}/",
+        supported_interfaces=[
+            AgentInterface(
+                url=f"{public_base}/",
+                protocol_binding="JSONRPC",
+            ),
+        ],
         version="0.1.0",
         default_input_modes=["text"],
         default_output_modes=["text"],
         capabilities=AgentCapabilities(streaming=True),
         skills=[skill],
-        supports_authenticated_extended_card=False,
     )
 
     handler = DefaultRequestHandler(
         agent_executor=LangGraphA2AExecutor(),
         task_store=InMemoryTaskStore(),
+        agent_card=agent_card,
     )
     app = _build_starlette_app(agent_card, handler)
     logger.info(

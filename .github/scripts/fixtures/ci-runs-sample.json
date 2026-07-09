@@ -1,4 +1,5 @@
 {
+  "_note": "Demo fixture only. Timestamps must fall within the last 7 days for pass-rate display; refresh dates when stale.",
   "code-quality.yml": [
     {
       "id": 10001,
