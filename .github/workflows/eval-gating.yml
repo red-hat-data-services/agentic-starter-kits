@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/eval-gating.yml"
       - ".github/actions/setup-cluster/action.yaml"
+      - ".github/actions/notify-slack/**"
       - "pyproject.toml"
       - "uv.lock"
       - "tests/behavioral/**"
@@ -21,6 +22,7 @@ on:
     paths:
       - ".github/workflows/eval-gating.yml"
       - ".github/actions/setup-cluster/action.yaml"
+      - ".github/actions/notify-slack/**"
       - "pyproject.toml"
       - "uv.lock"
       - "tests/behavioral/**"
@@ -205,3 +207,46 @@ jobs:
       - name: Logout
         if: always()
         run: oc logout || true
+
+  notify-slack:
+    name: Notify Slack
+    if: >-
+      !cancelled() &&
+      github.event_name != 'pull_request' &&
+      github.repository == 'red-hat-data-services/agentic-starter-kits' &&
+      (github.event_name != 'workflow_dispatch' || github.ref_name == 'main')
+    needs: [deterministic, cluster-btests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Decide notification status
+        id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          bash .github/actions/notify-slack/should_notify.sh >> "${GITHUB_OUTPUT}"
+
+      - name: Send Slack notification
+        if: steps.gate.outputs.should_notify == 'true'
+        uses: ./.github/actions/notify-slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          github_token: ${{ github.token }}
+          workflow_name: ${{ github.workflow }}
+          event_name: ${{ github.event_name }}
+          ref_name: ${{ github.ref_name }}
+          run_id: ${{ github.run_id }}
+          repository: ${{ github.repository }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          dashboard_url: https://red-hat-data-services.github.io/agentic-starter-kits/
+          status: ${{ steps.gate.outputs.status }}
