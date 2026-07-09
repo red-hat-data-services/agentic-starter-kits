@@ -9,7 +9,7 @@ spec:
       serviceAccountName: opencode-web
       containers:
         - name: opencode-web
-          image: quay.io/opendatahub/odh-opencode-rhel9:latest
+          image: quay.io/opendatahub/odh-opencode-rhel9:20260619-194847e
           workingDir: /opt/app-root/
           command: ["/bin/bash", "/entrypoint/entrypoint.sh"]
           env:

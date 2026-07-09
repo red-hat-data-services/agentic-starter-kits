@@ -16,7 +16,7 @@ spec:
       serviceAccountName: opencode-web
       containers:
         - name: oauth-proxy
-          image: registry.redhat.io/openshift4/ose-oauth-proxy-rhel9:latest
+          image: registry.redhat.io/openshift4/ose-oauth-proxy-rhel9:v4.17
           args:
             - --https-address=:8443
             - --provider=openshift
@@ -25,7 +25,7 @@ spec:
             - --tls-cert=/etc/tls/private/tls.crt
             - --tls-key=/etc/tls/private/tls.key
             - --cookie-secret-file=/etc/proxy/secrets/session_secret
-            - --openshift-sar={"namespace":"opencode","resource":"services","verb":"get"}
+            - --openshift-sar={"resource":"services","verb":"get"}
           ports:
             - containerPort: 8443
               name: oauth-proxy
@@ -49,7 +49,7 @@ spec:
             capabilities:
               drop: [ALL]
         - name: opencode-web
-          image: quay.io/opendatahub/odh-opencode-rhel9:latest
+          image: quay.io/opendatahub/odh-opencode-rhel9:20260619-194847e
           workingDir: /opt/app-root/
           command: ["/bin/bash", "/entrypoint/entrypoint.sh"]
           ports:
