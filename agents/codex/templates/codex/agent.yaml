@@ -7,4 +7,4 @@ logo: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9
 env:
   required:
     - OPENAI_API_KEY
-  optional: []
+
