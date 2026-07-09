@@ -3,7 +3,13 @@ from __future__ import annotations
 import pytest
 from integration.utils import health_check
 
-_AGENT_CARD_FIELDS = ("name", "url", "version", "capabilities", "skills")
+_AGENT_CARD_FIELDS = (
+    "name",
+    "supportedInterfaces",
+    "version",
+    "capabilities",
+    "skills",
+)
 
 
 @pytest.mark.integration

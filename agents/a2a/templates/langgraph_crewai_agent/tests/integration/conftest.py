@@ -20,6 +20,7 @@ _REQUIRED_ENV = ("BASE_URL", "MODEL_ID", "CONTAINER_IMAGE")
 
 _DEPLOYMENT_NAMES = ["a2a-crew-agent", "a2a-langgraph-agent"]
 
+# Populated by deployed_agent, consumed by all_routes (both module-scoped).
 _discovered_routes = {}
 
 
@@ -43,6 +44,9 @@ def _write_env_file(agent_dir):
             "Set them in the CI workflow or export locally."
         )
     env_path = agent_dir / ".env"
+    orig_env = None
+    if env_path.exists():
+        orig_env = env_path.read_text(encoding="utf-8")
     env_path.touch(mode=0o600)
     env_path.write_text(
         f"API_KEY={os.environ.get('API_KEY', 'not-needed')}\n"
@@ -51,7 +55,7 @@ def _write_env_file(agent_dir):
         f"CONTAINER_IMAGE={os.environ['CONTAINER_IMAGE']}\n",
         encoding="utf-8",
     )
-    return env_path
+    return env_path, orig_env
 
 
 @pytest.fixture(scope="module")
@@ -63,9 +67,8 @@ def all_routes(deployed_agent):
 @pytest.fixture(scope="module")
 def deployed_agent(cluster_auth, agent_dir, agent_name):  # noqa: F811
     namespace = cluster_auth["namespace"]
-    env_path = _write_env_file(agent_dir)
+    env_path, orig_env = _write_env_file(agent_dir)
 
-    deployed = False
     try:
         try:
             logger.info("Building container image locally...")
@@ -76,7 +79,6 @@ def deployed_agent(cluster_auth, agent_dir, agent_name):  # noqa: F811
 
             logger.info("Deploying to cluster (two-phase Helm)...")
             run_make("deploy", cwd=agent_dir, timeout=600)
-            deployed = True
 
             for deploy_name in _DEPLOYMENT_NAMES:
                 _discovered_routes[deploy_name] = get_route(
@@ -97,13 +99,18 @@ def deployed_agent(cluster_auth, agent_dir, agent_name):  # noqa: F811
         yield primary
 
     finally:
-        if deployed:
-            logger.info("Tearing down deployment...")
+        logger.info("Tearing down deployment...")
+        try:
+            run_make("undeploy", cwd=agent_dir, timeout=120)
+        except MakeTargetError:
+            logger.warning(
+                "Cleanup failed — manual undeploy may be needed",
+                exc_info=True,
+            )
+        if orig_env is not None:
             try:
-                run_make("undeploy", cwd=agent_dir, timeout=120)
-            except MakeTargetError:
-                logger.warning(
-                    "Cleanup failed — manual undeploy may be needed",
-                    exc_info=True,
-                )
-        env_path.unlink(missing_ok=True)
+                env_path.write_text(orig_env, encoding="utf-8")
+            except Exception:
+                logger.exception("Failed to restore pre-existing .env at %s", env_path)
+        else:
+            env_path.unlink(missing_ok=True)
