@@ -164,7 +164,7 @@ setup_config_dir() {
 
     # Ensure the projects directory exists
     # This separates global config (/workspace/.claude) from local auto-memory (/workspace/projects/.claude)
-    install -d -m 2775 /workspace/projects 2>/dev/null || { mkdir -p /workspace/projects && chmod 2775 /workspace/projects; }
+    install -d -m 2775 /workspace/projects 2>/dev/null || { mkdir -p /workspace/projects && chmod 2775 /workspace/projects; } || log_warn "Failed to create /workspace/projects with correct permissions"
 
     # Create symlink from ~/.claude to the config dir for user convenience
     # Users expect to find settings/skills at ~/.claude/
