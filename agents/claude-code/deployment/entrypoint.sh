@@ -160,7 +160,7 @@ setup_config_dir() {
     # On OpenShift, fresh PVCs are owned by root with the pod's fsGroup.
     # The non-root container user writes via group membership, so directories
     # must be group-writable (2775 = rwxrwsr-x).
-    install -d -m 2775 "${CLAUDE_CONFIG_DIR}" 2>/dev/null || { mkdir -p "${CLAUDE_CONFIG_DIR}" && chmod 2775 "${CLAUDE_CONFIG_DIR}"; }
+    install -d -m 2775 "${CLAUDE_CONFIG_DIR}" 2>/dev/null || { mkdir -p "${CLAUDE_CONFIG_DIR}" && chmod 2775 "${CLAUDE_CONFIG_DIR}"; } || log_warn "Failed to create ${CLAUDE_CONFIG_DIR} with correct permissions"
 
     # Ensure the projects directory exists
     # This separates global config (/workspace/.claude) from local auto-memory (/workspace/projects/.claude)
