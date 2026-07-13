@@ -6,6 +6,7 @@ Connect agentic-starter-kits agents to an OGX server deployed on OpenShift via [
 
 - OGX deployed on your cluster (see the ogx-showroom [helm-getting-started](https://github.com/opendatahub-io/ogx-showroom/blob/main/docs/helm-getting-started.md) guide)
 - `oc` CLI logged in to the cluster
+- `jq` installed
 - [uv](https://docs.astral.sh/uv/) installed
 - This repo cloned locally
 
@@ -14,17 +15,19 @@ Connect agentic-starter-kits agents to an OGX server deployed on OpenShift via [
 The showroom deploys Keycloak for auth. Extract the endpoint and a bearer token:
 
 ```bash
-NS=redhat-ods-applications
+NS=redhat-ods-applications  # adjust if your OGX was installed in a different namespace
 
 OGX_URL=$(oc get route ogx-distribution -n $NS -o jsonpath='{.spec.host}')
 KEYCLOAK_HOST=$(oc get route keycloak -n $NS -o jsonpath='{.spec.host}')
 CLIENT_SECRET=$(oc get secret keycloak-secret -n $NS -o jsonpath='{.data.KEYCLOAK_CLIENT_SECRET}' | base64 -d)
 USER_PASSWORD=$(oc get secret keycloak-secret -n $NS -o jsonpath='{.data.KEYCLOAK_USER_PASSWORD}' | base64 -d)
 
-TOKEN=$(curl -sk "https://${KEYCLOAK_HOST}/realms/ogx-demo/protocol/openid-connect/token" \
+TOKEN=$(curl -s "https://${KEYCLOAK_HOST}/realms/ogx-demo/protocol/openid-connect/token" \
   -d "grant_type=password&client_id=ogx&client_secret=${CLIENT_SECRET}&username=user&password=${USER_PASSWORD}" \
   | jq -r .access_token)
 ```
+
+> **Note:** If your cluster uses self-signed certificates, you may need to add `-k` to the curl commands. Avoid `-k` in production -- configure curl to trust your cluster's CA instead.
 
 Verify connectivity by listing available models:
 
@@ -53,7 +56,7 @@ Edit `.env` with your OGX details:
 
 ```ini
 API_KEY=<paste $TOKEN value here>
-BASE_URL=https://ogx-distribution-redhat-ods-applications.apps.rosa.derekcluster.gm8d.p3.openshiftapps.com/v1
+BASE_URL=https://<your OGX_URL>/v1
 MODEL_ID=vllm-inference/llama-3-2-3b
 ```
 
@@ -103,7 +106,7 @@ VECTOR_STORE_ID=
 DOCS_TO_LOAD=./data/sample_knowledge.txt
 ```
 
-> **Note:** `VECTOR_STORE_PROVIDER` must be `milvus-remote` (the showroom's Milvus instance), not `milvus` (which targets a local Milvus Lite database). Match `EMBEDDING_DIMENSION` to your embedding model (768 for nomic-embed-text-v1.5).
+> **Note:** `VECTOR_STORE_PROVIDER` must be `milvus-remote` -- this is the provider ID registered in the OGX server for its remote Milvus instance (you can verify with `curl "https://${OGX_URL}/v1/providers" -H "Authorization: Bearer $TOKEN" | jq '.data[] | select(.api=="vector_io")'`). The default `milvus` in `.env.example` targets a local Milvus Lite database and won't work here. Match `EMBEDDING_DIMENSION` to your embedding model (768 for nomic-embed-text-v1.5).
 
 ### 3.3 Load Documents
 
@@ -144,32 +147,4 @@ Questions outside the knowledge base (e.g. "What is the weather?") will return "
 
 ## Token Refresh
 
-The Keycloak JWT token expires after approximately 1 hour. To refresh it, re-run the token command from step 1 and update `API_KEY` in your `.env`:
-
-```bash
-TOKEN=$(curl -sk "https://${KEYCLOAK_HOST}/realms/ogx-demo/protocol/openid-connect/token" \
-  -d "grant_type=password&client_id=ogx&client_secret=${CLIENT_SECRET}&username=user&password=${USER_PASSWORD}" \
-  | jq -r .access_token)
-
-sed -i "s|^API_KEY=.*|API_KEY=${TOKEN}|" .env
-```
-
-## Running the FastAPI Server
-
-Both agents can also run as a full HTTP server instead of the interactive CLI:
-
-```bash
-make run-app
-```
-
-This starts a FastAPI server on `http://localhost:8000` with the standard endpoints:
-
-```bash
-# Health check
-curl http://localhost:8000/health
-
-# Chat completion
-curl -X POST http://localhost:8000/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"messages": [{"role": "user", "content": "What is RAG?"}], "stream": false}'
-```
+The Keycloak JWT token expires after approximately 1 hour. To refresh it, re-run the token command from step 1 and update the `API_KEY` value in your `.env` file.
