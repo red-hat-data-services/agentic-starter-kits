@@ -1,0 +1,128 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencode-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opencode
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: opencode
+    spec:
+      serviceAccountName: opencode-web
+      containers:
+        - name: oauth-proxy
+          image: registry.redhat.io/openshift4/ose-oauth-proxy-rhel9:v4.17
+          args:
+            - --https-address=:8443
+            - --provider=openshift
+            - --openshift-service-account=opencode-web
+            - --upstream=http://localhost:8003
+            - --tls-cert=/etc/tls/private/tls.crt
+            - --tls-key=/etc/tls/private/tls.key
+            - --cookie-secret-file=/etc/proxy/secrets/session_secret
+            - --openshift-sar={"resource":"services","verb":"get"}
+          ports:
+            - containerPort: 8443
+              name: oauth-proxy
+          volumeMounts:
+            - name: proxy-tls
+              mountPath: /etc/tls/private
+            - name: proxy-cookie-secret
+              mountPath: /etc/proxy/secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ALL]
+        - name: opencode-web
+          image: quay.io/opendatahub/odh-opencode-rhel9:20260619-194847e
+          workingDir: /opt/app-root/
+          command: ["/bin/bash", "/entrypoint/entrypoint.sh"]
+          ports:
+            - containerPort: 8003
+          env:
+            - name: BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-web-secret
+                  key: BASE_URL
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-web-secret
+                  key: API_KEY
+            - name: MODEL_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-web-secret
+                  key: MODEL_NAME
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ALL]
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8003
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8003
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: opencode-web-pvc
+              mountPath: /opt/app-root/workspace
+            - name: config-template
+              mountPath: /config-template
+            - name: entrypoint
+              mountPath: /entrypoint
+            - name: mcp-config
+              mountPath: /mcp-config
+      volumes:
+        - name: opencode-web-pvc
+          persistentVolumeClaim:
+            claimName: opencode-web-pvc
+        - name: config-template
+          configMap:
+            name: opencode-web-config
+        - name: entrypoint
+          configMap:
+            name: opencode-web-entrypoint
+            defaultMode: 0755
+        - name: mcp-config
+          configMap:
+            name: opencode-web-mcp
+            optional: true
+        - name: proxy-tls
+          secret:
+            secretName: opencode-web-tls
+        - name: proxy-cookie-secret
+          secret:
+            secretName: opencode-web-proxy-cookie

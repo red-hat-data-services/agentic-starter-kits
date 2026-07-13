@@ -164,11 +164,6 @@ COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
 # Disable Claude Code auto-updater (we control versions via image builds)
 ENV DISABLE_AUTOUPDATER=1
 
-# Default working directory
-# Set to /workspace/projects to separate from global config at /workspace/.claude
-# This prevents overlap between CLAUDE_CONFIG_DIR and local auto-memory
-WORKDIR /workspace/projects
-
 # =============================================================================
 # Runtime Configuration
 # =============================================================================

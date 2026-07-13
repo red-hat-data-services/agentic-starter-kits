@@ -6,8 +6,8 @@ This guide covers deploying [OpenCode](https://opencode.ai) as a coding agent on
 
 | Field | Value |
 |-------|-------|
-| Image | `quay.io/opendatahub/odh-opencode-rhel9:1.4.4` |
-| OpenCode version | 1.4.4 (built from [opendatahub-io/opencode](https://github.com/opendatahub-io/opencode)) |
+| Image | `quay.io/opendatahub/odh-opencode-rhel9:20260619-194847e` |
+| OpenCode version | Built from [opendatahub-io/opencode](https://github.com/opendatahub-io/opencode) |
 | Base | UBI 9 minimal |
 | License | MIT (OpenCode), Apache 2.0 (deployment manifests) |
 
@@ -16,16 +16,16 @@ This guide covers deploying [OpenCode](https://opencode.ai) as a coding agent on
 | Layer | Purpose |
 |-------|---------|
 | UBI 9 minimal | RHEL-compatible base |
-| OpenCode v1.4.4 | Go binary built from source |
+| OpenCode | Go binary built from source |
 | git, jq, make, vim-minimal, diffutils, findutils, openssh-clients, patch, procps-ng, tar, gzip, which | CLI tools for development workflows |
 | Python 3 + [uv](https://github.com/astral-sh/uv) | Python environment and package manager |
 
 ### Version pinning strategy
 
-- **OpenCode**: pinned to a tagged release (currently `v1.4.4`) in the Containerfile `ARG`. Upgrades require a new image build and manifest update.
+- **OpenCode**: pinned to a tagged release in the Containerfile `ARG`. Upgrades require a new image build and manifest update.
 - **Go runtime**: build-time only; not present in the final image (multi-stage build).
 - **Base image**: `registry.access.redhat.com/ubi9/ubi-minimal`, pulled at build time. Pin to a specific tag for reproducible builds.
-- **Image tag in manifests**: pinned to a specific tag or digest. Avoid `:latest` in production.
+- **Image tag in manifests**: pin to a specific tag or digest in production. Avoid `:latest`.
 
 ## Prerequisites
 
@@ -33,15 +33,38 @@ This guide covers deploying [OpenCode](https://opencode.ai) as a coding agent on
 - A model serving endpoint — vLLM, KServe, RHOAI model serving, or OGX — exposing an OpenAI-compatible API on a cluster-internal Service
 - Block storage class (gp3-csi, managed-csi, thin-csi) for the workspace PVC
 
-## Deployment
+## Project Structure
 
-Full kustomize manifests, overlays, and configuration are maintained in the [opencode-openshift](https://github.com/aicatalyst-team/opencode-openshift) repository.
+```text
+deployment/
+├── manifests/                    # Base kustomize manifests (web mode + OAuth)
+│   ├── kustomization.yaml        # Kustomize entrypoint
+│   ├── namespace.yaml
+│   ├── serviceaccount.yaml
+│   ├── deployment.yaml           # Two-container pod (oauth-proxy + opencode)
+│   ├── service.yaml
+│   ├── route.yaml
+│   ├── pvc.yaml
+│   ├── entrypoint.sh             # Container entrypoint (config, MCP, mode switching)
+│   └── config-template.json      # OpenCode provider config (vLLM + OGX)
+├── overlays/
+│   ├── cli/                      # CLI mode (no OAuth, no Route, oc exec)
+│   ├── example/                  # Template for custom environments
+│   └── mlflow-tracing/           # MLflow tracing integration
+├── Containerfile.openshell       # OpenShell sandbox variant
+├── Containerfile.mlflow          # MLflow tracing image variant
+├── README.md                     # OpenShell sandbox guide
+├── DEPLOYMENT.md                 # This file
+└── docs/                         # MLflow tracing documentation
+```
+
+## Deployment
 
 ### Quick start (web mode with OAuth)
 
 ```bash
-git clone https://github.com/aicatalyst-team/opencode-openshift.git
-cd opencode-openshift
+# From the repo root
+cd agents/opencode/deployment
 
 # Edit manifests/kustomization.yaml with your vLLM endpoint, API key, and model name
 oc apply -k manifests/
@@ -71,6 +94,14 @@ cp -r overlays/example overlays/my-env
 oc apply -k overlays/my-env
 ```
 
+### MLflow tracing
+
+```bash
+oc apply -k overlays/mlflow-tracing
+```
+
+See [docs/mlflow-tracing-setup.md](docs/mlflow-tracing-setup.md) for full configuration details.
+
 ## Configuration
 
 | Setting | Where to change | Notes |
@@ -80,8 +111,7 @@ oc apply -k overlays/my-env
 | Model name | `manifests/kustomization.yaml` (`MODEL_NAME`) | Must match the model loaded in vLLM |
 | Storage class | `manifests/kustomization.yaml` (patch section) | Default PVC is 10Gi |
 | MCP servers | ConfigMap `opencode-web-mcp` | Optional; merged into config at startup |
-| Skills | ConfigMap (volume mount) | Optional; injectable skills via ConfigMap |
-| Provider (vLLM vs OGX) | `manifests/config-template.json` (`enabled_providers`) | Default: `["vllm"]` |
+| Provider (vLLM vs OGX) | `manifests/config-template.json` (`enabled_providers`) | Both enabled by default |
 
 ## Security
 
@@ -90,17 +120,30 @@ oc apply -k overlays/my-env
 - **RBAC**: OAuth proxy enforces Subject Access Review — users must have `get` on `services` in the deployment namespace.
 - **Secrets**: Inline secrets in `kustomization.yaml` are for convenience only. For production, use Sealed Secrets, External Secrets Operator, or Secrets Store CSI Driver.
 
+## Architecture
+
+The web mode deployment runs a two-container pod:
+
+1. **oauth-proxy** — OpenShift OAuth proxy sidecar handling authentication via TLS on port 8443
+2. **opencode-web** — OpenCode application serving the web UI on port 8003
+
+The entrypoint script (`manifests/entrypoint.sh`) handles:
+
+- Git workspace initialization
+- Config template variable substitution (BASE_URL, API_KEY, MODEL_NAME)
+- Optional MCP server config injection from a ConfigMap
+- Mode switching between web and CLI
+
 ## Comparison: OpenShell sandbox vs kustomize deployment
 
 | | OpenShell sandbox | Kustomize deployment |
 |--|-------------------|---------------------|
 | **Image** | `openshell-base` + npm flavor | `odh-opencode-rhel9` (Go binary) |
-| **OpenCode version** | 1.17.1 (npm) | 1.4.4 (built from source) |
 | **Runtime** | Inside OpenShell gateway | Standalone pod on OpenShift |
 | **Auth** | OpenShell gateway | OpenShift OAuth proxy |
 | **Use case** | Sandboxed experimentation | Production RHOAI deployment |
-| **Manifests** | N/A (OpenShell manages lifecycle) | [opencode-openshift](https://github.com/aicatalyst-team/opencode-openshift) |
+| **Manifests** | N/A (OpenShell manages lifecycle) | `manifests/` in this directory |
 
 ## Related resources
 
-- [opencode-openshift](https://github.com/aicatalyst-team/opencode-openshift) — kustomize manifests, overlays, and full README
+- [opendatahub-io/opencode](https://github.com/opendatahub-io/opencode) — container image source and CI

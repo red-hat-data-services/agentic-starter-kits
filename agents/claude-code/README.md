@@ -439,7 +439,7 @@ Session history and memory persist across pod restarts via the workspace PVC. Th
 |   |-- skills/                  <- ConfigMap mount
 |   |-- memory/                  <- Persisted (global memory)
 |   +-- projects/                <- Persisted (session history)
-+-- projects/                    <- WORKDIR (where users run Claude)
++-- projects/                    <- Working directory (where users run Claude)
     +-- .claude/                 <- Local auto-memory (separate from global)
 ```
 
