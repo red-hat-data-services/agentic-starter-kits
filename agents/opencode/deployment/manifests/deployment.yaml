@@ -50,7 +50,7 @@ spec:
               drop: [ALL]
         - name: opencode-web
           image: quay.io/opendatahub/odh-opencode-rhel9:20260619-194847e
-          workingDir: /opt/app-root/
+          workingDir: /opt/app-root/workspace
           command: ["/bin/bash", "/entrypoint/entrypoint.sh"]
           ports:
             - containerPort: 8003
@@ -70,6 +70,12 @@ spec:
                 secretKeyRef:
                   name: opencode-web-secret
                   key: MODEL_NAME
+            # XDG_STATE_HOME must be set explicitly because the container image
+            # creates ~/.local/state/ with 755 permissions, which prevents the
+            # entrypoint from creating a symlink under OpenShift's random UID.
+            # Config and data symlinks work because their parent dirs are 775.
+            - name: XDG_STATE_HOME
+              value: /opt/app-root/workspace/.opencode/state
           resources:
             requests:
               cpu: 500m
@@ -105,6 +111,9 @@ spec:
               mountPath: /entrypoint
             - name: mcp-config
               mountPath: /mcp-config
+            - name: skills
+              mountPath: /etc/opencode-skills
+              readOnly: true
       volumes:
         - name: opencode-web-pvc
           persistentVolumeClaim:
@@ -119,6 +128,10 @@ spec:
         - name: mcp-config
           configMap:
             name: opencode-web-mcp
+            optional: true
+        - name: skills
+          configMap:
+            name: opencode-web-skills
             optional: true
         - name: proxy-tls
           secret:
