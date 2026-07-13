@@ -290,11 +290,11 @@ class AIAgent:
                 logger.info("Using Responses API (supported by server)")
             return response
         except APIStatusError as exc:
-            if exc.status_code not in (400, 404) or self._use_responses_api is True:
+            if exc.status_code not in (400, 404):
                 raise
             self._use_responses_api = False
             logger.info(
-                "Responses API not supported (HTTP %d), falling back to "
+                "Responses API returned HTTP %d, falling back to "
                 "Chat Completions API",
                 exc.status_code,
             )
