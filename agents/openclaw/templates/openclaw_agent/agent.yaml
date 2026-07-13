@@ -8,4 +8,4 @@ deploymentModel: config-driven
 env:
   required: []
   optional:
-    - GATEWAY_TOKEN
+    - OPENCLAW_GATEWAY_TOKEN
