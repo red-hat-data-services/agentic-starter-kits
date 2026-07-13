@@ -130,7 +130,13 @@ def _messages_to_responses_input(
 
 
 def _get_output_text_from_response(response: Any) -> str:
-    """Extract assistant text from Responses API response (response.output[].content[])."""
+    """Extract assistant text from a Responses API or Chat Completions API response."""
+    # Chat Completions format: response.choices[0].message.content
+    choices = getattr(response, "choices", None)
+    if choices:
+        return getattr(choices[0].message, "content", None) or ""
+
+    # Responses API format: response.output[].content[]
     if not getattr(response, "output", None) or not response.output:
         return ""
     for item in response.output:
@@ -186,6 +192,7 @@ class AIAgent:
         self.temperature = temperature
         self.tools: dict[str, Callable] = {}
         self.messages: list[dict[str, Any]] = []
+        self._use_responses_api: bool | None = None
         self.action_re = re.compile(r"Action:\s*(\w+)\s*\((.*?)\)")
 
     def add_message(self, role: str, content: str) -> None:
@@ -206,14 +213,14 @@ class AIAgent:
         args = next(reader, [])
         return [arg.strip().strip("'\"") for arg in args]
 
-    def _responses_create(
+    def _chat_completions_create(
         self,
         messages: list[dict[str, Any]] | None = None,
         temperature: float | None = None,
         model: str | None = None,
     ) -> Any:
         """
-        Single Responses API call via OpenAI client.
+        Single Chat Completions API call via OpenAI client.
 
         Args:
             messages: List of messages; if None, self.messages is used.
@@ -221,8 +228,48 @@ class AIAgent:
             model: Override model for this call.
 
         Returns:
-            Response from client.responses.create (object with .output etc.).
+            Response from client.chat.completions.create.
         """
+        msg_list = messages if messages is not None else self.messages
+        temp = temperature if temperature is not None else self.temperature
+        model_id = model if model is not None else self.model
+
+        kwargs: dict[str, Any] = {
+            "model": model_id,
+            "messages": msg_list,
+        }
+        if temp != 0:
+            kwargs["temperature"] = temp
+
+        return self.client.chat.completions.create(**kwargs)
+
+    def _responses_create(
+        self,
+        messages: list[dict[str, Any]] | None = None,
+        temperature: float | None = None,
+        model: str | None = None,
+    ) -> Any:
+        """
+        LLM API call with automatic fallback from Responses API to Chat Completions.
+
+        On the first call, tries the Responses API. If the server returns HTTP 400
+        or 404 (unsupported endpoint), falls back to Chat Completions and caches the
+        result so subsequent calls skip the probe.
+
+        Args:
+            messages: List of messages; if None, self.messages is used.
+            temperature: Override temperature for this call.
+            model: Override model for this call.
+
+        Returns:
+            Response from the Responses API or Chat Completions API.
+        """
+        # Fast path: already know which API to use
+        if self._use_responses_api is False:
+            return self._chat_completions_create(
+                messages=messages, temperature=temperature, model=model
+            )
+
         msg_list = messages if messages is not None else self.messages
         temp = temperature if temperature is not None else self.temperature
         model_id = model if model is not None else self.model
@@ -236,7 +283,24 @@ class AIAgent:
         if temp != 0:
             kwargs["temperature"] = temp
 
-        return self.client.responses.create(**kwargs)
+        try:
+            response = self.client.responses.create(**kwargs)
+            if self._use_responses_api is None:
+                self._use_responses_api = True
+                logger.info("Using Responses API (supported by server)")
+            return response
+        except APIStatusError as exc:
+            if exc.status_code not in (400, 404) or self._use_responses_api is True:
+                raise
+            self._use_responses_api = False
+            logger.info(
+                "Responses API not supported (HTTP %d), falling back to "
+                "Chat Completions API",
+                exc.status_code,
+            )
+            return self._chat_completions_create(
+                messages=messages, temperature=temperature, model=model
+            )
 
     def _execute(self) -> str:
         """Execute a Responses API request."""
