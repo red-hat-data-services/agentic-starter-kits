@@ -488,11 +488,16 @@ elif [[ "${MLFLOW_AUTH_CHECK}" != "200" ]]; then
   echo "         export MLFLOW_TOKEN=\$(oc whoami -t) && re-run"
 fi
 
-# Validate the resolved MLFLOW_INTERNAL_URI is reachable (with auth token)
+# Validate the resolved MLFLOW_INTERNAL_URI is reachable (with auth token).
+# Use the /mlflow/health endpoint — the experiments API requires workspace
+# context that a simple curl check cannot provide.
 if [[ -n "${MLFLOW_INTERNAL_URI:-}" && -n "${MLFLOW_TOKEN:-}" ]]; then
+  _health_url="${MLFLOW_INTERNAL_URI%/}/mlflow/health"
+  # If the URI already ends with /mlflow, avoid doubling the path
+  [[ "${MLFLOW_INTERNAL_URI}" == */mlflow ]] && _health_url="${MLFLOW_INTERNAL_URI}/health"
   _internal_check=$(curl -s ${CURL_TLS_FLAG} -o /dev/null -w "%{http_code}" --max-time 10 \
     -H "Authorization: Bearer ${MLFLOW_TOKEN}" \
-    "${MLFLOW_INTERNAL_URI}/api/2.0/mlflow/experiments/list?max_results=1" 2>/dev/null || true)
+    "${_health_url}" 2>/dev/null || true)
   if [[ "${_internal_check}" == "200" ]]; then
     preflight_ok "MLflow internal URI reachable (adapter)"
   else
