@@ -1,7 +1,9 @@
 # QG4: Agent Deployment Health Checks
 #
 # Nightly workflow: logs into the OpenShift demo cluster, deploys each
-# agent via build-openshift + Helm, validates GET /health, and tears down.
+# agent via build-openshift + Helm, validates health endpoints, and tears
+# down. Pre-deployed agents (e.g., Langflow) skip build/deploy and only
+# verify health on an already-running route.
 
 name: "QG4: Agent Deployment Integration Tests"
 

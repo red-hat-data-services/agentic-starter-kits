@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 
-import integration.conftest  # noqa: F401 — re-exports cluster_auth, repo_root
 import pytest
+from integration.conftest import cluster_auth, repo_root  # noqa: F401
 from integration.utils import (
     RouteNotFoundError,
     get_route,
@@ -25,7 +25,7 @@ def agent_name(agent_dir):
 
 
 @pytest.fixture(scope="module")
-def deployed_agent(cluster_auth, agent_name):
+def deployed_agent(cluster_auth, agent_name):  # noqa: F811
     namespace = cluster_auth["namespace"]
     try:
         route_url = get_route(agent_name, namespace=namespace)
