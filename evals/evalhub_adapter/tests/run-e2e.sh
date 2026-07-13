@@ -318,6 +318,15 @@ else
   preflight_ok "MLflow internal URI (override): ${MLFLOW_INTERNAL_URI}"
 fi
 
+# Internal service URLs (.svc.cluster.local) cannot route workspace-scoped
+# MLflow API calls.  When MLFLOW_WORKSPACE is set (i.e. OC_NAMESPACE is
+# non-empty), fall back to the external route which supports workspace routing.
+if [[ "${MLFLOW_INTERNAL_URI:-}" == *".svc.cluster.local"* && -n "${OC_NAMESPACE:-}" ]]; then
+  preflight_warn "Internal URI uses .svc.cluster.local but MLFLOW_WORKSPACE=${OC_NAMESPACE}; switching to external route for workspace routing"
+  MLFLOW_INTERNAL_URI="${MLFLOW_TRACKING_URI}"
+  preflight_ok "MLflow internal URI (workspace-aware): ${MLFLOW_INTERNAL_URI}"
+fi
+
 # Discover agent-side experiment (where agents write traces)
 MLFLOW_AGENT_EXPERIMENT=$(oc get deployment -n "${OC_NAMESPACE}" -o jsonpath='{.items[*].spec.template.spec.containers[0].env[?(@.name=="MLFLOW_EXPERIMENT_NAME")].value}' 2>/dev/null | awk '{print $1}' || true)
 if [[ -z "${MLFLOW_AGENT_EXPERIMENT}" ]]; then
@@ -477,6 +486,18 @@ elif [[ "${MLFLOW_AUTH_CHECK}" != "200" ]]; then
   preflight_warn "MLflow reachability check failed (HTTP ${MLFLOW_AUTH_CHECK})."
   echo "         If mlflow_run_id is null in results, refresh the token:"
   echo "         export MLFLOW_TOKEN=\$(oc whoami -t) && re-run"
+fi
+
+# Validate the resolved MLFLOW_INTERNAL_URI is reachable (with auth token)
+if [[ -n "${MLFLOW_INTERNAL_URI:-}" && -n "${MLFLOW_TOKEN:-}" ]]; then
+  _internal_check=$(curl -s ${CURL_TLS_FLAG} -o /dev/null -w "%{http_code}" --max-time 10 \
+    -H "Authorization: Bearer ${MLFLOW_TOKEN}" \
+    "${MLFLOW_INTERNAL_URI}/api/2.0/mlflow/experiments/list?max_results=1" 2>/dev/null || true)
+  if [[ "${_internal_check}" == "200" ]]; then
+    preflight_ok "MLflow internal URI reachable (adapter)"
+  else
+    preflight_warn "MLflow internal URI not reachable (HTTP ${_internal_check}). Adapter pods may fail to report results."
+  fi
 fi
 echo ""
 
