@@ -243,7 +243,7 @@ class AIAgent:
 
         return self.client.chat.completions.create(**kwargs)
 
-    def _responses_create(
+    def _llm_create(
         self,
         messages: list[dict[str, Any]] | None = None,
         temperature: float | None = None,
@@ -294,8 +294,7 @@ class AIAgent:
                 raise
             self._use_responses_api = False
             logger.info(
-                "Responses API returned HTTP %d, falling back to "
-                "Chat Completions API",
+                "Responses API returned HTTP %d, falling back to Chat Completions API",
                 exc.status_code,
             )
             return self._chat_completions_create(
@@ -303,8 +302,8 @@ class AIAgent:
             )
 
     def _execute(self) -> str:
-        """Execute a Responses API request."""
-        response = self._responses_create(
+        """Execute an LLM API request (Responses API with Chat Completions fallback)."""
+        response = self._llm_create(
             messages=self.messages,
             temperature=self.temperature,
             model=self.model,
