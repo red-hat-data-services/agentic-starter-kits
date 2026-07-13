@@ -321,6 +321,8 @@ fi
 # Internal service URLs (.svc.cluster.local) cannot route workspace-scoped
 # MLflow API calls.  When MLFLOW_WORKSPACE is set (i.e. OC_NAMESPACE is
 # non-empty), fall back to the external route which supports workspace routing.
+# Unlike the internal URI (path stripped above), the external route retains its
+# /mlflow prefix — the reverse proxy needs it to route workspace-scoped requests.
 if [[ "${MLFLOW_INTERNAL_URI:-}" == *".svc.cluster.local"* && -n "${OC_NAMESPACE:-}" ]]; then
   preflight_warn "Internal URI uses .svc.cluster.local but MLFLOW_WORKSPACE=${OC_NAMESPACE}; switching to external route for workspace routing"
   MLFLOW_INTERNAL_URI="${MLFLOW_TRACKING_URI}"
@@ -492,9 +494,10 @@ fi
 # Use the /mlflow/health endpoint — the experiments API requires workspace
 # context that a simple curl check cannot provide.
 if [[ -n "${MLFLOW_INTERNAL_URI:-}" && -n "${MLFLOW_TOKEN:-}" ]]; then
-  _health_url="${MLFLOW_INTERNAL_URI%/}/mlflow/health"
+  _clean_uri="${MLFLOW_INTERNAL_URI%/}"
+  _health_url="${_clean_uri}/mlflow/health"
   # If the URI already ends with /mlflow, avoid doubling the path
-  [[ "${MLFLOW_INTERNAL_URI}" == */mlflow ]] && _health_url="${MLFLOW_INTERNAL_URI}/health"
+  [[ "${_clean_uri}" == */mlflow ]] && _health_url="${_clean_uri}/health"
   _internal_check=$(curl -s ${CURL_TLS_FLAG} -o /dev/null -w "%{http_code}" --max-time 10 \
     -H "Authorization: Bearer ${MLFLOW_TOKEN}" \
     "${_health_url}" 2>/dev/null || true)
