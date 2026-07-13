@@ -1,0 +1,157 @@
+# OpenCode on Red Hat OpenShift AI — Deployment Guide
+
+This guide covers deploying [OpenCode](https://opencode.ai) as a coding agent on Red Hat OpenShift AI, including image versioning, configuration, and two deployment modes (web and CLI).
+
+## Container Image
+
+| Field | Value |
+|-------|-------|
+| Image | `quay.io/opendatahub/odh-opencode-rhel9:20260619-194847e` |
+| OpenCode version | Built from [opendatahub-io/opencode](https://github.com/opendatahub-io/opencode) |
+| Base | UBI 9 minimal |
+| License | MIT (OpenCode), Apache 2.0 (deployment manifests) |
+
+### What the image contains
+
+| Layer | Purpose |
+|-------|---------|
+| UBI 9 minimal | RHEL-compatible base |
+| OpenCode | Go binary built from source |
+| git, jq, make, vim-minimal, diffutils, findutils, openssh-clients, patch, procps-ng, tar, gzip, which | CLI tools for development workflows |
+| Python 3 + [uv](https://github.com/astral-sh/uv) | Python environment and package manager |
+
+### Version pinning strategy
+
+- **OpenCode**: pinned to a tagged release in the Containerfile `ARG`. Upgrades require a new image build and manifest update.
+- **Go runtime**: build-time only; not present in the final image (multi-stage build).
+- **Base image**: `registry.access.redhat.com/ubi9/ubi-minimal`, pulled at build time. Pin to a specific tag for reproducible builds.
+- **Image tag in manifests**: pin to a specific tag or digest in production. Avoid `:latest`.
+
+## Prerequisites
+
+- OpenShift 4.17+ cluster with `oc` CLI authenticated
+- A model serving endpoint — vLLM, KServe, RHOAI model serving, or OGX — exposing an OpenAI-compatible API on a cluster-internal Service
+- Block storage class (gp3-csi, managed-csi, thin-csi) for the workspace PVC
+
+## Project Structure
+
+```text
+agents/opencode/
+├── deployment/
+│   ├── manifests/                    # Base kustomize manifests (web mode + OAuth)
+│   │   ├── kustomization.yaml        # Kustomize entrypoint
+│   │   ├── namespace.yaml
+│   │   ├── serviceaccount.yaml
+│   │   ├── deployment.yaml           # Two-container pod (oauth-proxy + opencode)
+│   │   ├── service.yaml
+│   │   ├── route.yaml
+│   │   ├── pvc.yaml
+│   │   ├── entrypoint.sh             # Container entrypoint (config, MCP, mode switching)
+│   │   └── config-template.json      # OpenCode provider config (vLLM + OGX)
+│   ├── overlays/
+│   │   ├── cli/                      # CLI mode (no OAuth, no Route, oc exec)
+│   │   ├── example/                  # Template for custom environments
+│   │   └── mlflow-tracing/           # MLflow tracing integration
+│   ├── Containerfile.openshell       # OpenShell sandbox variant
+│   ├── Containerfile.mlflow          # MLflow tracing image variant
+│   └── docs/                         # MLflow tracing documentation
+└── README.md                         # This file
+```
+
+## Deployment
+
+### Quick start (web mode with OAuth)
+
+```bash
+cd deployment/
+
+# Edit manifests/kustomization.yaml with your vLLM endpoint, API key, and model name
+oc apply -k manifests/
+
+oc -n opencode rollout status deployment/opencode-web
+oc -n opencode get route opencode-web -o jsonpath='https://{.spec.host}{"\n"}'
+```
+
+Open the route URL in your browser. OpenShift OAuth handles authentication.
+
+### CLI mode (headless, `oc exec`)
+
+```bash
+cd deployment/
+
+oc apply -k overlays/cli
+
+oc -n opencode rollout status deployment/opencode-web
+oc -n opencode exec -it deployment/opencode-web -c opencode-web -- opencode
+```
+
+No OAuth proxy or Route is created. Useful for interactive terminal sessions or CI pipelines.
+
+### Custom environment
+
+```bash
+cp -r deployment/overlays/example deployment/overlays/my-env
+# Edit overlays/my-env/kustomization.yaml — namespace, model, storage class
+oc apply -k deployment/overlays/my-env
+```
+
+### MLflow tracing
+
+```bash
+cd deployment/
+
+oc apply -k overlays/mlflow-tracing
+```
+
+See [deployment/docs/mlflow-tracing-setup.md](deployment/docs/mlflow-tracing-setup.md) for full configuration details.
+
+## Configuration
+
+| Setting | Where to change | Notes |
+|---------|----------------|-------|
+| Model endpoint URL | `deployment/manifests/kustomization.yaml` (`BASE_URL`) | Cluster-internal DNS, e.g. `http://vllm-svc.vllm.svc.cluster.local/v1` |
+| API key | `deployment/manifests/kustomization.yaml` (`API_KEY`) | Use `"token"` if auth is disabled |
+| Model name | `deployment/manifests/kustomization.yaml` (`MODEL_NAME`) | Must match the model loaded in vLLM |
+| Storage class | `deployment/manifests/kustomization.yaml` (patch section) | Default PVC is 10Gi |
+| MCP servers | ConfigMap `opencode-web-mcp` | Optional; merged into config at startup |
+| Provider (vLLM vs OGX) | `deployment/manifests/config-template.json` (`enabled_providers`) | Both enabled by default |
+
+## Security
+
+- **SCC**: Runs under `restricted-v2` — `runAsNonRoot`, drop all capabilities, seccomp RuntimeDefault. No special SCC grants required.
+- **TLS**: Reencrypt termination end-to-end; serving certificate auto-generated by OpenShift.
+- **RBAC**: OAuth proxy enforces Subject Access Review — users must have `get` on `services` in the deployment namespace.
+- **Secrets**: Inline secrets in `kustomization.yaml` are for convenience only. For production, use Sealed Secrets, External Secrets Operator, or Secrets Store CSI Driver.
+
+## Architecture
+
+The web mode deployment runs a two-container pod:
+
+1. **oauth-proxy** — OpenShift OAuth proxy sidecar handling authentication via TLS on port 8443
+2. **opencode-web** — OpenCode application serving the web UI on port 8003
+
+The entrypoint script (`deployment/manifests/entrypoint.sh`) handles:
+
+- Git workspace initialization
+- Config template variable substitution (BASE_URL, API_KEY, MODEL_NAME)
+- Optional MCP server config injection from a ConfigMap
+- Mode switching between web and CLI
+
+## OpenShell sandbox (experimental)
+
+An OpenShell-compatible container file (`deployment/Containerfile.openshell`) is available for running OpenCode inside an [OpenShell](https://github.com/NVIDIA/OpenShell-Community) gateway. This is a sandboxed experimentation path, separate from the production kustomize deployment above.
+
+```bash
+cd deployment/
+podman build --platform linux/amd64 -t opencode-sandbox:latest -f Containerfile.openshell .
+openshell sandbox create --from opencode-sandbox:latest
+```
+
+Requires OpenShell CLI and a running OpenShell gateway. Tested on OpenShell v0.0.58, OpenShift 4.21, OpenCode 1.17.1.
+
+## Related resources
+
+- [opendatahub-io/opencode](https://github.com/opendatahub-io/opencode) — container image source and CI
+- [OpenCode upstream](https://github.com/sst/opencode) — upstream project
+- [deployment/docs/mlflow-tracing-setup.md](deployment/docs/mlflow-tracing-setup.md) — MLflow tracing setup
+- [deployment/docs/mlflow-tracing.md](deployment/docs/mlflow-tracing.md) — tracing schema, backend comparisons, latency benchmarks
