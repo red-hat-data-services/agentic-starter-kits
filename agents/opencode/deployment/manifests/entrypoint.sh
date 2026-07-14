@@ -29,7 +29,7 @@ redirect_xdg_dir() {
             if [[ -n "$(ls -A "${source_dir}" 2>/dev/null)" ]]; then
                 cp -rn "${source_dir}/." "${target_dir}/" 2>/dev/null || true
             fi
-            mv "${source_dir}" "${source_dir}.migrated" 2>/dev/null || rm -rf "${source_dir}" 2>/dev/null || true
+            mv "${source_dir}" "${source_dir}.migrated" 2>/dev/null || { echo "[entrypoint] Warning: could not move ${source_dir}, removing"; rm -rf "${source_dir}" 2>/dev/null || true; }
         fi
         ln -sfn "${target_dir}" "${source_dir}" 2>/dev/null || true
     fi
@@ -109,13 +109,18 @@ if ! grep -q "^\.opencode$" .gitignore 2>/dev/null; then
     echo ".opencode" >> .gitignore
 fi
 
-# Build OpenCode config from template (jq handles special chars safely)
-CONFIG=$(jq --arg base "$BASE_URL" --arg key "$API_KEY" --arg model "$MODEL_NAME" '
-  .provider[].options.baseURL = $base |
-  .provider[].options.apiKey = $key |
-  .provider[].models = {($model): {name: $model}} |
-  .model = $model |
-  .small_model = $model
+# Build OpenCode config from template (jq-based envsubst — replaces ${VAR}
+# placeholders with matching environment variables, safely handling special chars)
+CONFIG=$(jq '
+  def envsubst:
+    reduce ($ENV | to_entries[]) as $e (.;
+      gsub("\\$\\{" + $e.key + "\\}"; $e.value)
+    );
+  walk(
+    if type == "string" then envsubst
+    elif type == "object" then with_entries(.key |= envsubst)
+    else . end
+  )
 ' /config-template/config-template.json)
 
 # Merge MCP config if mounted
@@ -138,7 +143,7 @@ case "$MODE" in
     (umask 077 && echo "$CONFIG" > "${XDG_CONFIG_HOME}/opencode/opencode.json")
     echo "[entrypoint] CLI mode — config written to ${XDG_CONFIG_HOME}/opencode/opencode.json"
     echo "[entrypoint] Sessions persist in ${XDG_DATA_HOME}/opencode/"
-    echo "[entrypoint] Attach with: oc exec -it deployment/opencode-cli -c opencode -- opencode"
+    echo "[entrypoint] Attach with: oc exec -it deployment/opencode-web -c opencode-web -- opencode"
     echo "[entrypoint] Resume last session: opencode --continue"
     exec sleep infinity
     ;;

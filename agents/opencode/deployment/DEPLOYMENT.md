@@ -109,6 +109,7 @@ See [docs/mlflow-tracing-setup.md](docs/mlflow-tracing-setup.md) for full config
 | Model endpoint URL | `manifests/kustomization.yaml` (`BASE_URL`) | Cluster-internal DNS, e.g. `http://vllm-svc.vllm.svc.cluster.local/v1` |
 | API key | `manifests/kustomization.yaml` (`API_KEY`) | Use `"token"` if auth is disabled |
 | Model name | `manifests/kustomization.yaml` (`MODEL_NAME`) | Must match the model loaded in vLLM |
+| Small model | `manifests/config-template.json` (`small_model`) | Defaults to `MODEL_NAME`; edit the template to use a separate placeholder (e.g. `${SMALL_MODEL_NAME}`) for lighter tasks |
 | Storage class | `manifests/kustomization.yaml` (patch section) | Default PVC is 10Gi |
 | MCP servers | ConfigMap `opencode-web-mcp` | Optional; merged into config at startup |
 | Provider (vLLM vs OGX) | `manifests/config-template.json` (`enabled_providers`) | Both enabled by default |
