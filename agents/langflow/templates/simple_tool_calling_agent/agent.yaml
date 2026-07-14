@@ -2,4 +2,15 @@ name: langflow-simple-tool-calling-agent
 displayName: "Langflow Simple Tool Calling Agent"
 framework: langflow
 description: "Tool-calling agent built with Langflow's visual flow builder. Calls external APIs as tools and reasons over results."
+labels: ["tool-calling", "low-code"]
+logo: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSI+CiAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiNGRjZCMzUiLz4KICA8cmVjdCB4PSIxMCIgeT0iMTQiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxMCIgcng9IjMiIGZpbGw9IndoaXRlIi8+CiAgPHJlY3QgeD0iMzgiIHk9IjE0IiB3aWR0aD0iMTYiIGhlaWdodD0iMTAiIHJ4PSIzIiBmaWxsPSJ3aGl0ZSIvPgogIDxyZWN0IHg9IjI0IiB5PSI0MCIgd2lkdGg9IjE2IiBoZWlnaHQ9IjEwIiByeD0iMyIgZmlsbD0id2hpdGUiLz4KICA8bGluZSB4MT0iMTgiIHkxPSIyNCIgeDI9IjE4IiB5Mj0iMzQiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMi41Ii8+CiAgPGxpbmUgeDE9IjE4IiB5MT0iMzQiIHgyPSIzMiIgeTI9IjM0IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIuNSIvPgogIDxsaW5lIHgxPSIzMiIgeTE9IjM0IiB4Mj0iMzIiIHkyPSI0MCIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyLjUiLz4KICA8bGluZSB4MT0iNDYiIHkxPSIyNCIgeDI9IjQ2IiB5Mj0iMzQiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMi41Ii8+CiAgPGxpbmUgeDE9IjQ2IiB5MT0iMzQiIHgyPSIzMiIgeTI9IjM0IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIuNSIvPgo8L3N2Zz4="
 deploymentModel: flow-import
+env:
+  required:
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+    - POSTGRES_DB
+  optional:
+    - LANGFUSE_ADMIN_PASSWORD
+    - LANGFUSE_ENCRYPTION_KEY
+    - OLLAMA_BASE_URL
