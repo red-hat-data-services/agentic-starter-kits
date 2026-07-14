@@ -2,6 +2,8 @@ name: google-adk-agent
 displayName: "Google ADK Agent"
 framework: google-adk
 description: "General-purpose agent using Google ADK 2.0 with LiteLLM to route inference through an OGX-compatible endpoint."
+labels: ["tool-calling"]
+logo: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSI+CiAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiM0Mjg1RjQiLz4KICA8cGF0aCBkPSJNMzIgMTZjLTguOCAwLTE2IDcuMi0xNiAxNnM3LjIgMTYgMTYgMTZjNC40IDAgOC4xLTEuOCAxMC45LTQuNmwtNC40LTQuNEMzNi44IDQwLjYgMzQuNiA0MS41IDMyIDQxLjVjLTUuMiAwLTkuNS00LjMtOS41LTkuNXM0LjMtOS41IDkuNS05LjVjMi42IDAgNC45IDEgNi42IDIuN0w0Mi44IDIxQzQwLjEgMTggMzYuMyAxNiAzMiAxNnoiIGZpbGw9IndoaXRlIi8+CiAgPHJlY3QgeD0iMzEiIHk9IjI5IiB3aWR0aD0iMTciIGhlaWdodD0iNiIgcng9IjEiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPg=="
 env:
   required:
     - API_KEY
