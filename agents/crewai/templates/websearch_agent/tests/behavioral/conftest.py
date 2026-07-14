@@ -71,7 +71,7 @@ def load_golden(category: str | None = None) -> list[dict[str, Any]]:
 @pytest.fixture
 def known_tools() -> list[str]:
     """Tools available on the CrewAI Websearch agent."""
-    return ["web_search"]
+    return ["Web Search"]
 
 
 @pytest.fixture

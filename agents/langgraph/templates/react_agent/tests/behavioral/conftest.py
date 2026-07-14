@@ -92,6 +92,16 @@ def run_eval(
 
     Overrides the root run_eval fixture to add MLflow trace data
     (tool calls, token usage) after each request.
+
+    NOTE: MLFLOW_EXPERIMENT_NAME isolation — all agents read this from the
+    same env var.  If multiple agents (react_agent, human_in_the_loop,
+    agentic_rag) share the same experiment name during a CI run, MLflow
+    enrichment may pull tool spans from sibling agents (e.g. ``create_file``
+    from HITL or ``retriever`` from agentic_rag), causing spurious
+    hallucinated-tool failures.  The ``since_ms`` timestamp filter mitigates
+    this for sequential runs, but concurrent execution is not safe.  Each
+    agent deployment should set a unique MLFLOW_EXPERIMENT_NAME to avoid
+    cross-contamination.
     """
     mlflow = None
     if MLflowTraceClient is not None:
