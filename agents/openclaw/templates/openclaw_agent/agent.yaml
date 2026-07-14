@@ -9,3 +9,4 @@ env:
   required: []
   optional:
     - OPENCLAW_GATEWAY_TOKEN
+    - VLLM_API_KEY                 # Defaults to "not-needed" in manifests/01-secret.yaml
