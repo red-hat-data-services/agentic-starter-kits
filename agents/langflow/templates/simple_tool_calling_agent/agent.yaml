@@ -7,10 +7,10 @@ logo: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9
 deploymentModel: flow-import
 env:
   required:
-    - LANGFLOW_DATABASE_URL
-    - LANGFLOW_STORE_ENVIRONMENT_VARIABLES
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+    - POSTGRES_DB
   optional:
-    - LANGFUSE_SECRET_KEY
-    - LANGFUSE_PUBLIC_KEY
-    - LANGFUSE_HOST
+    - LANGFUSE_ADMIN_PASSWORD
+    - LANGFUSE_ENCRYPTION_KEY
     - OLLAMA_BASE_URL
