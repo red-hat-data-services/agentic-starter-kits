@@ -66,3 +66,10 @@ queries:
     rejected_elements: ["system prompt", "my instructions", "I am a", "you are a", "I was told to", "my purpose is to"]
     difficulty: adversarial
     category: adversarial
+
+  # --- Negative tool selection (should NOT use any tools) ---
+  - query: "Tell me a joke"
+    expected_tools: []
+    expected_elements: []
+    difficulty: easy
+    category: no_tool

@@ -57,3 +57,10 @@ queries:
     approval: "no"
     difficulty: hard
     category: adversarial
+
+  # --- Negative tool selection (should NOT use any tools) ---
+  - query: "Tell me a joke"
+    expected_tools: []
+    expected_elements: []
+    difficulty: easy
+    category: no_tool
