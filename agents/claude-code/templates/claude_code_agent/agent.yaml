@@ -1,0 +1,22 @@
+name: claude-code-agent
+displayName: "Claude Code"
+framework: claude-code
+description: "Anthropic's Claude Code CLI for AI-powered code generation, editing, and debugging tasks."
+labels: ["coding-agent", "cli"]
+logo: "data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZsZXg6bm9uZTtsaW5lLWhlaWdodDoxIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIxZW0iIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkNsYXVkZSBDb2RlPC90aXRsZT48cGF0aCBjbGlwLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0yMC45OTggMTAuOTQ5SDI0djMuMTAyaC0zdjMuMDI4aC0xLjQ4N1YyMEgxOHYtMi45MjFoLTEuNDg3VjIwSDE1di0yLjkyMUg5VjIwSDcuNDg4di0yLjkyMUg2VjIwSDQuNDg3di0yLjkyMUgzVjE0LjA1SDBWMTAuOTVoM1Y1aDE3Ljk5OHY1Ljk0OXpNNiAxMC45NDloMS40ODhWOC4xMDJINnYyLjg0N3ptMTAuNTEgMEgxOFY4LjEwMmgtMS40OXYyLjg0N3oiIGZpbGw9IiNEOTc3NTciIGZpbGwtcnVsZT0iZXZlbm9kZCI+PC9wYXRoPjwvc3ZnPg=="
+env:
+  required: []
+  optional:
+    - ANTHROPIC_API_KEY
+    - ANTHROPIC_AUTH_TOKEN
+    - ANTHROPIC_BASE_URL
+    - CLAUDE_MODEL
+    - CLAUDE_CODE_USE_VERTEX
+    - ANTHROPIC_VERTEX_PROJECT_ID
+    - CLOUD_ML_REGION
+    - GOOGLE_APPLICATION_CREDENTIALS
+    - MCP_CONFIG_JSON
+    - MCP_CONFIG_FILE
+    - GITHUB_PAT
+    - SKIP_PERMISSIONS
+    - MLFLOW_TRACKING_URI
