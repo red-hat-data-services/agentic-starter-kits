@@ -3,7 +3,7 @@ COMPOSE_FILE   := local/podman-compose.yml
 ENV_FILE       := local/.env
 MODEL          ?= qwen2.5:7b
 
-.PHONY: init ollama ogx-server run stop clean status logs help
+.PHONY: init ollama ogx-server run stop clean status logs help test-integration
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -81,3 +81,9 @@ status: ## Show status of running services
 
 logs: ## Tail logs from all services
 	@podman-compose -f $(COMPOSE_FILE) logs -f
+
+test-integration: ## Run integration deployment test
+	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \
+	  uv run --with pytest --with httpx --with pyyaml \
+	  python -m pytest tests/integration/test_deployment.py \
+	    -v --tb=long --junitxml=results.xml
