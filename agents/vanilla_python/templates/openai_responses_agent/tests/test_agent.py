@@ -72,7 +72,7 @@ class TestLLMCreateFallback:
         result = agent._llm_create(messages=agent.messages)
 
         assert result is mock_response
-        assert agent._use_responses_api is False
+        assert agent._use_responses_api is None
         mock_client.chat.completions.create.assert_called_once()
 
     def test_fallback_on_404(self):
@@ -119,4 +119,56 @@ class TestLLMCreateFallback:
 
         assert result is mock_response
         mock_client.responses.create.assert_not_called()
+        mock_client.chat.completions.create.assert_called_once()
+
+    def test_temperature_zero_is_passed(self):
+        """temperature=0 must be included in API kwargs, not omitted."""
+        agent, mock_client = self._make_agent()
+        mock_client.chat.completions.create.return_value = MagicMock()
+
+        agent._use_responses_api = False
+        agent.messages = [{"role": "user", "content": "hi"}]
+        agent._llm_create(messages=agent.messages)
+
+        call_kwargs = mock_client.chat.completions.create.call_args
+        assert call_kwargs[1]["temperature"] == 0
+
+    def test_fallback_on_400_after_prior_success(self):
+        """400 after a prior Responses API success falls back without caching."""
+        agent, mock_client = self._make_agent()
+        mock_response = MagicMock()
+        exc = APIStatusError(
+            message="Bad Request",
+            response=MagicMock(status_code=400, headers={}),
+            body=None,
+        )
+        mock_client.responses.create.side_effect = exc
+        mock_client.chat.completions.create.return_value = mock_response
+
+        agent._use_responses_api = True
+        agent.messages = [{"role": "user", "content": "multi-turn message"}]
+        result = agent._llm_create(messages=agent.messages)
+
+        assert result is mock_response
+        assert agent._use_responses_api is True
+        mock_client.chat.completions.create.assert_called_once()
+
+    def test_fallback_on_404_after_prior_success(self):
+        """404 after a prior Responses API success permanently disables it."""
+        agent, mock_client = self._make_agent()
+        mock_response = MagicMock()
+        exc = APIStatusError(
+            message="Not Found",
+            response=MagicMock(status_code=404, headers={}),
+            body=None,
+        )
+        mock_client.responses.create.side_effect = exc
+        mock_client.chat.completions.create.return_value = mock_response
+
+        agent._use_responses_api = True
+        agent.messages = [{"role": "user", "content": "multi-turn message"}]
+        result = agent._llm_create(messages=agent.messages)
+
+        assert result is mock_response
+        assert agent._use_responses_api is False
         mock_client.chat.completions.create.assert_called_once()

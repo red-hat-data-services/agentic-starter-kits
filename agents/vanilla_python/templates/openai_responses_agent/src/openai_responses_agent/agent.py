@@ -238,7 +238,7 @@ class AIAgent:
             "model": model_id,
             "messages": msg_list,
         }
-        if temp != 0:
+        if temp is not None:
             kwargs["temperature"] = temp
 
         return self.client.chat.completions.create(**kwargs)
@@ -252,9 +252,10 @@ class AIAgent:
         """
         LLM API call with automatic fallback from Responses API to Chat Completions.
 
-        On the first call, tries the Responses API. If the server returns HTTP 400
-        or 404 (unsupported endpoint), falls back to Chat Completions and caches the
-        result so subsequent calls skip the probe.
+        Tries the Responses API unless a prior 404 permanently disabled it. If the
+        server returns HTTP 404, permanently falls back to Chat Completions for all
+        subsequent calls. On HTTP 400, falls back for the current call only (400 can
+        also indicate a legitimate request error, not just an unsupported endpoint).
 
         Args:
             messages: List of messages; if None, self.messages is used.
@@ -280,7 +281,7 @@ class AIAgent:
             "instructions": instructions,
             "input": input_items,
         }
-        if temp != 0:
+        if temp is not None:
             kwargs["temperature"] = temp
 
         try:
@@ -292,11 +293,17 @@ class AIAgent:
         except APIStatusError as exc:
             if exc.status_code not in (400, 404):
                 raise
-            self._use_responses_api = False
-            logger.info(
-                "Responses API returned HTTP %d, falling back to Chat Completions API",
-                exc.status_code,
-            )
+            if exc.status_code == 404:
+                self._use_responses_api = False
+                logger.info(
+                    "Responses API not found (HTTP 404), "
+                    "permanently falling back to Chat Completions API",
+                )
+            else:
+                logger.info(
+                    "Responses API returned HTTP 400, "
+                    "falling back to Chat Completions API for this call",
+                )
             return self._chat_completions_create(
                 messages=messages, temperature=temperature, model=model
             )
