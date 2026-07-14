@@ -500,13 +500,13 @@ elif [[ "${MLFLOW_AUTH_CHECK}" != "200" ]]; then
 fi
 
 # Validate the resolved MLFLOW_INTERNAL_URI is reachable (with auth token).
-# Use /health — the experiments API requires workspace context that a simple
-# curl check cannot provide.
+# Use the /mlflow/health endpoint — the experiments API requires workspace
+# context that a simple curl check cannot provide.
 if [[ -n "${MLFLOW_INTERNAL_URI:-}" && -n "${MLFLOW_TOKEN:-}" ]]; then
   _clean_uri="${MLFLOW_INTERNAL_URI%/}"
-  # Always use /health relative to the base — works for both path-stripped
-  # internal URIs (→ host/health) and external routes (→ host/mlflow/health).
-  _health_url="${_clean_uri}/health"
+  _health_url="${_clean_uri}/mlflow/health"
+  # If the URI already ends with /mlflow, avoid doubling the path
+  [[ "${_clean_uri}" == */mlflow ]] && _health_url="${_clean_uri}/health"
   _internal_check=$(curl -s ${CURL_TLS_FLAG} -o /dev/null -w "%{http_code}" --max-time 10 \
     -H "Authorization: Bearer ${MLFLOW_TOKEN}" \
     "${_health_url}" 2>/dev/null || true)
