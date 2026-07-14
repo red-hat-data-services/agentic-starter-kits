@@ -309,9 +309,12 @@ print("[entrypoint] INFO: MLflow settings injected into " + sf)
     local mlflow_version
     mlflow_version=$(python3 -c 'import mlflow; print(mlflow.__version__)' 2>/dev/null || echo "unknown")
     if [[ "${mlflow_version}" != 3.12* ]]; then
-        claude plugin enable mlflow-tracing@mlflow-plugins 2>/dev/null \
-            && log_info "MLflow Claude Code plugin enabled" \
-            || log_info "MLflow Claude Code plugin already enabled"
+        local plugin_err
+        if plugin_err=$(claude plugin enable mlflow-tracing@mlflow-plugins 2>&1); then
+            log_info "MLflow Claude Code plugin enabled"
+        else
+            log_warn "MLflow Claude Code plugin enable failed: ${plugin_err:-unknown error}"
+        fi
     fi
 
     # Replace installed plugin bundle with pre-built version if available

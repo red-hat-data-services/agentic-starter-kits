@@ -94,7 +94,7 @@ oc apply -k manifests/
 | Document | Description |
 |----------|-------------|
 | [docs/raw-deployment.md](docs/raw-deployment.md) | Full deployment guide: configuration, validation, troubleshooting |
-| [docs/mlflow-tracing.md](docs/mlflow-tracing.md) | MLflow tracing with OTel collector sidecar (see also [shared TLS/RBAC guide](../../docs/mlflow-openshift-auth-and-tls.md)) |
+| [docs/mlflow-tracing.md](docs/mlflow-tracing.md) | MLflow tracing with OTel collector sidecar (see also [shared TLS/RBAC guide](../../../docs/mlflow-openshift-auth-and-tls.md)) |
 | [docs/model-compatibility.md](docs/model-compatibility.md) | Model testing results for agentic tool-calling |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues and fixes |
 | [docs/installer-deployment.md](docs/installer-deployment.md) | Alternative deployment via [claw-installer](https://github.com/sallyom/claw-installer) |
