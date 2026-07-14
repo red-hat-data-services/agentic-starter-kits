@@ -159,14 +159,12 @@ setup_config_dir() {
     # Ensure the config directory exists and is group-writable.
     # On OpenShift, fresh PVCs are owned by root with the pod's fsGroup.
     # The non-root container user writes via group membership, so directories
-    # must be group-writable (g+w).
-    mkdir -p "${CLAUDE_CONFIG_DIR}"
-    chmod g+w "${CLAUDE_CONFIG_DIR}" 2>/dev/null || true
+    # must be group-writable (2775 = rwxrwsr-x).
+    install -d -m 2775 "${CLAUDE_CONFIG_DIR}" 2>/dev/null || { mkdir -p "${CLAUDE_CONFIG_DIR}" && chmod 2775 "${CLAUDE_CONFIG_DIR}"; } || log_warn "Failed to create ${CLAUDE_CONFIG_DIR} with correct permissions"
 
-    # Ensure the projects directory exists (WORKDIR is /workspace/projects)
+    # Ensure the projects directory exists
     # This separates global config (/workspace/.claude) from local auto-memory (/workspace/projects/.claude)
-    mkdir -p /workspace/projects
-    chmod g+w /workspace/projects 2>/dev/null || true
+    install -d -m 2775 /workspace/projects 2>/dev/null || { mkdir -p /workspace/projects && chmod 2775 /workspace/projects; } || log_warn "Failed to create /workspace/projects with correct permissions"
 
     # Create symlink from ~/.claude to the config dir for user convenience
     # Users expect to find settings/skills at ~/.claude/
@@ -412,6 +410,11 @@ WRAPPER
         echo 'export PATH="${HOME}/.claude:${PATH}"' >> "${HOME}/.bashrc"
     fi
 
+    # Set working directory for interactive shells
+    if ! grep -q 'cd /workspace/projects' "${HOME}/.bashrc" 2>/dev/null; then
+        echo 'cd /workspace/projects 2>/dev/null || true' >> "${HOME}/.bashrc"
+    fi
+
     log_info "Claude args persisted to ${claude_dir}/env.sh"
     log_info "Wrapper script available: claude-run (or ~/.claude/claude-run)"
 }
@@ -433,6 +436,9 @@ main() {
     setup_mlflow
     setup_skills
     build_claude_args
+
+    # Change to projects directory (separates global config from local auto-memory)
+    cd /workspace/projects || log_warn "Failed to cd to /workspace/projects"
 
     # If no arguments provided, show help
     if [[ $# -eq 0 ]]; then
