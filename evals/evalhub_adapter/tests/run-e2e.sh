@@ -299,8 +299,9 @@ else
 fi
 
 # Discover the internal MLflow service URL for in-cluster adapter pods.
-# The adapter pod cannot reach the external route (SSL cert mismatch) and
-# the sidecar proxy doesn't support MLflow API paths.  The EvalHub
+# For workspace-scoped deployments, the internal .svc.cluster.local URL
+# cannot route workspace API calls, so we swap to the external route
+# (with MLFLOW_TRACKING_INSECURE_TLS=true to handle TLS).  The EvalHub
 # deployment already uses the internal service URL, so we extract it from
 # there.
 if [[ -z "${MLFLOW_INTERNAL_URI:-}" ]]; then
@@ -324,9 +325,17 @@ fi
 # Unlike the internal URI (path stripped above), the external route retains its
 # /mlflow prefix — the reverse proxy needs it to route workspace-scoped requests.
 if [[ "${MLFLOW_INTERNAL_URI:-}" == *".svc.cluster.local"* && -n "${OC_NAMESPACE:-}" ]]; then
-  preflight_warn "Internal URI uses .svc.cluster.local but MLFLOW_WORKSPACE=${OC_NAMESPACE}; switching to external route for workspace routing"
-  MLFLOW_INTERNAL_URI="${MLFLOW_TRACKING_URI}"
-  preflight_ok "MLflow internal URI (workspace-aware): ${MLFLOW_INTERNAL_URI}"
+  if [[ -z "${MLFLOW_TRACKING_URI:-}" ]]; then
+    preflight_warn "Cannot swap to external route — MLFLOW_TRACKING_URI not discovered"
+  else
+    preflight_warn "Internal URI uses .svc.cluster.local but MLFLOW_WORKSPACE=${OC_NAMESPACE}; switching to external route for workspace routing"
+    # Ensure the external route retains the /mlflow path prefix required by
+    # the reverse proxy for workspace-scoped requests.
+    _ext_uri="${MLFLOW_TRACKING_URI}"
+    [[ "${_ext_uri}" != */mlflow && "${_ext_uri}" != */mlflow/ ]] && _ext_uri="${_ext_uri%/}/mlflow"
+    MLFLOW_INTERNAL_URI="${_ext_uri}"
+    preflight_ok "MLflow internal URI (workspace-aware): ${MLFLOW_INTERNAL_URI}"
+  fi
 fi
 
 # Discover agent-side experiment (where agents write traces)
@@ -491,13 +500,13 @@ elif [[ "${MLFLOW_AUTH_CHECK}" != "200" ]]; then
 fi
 
 # Validate the resolved MLFLOW_INTERNAL_URI is reachable (with auth token).
-# Use the /mlflow/health endpoint — the experiments API requires workspace
-# context that a simple curl check cannot provide.
+# Use /health — the experiments API requires workspace context that a simple
+# curl check cannot provide.
 if [[ -n "${MLFLOW_INTERNAL_URI:-}" && -n "${MLFLOW_TOKEN:-}" ]]; then
   _clean_uri="${MLFLOW_INTERNAL_URI%/}"
-  _health_url="${_clean_uri}/mlflow/health"
-  # If the URI already ends with /mlflow, avoid doubling the path
-  [[ "${_clean_uri}" == */mlflow ]] && _health_url="${_clean_uri}/health"
+  # Always use /health relative to the base — works for both path-stripped
+  # internal URIs (→ host/health) and external routes (→ host/mlflow/health).
+  _health_url="${_clean_uri}/health"
   _internal_check=$(curl -s ${CURL_TLS_FLAG} -o /dev/null -w "%{http_code}" --max-time 10 \
     -H "Authorization: Bearer ${MLFLOW_TOKEN}" \
     "${_health_url}" 2>/dev/null || true)
