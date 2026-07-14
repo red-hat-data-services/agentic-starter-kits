@@ -70,12 +70,6 @@ spec:
                 secretKeyRef:
                   name: opencode-web-secret
                   key: MODEL_NAME
-            # XDG_STATE_HOME must be set explicitly because the container image
-            # creates ~/.local/state/ with 755 permissions, which prevents the
-            # entrypoint from creating a symlink under OpenShift's random UID.
-            # Config and data symlinks work because their parent dirs are 775.
-            - name: XDG_STATE_HOME
-              value: /opt/app-root/workspace/.opencode/state
           resources:
             requests:
               cpu: 500m

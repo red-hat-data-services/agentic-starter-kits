@@ -125,9 +125,9 @@ OpenCode session history and workspace files persist across pod restarts. The co
 | `~/.local/share/opencode/` | `/opt/app-root/workspace/.opencode/data/opencode/`  | Session history, database |
 | `~/.local/state/opencode/` | `/opt/app-root/workspace/.opencode/state/opencode/` | Locks, runtime state      |
 
-The entrypoint creates symlinks from default XDG locations to PVC-backed paths. For config and data, this works automatically. For state, the deployment sets `XDG_STATE_HOME` explicitly (see note below).
+The entrypoint creates symlinks from default XDG locations to PVC-backed paths and exports `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, and `XDG_STATE_HOME` to point at the persistent directories.
 
-> **Note**: The container image creates `~/.local/state/` with 755 permissions, which prevents symlink creation under OpenShift's random UID (the root group cannot write to 755 directories). The deployment manifests set `XDG_STATE_HOME` as a workaround. If this is fixed upstream in the container image (by using 775 permissions), the environment variable can be removed.
+> **Note**: The container image creates `~/.local/state/` with 755 permissions, which prevents symlink creation under OpenShift's random UID (the root group cannot write to 755 directories). The entrypoint's `XDG_STATE_HOME` export works around this. If this is fixed upstream in the container image (by using 775 permissions), the workaround can be removed.
 
 #### Resuming Sessions (CLI Mode)
 
@@ -152,7 +152,7 @@ env:
     value: /opt/app-root/workspace/my-custom-dir
 ```
 
-The entrypoint creates `config/opencode/` and `data/opencode/` subdirectories within this path.
+The entrypoint creates `config/opencode/`, `data/opencode/`, and `state/opencode/` subdirectories within this path.
 
 ### Skills Injection
 

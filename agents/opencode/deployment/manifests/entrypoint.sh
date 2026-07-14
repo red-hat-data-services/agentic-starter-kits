@@ -7,7 +7,34 @@ set -euo pipefail
 # OpenCode stores config in ~/.config/opencode and session data in
 # ~/.local/share/opencode. This function redirects both to a PVC-backed
 # location so sessions persist across pod restarts.
+#
+# XDG_STATE_HOME is exported here (not in the deployment manifest) so that
+# all three XDG dirs are managed consistently. This also works around
+# the container image creating ~/.local/state/ with 755 permissions,
+# which prevents symlink creation under OpenShift's random UID.
 # =============================================================================
+redirect_xdg_dir() {
+    local source_dir="$1"
+    local target_dir="$2"
+
+    mkdir -p "$(dirname "${source_dir}")"
+    if [[ -L "${source_dir}" ]]; then
+        local current_target
+        current_target=$(readlink "${source_dir}")
+        if [[ "${current_target}" != "${target_dir}" ]]; then
+            ln -sfn "${target_dir}" "${source_dir}"
+        fi
+    else
+        if [[ -d "${source_dir}" ]]; then
+            if [[ -n "$(ls -A "${source_dir}" 2>/dev/null)" ]]; then
+                cp -rn "${source_dir}/." "${target_dir}/" 2>/dev/null || true
+            fi
+            mv "${source_dir}" "${source_dir}.migrated" 2>/dev/null || rm -rf "${source_dir}" 2>/dev/null || true
+        fi
+        ln -sfn "${target_dir}" "${source_dir}" 2>/dev/null || true
+    fi
+}
+
 setup_opencode_dirs() {
     export OPENCODE_DATA_DIR="${OPENCODE_DATA_DIR:-/opt/app-root/workspace/.opencode}"
 
@@ -19,63 +46,9 @@ setup_opencode_dirs() {
     export XDG_DATA_HOME="${OPENCODE_DATA_DIR}/data"
     export XDG_STATE_HOME="${OPENCODE_DATA_DIR}/state"
 
-    local home_config="${HOME}/.config"
-    local home_data="${HOME}/.local/share"
-    local home_state="${HOME}/.local/state"
-
-    # Symlink ~/.config/opencode -> persistent config
-    mkdir -p "${home_config}"
-    if [[ -L "${home_config}/opencode" ]]; then
-        local current_target
-        current_target=$(readlink "${home_config}/opencode")
-        if [[ "${current_target}" != "${XDG_CONFIG_HOME}/opencode" ]]; then
-            ln -sfn "${XDG_CONFIG_HOME}/opencode" "${home_config}/opencode"
-        fi
-    else
-        if [[ -d "${home_config}/opencode" ]]; then
-            if [[ -n "$(ls -A "${home_config}/opencode" 2>/dev/null)" ]]; then
-                cp -rn "${home_config}/opencode/"* "${XDG_CONFIG_HOME}/opencode/" 2>/dev/null || true
-            fi
-            mv "${home_config}/opencode" "${home_config}/opencode.migrated" 2>/dev/null || rm -rf "${home_config}/opencode" 2>/dev/null || true
-        fi
-        ln -sfn "${XDG_CONFIG_HOME}/opencode" "${home_config}/opencode" 2>/dev/null || true
-    fi
-
-    # Symlink ~/.local/share/opencode -> persistent data
-    mkdir -p "${home_data}"
-    if [[ -L "${home_data}/opencode" ]]; then
-        local current_target
-        current_target=$(readlink "${home_data}/opencode")
-        if [[ "${current_target}" != "${XDG_DATA_HOME}/opencode" ]]; then
-            ln -sfn "${XDG_DATA_HOME}/opencode" "${home_data}/opencode"
-        fi
-    else
-        if [[ -d "${home_data}/opencode" ]]; then
-            if [[ -n "$(ls -A "${home_data}/opencode" 2>/dev/null)" ]]; then
-                cp -rn "${home_data}/opencode/"* "${XDG_DATA_HOME}/opencode/" 2>/dev/null || true
-            fi
-            mv "${home_data}/opencode" "${home_data}/opencode.migrated" 2>/dev/null || rm -rf "${home_data}/opencode" 2>/dev/null || true
-        fi
-        ln -sfn "${XDG_DATA_HOME}/opencode" "${home_data}/opencode" 2>/dev/null || true
-    fi
-
-    # Symlink ~/.local/state/opencode -> persistent state
-    mkdir -p "${home_state}"
-    if [[ -L "${home_state}/opencode" ]]; then
-        local current_target
-        current_target=$(readlink "${home_state}/opencode")
-        if [[ "${current_target}" != "${XDG_STATE_HOME}/opencode" ]]; then
-            ln -sfn "${XDG_STATE_HOME}/opencode" "${home_state}/opencode"
-        fi
-    else
-        if [[ -d "${home_state}/opencode" ]]; then
-            if [[ -n "$(ls -A "${home_state}/opencode" 2>/dev/null)" ]]; then
-                cp -rn "${home_state}/opencode/"* "${XDG_STATE_HOME}/opencode/" 2>/dev/null || true
-            fi
-            mv "${home_state}/opencode" "${home_state}/opencode.migrated" 2>/dev/null || rm -rf "${home_state}/opencode" 2>/dev/null || true
-        fi
-        ln -sfn "${XDG_STATE_HOME}/opencode" "${home_state}/opencode" 2>/dev/null || true
-    fi
+    redirect_xdg_dir "${HOME}/.config/opencode"     "${XDG_CONFIG_HOME}/opencode"
+    redirect_xdg_dir "${HOME}/.local/share/opencode" "${XDG_DATA_HOME}/opencode"
+    redirect_xdg_dir "${HOME}/.local/state/opencode" "${XDG_STATE_HOME}/opencode"
 
     echo "[entrypoint] OpenCode data directory: ${OPENCODE_DATA_DIR}"
 }
@@ -162,7 +135,7 @@ case "$MODE" in
     ;;
   cli)
     # Write config to persistent location for oc exec sessions
-    echo "$CONFIG" > "${XDG_CONFIG_HOME}/opencode/opencode.json"
+    (umask 077 && echo "$CONFIG" > "${XDG_CONFIG_HOME}/opencode/opencode.json")
     echo "[entrypoint] CLI mode — config written to ${XDG_CONFIG_HOME}/opencode/opencode.json"
     echo "[entrypoint] Sessions persist in ${XDG_DATA_HOME}/opencode/"
     echo "[entrypoint] Attach with: oc exec -it deployment/opencode-cli -c opencode -- opencode"
