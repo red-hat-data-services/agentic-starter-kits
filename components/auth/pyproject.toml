@@ -1,0 +1,16 @@
+[project]
+name = "agent-auth"
+version = "0.1.0"
+description = "ServiceAccount token auth middleware for agentic-starter-kits agents"
+requires-python = ">=3.12,<=3.14"
+dependencies = [
+    "kubernetes>=29.0",
+    "starlette>=0.27.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=80.9.0"]
+build-backend = "setuptools.build_meta"

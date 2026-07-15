@@ -1,5 +1,0 @@
-name: langflow-simple-tool-calling-agent
-displayName: "Langflow Simple Tool Calling Agent"
-framework: langflow
-description: "Tool-calling agent built with Langflow's visual flow builder. Calls external APIs as tools and reasons over results."
-deploymentModel: flow-import

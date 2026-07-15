@@ -1,0 +1,27 @@
+apiVersion: agent.kagenti.dev/v1alpha1
+kind: AgentRuntime
+metadata:
+  name: a2a-langgraph-agent-runtime
+  labels:
+    app.kubernetes.io/name: a2a-langgraph-agent
+spec:
+  type: agent
+  protocol: a2a
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: a2a-langgraph-agent
+---
+apiVersion: agent.kagenti.dev/v1alpha1
+kind: AgentRuntime
+metadata:
+  name: a2a-crew-agent-runtime
+  labels:
+    app.kubernetes.io/name: a2a-crew-agent
+spec:
+  type: agent
+  protocol: a2a
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: a2a-crew-agent

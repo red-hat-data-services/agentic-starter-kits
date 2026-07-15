@@ -1,3 +1,0 @@
-# Helm overrides for charts/a2a-langgraph-crewai (see chart values.yaml for all keys)
-
-# Phase 1 deploy sets deploymentsEnabled: false via Makefile; phase 2 enables workloads + public URLs.

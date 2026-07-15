@@ -1,0 +1,57 @@
+# Automated PR labeling: path-based area/* labels + size-based size/* labels.
+# Uses pull_request_target to support fork PRs (write access to base repo).
+
+name: PR Labeler
+
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+concurrency:
+  group: pr-labeler-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label-pr:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Path-based area/* labels
+      - name: Apply area labels
+        uses: actions/labeler@b8dd2d9be0f68b860e7dae5dae7d772984eacd6d # v6.2.0
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+          configuration-path: .github/labeler.yml
+          sync-labels: true
+
+      # Step 2: Size-based size/* labels + XL comment
+      - name: Checkout scripts
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install PyGithub==2.9.1
+
+      - name: Apply size labels
+        id: size_labels
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python .github/scripts/pr_size.py
+
+      - name: Warn if size labeling failed
+        if: steps.size_labels.outcome == 'failure'
+        run: |
+          echo "::warning::Size labeling failed; area labels were applied but size labels may be stale or missing."

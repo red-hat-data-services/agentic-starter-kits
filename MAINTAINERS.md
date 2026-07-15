@@ -4,9 +4,7 @@ A repository maintainer is a committer with the additional privilege of managing
 
 ## Current Maintainers
 
-
 | Name            | GitHub Username                       |
 |-----------------|---------------------------------------|
 | Tomasz Guzik    | [MRGuziX](https://github.com/MRGuziX) |
 | Wojciech Rębisz | [Wojciech-Rebisz](https://github.com/Wojciech-Rebisz)  |
-

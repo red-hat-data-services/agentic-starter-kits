@@ -1,0 +1,69 @@
+# EvalHub Agentic Adapter — container image
+#
+# Uses PYTHONPATH-based source layout (not pip-installed packages) so that
+# evaluations.py resolves fixture paths from the fixtures_path parameter.
+#
+# Build from repo root:
+#   IMAGE_TAG=$(git rev-parse --short HEAD)
+#   ADAPTER_IMAGE=quay.io/<your-user>/evalhub-agentic-adapter:${IMAGE_TAG}
+#   podman build -t "${ADAPTER_IMAGE}" \
+#     -f evals/evalhub_adapter/Containerfile .
+#   podman push "${ADAPTER_IMAGE}"
+
+FROM registry.access.redhat.com/ubi9/python-312@sha256:e95978812895b9abb2bdc109b501078da2a47c8dbb9fa23758af40ed50ab6023
+WORKDIR /opt/app-root/src
+
+USER 0
+
+COPY --from=ghcr.io/astral-sh/uv@sha256:fc93e9ecd7218e9ec8fba117af89348eef8fd2463c50c13347478769aaedd0ce /uv /usr/local/bin/uv
+
+COPY evals/evalhub_adapter/ ./evalhub_adapter/
+COPY evals/harness/          ./harness/
+# TODO: auto-discover agents/*/templates/*/evalhub/ dirs instead of hardcoding per agent
+COPY agents/langgraph/templates/react_agent/evalhub/ ./fixtures/langgraph_react/
+COPY agents/vanilla_python/templates/openai_responses_agent/evalhub/ ./fixtures/vanilla_python/
+COPY agents/autogen/templates/mcp_agent/evalhub/ ./fixtures/autogen_mcp/
+COPY agents/crewai/templates/websearch_agent/evalhub/ ./fixtures/crewai_websearch/
+COPY agents/langgraph/templates/agentic_rag/evalhub/ ./fixtures/agentic_rag/
+COPY agents/langgraph/templates/react_with_database_memory/evalhub/ ./fixtures/langgraph_db_memory/
+COPY agents/llamaindex/templates/websearch_agent/evalhub/ ./fixtures/llamaindex_websearch/
+COPY agents/langflow/templates/simple_tool_calling_agent/evalhub/ ./fixtures/langflow_tool_calling/
+COPY agents/langgraph/templates/human_in_the_loop/evalhub/ ./fixtures/langgraph_hitl/
+COPY agents/google/templates/adk/evalhub/ ./fixtures/google_adk/
+COPY agents/a2a/templates/langgraph_crewai_agent/evalhub/ ./fixtures/a2a_langgraph_crewai/
+
+# Install runtime deps only — NOT the project itself, to keep __file__ paths intact.
+# Includes MLflow for trace enrichment and run logging.
+RUN uv pip install --no-cache \
+    "eval-hub-sdk[adapter]>=0.1.4,<0.2" \
+    "httpx>=0.27,<0.28" \
+    "mlflow>=3.10.0" \
+    "PyYAML>=6.0,<7"
+
+# Build-time assertion: per-agent fixture directories exist
+RUN python -c "from pathlib import Path; \
+required = [ \
+    'fixtures/langgraph_react/tool_use.yaml', \
+    'fixtures/vanilla_python/tool_use.yaml', \
+    'fixtures/autogen_mcp/tool_use.yaml', \
+    'fixtures/crewai_websearch/tool_use.yaml', \
+    'fixtures/agentic_rag/tool_use.yaml', \
+    'fixtures/langgraph_db_memory/tool_use.yaml', \
+    'fixtures/llamaindex_websearch/tool_use.yaml', \
+    'fixtures/langflow_tool_calling/tool_use.yaml', \
+    'fixtures/langgraph_hitl/tool_use.yaml', \
+    'fixtures/google_adk/tool_use.yaml', \
+    'fixtures/a2a_langgraph_crewai/tool_use.yaml', \
+]; \
+missing = [p for p in required if not Path(p).exists()]; \
+assert not missing, f'Missing fixtures: {missing}'"
+
+RUN chown -R 1001:0 /opt/app-root/src \
+    && chmod -R g=u /opt/app-root/src
+
+USER 1001
+
+ENV PYTHONPATH=/opt/app-root/src
+ENV HOME=/opt/app-root
+
+ENTRYPOINT ["python", "-m", "evalhub_adapter.adapter"]

@@ -1,0 +1,230 @@
+# Claude Code Deployment for OpenShift
+#
+# This file contains all resources needed to deploy Claude Code on OpenShift.
+#
+# Directory Structure:
+#   /workspace/                - PVC mount (persistent)
+#   /workspace/.claude/        - Global config (CLAUDE_CONFIG_DIR) - settings, skills, memory
+#   /workspace/projects/       - Working directory (WORKDIR) - where users run Claude
+#   /workspace/projects/.claude/ - Local auto-memory (separate from global config)
+#
+# Before applying this manifest, create the credentials secret:
+#   oc create secret generic claude-credentials \
+#     --from-literal=ANTHROPIC_API_KEY="sk-ant-api03-YOUR_KEY_HERE"
+
+---
+# ImageStream to hold the built image
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: claude-code
+  labels:
+    app: claude-code
+spec:
+  lookupPolicy:
+    local: true
+
+---
+# BuildConfig to build from Containerfile
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: claude-code
+  labels:
+    app: claude-code
+spec:
+  source:
+    type: Binary
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Containerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: claude-code:latest
+  triggers: []
+
+---
+# ConfigMap for optional MCP configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-mcp-config
+  labels:
+    app: claude-code
+data:
+  config.json: |
+    {
+      "mcpServers": {}
+    }
+
+---
+# ConfigMap for skills (empty by default)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-skills
+  labels:
+    app: claude-code
+data: {}
+
+---
+# ConfigMap for Claude Code settings
+# Settings are injected at deploy time
+# Modify this ConfigMap to override Claude Code settings.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-settings
+  labels:
+    app: claude-code
+data:
+  settings.json: |
+    {}
+
+---
+# PVC for workspace persistence (optional)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: claude-workspace
+  labels:
+    app: claude-code
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: claude-code
+  labels:
+    app: claude-code
+spec:
+  replicas: 1
+  # Recreate strategy required for ReadWriteOnce PVC - prevents Multi-Attach errors
+  # during rolling updates (old pod must release PVC before new pod can mount it)
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: claude-code
+  template:
+    metadata:
+      labels:
+        app: claude-code
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: claude-code
+          image: claude-code:latest
+          imagePullPolicy: Always
+          command: ["entrypoint.sh"]
+          args: ["sleep", "infinity"]  # Keep container running for exec access
+          env:
+            # HOME must be set for the entrypoint to create ~/.claude/ symlink
+            - name: HOME
+              value: "/home/claude-agent"
+            # CLAUDE_CONFIG_DIR enables session persistence across pod restarts
+            # The entrypoint creates a symlink: ~/.claude -> /workspace/.claude
+            - name: CLAUDE_CONFIG_DIR
+              value: "/workspace/.claude"
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: claude-credentials
+                  key: ANTHROPIC_API_KEY
+            # Uncomment for custom endpoint:
+            # - name: ANTHROPIC_BASE_URL
+            #   value: "https://your-endpoint/v1"
+            # - name: CLAUDE_MODEL
+            #   value: "your-model"
+            # ===========================================
+            # MLflow Tracing (Optional) — Python hook (default, MLflow 3.12)
+            # ===========================================
+            # Uncomment and configure to enable.
+            # See the MLflow Tracing section in ../README.md for details.
+            # - name: MLFLOW_TRACKING_URI
+            #   value: "https://mlflow.<rhoai-namespace>.svc:8443/mlflow"
+            # - name: MLFLOW_TRACKING_AUTH
+            #   value: "kubernetes-namespaced"
+            # - name: MLFLOW_WORKSPACE
+            #   value: "<your-namespace>"
+            # - name: MLFLOW_EXPERIMENT_NAME
+            #   value: "claude-code-traces"
+            # - name: MLFLOW_TRACKING_INSECURE_TLS
+            #   value: "true"
+            # ---
+            # MLflow Tracing — npm plugin (MLflow 3.14+)
+            # To use the npm plugin instead of the Python hook, uncomment
+            # the block above AND add this env var.
+            # WARNING: NODE_TLS_REJECT_UNAUTHORIZED=0 disables TLS verification
+            # for ALL Node.js connections in the container (not just MLflow).
+            # Only use in dev/test clusters with self-signed certs.
+            # For production, mount the cluster CA bundle instead:
+            #   NODE_EXTRA_CA_CERTS=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            # - name: NODE_TLS_REJECT_UNAUTHORIZED
+            #   value: "0"
+            - name: MCP_CONFIG_FILE
+              value: "/etc/mcp/config.json"
+            # WARNING: Setting SKIP_PERMISSIONS=true disables all Claude permission checks.
+            # This bypasses file-system write confirmations. Only use in fully sandboxed
+            # environments where the container has no access to sensitive host resources.
+            - name: SKIP_PERMISSIONS
+              value: "true"
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            # Skills and settings are staged outside the PVC at read-only paths.
+            # The entrypoint symlinks skills into CLAUDE_CONFIG_DIR.
+            # Mounting directly inside /workspace/.claude/ would cause Kubernetes
+            # to create that directory as root, making the PVC unwritable.
+            - name: skills
+              mountPath: /etc/claude-skills
+              readOnly: true
+            - name: mcp-config
+              mountPath: /etc/mcp
+              readOnly: true
+            - name: claude-settings
+              mountPath: /etc/claude-config/settings.json
+              subPath: settings.json
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: claude-workspace
+        - name: skills
+          configMap:
+            name: claude-skills
+            optional: true
+        - name: mcp-config
+          configMap:
+            name: claude-mcp-config
+            optional: true
+        - name: claude-settings
+          configMap:
+            name: claude-settings
+            optional: true

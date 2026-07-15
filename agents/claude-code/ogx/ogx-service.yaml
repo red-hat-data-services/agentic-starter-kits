@@ -1,0 +1,26 @@
+# OGX Service
+#
+# Exposes the OGX pod within the cluster on port 8321.
+#
+# IMPORTANT: The service must NOT be named "ogx" because Kubernetes
+# auto-injects a <SERVICE_NAME>_PORT environment variable for each service.
+# A service named "ogx" would inject OGX_PORT=tcp://<ip>:8321, which
+# collides with OGX's internal OGX_PORT env var that expects an integer.
+#
+# Usage:
+#   oc apply -f ogx-service.yaml -n <NAMESPACE>
+apiVersion: v1
+kind: Service
+metadata:
+  name: ogx-service
+  labels:
+    app: ogx
+spec:
+  selector:
+    app: ogx
+  ports:
+  - name: http
+    port: 8321
+    targetPort: 8321
+    protocol: TCP
+  type: ClusterIP

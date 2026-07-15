@@ -1,0 +1,30 @@
+# Golden queries for agentic tool-use benchmark.
+# Each query defines expected tool calls for the Langflow Simple Tool Calling agent.
+queries:
+  - query: "What is the weather like in Boston today?"
+    expected_tools: ["get_forecast"]
+    expected_elements: ["forecast"]
+
+  - query: "Search for national parks in Colorado"
+    expected_tools: ["search_parks"]
+    expected_elements: ["national"]
+
+  - query: "I want to go hiking near Denver this weekend. What national parks are nearby and what is the weather going to be like?"
+    expected_tools: ["search_parks", "get_forecast"]
+    expected_elements: ["national"]
+
+  - query: "Give me a weather forecast for San Francisco and find parks in California"
+    expected_tools: ["get_forecast", "search_parks"]
+    expected_elements: ["forecast"]
+
+  - query: "Are there any alerts or closures at Yellowstone right now?"
+    expected_tools: ["get_alerts"]
+    expected_elements: ["yellowstone"]
+
+  - query: "Find national parks in Utah and check if any of them have active closures or alerts"
+    expected_tools: ["search_parks", "get_alerts"]
+    expected_elements: ["utah"]
+
+  - query: "Hello!"
+    expected_tools: []
+    expected_elements: []

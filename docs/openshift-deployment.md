@@ -37,7 +37,7 @@ podman login $(oc get route default-route -n openshift-image-registry -o jsonpat
 Navigate to the agent you want to deploy:
 
 ```bash
-cd agents/langgraph/react_agent   # or any other agent
+cd agents/langgraph/templates/react_agent   # or any other agent
 ```
 
 ### 3. Configure Environment
@@ -45,9 +45,10 @@ cd agents/langgraph/react_agent   # or any other agent
 ```bash
 make init        # creates .env from .env.example
 ```
+
 Edit `.env`:
 
-```
+```ini
 API_KEY=your-api-key-here
 BASE_URL=https://<model-endpoint>/v1
 MODEL_ID=llama3.2:3b
@@ -78,7 +79,7 @@ This creates a BuildConfig (if it doesn't exist) and uploads your local source t
 
 After the build completes, set `CONTAINER_IMAGE` in your `.env` to the internal registry URL:
 
-```
+```ini
 CONTAINER_IMAGE=image-registry.openshift-image-registry.svc:5000/<namespace>/<agent-name>:latest
 ```
 
@@ -119,26 +120,28 @@ make undeploy
 
 ## Customizing Deployment
 
-Each agent has a `values.yaml` that overrides the shared chart defaults at `charts/agent/values.yaml`. You can:
+Each agent has a `values.yaml` that overrides the framework chart defaults at `agents/<framework>/deployment/values.yaml`. You can:
 
 - **Change resources**: edit `resources.requests` / `resources.limits` in the agent's `values.yaml`
 - **Disable OpenShift Route** and use K8s Ingress instead:
+
   ```bash
-  helm upgrade --install <agent-name> ../../charts/agent \
+  helm upgrade --install <agent-name> ../../deployment \
     -f values.yaml \
     --set openshift.route.enabled=false \
     --set ingress.enabled=true \
     --set ingress.host=my-agent.example.com
   ```
+
 - **Add environment variables**: add entries to `env:` in the agent's `values.yaml`
 - **Add volumes**: add entries to `volumes:` and `volumeMounts:` (see the agentic_rag agent for an example)
 
 ## Shared Helm Chart
 
-All agents share a single Helm chart at `charts/agent/`. The override chain is:
+Each framework has its own Helm chart at `agents/<framework>/deployment/`. The override chain is:
 
-```
-charts/agent/values.yaml        <-- global defaults
-  agents/.../values.yaml        <-- agent-specific overrides
-    --set flags                 <-- CLI overrides at deploy time
+```text
+agents/<framework>/deployment/values.yaml   <-- framework chart defaults
+  agents/<framework>/<agent>/values.yaml    <-- agent-specific overrides
+    --set flags                             <-- CLI overrides at deploy time
 ```

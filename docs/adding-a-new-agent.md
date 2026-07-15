@@ -2,17 +2,33 @@
 
 This guide explains how to add a new agent template to this repository.
 
+## 0. Validate Fit
+
+Before writing code, confirm your agent belongs in this repo. Run the fit-check skill or complete the manual questionnaire described in [CONTRIBUTING.md — Proposing a new agent](../CONTRIBUTING.md#proposing-a-new-agent).
+
+Your agent should complete this sentence:
+
+> "As an AI engineer, I need to know how to build an agent using **\_\_\_\_\_** and integrate it with these RHOAI components: **\_\_\_\_\_** for **\_\_\_\_\_**"
+
+**GREEN** fit score: proceed to Step 1. **YELLOW**: post the discussion for team review first. **RED**: the agent likely does not belong in this repo in its current form — see the recommendations in the fit check output.
+
 ## 1. Choose the Right Location
 
 Agents are organized by framework:
 
-```
+```text
 agents/
-  langgraph/        # LangGraph-based agents
-  llamaindex/       # LlamaIndex-based agents
-  vanilla_python/   # Vanilla Python agents (no framework)
-  langflow/         # Langflow visual agents
-  <new-framework>/  # Add a new framework directory if needed
+  langgraph/
+    templates/      # LangGraph agent templates
+    examples/       # LangGraph business use-case demos
+  llamaindex/
+    templates/      # LlamaIndex agent templates
+  vanilla_python/
+    templates/      # Vanilla Python agents (no framework)
+  langflow/
+    templates/      # Langflow visual agents
+  <new-framework>/
+    templates/      # Add a new framework directory if needed
 ```
 
 ## 2. Copy an Existing Agent
@@ -20,7 +36,7 @@ agents/
 Start from the closest existing agent:
 
 ```bash
-cp -r agents/langgraph/react_agent agents/<framework>/<your_agent>
+cp -r agents/langgraph/templates/react_agent agents/<framework>/templates/<your_agent>
 ```
 
 ## 3. Required Files
@@ -35,6 +51,7 @@ Every agent must have:
 | `Makefile` | Consistent interface: init, run, build, build-openshift, deploy, dry-run, test |
 | `Dockerfile` | Container build (UBI9 Python 3.12, non-root user, port 8080) |
 | `pyproject.toml` | Python dependencies |
+| `uv.lock` | Lock file for reproducible builds (run `uv lock` to generate) |
 | `main.py` | FastAPI app with /chat/completions, /health endpoints |
 | `README.md` | Setup, usage, and deployment instructions |
 | `src/<agent_name>/` | Agent source code (agent.py, tools.py) |
@@ -107,13 +124,26 @@ Every Makefile includes a `build-openshift` target for in-cluster builds (no Pod
 ## 9. Test Your Agent
 
 ```bash
-cd agents/<framework>/<your_agent>
+cd agents/<framework>/templates/<your_agent>
 make init && make run                # local test
 make dry-run                         # preview Helm manifests
 make build && make push && make deploy  # OpenShift test (via registry)
 make build-openshift && make deploy    # OpenShift test (in-cluster build)
 ```
 
-## 10. Update Root README
+## 10. Register the Lock File Hook
+
+Add a `uv-lock` entry for your agent in `.pre-commit-config.yaml` under the `astral-sh/uv-pre-commit` repo:
+
+```yaml
+      - id: uv-lock
+        name: uv-lock (<framework>/<your_agent>)
+        files: ^agents/<framework>/templates/<your_agent>/pyproject\.toml$
+        args: [--project, agents/<framework>/templates/<your_agent>]
+```
+
+This ensures the lock file is auto-updated whenever `pyproject.toml` changes. See [CONTRIBUTING.md](../CONTRIBUTING.md#dependency-management) for details.
+
+## 11. Update Root README
 
 Add your agent to the agent table in the root `README.md`.

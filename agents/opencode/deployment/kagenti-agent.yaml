@@ -1,0 +1,165 @@
+# OpenCode A2A Agent - Kagenti-compatible OpenShift Template
+#
+# Deploy with:
+#   oc process -f kagenti-agent.yaml \
+#     -p NAMESPACE=my-namespace \
+#     -p LLM_API_BASE=https://api.openai.com/v1 \
+#     -p LLM_MODEL=gpt-4o | oc apply -f -
+#
+# Or create a parameters file and use:
+#   oc process -f kagenti-agent.yaml --param-file=params.env | oc apply -f -
+#
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: opencode-a2a-agent
+  annotations:
+    description: "OpenCode A2A Agent for Kagenti discovery"
+    tags: "agent,a2a,opencode,kagenti"
+parameters:
+  - name: NAMESPACE
+    description: "Target namespace for deployment"
+    required: true
+  - name: IMAGE
+    description: "Container image for OpenCode A2A (build locally via BuildConfig)"
+    # TODO: Pin to specific version tag once container image versioning is established
+    value: "image-registry.openshift-image-registry.svc:5000/${NAMESPACE}/opencode-a2a:latest"
+  - name: LLM_PROVIDER
+    description: "Provider name (vllm, ogx, openai, etc.) - defaults to vllm"
+    value: "vllm"
+  - name: LLM_API_BASE
+    description: "LLM API endpoint (e.g., https://api.openai.com/v1) - Kagenti standard"
+    value: ""
+  - name: LLM_MODEL
+    description: "Model identifier (e.g., gpt-4o) - Kagenti standard"
+    value: ""
+  - name: LLM_API_KEY_SECRET
+    description: "Secret name containing LLM API key (key: api-key)"
+    value: "opencode-model-credentials"
+  - name: PROVIDER_ORG
+    description: "Organization name shown in agent card"
+    value: "Red Hat"
+objects:
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: opencode-a2a
+      namespace: ${NAMESPACE}
+  - apiVersion: agent.kagenti.dev/v1alpha1
+    kind: AgentRuntime
+    metadata:
+      name: opencode-a2a-runtime
+      namespace: ${NAMESPACE}
+      labels:
+        app.kubernetes.io/name: opencode-a2a
+    spec:
+      type: agent
+      protocol: a2a
+      targetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: opencode-a2a
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: opencode-a2a
+      namespace: ${NAMESPACE}
+      labels:
+        app.kubernetes.io/name: opencode-a2a
+        protocol.kagenti.io/a2a: "true"
+    spec:
+      type: ClusterIP
+      selector:
+        app.kubernetes.io/name: opencode-a2a
+      ports:
+        - name: a2a
+          port: 8000
+          targetPort: 8000
+          protocol: TCP
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: opencode-a2a
+      namespace: ${NAMESPACE}
+      labels:
+        app.kubernetes.io/name: opencode-a2a
+        protocol.kagenti.io/a2a: "true"
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: opencode-a2a
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: opencode-a2a
+            protocol.kagenti.io/a2a: "true"
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          serviceAccountName: opencode-a2a
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: opencode-a2a
+              image: ${IMAGE}
+              imagePullPolicy: Always
+              ports:
+                - name: a2a
+                  containerPort: 8000
+                  protocol: TCP
+              env:
+                - name: A2A_HOST
+                  value: "0.0.0.0"
+                - name: A2A_PORT
+                  value: "8000"
+                - name: AGENT_ENDPOINT
+                  value: "http://opencode-a2a.${NAMESPACE}.svc.cluster.local:8000/"
+                - name: A2A_PROVIDER_ORG
+                  value: ${PROVIDER_ORG}
+                - name: LLM_PROVIDER
+                  value: ${LLM_PROVIDER}
+                - name: LLM_API_BASE
+                  value: ${LLM_API_BASE}
+                - name: LLM_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${LLM_API_KEY_SECRET}
+                      key: api-key
+                      optional: true
+                - name: LLM_MODEL
+                  value: ${LLM_MODEL}
+              readinessProbe:
+                httpGet:
+                  path: /.well-known/agent-card.json
+                  port: 8000
+                initialDelaySeconds: 10
+                periodSeconds: 5
+                failureThreshold: 12
+              livenessProbe:
+                httpGet:
+                  path: /.well-known/agent-card.json
+                  port: 8000
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                failureThreshold: 3
+                timeoutSeconds: 5
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
+          terminationGracePeriodSeconds: 30
+          restartPolicy: Always

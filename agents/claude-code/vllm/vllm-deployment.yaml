@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: <MODEL_SHORT_NAME>
+  namespace: <NAMESPACE>
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: <MODEL_SHORT_NAME>
+  template:
+    metadata:
+      labels:
+        app: <MODEL_SHORT_NAME>
+    spec:
+      nodeSelector:
+        node-pool: <NODE_POOL>
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: vllm
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            drop:
+              - ALL
+        # vLLM 0.13.0+rhai19 from RHOAI — verify compatibility with your RHOAI version
+        image: registry.redhat.io/rhaiis/vllm-cuda-rhel9@sha256:2ebb2ffb49a2a270d4f634c22e81ee2b8da038063df4957ecbd3c9e66ee57491
+        command:
+          - python3
+          - -m
+          - vllm.entrypoints.openai.api_server
+          - --model
+          - <MODEL_NAME>
+          - --host
+          - "0.0.0.0"
+          - --port
+          - "8000"
+          - --tensor-parallel-size
+          - "<TP_SIZE>"
+          - --max-model-len
+          - "<MAX_MODEL_LEN>"
+          - --tool-call-parser
+          - openai
+          - --enable-auto-tool-choice
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        resources:
+          requests:
+            memory: "32Gi"
+            cpu: "4"
+            nvidia.com/gpu: "<TP_SIZE>"
+          limits:
+            memory: "128Gi"
+            cpu: "16"
+            nvidia.com/gpu: "<TP_SIZE>"
+        env:
+        - name: HF_HOME
+          value: /tmp/huggingface
+        - name: HOME
+          value: /tmp
+        - name: XDG_CACHE_HOME
+          value: /tmp/.cache
+        - name: FLASHINFER_WORKSPACE_DIR
+          value: /tmp/flashinfer
+        - name: HF_HUB_ENABLE_HF_TRANSFER
+          value: "0"
+        - name: TRANSFORMERS_OFFLINE
+          value: "0"
+        - name: HF_HUB_OFFLINE
+          value: "0"
+        - name: CURL_CA_BUNDLE
+          value: /etc/pki/tls/certs/ca-bundle.crt
+        - name: NCCL_DEBUG
+          value: "INFO"
+        - name: NCCL_IB_DISABLE
+          value: "1"
+        - name: NCCL_P2P_DISABLE
+          value: "0"
+        - name: VLLM_LOGGING_LEVEL
+          value: "INFO"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+        volumeMounts:
+        - name: shm
+          mountPath: /dev/shm
+      volumes:
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 16Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: <MODEL_SHORT_NAME>
+  namespace: <NAMESPACE>
+  labels:
+    app: <MODEL_SHORT_NAME>
+spec:
+  selector:
+    app: <MODEL_SHORT_NAME>
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+    protocol: TCP
+  type: ClusterIP

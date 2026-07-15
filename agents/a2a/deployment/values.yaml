@@ -1,0 +1,55 @@
+# Defaults — override from agents/a2a/templates/langgraph_crewai_agent/values.yaml and/or --set
+
+# Phase 1: only Service, Route, Secret. Phase 2: add Deployments (after Route hostnames exist).
+deploymentsEnabled: false
+
+image:
+  crew:
+    repository: ""
+    tag: "crew"
+  langgraph:
+    repository: ""
+    tag: "langgraph"
+  pullPolicy: Always
+
+env:
+  BASE_URL: ""
+  MODEL_ID: ""
+
+# Public HTTPS base URLs for Agent Card (https://<route-host>), no trailing slash
+crewPublicUrl: ""
+langgraphPublicUrl: ""
+
+secrets:
+  apiKey: ""
+  mlflowTrackingToken: ""
+
+service:
+  port: 8080
+
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "200m"
+  limits:
+    memory: "2Gi"
+    cpu: "1000m"
+
+openshift:
+  route:
+    tls:
+      termination: edge
+      insecureEdgeTerminationPolicy: Redirect
+
+probes:
+  crew:
+    livenessInitialDelay: 20
+    readinessInitialDelay: 10
+  langgraph:
+    livenessInitialDelay: 25
+    readinessInitialDelay: 15
+  periodSeconds: 60
+  readinessPeriodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+  readinessFailureThreshold: 6

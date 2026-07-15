@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openclaw-config
+  labels:
+    app: openclaw
+data:
+  # YOUR-MODEL-ID: use the exact "id" from your endpoint's /v1/models response.
+  #   Direct vLLM returns e.g. "gpt-oss-120b"
+  #   OGX returns e.g. "vllm/gpt-oss-120b" (includes vllm/ prefix)
+  # See docs/raw-deployment.md for details.
+  openclaw.json: |
+    {
+      "gateway": {
+        "port": 18789,
+        "bind": "lan",
+        "mode": "local",
+        "auth": {
+          "mode": "token"
+        }
+      },
+      "channels": {},
+      "agents": {
+        "defaults": {
+          "model": "vllm/YOUR-MODEL-ID",
+          "sandbox": {
+            "mode": "off"
+          }
+        }
+      },
+      "models": {
+        "mode": "replace",
+        "providers": {
+          "vllm": {
+            "baseUrl": "https://YOUR-VLLM-OR-OGX-ENDPOINT/v1",
+            "api": "openai-completions",
+            "apiKey": "not-needed",
+            "models": [
+              {
+                "id": "YOUR-MODEL-ID",
+                "name": "YOUR-MODEL-ID",
+                "reasoning": false,
+                "input": ["text"],
+                "contextWindow": 32768,
+                "maxTokens": 4096
+              }
+            ]
+          }
+        }
+      },
+      "plugins": {},
+      "tools": {
+        "deny": [
+          "group:web",
+          "browser"
+        ]
+      }
+    }

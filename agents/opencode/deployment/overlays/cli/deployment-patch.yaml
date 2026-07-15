@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencode-web
+spec:
+  template:
+    spec:
+      containers:
+        - name: oauth-proxy
+          $patch: delete
+        - name: opencode-web
+          env:
+            - name: OPENCODE_MODE
+              value: "cli"
+          livenessProbe: null
+          readinessProbe: null
+      volumes:
+        - name: proxy-tls
+          $patch: delete
+        - name: proxy-cookie-secret
+          $patch: delete

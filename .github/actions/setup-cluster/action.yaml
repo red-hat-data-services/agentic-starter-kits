@@ -1,0 +1,38 @@
+name: "Setup Cluster Tools"
+description: "Install Python 3.12, uv, oc, helm, and login to OpenShift. Requires actions/checkout to run first."
+
+inputs:
+  oc-token:
+    description: "OpenShift service account token"
+    required: true
+  cluster-api-url:
+    description: "OpenShift cluster API URL"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Python 3.12
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      with:
+        python-version: "3.12"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
+    - name: Install OpenShift CLI and Helm
+      uses: redhat-actions/openshift-tools-installer@144527c7d98999f2652264c048c7a9bd103f8a82 # v1.13.1
+      with:
+        oc: "4"
+        helm: "3"
+
+    - name: Login to OpenShift
+      shell: bash
+      env:
+        OC_TOKEN: ${{ inputs.oc-token }}
+        CLUSTER_API_URL: ${{ inputs.cluster-api-url }}
+      run: |
+        oc login \
+          --token="$OC_TOKEN" \
+          --server="$CLUSTER_API_URL" \
+          --namespace=ci-testing

@@ -1,0 +1,55 @@
+# OGX Configuration for Claude Code Passthrough
+#
+# This ConfigMap provides the OGX runtime configuration that enables
+# the Anthropic Messages API (/v1/messages) passthrough to a vLLM backend.
+#
+# When vLLM supports /v1/messages natively, OGX uses passthrough mode —
+# requests are forwarded directly without API format translation.
+#
+# Before applying, replace the following placeholders with your values:
+#
+#   <VLLM_SERVICE>  - vLLM Kubernetes service name (e.g., gpt-oss-120b)
+#   <NAMESPACE>     - Namespace where vLLM is running (e.g., redhat-ods-applications)
+#   <VLLM_PORT>     - vLLM service port (default: 8000)
+#
+# Usage:
+#   oc apply -f ogx-configmap.yaml -n <NAMESPACE>
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ogx-config
+  labels:
+    app: ogx
+    ogx.io/watch: "true"
+data:
+  config.yaml: |
+    version: 2
+    distro_name: rh
+    image_name: rh
+
+    apis:
+    - inference
+    - messages
+
+    storage:
+      type: sqlite
+      config:
+        db_path: /tmp/ogx.db
+
+    providers:
+      inference:
+      - provider_id: vllm
+        provider_type: remote::vllm
+        config:
+          base_url: http://<VLLM_SERVICE>.<NAMESPACE>.svc.cluster.local:<VLLM_PORT>/v1
+          api_token: fake        # vLLM default: no auth. Replace if vLLM is configured with --api-key
+          max_tokens: 4096
+          refresh_models: true   # Keep the OGX model registry in sync with vLLM
+
+      messages:
+      - provider_id: builtin
+        provider_type: inline::builtin
+        config:
+          kvstore:
+            namespace: message_batches
+            backend: kv_default

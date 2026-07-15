@@ -1,0 +1,34 @@
+{
+    // Start with all rules enabled
+    "default": true,
+
+    // MD013: Line length — disabled; too noisy for docs-heavy repos
+    "MD013": false,
+
+    // MD033: Inline HTML — disabled; common in GitHub markdown (badges, <details>, etc.)
+    "MD033": false,
+
+    // MD036: Emphasis used instead of heading — disabled; common pattern in READMEs
+    "MD036": false,
+
+    // MD041: First line should be a top-level heading — disabled; files often start with badges or frontmatter
+    "MD041": false,
+
+    // MD060: Table column style — disabled; too noisy, newer rule not widely adopted
+    "MD060": false,
+
+    // MD024: Multiple headings with same content — allow duplicates in different sections
+    "MD024": {
+        "siblings_only": true
+    },
+
+    // MD029: Ordered list item prefix — require incrementing numbers (1. 2. 3.)
+    "MD029": {
+        "style": "ordered"
+    },
+
+    // MD046: Code block style — require fenced (```) not indented
+    "MD046": {
+        "style": "fenced"
+    }
+}

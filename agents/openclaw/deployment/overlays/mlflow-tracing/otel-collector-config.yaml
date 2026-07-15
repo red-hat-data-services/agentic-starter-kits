@@ -1,0 +1,64 @@
+# OTel collector ConfigMap for RHOAI shared MLflow
+# Uses bearer token auth (SA token) and Service CA TLS
+#
+# Before applying: replace YOUR-NAMESPACE and YOUR-EXPERIMENT-ID
+# If RHOAI is installed in a namespace other than redhat-ods-applications,
+# update the otlphttp endpoint below accordingly.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  labels:
+    app: openclaw
+data:
+  config.yaml: |
+    extensions:
+      bearertokenauth:
+        filename: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "127.0.0.1:4317"
+          http:
+            endpoint: "127.0.0.1:4318"
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 256
+        spike_limit_mib: 64
+      resource:
+        attributes:
+          - key: service.namespace
+            value: YOUR-NAMESPACE
+            action: upsert
+          - key: deployment.environment
+            value: prototype
+            action: upsert
+      batch:
+        timeout: 5s
+        send_batch_size: 100
+
+    exporters:
+      otlphttp:
+        endpoint: "https://mlflow.redhat-ods-applications.svc.cluster.local:8443"
+        tls:
+          ca_file: /etc/ssl/service-ca/service-ca.crt
+        headers:
+          X-MLFLOW-WORKSPACE: YOUR-NAMESPACE
+          x-mlflow-experiment-id: "YOUR-EXPERIMENT-ID"
+        auth:
+          authenticator: bearertokenauth
+      debug:
+        verbosity: basic
+
+    service:
+      extensions: [bearertokenauth]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, resource, batch]
+          exporters: [otlphttp, debug]

@@ -1,0 +1,34 @@
+name: PR Title
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6
+        with:
+          types: |
+            feat
+            fix
+            docs
+            chore
+            test
+            perf
+            refactor
+            ci
+            build
+            style
+            revert
+          subjectPatternError: >
+            PR title must follow Conventional Commits: `<type>(optional scope): <description>`.
+            The description must be between 10 and 72 characters.
+          subjectPattern: ^.{10,72}$
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

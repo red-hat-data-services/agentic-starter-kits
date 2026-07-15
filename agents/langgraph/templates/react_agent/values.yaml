@@ -1,0 +1,11 @@
+nameOverride: "langgraph-react-agent"
+
+env:
+  MODEL_ID: ""
+  BASE_URL: ""
+
+auth:
+  enabled: false
+  audience: "langgraph-react-agent"
+  allowedServiceAccounts: []
+  createAuthDelegatorBinding: true

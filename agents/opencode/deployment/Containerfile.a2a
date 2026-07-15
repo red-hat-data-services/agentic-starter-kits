@@ -1,0 +1,32 @@
+# OpenCode with A2A agent card support
+#
+# Extends the pre-built OpenCode image with:
+# - opencode-a2a server for Kagenti discovery (A2A protocol)
+# - Custom entrypoint running both opencode serve and opencode-a2a
+#
+# Build:
+#   podman build --platform linux/amd64 -t opencode-a2a:latest -f Containerfile.a2a .
+#
+# The A2A agent card is served at:
+#   GET /.well-known/agent-card.json (port 8000)
+
+FROM quay.io/opendatahub/odh-opencode-rhel9:latest
+
+USER 0
+
+# Install opencode-a2a from agent-servers repo
+# TODO(RHAIENG-5826): Pin to specific version tag once A2A protocol support is complete
+# and agent-servers repo has established versioning
+RUN pip3 install --no-cache-dir \
+    'opencode-a2a @ git+https://github.com/red-hat-data-services/agent-servers.git#subdirectory=opencode'
+
+# Copy entrypoint that runs both opencode serve and opencode-a2a
+COPY entrypoint-a2a.sh /usr/local/bin/entrypoint-a2a.sh
+RUN chmod 755 /usr/local/bin/entrypoint-a2a.sh
+
+USER 1001
+
+# A2A server port
+EXPOSE 8000
+
+ENTRYPOINT ["/usr/local/bin/entrypoint-a2a.sh"]

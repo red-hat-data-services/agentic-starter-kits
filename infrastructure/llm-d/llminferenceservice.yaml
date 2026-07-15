@@ -1,0 +1,86 @@
+# LLMInferenceService for llm-d deployment on OpenShift AI
+#
+# Before applying, replace the following placeholders with your values:
+#
+#   <SERVICE_NAME>    - Name for this deployment (e.g., my-model-llmd)
+#   <MODEL_URI>       - HuggingFace model URI (e.g., hf://openai/gpt-oss-20b)
+#   <MODEL_NAME>      - Model identifier for API requests (e.g., openai/gpt-oss-20b)
+#   <REPLICAS>        - Number of vLLM replicas, one per GPU node (e.g., 6)
+#   <NODE_POOL_NAME>  - Label on GPU nodes for scheduling (e.g., gpu-llmd-nodes)
+#   <VLLM_IMAGE>      - vLLM image from Red Hat Ecosystem Catalog
+#                       (e.g., registry.redhat.io/rhaiis/vllm-cuda-rhel9@sha256:...)
+#                       Find the latest at: https://catalog.redhat.com/en/software/containers/rhaiis/vllm-cuda-rhel9
+#
+# Deploy in redhat-ods-applications namespace (required by the gateway routing).
+#
+# Usage:
+#   oc apply -f llminferenceservice.yaml
+
+apiVersion: serving.kserve.io/v1alpha1
+kind: LLMInferenceService
+metadata:
+  name: <SERVICE_NAME>
+  namespace: redhat-ods-applications
+  annotations:
+    opendatahub.io/model-type: generative
+    openshift.io/display-name: <SERVICE_NAME>
+    # Auth is disabled because maas-default-gateway has no OAuth proxy.
+    # For production, consider enabling auth and using a ServiceAccount token
+    # or restricting access via NetworkPolicies.
+    security.opendatahub.io/enable-auth: 'false'
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8000"
+spec:
+  replicas: <REPLICAS>
+  model:
+    uri: <MODEL_URI>
+    name: <MODEL_NAME>
+  router:
+    # route: {} creates the HTTPRoute for external access
+    route: {}
+    # scheduler: {} is REQUIRED — without it, the controller skips
+    # creating the scheduler/router deployment and InferencePool
+    scheduler: {}
+    # Use maas-default-gateway (no OAuth proxy) instead of
+    # data-science-gateway (which has OAuth and blocks API clients)
+    gateway:
+      refs:
+        - name: maas-default-gateway
+          namespace: openshift-ingress
+  template:
+    nodeSelector:
+      node-pool: <NODE_POOL_NAME>
+    containers:
+      - name: main
+        image: <VLLM_IMAGE>
+        env:
+          - name: VLLM_ADDITIONAL_ARGS
+            value: "--max-model-len=16000 --tool-call-parser=openai --enable-auto-tool-choice"
+          - name: HF_HOME
+            value: /tmp/huggingface
+          - name: HOME
+            value: /tmp
+          - name: XDG_CACHE_HOME
+            value: /tmp/.cache
+          - name: VLLM_LOGGING_LEVEL
+            value: "DEBUG"
+        resources:
+          limits:
+            cpu: '4'
+            memory: 16Gi
+            nvidia.com/gpu: "1"
+          requests:
+            cpu: '2'
+            memory: 8Gi
+            nvidia.com/gpu: "1"
+        # KServe automatically injects TLS certs (--ssl-certfile, --ssl-keyfile)
+        # into the vLLM container at startup, so vLLM serves HTTPS on port 8000.
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTPS
+          initialDelaySeconds: 120
+          periodSeconds: 30
+          timeoutSeconds: 30
+          failureThreshold: 5

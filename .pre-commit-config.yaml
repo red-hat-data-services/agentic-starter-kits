@@ -1,0 +1,134 @@
+# Pre-commit configuration for agentic-starter-kits
+# Install: pre-commit install --install-hooks
+# Run manually: pre-commit run --all-files
+
+default_install_hook_types:
+  - pre-commit
+  - commit-msg
+
+repos:
+  # Enforce Conventional Commits in commit messages
+  - repo: https://github.com/espressif/conventional-precommit-linter
+    rev: v1.11.0
+    hooks:
+      - id: conventional-precommit-linter
+        stages: [commit-msg]
+        # more args can be added here to customize the linter behavior
+        # more args can be found here: https://github.com/espressif/conventional-precommit-linter
+        args:
+          - --types=feat,fix,docs,chore,test,perf,refactor,ci,build,style,revert
+          - --subject-min-length=10
+          - --subject-max-length=72
+          - --allow-breaking
+
+  # Standard file-hygiene hooks (run before linters so they see clean files)
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+        exclude: ^agents/[^/]+/deployment/
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: debug-statements
+      - id: check-case-conflict
+      - id: mixed-line-ending
+      - id: no-commit-to-branch
+        args: [--branch=main]
+      - id: detect-private-key
+
+  # Ruff — Python linting and formatting
+  # Rules are defined in ruff.toml at the repo root
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.11
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # Markdownlint — Markdown linting
+  # Rules are defined in .markdownlint.jsonc at the repo root
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.23.0
+    hooks:
+      - id: markdownlint-cli2
+        args: [--fix]
+
+  # Gitleaks — secret scanning
+  # Keep version in sync with the gitleaks version in .github/workflows/code-quality.yml
+  # Allowlist rules are defined in .gitleaks.toml at the repo root
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  # uv-lock — keep lock files in sync with pyproject.toml
+  # One entry per independent project directory (uv-lock doesn't support
+  # pass_filenames). When adding a new agent, add an entry here.
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.11.21
+    hooks:
+      - id: uv-lock
+        name: uv-lock (root)
+        files: ^pyproject\.toml$
+      - id: uv-lock
+        name: uv-lock (a2a/langgraph_crewai_agent)
+        files: ^agents/a2a/templates/langgraph_crewai_agent/pyproject\.toml$
+        args: [--project, agents/a2a/templates/langgraph_crewai_agent]
+      - id: uv-lock
+        name: uv-lock (autogen/mcp_agent)
+        files: ^agents/autogen/templates/mcp_agent/pyproject\.toml$
+        args: [--project, agents/autogen/templates/mcp_agent]
+      - id: uv-lock
+        name: uv-lock (autogen/mcp_automl_template)
+        files: ^agents/autogen/templates/mcp_agent/mcp_automl_template/pyproject\.toml$
+        args: [--project, agents/autogen/templates/mcp_agent/mcp_automl_template]
+      - id: uv-lock
+        name: uv-lock (crewai/websearch_agent)
+        files: ^agents/crewai/templates/websearch_agent/pyproject\.toml$
+        args: [--project, agents/crewai/templates/websearch_agent]
+      - id: uv-lock
+        name: uv-lock (google/adk)
+        files: ^agents/google/templates/adk/pyproject\.toml$
+        args: [--project, agents/google/templates/adk]
+      - id: uv-lock
+        name: uv-lock (langgraph/agentic_rag)
+        files: ^agents/langgraph/templates/agentic_rag/pyproject\.toml$
+        args: [--project, agents/langgraph/templates/agentic_rag]
+      - id: uv-lock
+        name: uv-lock (langgraph/human_in_the_loop)
+        files: ^agents/langgraph/templates/human_in_the_loop/pyproject\.toml$
+        args: [--project, agents/langgraph/templates/human_in_the_loop]
+      - id: uv-lock
+        name: uv-lock (langgraph/react_agent)
+        files: ^agents/langgraph/templates/react_agent/pyproject\.toml$
+        args: [--project, agents/langgraph/templates/react_agent]
+      - id: uv-lock
+        name: uv-lock (langgraph/react_with_database_memory)
+        files: ^agents/langgraph/templates/react_with_database_memory/pyproject\.toml$
+        args: [--project, agents/langgraph/templates/react_with_database_memory]
+      - id: uv-lock
+        name: uv-lock (llamaindex/websearch_agent)
+        files: ^agents/llamaindex/templates/websearch_agent/pyproject\.toml$
+        args: [--project, agents/llamaindex/templates/websearch_agent]
+      - id: uv-lock
+        name: uv-lock (vanilla_python/openai_responses_agent)
+        files: ^agents/vanilla_python/templates/openai_responses_agent/pyproject\.toml$
+        args: [--project, agents/vanilla_python/templates/openai_responses_agent]
+      - id: uv-lock
+        name: uv-lock (components/auth)
+        files: ^components/auth/pyproject\.toml$
+        args: [--project, components/auth]
+
+  # Actionlint — GitHub Actions workflow validation
+  # Keep version in sync with raven-actions/actionlint in .github/workflows/code-quality.yml
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+        files: ^\.github/workflows/

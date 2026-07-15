@@ -1,0 +1,281 @@
+# Claude Code Deployment for OpenShift - OGX Gateway to vLLM
+#
+# This deployment connects Claude Code to a vLLM server through OGX (from RHOAI).
+# OGX provides the Anthropic Messages API (/v1/messages) with native passthrough to vLLM.
+#
+# Architecture:
+#   Claude Code → OGX (API Gateway) → vLLM (Model Server)
+#
+# Directory Structure:
+#   /workspace/                - PVC mount (persistent)
+#   /workspace/.claude/        - Global config (CLAUDE_CONFIG_DIR) - settings, skills, memory
+#   /workspace/projects/       - Working directory (WORKDIR) - where users run Claude
+#   /workspace/projects/.claude/ - Local auto-memory (separate from global config)
+#
+# Prerequisites:
+# 1. OGX deployed and exposing /v1/health, /v1/models, and /v1/messages
+# 2. vLLM server accessible from OGX (context window >= 32K tokens)
+# 3. The vLLM model must have a context window >= 32K tokens
+#    (Claude Code's system prompt is ~23K tokens)
+#
+# Before applying this manifest:
+# 1. Deploy or identify an existing OGX endpoint
+# 2. Update the ANTHROPIC_BASE_URL to point to your OGX route
+# 3. Update the model ID in the claude-ogx-vllm-settings ConfigMap
+#    (use the exact "vllm/<model-id>" value returned by /v1/models)
+
+---
+# ImageStream to hold the built image
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: claude-code
+  labels:
+    app: claude-code-ogx-vllm
+spec:
+  lookupPolicy:
+    local: true
+
+---
+# BuildConfig to build from Containerfile
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: claude-code
+  labels:
+    app: claude-code-ogx-vllm
+spec:
+  source:
+    type: Binary
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Containerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: claude-code:latest
+  triggers: []
+
+---
+# ConfigMap for Claude Code settings (sets default model)
+# IMPORTANT: Use "vllm/<model-id>" format for OGX routing
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-ogx-vllm-settings
+  labels:
+    app: claude-code-ogx-vllm
+data:
+  settings.json: |
+    {
+      "model": "vllm/YOUR_MODEL_ID"
+    }
+
+---
+# ConfigMap for optional MCP configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-ogx-vllm-mcp-config
+  labels:
+    app: claude-code-ogx-vllm
+data:
+  config.json: |
+    {
+      "mcpServers": {}
+    }
+
+---
+# ConfigMap for skills (empty by default)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-ogx-vllm-skills
+  labels:
+    app: claude-code-ogx-vllm
+data: {}
+
+---
+# PVC for workspace persistence (optional)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: claude-ogx-vllm-workspace
+  labels:
+    app: claude-code-ogx-vllm
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: claude-code-ogx-vllm
+  labels:
+    app: claude-code-ogx-vllm
+spec:
+  replicas: 1
+  # Recreate strategy required for ReadWriteOnce PVC
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: claude-code-ogx-vllm
+  template:
+    metadata:
+      labels:
+        app: claude-code-ogx-vllm
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: claude-code
+          image: claude-code:latest
+          imagePullPolicy: Always
+          command: ["entrypoint.sh"]
+          args: ["sleep", "infinity"]  # Keep container running for exec access
+          env:
+            # ===========================================
+            # Runtime Environment
+            # ===========================================
+            - name: HOME
+              value: "/home/claude-agent"
+            # CLAUDE_CONFIG_DIR enables session persistence across pod restarts
+            # The entrypoint creates a symlink: ~/.claude -> /workspace/.claude
+            - name: CLAUDE_CONFIG_DIR
+              value: "/workspace/.claude"
+            # ===========================================
+            # OGX Gateway Connection
+            # ===========================================
+            # OGX gateway URL - UPDATE THIS
+            # For internal service: http://ogx.namespace.svc.cluster.local:8321
+            # For external route: https://ogx-route.apps.cluster.domain
+            - name: ANTHROPIC_BASE_URL
+              value: YOUR_OGX_URL
+            # Auth token sent to the backend as a Bearer token.
+            # Using ANTHROPIC_AUTH_TOKEN (instead of ANTHROPIC_API_KEY) skips
+            # the interactive wizard's key confirmation page.
+            # Set to "fake" if no auth is required, or a real token if it is.
+            - name: ANTHROPIC_AUTH_TOKEN
+              value: "fake"
+            # Adds model to the Claude Code model picker menu
+            # Use "vllm/<model-id>" format for OGX routing
+            # Model to use for Claude Code sessions
+            - name: CLAUDE_MODEL
+              value: "vllm/YOUR_MODEL_ID"
+            - name: ANTHROPIC_CUSTOM_MODEL_OPTION
+              value: "vllm/YOUR_MODEL_ID"
+            # ===========================================
+            # Model Alias Overrides (Required)
+            # ===========================================
+            # Claude Code uses internal model aliases (haiku, sonnet, opus)
+            # for certain operations. Override them to prevent 404 errors.
+            - name: ANTHROPIC_DEFAULT_HAIKU_MODEL
+              value: "vllm/YOUR_MODEL_ID"
+            - name: ANTHROPIC_DEFAULT_SONNET_MODEL
+              value: "vllm/YOUR_MODEL_ID"
+            - name: ANTHROPIC_DEFAULT_OPUS_MODEL
+              value: "vllm/YOUR_MODEL_ID"
+            # ===========================================
+            # MLflow Tracing (Optional) — Python hook (default, MLflow 3.12)
+            # ===========================================
+            # Uncomment and configure to enable.
+            # See the MLflow Tracing section in ../README.md for details.
+            # - name: MLFLOW_TRACKING_URI
+            #   value: "https://mlflow.<rhoai-namespace>.svc:8443/mlflow"
+            # - name: MLFLOW_TRACKING_AUTH
+            #   value: "kubernetes-namespaced"
+            # - name: MLFLOW_WORKSPACE
+            #   value: "<your-namespace>"
+            # - name: MLFLOW_EXPERIMENT_NAME
+            #   value: "claude-code-traces"
+            # - name: MLFLOW_TRACKING_INSECURE_TLS
+            #   value: "true"
+            # ---
+            # MLflow Tracing — npm plugin (MLflow 3.14+)
+            # To use the npm plugin instead of the Python hook, uncomment
+            # the block above AND add this env var.
+            # WARNING: NODE_TLS_REJECT_UNAUTHORIZED=0 disables TLS verification
+            # for ALL Node.js connections in the container (not just MLflow).
+            # Only use in dev/test clusters with self-signed certs.
+            # For production, mount the cluster CA bundle instead:
+            #   NODE_EXTRA_CA_CERTS=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            # - name: NODE_TLS_REJECT_UNAUTHORIZED
+            #   value: "0"
+            # ===========================================
+            # Context Window Configuration (Optional)
+            # ===========================================
+            # Uncomment and adjust if your model's context window differs from defaults.
+            # - name: CLAUDE_CODE_AUTO_COMPACT_WINDOW
+            #   value: "32768"
+            # - name: CLAUDE_CODE_MAX_OUTPUT_TOKENS
+            #   value: "4000"
+            # - name: CLAUDE_AUTOCOMPACT_PCT_OVERRIDE
+            #   value: "85"
+            # ===========================================
+            # Claude Code Configuration
+            # ===========================================
+            - name: MCP_CONFIG_FILE
+              value: "/etc/mcp/config.json"
+            # WARNING: Setting SKIP_PERMISSIONS=true disables all Claude permission checks.
+            # This bypasses file-system write confirmations. Only use in fully sandboxed
+            # environments where the container has no access to sensitive host resources.
+            - name: SKIP_PERMISSIONS
+              value: "true"
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            # Skills and settings are staged outside the PVC at read-only paths.
+            # The entrypoint symlinks skills into CLAUDE_CONFIG_DIR.
+            # Mounting directly inside /workspace/.claude/ would cause Kubernetes
+            # to create that directory as root, making the PVC unwritable.
+            - name: skills
+              mountPath: /etc/claude-skills
+              readOnly: true
+            - name: mcp-config
+              mountPath: /etc/mcp
+              readOnly: true
+            # Stage settings.json at a read-only path; the entrypoint copies it
+            # to the writable PVC so mlflow autolog can update it at runtime
+            - name: claude-settings
+              mountPath: /etc/claude-config/settings.json
+              subPath: settings.json
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: claude-ogx-vllm-workspace
+        - name: skills
+          configMap:
+            name: claude-ogx-vllm-skills
+            optional: true
+        - name: mcp-config
+          configMap:
+            name: claude-ogx-vllm-mcp-config
+            optional: true
+        - name: claude-settings
+          configMap:
+            name: claude-ogx-vllm-settings
+            optional: true

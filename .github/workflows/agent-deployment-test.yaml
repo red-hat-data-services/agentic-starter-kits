@@ -1,0 +1,166 @@
+# QG4: Agent Deployment Health Checks
+#
+# Nightly workflow: logs into the OpenShift demo cluster, deploys each
+# agent via build-openshift + Helm, validates health endpoints, and tears
+# down. Pre-deployed agents (e.g., Langflow) skip build/deploy and only
+# verify health on an already-running route.
+
+name: "QG4: Agent Deployment Integration Tests"
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 11 PM EDT / 10 PM EST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-cluster-connection:
+    name: "Verify Cluster Connection"
+    if: github.repository == 'red-hat-data-services/agentic-starter-kits'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup cluster tools
+        uses: ./.github/actions/setup-cluster
+        with:
+          oc-token: ${{ secrets.OC_TOKEN }}
+          cluster-api-url: ${{ secrets.CLUSTER_API_URL }}
+
+      - name: Verify cluster connection
+        run: |
+          set -o pipefail
+          echo "--- Logged in as ---"
+          oc whoami
+          echo ""
+          echo "--- Current project ---"
+          oc project
+          echo ""
+          echo "--- Namespace resources ---"
+          oc get all -n ci-testing --no-headers 2>&1 | head -10 || true
+          echo ""
+          echo "Cluster connection verified successfully."
+
+      - name: Logout
+        if: always()
+        run: oc logout || true
+
+  test-agent:
+    name: "${{ matrix.agent.name }}"
+    needs: verify-cluster-connection
+    if: github.repository == 'red-hat-data-services/agentic-starter-kits'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        agent:
+          - { name: langgraph-react-agent, dir: agents/langgraph/templates/react_agent }
+          - { name: langgraph-hitl-agent, dir: agents/langgraph/templates/human_in_the_loop }
+          - { name: crewai-websearch-agent, dir: agents/crewai/templates/websearch_agent }
+          - { name: google-adk-agent, dir: agents/google/templates/adk }
+          - { name: llamaindex-websearch-agent, dir: agents/llamaindex/templates/websearch_agent }
+          - { name: langgraph-db-memory-agent, dir: agents/langgraph/templates/react_with_database_memory }
+          - { name: autogen-mcp-agent, dir: agents/autogen/templates/mcp_agent }
+          - { name: vanilla-python-openai-responses-agent, dir: agents/vanilla_python/templates/openai_responses_agent }
+          - { name: a2a-langgraph-crewai, dir: agents/a2a/templates/langgraph_crewai_agent }
+          - { name: langflow-simple-tool-calling-agent, dir: agents/langflow/templates/simple_tool_calling_agent }
+        include:
+          - agent: { name: langgraph-db-memory-agent, dir: agents/langgraph/templates/react_with_database_memory }
+            POSTGRES_HOST: ${{ vars.POSTGRES_HOST }}
+            POSTGRES_PORT: ${{ vars.POSTGRES_PORT }}
+            POSTGRES_DB: ${{ vars.POSTGRES_DB }}
+            POSTGRES_USER: ${{ vars.POSTGRES_USER }}
+          - agent: { name: autogen-mcp-agent, dir: agents/autogen/templates/mcp_agent }
+            MCP_SERVER_URL: ${{ vars.MCP_SERVER_URL }}
+          - agent: { name: vanilla-python-openai-responses-agent, dir: agents/vanilla_python/templates/openai_responses_agent }
+            BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+            MODEL_ID: ${{ vars.OPENAI_MODEL_ID }}
+          - agent: { name: a2a-langgraph-crewai, dir: agents/a2a/templates/langgraph_crewai_agent }
+            CONTAINER_IMAGE: ${{ vars.CONTAINER_IMAGE_A2A_LANGGRAPH_CREWAI }}
+    env:
+      API_KEY: ${{ vars.API_KEY }}
+      BASE_URL: ${{ vars.BASE_URL }}
+      MODEL_ID: ${{ vars.MODEL_ID }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup cluster tools
+        uses: ./.github/actions/setup-cluster
+        with:
+          oc-token: ${{ secrets.OC_TOKEN }}
+          cluster-api-url: ${{ secrets.CLUSTER_API_URL }}
+
+      - name: Run integration test
+        if: matrix.agent.name != 'autogen-mcp-agent' || vars.MCP_SERVER_URL != ''
+        working-directory: ${{ matrix.agent.dir }}
+        env:
+          API_KEY: ${{ matrix.agent.name == 'vanilla-python-openai-responses-agent' && secrets.OPENAI_API_KEY || vars.API_KEY }}
+          BASE_URL: ${{ matrix.BASE_URL || vars.BASE_URL }}
+          MODEL_ID: ${{ matrix.MODEL_ID || vars.MODEL_ID }}
+          POSTGRES_HOST: ${{ matrix.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ matrix.POSTGRES_PORT }}
+          POSTGRES_DB: ${{ matrix.POSTGRES_DB }}
+          POSTGRES_USER: ${{ matrix.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          MCP_SERVER_URL: ${{ matrix.MCP_SERVER_URL }}
+          CONTAINER_IMAGE: ${{ matrix.CONTAINER_IMAGE }}
+        run: make test-integration
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.agent.name }}-results
+          path: ${{ matrix.agent.dir }}/results.xml
+
+      - name: Logout
+        if: always()
+        run: oc logout || true
+
+  notify-slack:
+    name: Notify Slack
+    if: >-
+      !cancelled() &&
+      github.repository == 'red-hat-data-services/agentic-starter-kits' &&
+      (github.event_name != 'workflow_dispatch' || github.ref_name == 'main')
+    needs: [verify-cluster-connection, test-agent]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Decide notification status
+        id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          bash .github/actions/notify-slack/should_notify.sh >> "${GITHUB_OUTPUT}"
+
+      - name: Send Slack notification
+        if: steps.gate.outputs.should_notify == 'true'
+        uses: ./.github/actions/notify-slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          github_token: ${{ github.token }}
+          workflow_name: ${{ github.workflow }}
+          event_name: ${{ github.event_name }}
+          ref_name: ${{ github.ref_name }}
+          run_id: ${{ github.run_id }}
+          repository: ${{ github.repository }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          dashboard_url: https://red-hat-data-services.github.io/agentic-starter-kits/
+          status: ${{ steps.gate.outputs.status }}

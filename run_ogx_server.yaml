@@ -1,0 +1,42 @@
+version: '2'
+image_name: ollama
+apis:
+  - inference
+  - vector_io
+providers:
+  vector_io:
+    - provider_id: milvus
+      provider_type: inline::milvus
+      config:
+        db_path: ../../../../milvus_data/milvus_lite.db
+        persistence:
+          namespace: vector_io::milvus
+          backend: kv_default
+  inference:
+    - provider_id: ollama
+      provider_type: remote::ollama
+      config:
+        url: http://localhost:11434/v1
+persistence:
+  host: localhost
+  port: 5432
+  db_name: agent_memory
+  user: postgres
+  password: your_password_here
+  # Use 'postgres' or 'remote::postgres' depending on your local stack build
+  type: postgres
+registered_resources:
+  models:
+    - model_id: Llama3.1:8B
+      provider_id: ollama
+      model_type: llm
+      metadata: { }
+    - model_id: nomic-embed-text:latest
+      provider_id: ollama
+      model_type: embedding
+      metadata:
+        embedding_dimension: 768
+metadata:
+  tags: [ ]
+server:
+  port: 8321

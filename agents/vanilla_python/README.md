@@ -6,9 +6,9 @@ Agent templates using plain Python SDK clients (e.g. [OpenAI Python client](http
 
 | Agent | Description |
 |-------|-------------|
-| [openai_responses_agent](openai_responses_agent/) | Minimal agent using the OpenAI Responses API with an Action/Observation loop and tools |
+| [openai_responses_agent](templates/openai_responses_agent/) | Minimal agent using the OpenAI Responses API with an Action/Observation loop and tools |
 
 ## Resources
 
 - [OpenAI Python Client](https://github.com/openai/openai-python)
-- [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses/create)
+- [OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create)

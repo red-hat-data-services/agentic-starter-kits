@@ -1,0 +1,47 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+    groups:
+      patch:
+        applies-to: "version-updates"
+        update-types:
+          - "patch"
+      minor:
+        applies-to: "version-updates"
+        update-types:
+          - "minor"
+      major:
+        applies-to: "version-updates"
+        update-types:
+          - "major"
+
+  - package-ecosystem: "pip"
+    directories:
+      - "/"
+      - "/agents/**/*"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+    groups:
+      patch:
+        applies-to: "version-updates"
+        group-by: "dependency-name"
+        update-types:
+          - "patch"
+      minor:
+        applies-to: "version-updates"
+        group-by: "dependency-name"
+        update-types:
+          - "minor"
+      major:
+        applies-to: "version-updates"
+        group-by: "dependency-name"
+        update-types:
+          - "major"

@@ -1,0 +1,18 @@
+{{- if and .Values.auth.enabled .Values.auth.createAuthDelegatorBinding }}
+{{- $nsHash := sha256sum .Release.Namespace | trunc 8 }}
+{{- $crbName := printf "%s-%s-auth-delegator" (include "agent.fullname" .) $nsHash | trunc 63 | trimSuffix "-" }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $crbName }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceAccount.name | default (include "agent.fullname" .) }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+{{- end }}

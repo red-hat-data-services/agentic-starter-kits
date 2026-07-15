@@ -1,10 +1,10 @@
 # Local Development
 
-Run agents locally using Ollama and Llama Stack for model serving, or connect to any OpenAI-compatible API.
+Run agents locally using Ollama and OGX for model serving, or connect to any OpenAI-compatible API.
 
 **Windows users:** The Makefiles require a bash-compatible shell. Use [WSL](https://learn.microsoft.com/en-us/windows/wsl/install), [Git Bash](https://git-scm.com/downloads), or a similar environment.
 
-## Option A: Ollama + Llama Stack (fully local)
+## Option A: Ollama + OGX (fully local)
 
 ### 1. Install Ollama
 
@@ -36,55 +36,46 @@ For RAG agents that need embeddings:
 ollama pull embeddinggemma:latest
 ```
 
-### 3. Start Llama Stack Server
+### 3. Start OGX Server
 
-From your agent directory (e.g., `agents/llamaindex/websearch_agent`):
+From a standard agent directory (e.g., `agents/langgraph/templates/react_agent`):
 
 ```bash
-# Install llama-stack and its provider dependencies (ollama, milvus)
-uv tool install llama-stack \
-  --with ollama \
-  --with "pymilvus>=2.4.10" \
-  --with "milvus-lite>=2.5.1" \
-  --with chardet \
-  --with pypdf \
-  --with "setuptools<82"
-
-# Create milvus data directory (required by run_llama_server.yaml)
-mkdir -p ../../../milvus_data
-
-# Start the server
-llama stack run ../../../run_llama_server.yaml
+cd agents/langgraph/templates/react_agent   # or any other standard agent
+make init
+make env
+make ogx-server
 ```
 
-The server starts on `http://localhost:8321`.
+The `make ogx-server` target installs OGX, starts it with `run_ogx_server.yaml`, and serves requests on `http://localhost:8321`.
 
 ### 4. Configure and Run an Agent
 
 ```bash
-cd agents/langgraph/react_agent   # or any other agent
-make init                          # creates .env
+cd agents/langgraph/templates/react_agent   # or any other agent
 ```
 
 Edit `.env`:
 
-```
+```ini
 API_KEY=dummy
 BASE_URL=http://localhost:8321/v1
 MODEL_ID=llama3.2:3b
 ```
 
 ```bash
-make run
+make run-app
 ```
 
 The agent starts on `http://localhost:8000`.
+
+> **Note:** Non-standard agents like `agents/langflow/templates/simple_tool_calling_agent` use different local run commands. Follow the agent-specific README when its Makefile does not provide the standard `make env` / `make ogx-server` / `make run-app` workflow.
 
 ## Option B: OpenAI-Compatible API
 
 If you have an OpenAI-compatible API endpoint (OpenAI, Azure OpenAI, vLLM, etc.), just point `BASE_URL` and `API_KEY` at it:
 
-```
+```ini
 API_KEY=sk-...
 BASE_URL=https://api.openai.com/v1
 MODEL_ID=gpt-4o
@@ -110,7 +101,7 @@ curl -sN -X POST http://localhost:8000/chat/completions \
 ## Running Tests
 
 ```bash
-cd agents/langgraph/react_agent
+cd agents/langgraph/templates/react_agent
 make test
 ```
 
@@ -125,6 +116,6 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 To install an agent's dependencies locally:
 
 ```bash
-cd agents/langgraph/react_agent
+cd agents/langgraph/templates/react_agent
 uv pip install -e ".[dev]"
 ```

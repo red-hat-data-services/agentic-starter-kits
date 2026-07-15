@@ -1,0 +1,77 @@
+{{- if .Values.deploymentsEnabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a2a-crew-agent
+  labels:
+    app: a2a-crew-agent
+    protocol.kagenti.io/a2a: "true"
+    {{- include "a2a.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: a2a-crew-agent
+  template:
+    metadata:
+      labels:
+        app: a2a-crew-agent
+    spec:
+      containers:
+        - name: a2a-crew-agent
+          image: "{{ .Values.image.crew.repository }}:{{ .Values.image.crew.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+              name: http
+              protocol: TCP
+          env:
+            - name: A2A_ROLE
+              value: "crew"
+            - name: PORT
+              value: {{ .Values.service.port | quote }}
+            - name: CREW_A2A_PUBLIC_URL
+              value: {{ .Values.crewPublicUrl | quote }}
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "a2a.secretName" . }}
+                  key: api-key
+            - name: BASE_URL
+              value: {{ .Values.env.BASE_URL | quote }}
+            - name: MODEL_ID
+              value: {{ .Values.env.MODEL_ID | quote }}
+            {{- range $key, $value := .Values.env }}
+            {{- if and (ne $key "BASE_URL") (ne $key "MODEL_ID") (ne $key "API_KEY") (ne $key "MLFLOW_TRACKING_TOKEN") }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.secrets.mlflowTrackingToken }}
+            - name: MLFLOW_TRACKING_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "a2a.secretName" . }}
+                  key: mlflow-tracking-token
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /.well-known/agent-card.json
+              port: {{ .Values.service.port }}
+              scheme: HTTP
+            initialDelaySeconds: {{ .Values.probes.crew.livenessInitialDelay }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /.well-known/agent-card.json
+              port: {{ .Values.service.port }}
+              scheme: HTTP
+            initialDelaySeconds: {{ .Values.probes.crew.readinessInitialDelay }}
+            periodSeconds: {{ .Values.probes.readinessPeriodSeconds }}
+            timeoutSeconds: {{ .Values.probes.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readinessFailureThreshold }}
+{{- end }}

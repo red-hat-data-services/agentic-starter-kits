@@ -1,0 +1,252 @@
+name: Inner Loop Gating
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/eval-gating.yml"
+      - ".github/actions/setup-cluster/action.yaml"
+      - ".github/actions/notify-slack/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "tests/behavioral/**"
+      - "agents/**/tests/behavioral/**"
+      - "evals/evalhub_adapter/__init__.py"
+      - "evals/evalhub_adapter/adapter.py"
+      - "evals/evalhub_adapter/config.py"
+      - "evals/evalhub_adapter/evaluations.py"
+      - "evals/evalhub_adapter/tests/**"
+      - "evals/harness/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/eval-gating.yml"
+      - ".github/actions/setup-cluster/action.yaml"
+      - ".github/actions/notify-slack/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "tests/behavioral/**"
+      - "agents/**/tests/behavioral/**"
+      - "evals/evalhub_adapter/__init__.py"
+      - "evals/evalhub_adapter/adapter.py"
+      - "evals/evalhub_adapter/config.py"
+      - "evals/evalhub_adapter/evaluations.py"
+      - "evals/evalhub_adapter/tests/**"
+      - "evals/harness/**"
+  workflow_dispatch:
+    inputs:
+      run_cluster_btests:
+        description: "Run deployed-agent behavioral pytest suites on cluster"
+        type: boolean
+        default: false
+      cluster_btests_agents:
+        description: "Optional space-separated template-layout agent ids, for example: langgraph/templates/react_agent"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inner-loop-gating-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deterministic:
+    name: Deterministic Adapter Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      checks: write
+    outputs:
+      run_cluster_btests: ${{ steps.cluster-btests-config.outputs.run_cluster_btests }}
+      cluster_btests_reason: ${{ steps.cluster-btests-config.outputs.reason }}
+      cluster_btests_agents: ${{ steps.cluster-btests-config.outputs.cluster_btests_agents }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+
+      - name: Install deterministic dependencies
+        run: |
+          set -euo pipefail
+          uv sync --frozen --extra test --extra test-mlflow
+
+      - name: Run adapter deterministic tests
+        id: deterministic-tests
+        run: |
+          mkdir -p test-results
+          uv run --no-sync pytest evals/evalhub_adapter/tests \
+            -m "unit or integration" \
+            --junitxml=test-results/eval-deterministic.xml \
+            -v --tb=short
+
+      - name: Publish deterministic report
+        if: always() && steps.deterministic-tests.outcome != 'skipped'
+        uses: mikepenz/action-junit-report@d9f48fc87bc235f7e214acf696ca5abc0a986f16 # v6.4.2
+        with:
+          report_paths: test-results/eval-deterministic.xml
+          check_name: Deterministic Adapter Results
+          include_passed: true
+          annotate_only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+
+      - name: Upload deterministic artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: deterministic-adapter-results
+          path: test-results/eval-deterministic.xml
+
+      - name: Resolve cluster btests config
+        id: cluster-btests-config
+        env:
+          INPUT_RUN_CLUSTER_BTESTS: ${{ github.event_name == 'workflow_dispatch' && inputs.run_cluster_btests || '' }}
+          INPUT_CLUSTER_BTESTS_AGENTS: ${{ github.event_name == 'workflow_dispatch' && inputs.cluster_btests_agents || '' }}
+          ENABLED_VAR: ${{ vars.EVAL_CLUSTER_BTESTS_ENABLED }}
+          AGENTS_VAR: ${{ vars.EVAL_CLUSTER_BTESTS_AGENTS }}
+          OC_TOKEN: ${{ secrets.OC_TOKEN }}
+          CLUSTER_API_URL: ${{ secrets.CLUSTER_API_URL }}
+        run: |
+          set -euo pipefail
+
+          enabled="${ENABLED_VAR:-false}"
+          if [[ "${INPUT_RUN_CLUSTER_BTESTS}" == "true" ]]; then
+            enabled="true"
+          fi
+
+          cluster_btests_agents="${AGENTS_VAR:-}"
+          if [[ -n "${INPUT_CLUSTER_BTESTS_AGENTS}" ]]; then
+            cluster_btests_agents="${INPUT_CLUSTER_BTESTS_AGENTS}"
+          fi
+
+          run_cluster_btests="false"
+          reason="cluster btests disabled (EVAL_CLUSTER_BTESTS_ENABLED != true)"
+
+          if [[ "${enabled}" == "true" ]]; then
+            missing=()
+            [[ -z "${OC_TOKEN}" ]] && missing+=("OC_TOKEN")
+            [[ -z "${CLUSTER_API_URL}" ]] && missing+=("CLUSTER_API_URL")
+
+            if (( ${#missing[@]} == 0 )); then
+              run_cluster_btests="true"
+              reason="cluster btests enabled"
+            else
+              reason="cluster btests skipped (missing: ${missing[*]})"
+            fi
+          fi
+
+          {
+            echo "run_cluster_btests=${run_cluster_btests}"
+            echo "reason=${reason}"
+            echo "cluster_btests_agents=${cluster_btests_agents}"
+          } >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "## Cluster BTests Decision"
+            echo "- run_cluster_btests: \`${run_cluster_btests}\`"
+            echo "- agents: \`${cluster_btests_agents:-all}\`"
+            echo "- reason: ${reason}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  cluster-btests:
+    name: Cluster Behavioral Tests
+    needs: deterministic
+    if: needs.deterministic.outputs.run_cluster_btests == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup cluster tools
+        uses: ./.github/actions/setup-cluster
+        with:
+          oc-token: ${{ secrets.OC_TOKEN }}
+          cluster-api-url: ${{ secrets.CLUSTER_API_URL }}
+
+      - name: Install btest runner dependencies
+        run: |
+          set -euo pipefail
+          uv sync --frozen --extra test --extra test-mlflow
+
+      - name: Run shared btest runner
+        env:
+          CLUSTER_BTESTS_AGENTS: ${{ needs.deterministic.outputs.cluster_btests_agents }}
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${CLUSTER_BTESTS_AGENTS}" ]]; then
+            read -r -a selected_agents <<< "${CLUSTER_BTESTS_AGENTS}"
+            bash "tests/behavioral/deterministic/run-btests-pytest.sh" "${selected_agents[@]}"
+          else
+            bash "tests/behavioral/deterministic/run-btests-pytest.sh"
+          fi
+
+      - name: Upload btest artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cluster-btest-results
+          path: btest-results/**
+          if-no-files-found: warn
+
+      - name: Logout
+        if: always()
+        run: oc logout || true
+
+  notify-slack:
+    name: Notify Slack
+    if: >-
+      !cancelled() &&
+      github.event_name != 'pull_request' &&
+      github.repository == 'red-hat-data-services/agentic-starter-kits' &&
+      (github.event_name != 'workflow_dispatch' || github.ref_name == 'main')
+    needs: [deterministic, cluster-btests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Decide notification status
+        id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          bash .github/actions/notify-slack/should_notify.sh >> "${GITHUB_OUTPUT}"
+
+      - name: Send Slack notification
+        if: steps.gate.outputs.should_notify == 'true'
+        uses: ./.github/actions/notify-slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          github_token: ${{ github.token }}
+          workflow_name: ${{ github.workflow }}
+          event_name: ${{ github.event_name }}
+          ref_name: ${{ github.ref_name }}
+          run_id: ${{ github.run_id }}
+          repository: ${{ github.repository }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          dashboard_url: https://red-hat-data-services.github.io/agentic-starter-kits/
+          status: ${{ steps.gate.outputs.status }}

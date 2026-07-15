@@ -1,0 +1,53 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: opencode
+
+commonLabels:
+  app.kubernetes.io/name: opencode
+  app.kubernetes.io/part-of: opencode-on-openshift
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - route.yaml
+
+configMapGenerator:
+  - name: opencode-web-config
+    files:
+      - config-template.json
+    options:
+      disableNameSuffixHash: true
+  - name: opencode-web-entrypoint
+    files:
+      - entrypoint.sh
+    options:
+      disableNameSuffixHash: true
+
+patches:
+  - target:
+      kind: PersistentVolumeClaim
+      name: opencode-web-pvc
+    patch: |-
+      - op: add
+        path: /spec/storageClassName
+        value: gp3-csi  # Change to your cluster's storage class
+
+secretGenerator:
+  - name: opencode-web-secret
+    literals:
+      - BASE_URL=http://<vllm-service>.<namespace>.svc.cluster.local/v1
+      - API_KEY=<your-api-key>
+      - MODEL_NAME=<your-model-name>
+    options:
+      disableNameSuffixHash: true
+  - name: opencode-web-proxy-cookie
+    type: Opaque
+    literals:
+      - session_secret=<your-generated-secret>
+    options:
+      disableNameSuffixHash: true

@@ -1,0 +1,22 @@
+# Golden queries for agentic tool-use benchmark.
+# Each query defines expected tool calls for a search-tool agent.
+queries:
+  - query: "What is the current weather in New York City?"
+    expected_tools: ["search"]
+    expected_elements: ["weather", "New York"]
+
+  - query: "Find recent news about artificial intelligence regulation in the EU"
+    expected_tools: ["search"]
+    expected_elements: ["AI", "regulation", "EU"]
+
+  - query: "What are the latest developments in quantum computing?"
+    expected_tools: ["search"]
+    expected_elements: ["quantum", "computing"]
+
+  - query: "Search for the population of Tokyo and compare it to New York"
+    expected_tools: ["search", "search"]
+    expected_elements: ["Tokyo", "New York", "population"]
+
+  - query: "Hello, how are you today?"
+    expected_tools: []
+    expected_elements: []

@@ -1,0 +1,185 @@
+# Claude Code Container for Red Hat OpenShift AI
+#
+# A customer-facing container image for running Claude Code on RHOAI.
+# Defaults to headless (non-interactive) mode for programmatic use.
+# Interactive mode available by overriding CMD at runtime.
+#
+# Features:
+# - UBI 10 minimal base (RHEL-compatible, supported)
+# - Claude Code installed via native installer (version-pinned)
+# - Non-root user compatible with restricted-v2 SCC
+# - Configurable API endpoint (Anthropic, vLLM, OGX)
+# - Skills injectable at runtime via ConfigMap/PVC mount
+# - MCP configuration injectable at runtime via environment variables:
+#     MCP_CONFIG_FILE - path to mounted JSON config file
+#     MCP_CONFIG_JSON - inline JSON string with MCP server definitions
+#
+# Build:
+#   podman build -t claude-code:latest -f Containerfile .
+#
+# Build with specific version:
+#   podman build --build-arg CLAUDE_CODE_VERSION=2.1.123 -t claude-code:2.1.123 .
+
+FROM registry.access.redhat.com/ubi10/ubi-minimal:10.1
+
+LABEL name="claude-code" \
+      vendor="Red Hat" \
+      summary="Claude Code agent for OpenShift AI" \
+      description="Container image for running Anthropic's Claude Code CLI on Red Hat OpenShift AI"
+
+# =============================================================================
+# Build Arguments
+# =============================================================================
+
+# Claude Code version to install (pinned for reproducibility)
+ARG CLAUDE_CODE_VERSION=2.1.123
+
+# User configuration
+ARG USER_NAME=claude-agent
+ARG USER_UID=1001
+ARG USER_GID=0
+
+# =============================================================================
+# Install System Dependencies
+# =============================================================================
+
+# Install minimal utilities
+# - git: Version control (agent may need to clone repos)
+# - curl: HTTP client (agent may need to fetch resources, also used by installer)
+# - jq: JSON processor (useful for scripting)
+# - tar: Required by oc cp for file retrieval
+RUN microdnf install -y --nodocs \
+        git \
+        curl \
+        jq \
+        tar \
+        python3.12 \
+        python3.12-pip \
+    && ln -sf /usr/bin/python3.12 /usr/bin/python3 \
+    && ln -sf /usr/bin/python3.12 /usr/bin/python \
+    && microdnf clean all \
+    && rm -rf /var/cache/yum
+
+# =============================================================================
+# MLflow Tracing (Optional) — choose one:
+# =============================================================================
+
+# Option A: Python hook (default)
+RUN python3.12 -m pip install --no-cache-dir 'mlflow[kubernetes]==3.12.0'
+
+# Option B: npm plugin (MLflow 3.14+)
+# Uncomment the lines below and comment out Option A above.
+# Also add nodejs and npm to the microdnf install line above.
+#
+# RUN python3.12 -m pip install --no-cache-dir 'mlflow[kubernetes]>=3.14'
+# RUN mkdir -p /home/${USER_NAME}/.npm \
+#     && chown -R ${USER_UID}:${USER_GID} /home/${USER_NAME}/.npm \
+#     && chmod -R 775 /home/${USER_NAME}/.npm
+# RUN git clone --depth 1 https://github.com/mlflow/mlflow.git /tmp/mlflow \
+#     && cd /tmp/mlflow/libs/typescript && npm install && npm run build \
+#     && mkdir -p /opt/mlflow-plugin \
+#     && cp /tmp/mlflow/libs/typescript/integrations/claude-code/bundle/stop.cjs /opt/mlflow-plugin/ \
+#     && rm -rf /tmp/mlflow
+
+# =============================================================================
+# Create Non-Root User
+# =============================================================================
+
+# Create user with specific UID for OpenShift compatibility
+# GID=0 (root group) is required for OpenShift's random UID assignment.
+# OpenShift runs containers with a random UID that is a member of GID 0.
+# Directories below use chmod 775 so GID 0 members have write access.
+RUN useradd -u ${USER_UID} -g ${USER_GID} -d /home/${USER_NAME} -m -s /bin/bash ${USER_NAME}
+
+# =============================================================================
+# Create Directory Structure
+# =============================================================================
+
+# Temporary ~/.claude directory for Claude Code installer
+# The installer writes to ~/.claude/local/ during installation
+# This directory is removed after installation and replaced with a symlink at runtime
+# (see entrypoint.sh for symlink creation to /workspace/.claude)
+#
+# Skills are mounted at runtime to /etc/claude-skills/ (read-only ConfigMap).
+# The entrypoint symlinks this into $CLAUDE_CONFIG_DIR/skills/ so Claude Code
+# discovers them via ~/.claude/skills/.
+# Each skill is a subdirectory containing a SKILL.md file.
+# Structure: /etc/claude-skills/<skill-name>/SKILL.md
+#
+# Mount at runtime:
+#   podman run -v /path/to/skills:/etc/claude-skills:ro,z ...
+#   Or in OpenShift, mount a ConfigMap to /etc/claude-skills
+RUN mkdir -p /home/${USER_NAME}/.claude \
+    && chown -R ${USER_UID}:${USER_GID} /home/${USER_NAME}/.claude \
+    && chmod -R 775 /home/${USER_NAME}/.claude
+
+# Workspace directory - for agent working files
+# Can be mounted with PVC for persistence
+# /workspace/.claude holds global config (CLAUDE_CONFIG_DIR)
+# /workspace/projects is the working directory (WORKDIR)
+RUN mkdir -p /workspace/projects \
+    && chown -R ${USER_UID}:${USER_GID} /workspace \
+    && chmod -R 775 /workspace
+
+# Ensure home directory has correct permissions for OpenShift random UID
+RUN chown -R ${USER_UID}:${USER_GID} /home/${USER_NAME} \
+    && chmod -R 775 /home/${USER_NAME}
+
+# =============================================================================
+# Install Claude Code (as non-root user)
+# =============================================================================
+
+# Switch to non-root user for installation
+# The native installer writes to $HOME/.claude/local/
+USER ${USER_UID}
+
+# Install Claude Code via native installer with pinned version
+# Version pinning: pass version as argument to install.sh
+RUN curl -fsSL https://claude.ai/install.sh | bash -s -- "${CLAUDE_CODE_VERSION}"
+
+# Add Claude to PATH (native installer puts it in ~/.local/bin)
+ENV HOME="/home/${USER_NAME}" \
+    PATH="/home/${USER_NAME}/.local/bin:${PATH}"
+
+# Verify installation
+RUN claude --version
+
+# Switch back to root for remaining setup
+USER 0
+
+# Remove ~/.claude created by installer - entrypoint will create a symlink to /workspace/.claude
+# This prevents overlay filesystem issues when trying to remove/move the directory at runtime
+RUN rm -rf /home/${USER_NAME}/.claude
+
+# =============================================================================
+# Copy Entrypoint
+# =============================================================================
+
+COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
+
+# =============================================================================
+# Environment Configuration
+# =============================================================================
+
+# Disable Claude Code auto-updater (we control versions via image builds)
+ENV DISABLE_AUTOUPDATER=1
+
+# =============================================================================
+# Runtime Configuration
+# =============================================================================
+
+# Switch to non-root user
+USER ${USER_UID}
+
+# Expose no ports by default (Claude Code is CLI-based)
+# If a gateway/API layer is added later, ports can be exposed
+
+# Entrypoint handles environment setup and runs Claude Code
+ENTRYPOINT ["entrypoint.sh"]
+
+# Default command - can be overridden at runtime
+# This runs Claude in print (non-interactive) mode with stream-json for programmatic interaction
+#
+# For interactive mode, override the CMD at runtime:
+#   podman run -it --rm ... claude-code:latest claude
+CMD ["claude", "--print", "--output-format", "stream-json", "--input-format", "stream-json"]

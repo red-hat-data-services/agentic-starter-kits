@@ -1,0 +1,432 @@
+"""
+Agent without any agentic framework: OpenAI client and pure Python.
+
+Uses only the official OpenAI Python client (openai package) and Responses API.
+No framework dependencies (pure OpenAI client) - to show it can be done without frameworks.
+Compatible with OpenAI API and any OpenAI-compatible endpoint (e.g. base_url override).
+"""
+
+import asyncio
+import csv
+import inspect
+import logging
+import re
+from io import StringIO
+from os import getenv
+from typing import Any, Callable
+
+from dotenv import load_dotenv
+from openai import APIStatusError, OpenAI
+
+from openai_responses_agent.tools import search_price, search_reviews
+from openai_responses_agent.tracing import wrap_func_with_mlflow_trace
+
+logger = logging.getLogger(__name__)
+
+
+def get_agent_closure(
+    base_url: str | None = None,
+    model_id: str | None = None,
+    api_key: str | None = None,
+) -> Callable[[], "_AIAgentAdapter"]:
+    """
+    Return a callable that creates an agent instance (adapter with async run() for main.py).
+    """
+    if not base_url:
+        base_url = getenv("BASE_URL")
+    if not model_id:
+        model_id = getenv("MODEL_ID")
+    if not api_key:
+        api_key = getenv("API_KEY")
+
+    def get_agent() -> "_AIAgentAdapter":
+        if not base_url:
+            raise ValueError(
+                "BASE_URL is required. Set it via argument or BASE_URL env var."
+            )
+        if not model_id:
+            raise ValueError(
+                "MODEL_ID is required. Set it via argument or MODEL_ID env var."
+            )
+        return _AIAgentAdapter(
+            base_url=base_url,
+            model_id=model_id,
+            api_key=api_key,
+            tools=[("search_price", search_price), ("search_reviews", search_reviews)],
+        )
+
+    return get_agent
+
+
+class _AIAgentAdapter:
+    """
+    Adapter that exposes async run(input) for main.py, delegating to AIAgent.query().
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        model_id: str,
+        api_key: str | None = None,
+        tools: list[tuple] | None = None,
+    ) -> None:
+        self._base_url = base_url
+        self._model_id = model_id
+        self._api_key = api_key
+        self._tools = tools or []
+
+    async def run(self, input: list[dict[str, Any]]) -> dict[str, Any]:
+        """
+        Run the agent on the given messages; uses AIAgent.query() with the last user message.
+        """
+        question = ""
+        if input:
+            last = input[-1]
+            question = last.get("content", "") if isinstance(last, dict) else str(last)
+
+        agent = AIAgent(
+            model=self._model_id,
+            base_url=self._base_url,
+            api_key=self._api_key,
+        )
+
+        for name, func in self._tools:
+            func = wrap_func_with_mlflow_trace(func, span_type="tool")
+            agent.register_tool(name, func)
+
+        agent.query = wrap_func_with_mlflow_trace(agent.query, span_type="agent")
+        answer = await asyncio.to_thread(agent.query, question)
+        if answer is None:
+            answer = ""
+
+        response_messages = list(input)
+        response_messages.append({"role": "assistant", "content": answer})
+        return {"messages": response_messages, "finish_reason": "stop"}
+
+
+def _messages_to_responses_input(
+    messages: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
+    """
+    Convert chat-style messages to Responses API format.
+    Returns (instructions, input_items) where instructions is the system content
+    and input_items is a list of {role, content} with content as [{type: 'input_text', text: '...'}].
+    """
+    instructions = ""
+    input_items: list[dict[str, Any]] = []
+    for m in messages:
+        role = m.get("role", "user")
+        content = m.get("content", "") or ""
+        if role == "system":
+            instructions = content
+            continue
+        if role == "assistant":
+            content_type = "output_text"
+        else:
+            content_type = "input_text"
+        text_content = [{"type": content_type, "text": content}]
+        input_items.append({"role": role, "content": text_content})
+    return instructions, input_items
+
+
+def _get_output_text_from_response(response: Any) -> str:
+    """Extract assistant text from a Responses API or Chat Completions API response."""
+    # Chat Completions format: response.choices[0].message.content
+    choices = getattr(response, "choices", None)
+    if choices:
+        return getattr(choices[0].message, "content", None) or ""
+
+    # Responses API format: response.output[].content[]
+    if not getattr(response, "output", None) or not response.output:
+        return ""
+    for item in response.output:
+        content = getattr(item, "content", None) or []
+        for block in content:
+            if getattr(block, "type", None) == "output_text":
+                return getattr(block, "text", None) or ""
+            # some SDKs may expose .text directly
+            if hasattr(block, "text"):
+                return block.text or ""
+    return ""
+
+
+class AIAgent:
+    """
+    Agent using only OpenAI client and pure Python: Responses API, no agentic framework.
+    """
+
+    def __init__(
+        self,
+        model: str | None = None,
+        temperature: float = 0,
+        base_url: str | None = None,
+        api_key: str | None = None,
+    ) -> None:
+        """
+        Initialize the agent with tools and OpenAI client configuration.
+
+        Args:
+            model: Model identifier (e.g. "gpt-4o-mini" or provider-specific id).
+            temperature: Sampling temperature (0 = deterministic).
+            base_url: Optional API base URL (for OpenAI-compatible endpoints).
+            api_key: Optional API key (required for OpenAI; can be None for some local endpoints).
+        """
+        load_dotenv()
+
+        if base_url is None:
+            base_url = getenv("BASE_URL")
+        if model is None:
+            model = getenv("MODEL_ID")
+        if api_key is None:
+            api_key = getenv("API_KEY")
+
+        # OpenAI client: works with api.openai.com or any OpenAI-compatible API (base_url)
+        client_kwargs: dict[str, Any] = {}
+        if base_url:
+            client_kwargs["base_url"] = base_url.rstrip("/")
+        if api_key:
+            client_kwargs["api_key"] = api_key
+
+        self.client = OpenAI(**client_kwargs)
+        self.model = model
+        self.temperature = temperature
+        self.tools: dict[str, Callable] = {}
+        self.messages: list[dict[str, Any]] = []
+        self._use_responses_api: bool | None = None
+        self.action_re = re.compile(r"Action:\s*(\w+)\s*\((.*?)\)")
+
+    def add_message(self, role: str, content: str) -> None:
+        """Append a message to the chat history."""
+        self.messages.append({"role": role, "content": content})
+
+    def register_tool(self, name: str, func: Callable) -> None:
+        """Register a tool that the agent can use."""
+        self.tools[name] = func
+
+    def _function_to_string(self, func: Callable) -> str:
+        """Convert a function to its source code string."""
+        return inspect.getsource(func)
+
+    def _parse_arguments(self, args_str: str) -> list[str]:
+        """Parse comma-separated arguments handling quoted strings."""
+        reader = csv.reader(StringIO(args_str))
+        args = next(reader, [])
+        return [arg.strip().strip("'\"") for arg in args]
+
+    def _chat_completions_create(
+        self,
+        messages: list[dict[str, Any]] | None = None,
+        temperature: float | None = None,
+        model: str | None = None,
+    ) -> Any:
+        """
+        Single Chat Completions API call via OpenAI client.
+
+        Args:
+            messages: List of messages; if None, self.messages is used.
+            temperature: Override temperature for this call.
+            model: Override model for this call.
+
+        Returns:
+            Response from client.chat.completions.create.
+        """
+        msg_list = messages if messages is not None else self.messages
+        temp = temperature if temperature is not None else self.temperature
+        model_id = model if model is not None else self.model
+
+        kwargs: dict[str, Any] = {
+            "model": model_id,
+            "messages": msg_list,
+        }
+        if temp is not None:
+            kwargs["temperature"] = temp
+
+        return self.client.chat.completions.create(**kwargs)
+
+    def _llm_create(
+        self,
+        messages: list[dict[str, Any]] | None = None,
+        temperature: float | None = None,
+        model: str | None = None,
+    ) -> Any:
+        """
+        LLM API call with automatic fallback from Responses API to Chat Completions.
+
+        Tries the Responses API unless a prior 404 permanently disabled it. If the
+        server returns HTTP 404, permanently falls back to Chat Completions for all
+        subsequent calls. On HTTP 400, falls back for the current call only (400 can
+        also indicate a legitimate request error, not just an unsupported endpoint).
+
+        Args:
+            messages: List of messages; if None, self.messages is used.
+            temperature: Override temperature for this call.
+            model: Override model for this call.
+
+        Returns:
+            Response from the Responses API or Chat Completions API.
+        """
+        # Fast path: already know which API to use
+        if self._use_responses_api is False:
+            return self._chat_completions_create(
+                messages=messages, temperature=temperature, model=model
+            )
+
+        msg_list = messages if messages is not None else self.messages
+        temp = temperature if temperature is not None else self.temperature
+        model_id = model if model is not None else self.model
+
+        instructions, input_items = _messages_to_responses_input(msg_list)
+        kwargs: dict[str, Any] = {
+            "model": model_id,
+            "instructions": instructions,
+            "input": input_items,
+        }
+        if temp is not None:
+            kwargs["temperature"] = temp
+
+        try:
+            response = self.client.responses.create(**kwargs)
+            if self._use_responses_api is None:
+                self._use_responses_api = True
+                logger.info("Using Responses API (supported by server)")
+            return response
+        except APIStatusError as exc:
+            if exc.status_code not in (400, 404):
+                raise
+            if exc.status_code == 404:
+                self._use_responses_api = False
+                logger.info(
+                    "Responses API not found (HTTP 404), "
+                    "permanently falling back to Chat Completions API",
+                )
+            else:
+                logger.info(
+                    "Responses API returned HTTP 400, "
+                    "falling back to Chat Completions API for this call",
+                )
+            return self._chat_completions_create(
+                messages=messages, temperature=temperature, model=model
+            )
+
+    def _execute(self) -> str:
+        """Execute an LLM API request (Responses API with Chat Completions fallback)."""
+        response = self._llm_create(
+            messages=self.messages,
+            temperature=self.temperature,
+            model=self.model,
+        )
+        return _get_output_text_from_response(response)
+
+    def query(
+        self, question: str, max_turns: int = 10, on_event: Callable | None = None
+    ) -> str | None:
+        """
+        Process a question through multiple turns until getting final answer.
+
+        Args:
+            question: The input question to process.
+            max_turns: Maximum number of turns before timing out.
+            on_event: Optional callback(event_type, data) for streaming events.
+
+        Returns:
+            The final answer or None if no answer found.
+        """
+        self.setup_system_prompt()
+        next_prompt = question
+
+        try:
+            for _ in range(max_turns):
+                self.messages.append({"role": "user", "content": next_prompt})
+                result = self._execute()
+                self.messages.append({"role": "assistant", "content": result})
+
+                if result.lower().startswith("answer:"):
+                    idx = result.lower().find("answer:")
+                    return result[idx + len("answer:") :].strip()
+
+                actions = [
+                    m
+                    for line in result.split("\n")
+                    for m in [self.action_re.match(line)]
+                    if m
+                ]
+
+                if actions:
+                    action, args_str = actions[0].groups()
+                    action_inputs = self._parse_arguments(args_str)
+
+                    if on_event:
+                        on_event("tool_call", {"name": action, "args": action_inputs})
+
+                    tool = self.tools.get(action)
+                    if not tool:
+                        raise ValueError(f"Unknown action: {action}")
+
+                    observation = tool(*action_inputs)
+
+                    if on_event:
+                        on_event(
+                            "tool_result", {"name": action, "output": str(observation)}
+                        )
+
+                    next_prompt = f"Observation: {observation}"
+                else:
+                    # No Action: line – treat the whole response as the final answer
+                    return result.strip() if result else None
+
+        except APIStatusError:
+            raise
+        except Exception as e:
+            logger.exception("Agent error during query execution")
+            raise RuntimeError(f"Agent error: {e}") from e
+
+        return None
+
+    def setup_system_prompt(self) -> None:
+        """Set up the system prompt with available tools."""
+        prompt = """
+        You run in a loop of Thought, Suggestions, Action, PAUSE, Observation.
+        At the end of the loop you output an Answer
+        Use Thought to describe your thoughts about the question you have been asked.
+        Use Action to run one of the suitable actions available to you - then return
+        PAUSE.
+        Observation will be the result of running those actions.
+
+        Your available actions are:
+        {}
+
+        Example session:
+
+        [Question: How much does a Lenovo Laptop costs?
+        Thought: I should look the Laptop price using get_average_price
+
+        Action: get_average_price("Lenovo")
+        PAUSE
+
+        You will be called again with this:
+
+        Observation: A lenovo laptop average price is $400
+
+        You then output:
+
+        Answer: A lenovo laptop costs $400
+        ,
+        Questions: How much does a Lenovo Laptop costs and what are the reviews?
+        Thought: I need to find out both the price and the reviews for a Lenovo laptop. I will first search for the price and then look for the reviews.
+
+        Action: search_price("Lenovo")
+        PAUSE
+        -- running search_price ['Lenovo']
+        Observation: Price of Lenovo is $400
+        Result: Action: search_reviews("Lenovo")
+        PAUSE
+        -- running search_reviews ['Lenovo']
+        Observation: Reviews of Lenovo are good
+        Result: Answer: A Lenovo laptop costs $400 and the reviews are good.
+        Final answer: A Lenovo laptop costs $400 and the reviews are good.]
+
+        """.strip()
+
+        actions_str = [self._function_to_string(func) for func in self.tools.values()]
+        system = prompt.format("\n\n".join(actions_str))
+        self.messages = [{"role": "system", "content": system}]

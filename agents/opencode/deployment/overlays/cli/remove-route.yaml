@@ -1,0 +1,5 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: opencode-web
+$patch: delete

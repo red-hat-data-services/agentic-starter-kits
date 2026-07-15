@@ -1,0 +1,151 @@
+name: Agent Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: agent-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Check for agent changes
+        id: changes
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base_ref="origin/${{ github.event.pull_request.base.ref }}"
+            if git diff --name-only "${base_ref}...HEAD" | grep -q '^agents/'; then
+              echo "agents=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "agents=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Python
+        if: steps.changes.outputs.agents == 'true'
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        if: steps.changes.outputs.agents == 'true'
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
+
+      - name: Run tests
+        if: steps.changes.outputs.agents == 'true'
+        id: run-tests
+        run: |
+          # Discover agent dirs containing unit-test files
+          discovered=$(find agents/*/*/*/tests -maxdepth 1 -name 'test_*.py' -type f 2>/dev/null \
+            | cut -d'/' -f1-4 | sort -u)
+
+          # On PRs, filter to only agents with changed files
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base_ref="origin/${{ github.event.pull_request.base.ref }}"
+            changed_files=$(git diff --name-only "${base_ref}...HEAD")
+            filtered=""
+            while IFS= read -r agent_dir; do
+              [ -z "$agent_dir" ] && continue
+              if echo "$changed_files" | grep -q "^${agent_dir}/"; then
+                filtered="${filtered}${filtered:+$'\n'}${agent_dir}"
+              fi
+            done <<< "$discovered"
+            discovered="$filtered"
+          fi
+
+          count=$(echo "$discovered" | grep -c '[^[:space:]]' || true)
+          if [ "$count" -eq 0 ]; then
+            echo "No testable agents found (or none changed). Skipping."
+            exit 0
+          fi
+
+          echo "Running tests for ${count} agents"
+          mkdir -p test-results
+          failed=0
+
+          while IFS= read -r agent_dir; do
+            [ -z "$agent_dir" ] && continue
+            name=$(echo "$agent_dir" | sed 's|agents/||; s|/|-|g')
+            echo ""
+            echo "::group::${name}"
+            echo "=== Testing ${agent_dir} ==="
+
+            if make -C "$agent_dir" test PYTEST_ARGS="--junitxml=$(pwd)/test-results/${name}.xml -v --tb=short"; then
+              echo "✓ ${name} passed"
+            else
+              echo "✗ ${name} failed"
+              failed=1
+            fi
+            echo "::endgroup::"
+          done <<< "$discovered"
+
+          exit "$failed"
+
+      - name: Publish test report
+        if: always() && steps.run-tests.outcome != 'skipped'
+        uses: mikepenz/action-junit-report@d9f48fc87bc235f7e214acf696ca5abc0a986f16  # v6.4.2
+        with:
+          report_paths: test-results/*.xml
+          check_name: Agent Test Results
+          include_passed: true
+          annotate_only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+
+  notify-slack:
+    name: Notify Slack
+    if: >-
+      !cancelled() &&
+      github.event_name != 'pull_request' &&
+      github.repository == 'red-hat-data-services/agentic-starter-kits' &&
+      (github.event_name != 'workflow_dispatch' || github.ref_name == 'main')
+    needs: [test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Decide notification status
+        id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          bash .github/actions/notify-slack/should_notify.sh >> "${GITHUB_OUTPUT}"
+
+      - name: Send Slack notification
+        if: steps.gate.outputs.should_notify == 'true'
+        uses: ./.github/actions/notify-slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          github_token: ${{ github.token }}
+          workflow_name: ${{ github.workflow }}
+          event_name: ${{ github.event_name }}
+          ref_name: ${{ github.ref_name }}
+          run_id: ${{ github.run_id }}
+          repository: ${{ github.repository }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          dashboard_url: https://red-hat-data-services.github.io/agentic-starter-kits/
+          status: ${{ steps.gate.outputs.status }}

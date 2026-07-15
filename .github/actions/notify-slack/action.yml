@@ -1,0 +1,118 @@
+name: "Notify Slack"
+description: "Render and send Slack CI notifications via incoming webhook"
+
+inputs:
+  github_token:
+    description: "GitHub token used to query the workflow run jobs API"
+    required: true
+  workflow_name:
+    description: "Display name of the GitHub Actions workflow"
+    required: true
+  event_name:
+    description: "GitHub event name for the current run"
+    required: true
+  ref_name:
+    description: "Branch or ref name associated with the run"
+    required: true
+  run_id:
+    description: "GitHub Actions run id"
+    required: true
+  repository:
+    description: "owner/repo for the workflow run"
+    required: true
+  run_url:
+    description: "Deep link to the workflow run"
+    required: true
+  dashboard_url:
+    description: "Link to the CI health dashboard"
+    required: true
+  status:
+    description: "Notification status label, for example failure or cancelled"
+    required: true
+  preview:
+    description: "If true, print the payload instead of sending it"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Collect failed jobs
+      id: collect-failed-jobs
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        REPOSITORY: ${{ inputs.repository }}
+        RUN_ID: ${{ inputs.run_id }}
+      run: |
+        set -euo pipefail
+
+        failed_jobs_json='[]'
+        if [[ -n "${GITHUB_TOKEN}" ]]; then
+          api_url="https://api.github.com/repos/${REPOSITORY}/actions/runs/${RUN_ID}/jobs?per_page=100"
+          if response="$(curl -fsSL \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${api_url}")"; then
+            if ! failed_jobs_json="$(
+              bash "${GITHUB_ACTION_PATH}/extract_failed_jobs.sh" <<<"${response}"
+            )"; then
+              echo "::warning::Failed to extract failed jobs; sending Slack notification without job detail"
+              failed_jobs_json='[]'
+            fi
+          else
+            echo "::warning::Unable to query failed jobs for run ${RUN_ID}; sending Slack notification without job detail"
+          fi
+        else
+          echo "::warning::GITHUB_TOKEN not provided; sending Slack notification without job detail"
+        fi
+
+        echo "failed_jobs_json=${failed_jobs_json}" >> "${GITHUB_OUTPUT}"
+
+    - name: Render Slack payload
+      id: render-payload
+      shell: bash
+      env:
+        RUN_ID: ${{ inputs.run_id }}
+        WORKFLOW_NAME: ${{ inputs.workflow_name }}
+        EVENT_NAME: ${{ inputs.event_name }}
+        REF_NAME: ${{ inputs.ref_name }}
+        STATUS: ${{ inputs.status }}
+        RUN_URL: ${{ inputs.run_url }}
+        DASHBOARD_URL: ${{ inputs.dashboard_url }}
+        REPOSITORY: ${{ inputs.repository }}
+        FAILED_JOBS_JSON: ${{ steps.collect-failed-jobs.outputs.failed_jobs_json }}
+      run: |
+        set -euo pipefail
+
+        payload_path="${RUNNER_TEMP}/slack-payload-${RUN_ID}.json"
+        if ! TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          bash "${GITHUB_ACTION_PATH}/render_payload.sh" > "${payload_path}"; then
+          echo "::warning::Failed to render Slack payload; skipping notification"
+          echo "payload_path=" >> "${GITHUB_OUTPUT}"
+        else
+          echo "payload_path=${payload_path}" >> "${GITHUB_OUTPUT}"
+        fi
+
+    - name: Send Slack notification
+      shell: bash
+      env:
+        PREVIEW: ${{ inputs.preview }}
+        PAYLOAD_PATH: ${{ steps.render-payload.outputs.payload_path }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "${PAYLOAD_PATH}" ]]; then
+          echo "No payload to send; skipping notification"
+          exit 0
+        fi
+
+        args=()
+        if [[ "${PREVIEW}" == "true" ]]; then
+          args+=(--preview)
+        fi
+
+        if ! bash "${GITHUB_ACTION_PATH}/notify.sh" "${args[@]}" "${PAYLOAD_PATH}"; then
+          echo "::warning::Slack notification delivery failed"
+        fi

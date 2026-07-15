@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openclaw-state
+  labels:
+    app: openclaw
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # Change to your cluster's block storage class (e.g., gp3-csi, managed-csi, thin-csi)
+  # Avoid NFS — OpenClaw uses SQLite which requires POSIX file locking
+  storageClassName: gp3-csi
+  resources:
+    requests:
+      storage: 5Gi

@@ -1,0 +1,27 @@
+# OpenClaw agent for OpenShell sandbox
+#
+# Flavor image built on the shared openshell-base.
+# Adds Node.js and OpenClaw (MIT).
+#
+# Build:
+#   podman build --platform linux/amd64 -t openclaw-sandbox:latest -f Containerfile.openshell .
+
+FROM quay.io/hmoghani/openshell-base:latest
+
+USER 0
+
+# Node.js runtime (from UBI repos)
+RUN microdnf install -y --nodocs nodejs npm && \
+    microdnf clean all && \
+    rm -rf /var/cache/yum
+
+# Install OpenClaw (MIT)
+ARG OPENCLAW_VERSION=2026.6.5
+RUN npm install -g openclaw@${OPENCLAW_VERSION}
+
+# Verify
+RUN openclaw --version
+
+USER 1001
+WORKDIR /workspace
+ENV AGENT_NAME=openclaw

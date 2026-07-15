@@ -1,0 +1,40 @@
+[project]
+name = "human_in_the_loop"
+version = "0.1.0"
+description = "A LangGraph agent with Human-in-the-Loop (HITL) approval for sensitive tool calls, deployable on RHOAI Cloud as an ai_service."
+authors = [{ name = "Your Name", email = "you@example.com" }]
+license = { text = "MIT" }
+requires-python = ">=3.12,<=3.14"
+dependencies = [
+    "fastapi>=0.135.1",
+    "uvicorn[standard]>=0.41.0",
+    "langchain>=1.2.10",
+    "langchain-openai>=1.1.10",
+    "langgraph>=1.0.9",
+    "langgraph-prebuilt>=1.0.8",
+    "langgraph-checkpoint>=3.0.0",
+    "openai>=2.24.0",
+    "chardet==7.2.0",
+    "pypdf==6.9.1",
+    "pymilvus==2.5.9", # <-- Downgraded to the proven safe version
+    "milvus-lite>=2.4.0", # <-- Matches the safe PyMilvus
+    "python-dotenv>=1.2.2",
+    "setuptools>=80.9.0,<83.0.0",
+    "flask>=3.1.0",
+    "starlette>=1.0.1",
+]
+
+[project.optional-dependencies]
+tracing = [
+    "mlflow>=3.10.0",
+]
+dev = [
+    "pytest>=9.0.2",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=80.9.0"]
+build-backend = "setuptools.build_meta"

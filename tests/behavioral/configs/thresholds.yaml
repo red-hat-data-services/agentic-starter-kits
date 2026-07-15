@@ -1,0 +1,67 @@
+langgraph_react:
+  tool_selection_accuracy: 0.90
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 8.0
+  pass_at_k: 8
+
+vanilla_python:
+  tool_selection_accuracy: 0.85
+  multi_tool_accuracy: 0.75
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 15.0
+  pass_at_k: 8
+
+autogen_mcp:
+  tool_selection_accuracy: 0.85
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 15.0
+  pass_at_k: 8
+
+crewai_websearch:
+  tool_selection_accuracy: 0.85
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 15.0
+  pass_at_k: 8
+
+agentic_rag:
+  tool_selection_accuracy: 0.85
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 15.0
+  pass_at_k: 8
+
+langgraph_db_memory:
+  tool_selection_accuracy: 0.85
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 15.0
+  pass_at_k: 8
+
+llamaindex_websearch:
+  tool_selection_accuracy: 0.85
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 15.0
+  pass_at_k: 8
+
+langflow_tool_calling:
+  tool_selection_accuracy: 0.75
+  multi_tool_accuracy: 0.65
+  response_coherence_accuracy: 0.70
+  max_latency_p95: 30.0
+  pass_at_k: 8
+
+langgraph_hitl:
+  tool_selection_accuracy: 0.85
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 15.0
+  pass_at_k: 8
+
+google_adk:
+  tool_selection_accuracy: 0.85
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 15.0
+  pass_at_k: 8
+
+a2a_langgraph_crewai:
+  tool_selection_accuracy: 0.85
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 20.0
+  pass_at_k: 8

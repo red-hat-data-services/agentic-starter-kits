@@ -1,0 +1,246 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: code-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install ruff==0.15.11
+
+      - name: Ruff lint
+        run: ruff check . --output-format=github
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Markdownlint
+        # v24.0.0 bundles markdownlint-cli2 0.23.0 — keep in sync with .pre-commit-config.yaml
+        uses: DavidAnson/markdownlint-cli2-action@8de2aa07cae85fd17c0b35642db70cf5495f1d25  # v24.0.0
+        with:
+          globs: "**/*.md"
+
+      - name: Actionlint
+        # shellcheck is pre-installed on ubuntu-latest, so run: steps are also linted
+        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7  # v2.2.0
+        with:
+          version: 1.7.12
+
+  lockfile-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
+        with:
+          version: "0.11.21"  # Keep in sync with uv-pre-commit rev in .pre-commit-config.yaml
+
+      - name: Verify lock files are up to date
+        run: |
+          failed=0
+          while IFS= read -r pyproject; do
+            dir="$(dirname "$pyproject")"
+            echo "Checking $dir..."
+            if [ ! -f "$dir/uv.lock" ]; then
+              echo "::error file=$pyproject::Missing uv.lock — run 'uv lock' in $dir"
+              failed=1
+              continue
+            fi
+            if ! (cd "$dir" && uv lock --check); then
+              echo "::error file=$dir/uv.lock::Lock file is stale — run 'uv lock' in $dir"
+              failed=1
+            fi
+          done < <(find . -name pyproject.toml ! -path '*/.venv/*' ! -path '*/egg-info/*')
+          exit $failed
+
+  secret-scanning:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+          GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+        run: |
+          curl -sSfL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            ./gitleaks detect --source . --config .gitleaks.toml --log-opts="origin/main..HEAD" --verbose --redact
+          else
+            ./gitleaks detect --source . --config .gitleaks.toml --verbose --redact
+          fi
+
+  type-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
+        with:
+          version: "0.11.21"
+          enable-cache: true
+
+      - name: Install ty
+        run: uv tool install ty==0.0.51
+
+      - name: Run type-check
+        # Auto-discovers agents, installs all deps (including extras),
+        # then runs ty from the repo root so ty.toml overrides apply.
+        # No CLI --ignore flags — all suppressions live in ty.toml.
+        shell: bash
+        run: |
+          failed=0
+          while IFS= read -r pyproject; do
+            dir="$(dirname "$pyproject")"
+            name=$(echo "$dir" | sed 's|^\./||;s|agents/||;s|/templates/|/|')
+
+            # Build the list of paths to check (relative to repo root)
+            check=()
+            [ -d "$dir/src" ] && check+=("$dir/src/")
+            [ -f "$dir/main.py" ] && check+=("$dir/main.py")
+            [ -d "$dir/examples" ] && check+=("$dir/examples/")
+            if [ ${#check[@]} -eq 0 ]; then
+              while IFS= read -r f; do
+                check+=("$f")
+              done < <(find "$dir" -maxdepth 1 -name '*.py' -not -name '__init__.py')
+            fi
+            [ ${#check[@]} -eq 0 ] && continue
+
+            echo "::group::$name"
+            echo "Installing deps (all extras) in $dir..."
+            if ! (cd "$dir" && uv sync --frozen --all-extras); then
+              echo "::error::uv sync failed for $name"
+              failed=1
+              echo "::endgroup::"
+              continue
+            fi
+            echo "Running ty check on: ${check[*]}"
+            if ty check --python "$dir/.venv" --error unresolved-import "${check[@]}"; then
+              echo "✅ $name passed"
+            else
+              echo "::error::ty check failed for $name"
+              failed=1
+            fi
+            echo "::endgroup::"
+          done < <(find ./agents ./components -name pyproject.toml \
+                        ! -path '*/.venv/*' ! -path '*/egg-info/*' | sort)
+          exit $failed
+
+  github-scripts-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
+        with:
+          version: "0.11.21"
+
+      - name: Run GitHub script tests
+        run: |
+          uv sync --frozen --extra test
+          uv run --no-sync python -m pytest .github/scripts/tests -v
+
+  notify-slack:
+    name: Notify Slack
+    if: >-
+      !cancelled() &&
+      github.event_name != 'pull_request' &&
+      github.repository == 'red-hat-data-services/agentic-starter-kits' &&
+      (github.event_name != 'workflow_dispatch' || github.ref_name == 'main')
+    needs: [lint, lockfile-check, secret-scanning, type-check, github-scripts-tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Decide notification status
+        id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          bash .github/actions/notify-slack/should_notify.sh >> "${GITHUB_OUTPUT}"
+
+      - name: Send Slack notification
+        if: steps.gate.outputs.should_notify == 'true'
+        uses: ./.github/actions/notify-slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          github_token: ${{ github.token }}
+          workflow_name: ${{ github.workflow }}
+          event_name: ${{ github.event_name }}
+          ref_name: ${{ github.ref_name }}
+          run_id: ${{ github.run_id }}
+          repository: ${{ github.repository }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          dashboard_url: https://red-hat-data-services.github.io/agentic-starter-kits/
+          status: ${{ steps.gate.outputs.status }}

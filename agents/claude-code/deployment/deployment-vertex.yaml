@@ -1,0 +1,275 @@
+# Claude Code Deployment for OpenShift - Vertex AI Authentication
+#
+# This deployment uses Google Vertex AI for Claude API access instead of
+# direct Anthropic API keys. It requires GCP credentials to be mounted.
+#
+# Directory Structure:
+#   /workspace/                - PVC mount (persistent)
+#   /workspace/.claude/        - Global config (CLAUDE_CONFIG_DIR) - settings, skills, memory
+#   /workspace/projects/       - Working directory (WORKDIR) - where users run Claude
+#   /workspace/projects/.claude/ - Local auto-memory (separate from global config)
+#
+# Prerequisites:
+# 1. A GCP service account with Vertex AI access
+# 2. Vertex AI API enabled in your GCP project
+#
+# Before applying this manifest, create the credentials secret:
+#   oc create secret generic claude-vertex-credentials \
+#     --from-file=key.json=/path/to/your-service-account-key.json
+
+---
+# ImageStream to hold the built image
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: claude-code
+  labels:
+    app: claude-code-vertex
+spec:
+  lookupPolicy:
+    local: true
+
+---
+# BuildConfig to build from Containerfile
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: claude-code
+  labels:
+    app: claude-code-vertex
+spec:
+  source:
+    type: Binary
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Containerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: claude-code:latest
+  triggers: []
+
+---
+# ConfigMap for Vertex AI configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-vertex-config
+  labels:
+    app: claude-code-vertex
+data:
+  # GCP Project ID with Vertex AI access to Claude
+  ANTHROPIC_VERTEX_PROJECT_ID: "YOUR_PROJECT_ID"
+  # Region for Vertex AI (us-east5, europe-west1, us, eu, or global)
+  CLOUD_ML_REGION: "global"
+
+---
+# ConfigMap for optional MCP configuration (shared with main deployment)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-vertex-mcp-config
+  labels:
+    app: claude-code-vertex
+data:
+  config.json: |
+    {
+      "mcpServers": {}
+    }
+
+---
+# ConfigMap for skills (empty by default)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-vertex-skills
+  labels:
+    app: claude-code-vertex
+data: {}
+
+---
+# ConfigMap for Claude Code settings
+# Settings are injected at deploy time
+# Modify this ConfigMap to override Claude Code settings.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-vertex-settings
+  labels:
+    app: claude-code-vertex
+data:
+  settings.json: |
+    {}
+
+---
+# PVC for workspace persistence
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: claude-vertex-workspace
+  labels:
+    app: claude-code-vertex
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Deployment with Vertex AI authentication
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: claude-code-vertex
+  labels:
+    app: claude-code-vertex
+spec:
+  replicas: 1
+  # Recreate strategy required for ReadWriteOnce PVC - prevents Multi-Attach errors
+  # during rolling updates (old pod must release PVC before new pod can mount it)
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: claude-code-vertex
+  template:
+    metadata:
+      labels:
+        app: claude-code-vertex
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: claude-code
+          # Uses the same image as the main deployment
+          image: claude-code:latest
+          imagePullPolicy: Always
+          command: ["entrypoint.sh"]
+          args: ["sleep", "infinity"]  # Keep container running for exec access
+          env:
+            # ===========================================
+            # Runtime Environment
+            # ===========================================
+            # HOME must be set for the entrypoint to create ~/.claude/ symlink
+            - name: HOME
+              value: "/home/claude-agent"
+            # CLAUDE_CONFIG_DIR enables session persistence across pod restarts
+            # The entrypoint creates a symlink: ~/.claude -> /workspace/.claude
+            - name: CLAUDE_CONFIG_DIR
+              value: "/workspace/.claude"
+            # ===========================================
+            # Vertex AI Authentication
+            # ===========================================
+            # Enable Vertex AI mode
+            - name: CLAUDE_CODE_USE_VERTEX
+              value: "1"
+            # GCP Project ID (from ConfigMap)
+            - name: ANTHROPIC_VERTEX_PROJECT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: claude-vertex-config
+                  key: ANTHROPIC_VERTEX_PROJECT_ID
+            # Vertex AI Region (from ConfigMap)
+            - name: CLOUD_ML_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: claude-vertex-config
+                  key: CLOUD_ML_REGION
+            # Path to GCP service account credentials
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/var/secrets/google/key.json"
+            # ===========================================
+            # MLflow Tracing (Optional) — Python hook (default, MLflow 3.12)
+            # ===========================================
+            # Uncomment and configure to enable.
+            # See the MLflow Tracing section in ../README.md for details.
+            # - name: MLFLOW_TRACKING_URI
+            #   value: "https://mlflow.<rhoai-namespace>.svc:8443/mlflow"
+            # - name: MLFLOW_TRACKING_AUTH
+            #   value: "kubernetes-namespaced"
+            # - name: MLFLOW_WORKSPACE
+            #   value: "<your-namespace>"
+            # - name: MLFLOW_EXPERIMENT_NAME
+            #   value: "claude-code-traces"
+            # - name: MLFLOW_TRACKING_INSECURE_TLS
+            #   value: "true"
+            # ---
+            # MLflow Tracing — npm plugin (MLflow 3.14+)
+            # To use the npm plugin instead of the Python hook, uncomment
+            # the block above AND add this env var.
+            # WARNING: NODE_TLS_REJECT_UNAUTHORIZED=0 disables TLS verification
+            # for ALL Node.js connections in the container (not just MLflow).
+            # Only use in dev/test clusters with self-signed certs.
+            # For production, mount the cluster CA bundle instead:
+            #   NODE_EXTRA_CA_CERTS=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            # - name: NODE_TLS_REJECT_UNAUTHORIZED
+            #   value: "0"
+            # ===========================================
+            # Claude Code Configuration
+            # ===========================================
+            - name: MCP_CONFIG_FILE
+              value: "/etc/mcp/config.json"
+            # WARNING: Setting SKIP_PERMISSIONS=true disables all Claude permission checks.
+            # This bypasses file-system write confirmations. Only use in fully sandboxed
+            # environments where the container has no access to sensitive host resources.
+            - name: SKIP_PERMISSIONS
+              value: "true"
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            # Skills and settings are staged outside the PVC at read-only paths.
+            # The entrypoint symlinks skills into CLAUDE_CONFIG_DIR.
+            # Mounting directly inside /workspace/.claude/ would cause Kubernetes
+            # to create that directory as root, making the PVC unwritable.
+            - name: skills
+              mountPath: /etc/claude-skills
+              readOnly: true
+            - name: mcp-config
+              mountPath: /etc/mcp
+              readOnly: true
+            # GCP credentials mount
+            - name: gcp-credentials
+              mountPath: /var/secrets/google
+              readOnly: true
+            - name: claude-settings
+              mountPath: /etc/claude-config/settings.json
+              subPath: settings.json
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: claude-vertex-workspace
+        - name: skills
+          configMap:
+            name: claude-vertex-skills
+            optional: true
+        - name: mcp-config
+          configMap:
+            name: claude-vertex-mcp-config
+            optional: true
+        # GCP service account key
+        - name: gcp-credentials
+          secret:
+            secretName: claude-vertex-credentials
+        - name: claude-settings
+          configMap:
+            name: claude-vertex-settings
+            optional: true
