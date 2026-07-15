@@ -318,6 +318,130 @@ make undeploy
 
 See [OpenShift Deployment](../../../../docs/openshift-deployment.md) for more details.
 
+## Authentication
+
+The agent supports optional native OpenShift authentication using Kubernetes
+ServiceAccount tokens. When enabled, every request (except `/health`) must
+carry a valid `Authorization: Bearer <token>` header. The token is verified
+in-cluster via the Kubernetes `TokenReview` API.
+
+Authentication is **disabled by default**.
+
+### Prerequisites
+
+- The agent must be deployed on OpenShift (TokenReview requires in-cluster access)
+- `helm` and `oc` CLI tools
+
+### Step 1 — Deploy the agent without auth
+
+Make sure the agent is running first:
+
+```bash
+make build-openshift
+# Set CONTAINER_IMAGE in .env to the value printed by the build
+make deploy
+```
+
+Verify it works:
+
+```bash
+ROUTE=$(oc get route langgraph-agentic-rag -o jsonpath='{.spec.host}')
+curl -s https://$ROUTE/health
+curl -s https://$ROUTE/chat/completions \
+  -X POST -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"hello"}]}'
+```
+
+### Step 2 — Create a caller ServiceAccount
+
+Create a ServiceAccount that will act as the authorized client:
+
+```bash
+oc create serviceaccount my-caller
+```
+
+### Step 3 — Enable auth
+
+Upgrade the Helm release with auth flags. Do **not** pass `-f values.yaml` here —
+`--reuse-values` preserves the existing configuration from `make deploy`:
+
+```bash
+helm upgrade langgraph-agentic-rag ../../deployment \
+  --reuse-values \
+  --set auth.enabled=true \
+  --set auth.audience="langgraph-agentic-rag" \
+  --set auth.allowedServiceAccounts="<namespace>:my-caller" \
+  --set serviceAccount.create=true \
+  --set auth.createAuthDelegatorBinding=true
+```
+
+Replace `<namespace>` with your OpenShift project name
+(e.g. `myproject:my-caller`).
+
+Wait for the rollout:
+
+```bash
+oc rollout status deployment/langgraph-agentic-rag
+```
+
+### Step 4 — Test auth enforcement
+
+```bash
+ROUTE=$(oc get route langgraph-agentic-rag -o jsonpath='{.spec.host}')
+
+# 1. Health endpoint — always open (excluded from auth)
+curl -s https://$ROUTE/health
+# Expected: 200 {"status": "healthy", ...}
+
+# 2. Without token — should return 401
+curl -s https://$ROUTE/chat/completions \
+  -X POST -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"hello"}]}'
+# Expected: 401 {"detail": "Missing Bearer token"}
+
+# 3. With a valid SA token — should return 200
+TOKEN=$(oc create token my-caller --audience=langgraph-agentic-rag)
+curl -s https://$ROUTE/chat/completions \
+  -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"hello"}]}'
+# Expected: 200 with assistant response
+```
+
+### Step 5 — Disable auth if needed
+
+Disable auth and confirm the agent works without tokens:
+
+```bash
+helm upgrade langgraph-agentic-rag ../../deployment \
+  --reuse-values \
+  --set auth.enabled=false
+```
+
+### Auth configuration reference
+
+| Helm value | Description |
+|---|---|
+| `auth.enabled` | Enable/disable auth (`false` by default) |
+| `auth.audience` | Token audience the agent expects (e.g. `langgraph-agentic-rag`) |
+| `auth.allowedServiceAccounts` | Comma-separated list of `namespace:sa-name` pairs allowed to call the agent |
+| `serviceAccount.create` | Create a ServiceAccount for the agent pod |
+| `auth.createAuthDelegatorBinding` | Grant the agent's SA permission to call the TokenReview API |
+
+### Local development with auth
+
+To test the auth middleware locally (outside the cluster):
+
+```bash
+uv sync --extra auth
+python -c "from agent_auth.middleware import SATokenAuthMiddleware; print('OK')"
+```
+
+> **Note:** The middleware calls the Kubernetes TokenReview API, so
+> `AUTH_ENABLED=true` only works when running inside an OpenShift cluster.
+> For local development, leave `AUTH_ENABLED` unset or set to `false`.
+
 ## Tests
 
 ```bash

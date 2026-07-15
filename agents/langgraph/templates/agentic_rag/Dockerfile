@@ -15,9 +15,12 @@ COPY --from=ghcr.io/astral-sh/uv@sha256:fc93e9ecd7218e9ec8fba117af89348eef8fd246
 # Copy project files for dependency installation
 COPY pyproject.toml .
 COPY src/ ./src/
+COPY components/auth/ ./components/auth/
 
-# Install the project and its dependencies using uv
-RUN uv pip install --no-cache ".[tracing]"
+# Install auth component first, then the project (--no-sources skips [tool.uv.sources]
+# which uses relative paths valid only for local dev)
+RUN uv pip install --no-cache ./components/auth/ && \
+    uv pip install --no-cache --no-sources ".[tracing]"
 
 # Copy the application entrypoint, playground UI, data, and images
 COPY main.py .
