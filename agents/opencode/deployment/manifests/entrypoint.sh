@@ -109,6 +109,9 @@ if ! grep -q "^\.opencode$" .gitignore 2>/dev/null; then
     echo ".opencode" >> .gitignore
 fi
 
+# Default SMALL_MODEL_NAME to MODEL_NAME if not set
+export SMALL_MODEL_NAME="${SMALL_MODEL_NAME:-$MODEL_NAME}"
+
 # Build OpenCode config from template (jq-based envsubst — replaces ${VAR}
 # placeholders with matching environment variables, safely handling special chars)
 CONFIG=$(jq '
