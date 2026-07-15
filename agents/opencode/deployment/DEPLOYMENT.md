@@ -109,9 +109,104 @@ See [docs/mlflow-tracing-setup.md](docs/mlflow-tracing-setup.md) for full config
 | Model endpoint URL | `manifests/kustomization.yaml` (`BASE_URL`) | Cluster-internal DNS, e.g. `http://vllm-svc.vllm.svc.cluster.local/v1` |
 | API key | `manifests/kustomization.yaml` (`API_KEY`) | Use `"token"` if auth is disabled |
 | Model name | `manifests/kustomization.yaml` (`MODEL_NAME`) | Must match the model loaded in vLLM |
+| Small model | `manifests/config-template.json` (`small_model`) | Defaults to `MODEL_NAME`; edit the template to use a separate placeholder (e.g. `${SMALL_MODEL_NAME}`) for lighter tasks |
 | Storage class | `manifests/kustomization.yaml` (patch section) | Default PVC is 10Gi |
 | MCP servers | ConfigMap `opencode-web-mcp` | Optional; merged into config at startup |
 | Provider (vLLM vs OGX) | `manifests/config-template.json` (`enabled_providers`) | Both enabled by default |
+
+### Session Persistence
+
+OpenCode session history and workspace files persist across pod restarts. The container's working directory is set to the PVC mount (`/opt/app-root/workspace`), so files created during a session are stored on persistent storage. The entrypoint additionally redirects OpenCode's internal data directories to PVC-backed paths.
+
+#### How It Works
+
+| Default Path               | Redirected To                                       | Purpose                   |
+|----------------------------|-----------------------------------------------------|---------------------------|
+| `~/.config/opencode/`      | `/opt/app-root/workspace/.opencode/config/opencode/`| Configuration, settings   |
+| `~/.local/share/opencode/` | `/opt/app-root/workspace/.opencode/data/opencode/`  | Session history, database |
+| `~/.local/state/opencode/` | `/opt/app-root/workspace/.opencode/state/opencode/` | Locks, runtime state      |
+
+The entrypoint creates symlinks from default XDG locations to PVC-backed paths and exports `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, and `XDG_STATE_HOME` to point at the persistent directories.
+
+> **Note**: The container image creates `~/.local/state/` with 755 permissions, which prevents symlink creation under OpenShift's random UID (the root group cannot write to 755 directories). The entrypoint's `XDG_STATE_HOME` export works around this. If this is fixed upstream in the container image (by using 775 permissions), the workaround can be removed.
+
+#### Resuming Sessions (CLI Mode)
+
+```bash
+# List previous sessions
+oc exec deployment/opencode-cli -- opencode session list
+
+# Resume the most recent session
+oc exec -it deployment/opencode-cli -- opencode --continue
+
+# Resume a specific session
+oc exec -it deployment/opencode-cli -- opencode --session <session-id>
+```
+
+#### Customizing the Data Directory
+
+Override the default location by setting the `OPENCODE_DATA_DIR` environment variable in the deployment:
+
+```yaml
+env:
+  - name: OPENCODE_DATA_DIR
+    value: /opt/app-root/workspace/my-custom-dir
+```
+
+The entrypoint creates `config/opencode/`, `data/opencode/`, and `state/opencode/` subdirectories within this path.
+
+### Skills Injection
+
+Skills extend OpenCode with custom instructions. No skills are included by default — you create and inject your own.
+
+Skills are auto-discovered from `~/.config/opencode/skills/`. The skills ConfigMap is mounted at `/etc/opencode-skills/` and the entrypoint symlinks it into the config directory. Each skill must be in a subdirectory containing a `SKILL.md` file with YAML frontmatter.
+
+#### Example: Creating a Code Review Skill
+
+**1. Create a `SKILL.md` file:**
+
+```markdown
+---
+name: code-review
+description: Analyze code for correctness, security, and performance issues
+---
+
+# Code Review
+
+When reviewing code, analyze for:
+
+1. **Correctness** - Logic errors, edge cases, off-by-one errors
+2. **Security** - Input validation, injection risks, hardcoded secrets
+3. **Performance** - Unnecessary loops, N+1 queries, missing indexes
+```
+
+**2. Create a ConfigMap from your skill files:**
+
+```bash
+oc create configmap opencode-web-skills \
+  --from-file=code-review-skill=./skills/code-review/SKILL.md
+```
+
+**3. Add an `items` mapping to the skills volume in your deployment manifest:**
+
+The `items` mapping creates the subdirectory structure OpenCode expects:
+
+```yaml
+volumes:
+  - name: skills
+    configMap:
+      name: opencode-web-skills
+      optional: true
+      items:
+        - key: code-review-skill
+          path: code-review/SKILL.md
+```
+
+**4. Restart the deployment:**
+
+```bash
+oc rollout restart deployment/opencode-web
+```
 
 ## Security
 
@@ -129,8 +224,11 @@ The web mode deployment runs a two-container pod:
 
 The entrypoint script (`manifests/entrypoint.sh`) handles:
 
+- Persistence — working directory is `/opt/app-root/workspace` (PVC mount), so workspace files survive pod restarts
+- Session data redirection — symlinks OpenCode's config, data, and state directories from default XDG locations to PVC-backed paths under `.opencode/`
 - Git workspace initialization
 - Config template variable substitution (BASE_URL, API_KEY, MODEL_NAME)
+- Skills injection — symlinks ConfigMap-mounted skills into the config directory
 - Optional MCP server config injection from a ConfigMap
 - Mode switching between web and CLI
 

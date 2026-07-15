@@ -26,6 +26,11 @@ Pull request runs are excluded from the summary to keep the page focused on shar
 - Manual refresh via **Actions → CI Health Pages → Run workflow**
 - Also rebuilds when dashboard generator or workflow files change on `main`
 
+## Policy reference
+
+Routing, ownership, severity, and MVP handling expectations for these alerts are
+defined in [CI Alert Policy](./ci-alert-policy.md).
+
 ## Slack alerts
 
 The same four workflows also send immediate Slack alerts when a shared-branch run fails:
