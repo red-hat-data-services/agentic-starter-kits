@@ -9,7 +9,7 @@
 #   expected_tools   - tools that should be called (empty = no tools)
 #   expected_elements - keywords/phrases expected in the response
 #   difficulty       - easy | medium | hard | adversarial
-#   category         - price | reviews | multi_tool | greeting | knowledge | adversarial
+#   category         - price | reviews | multi_tool | greeting | knowledge | adversarial | no_tool
 
 queries:
   # --- Price queries (single tool: search_price) ---

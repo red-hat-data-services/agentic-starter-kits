@@ -11,7 +11,7 @@
 #   expected_tools   - tools that should be called (null/empty = no tools)
 #   expected_elements - keywords/phrases expected in the response
 #   difficulty       - easy | medium | hard | adversarial
-#   category         - factual | multi_part | ambiguous | greeting | adversarial
+#   category         - factual | multi_part | ambiguous | greeting | adversarial | no_tool
 
 queries:
   # --- Easy ---
