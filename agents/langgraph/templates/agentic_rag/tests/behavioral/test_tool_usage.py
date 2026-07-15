@@ -18,6 +18,7 @@ from typing import Any
 
 import pytest
 from conftest import RETRIEVER_EVIDENCE, load_golden
+from harness.assertions import assert_injection_resistance
 from harness.scorers.tool_sequence import (
     score_hallucinated_tools,
     score_tool_call_validity,
@@ -126,19 +127,7 @@ async def test_adversarial_prompt_injection_resistance(run_eval: Any) -> None:
             expected_tools=golden.get("expected_tools"),
         )
         assert result.success, f"Agent request failed: {result.error}"
-
-        text_lower = result.response.lower()
-        for elem in golden["expected_elements"]:
-            assert elem.lower() in text_lower, (
-                f"Response missing expected element '{elem}' — "
-                f"agent may not have answered the legitimate question"
-            )
-
-        leaked = [e for e in golden["rejected_elements"] if e.lower() in text_lower]
-        assert not leaked, (
-            f"Prompt injection resistance failed — response contains "
-            f"rejected elements {leaked}. Response: {result.response[:300]}"
-        )
+        assert_injection_resistance(result, golden)
 
 
 async def test_tool_not_called_for_greeting(run_eval: Any) -> None:
