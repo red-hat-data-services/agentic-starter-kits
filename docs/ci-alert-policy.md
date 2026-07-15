@@ -1,9 +1,14 @@
 # CI Alert Policy
 
-This document is the policy source of truth for `RHAIENG-5936`. It defines the
-MVP routing, ownership, severity, and SLA-path conventions for CI alerts in
-`agentic-starter-kits`, and serves as the policy input for the runbook work in
-`RHAIENG-5938`.
+This document is the policy source of truth for MVP CI alerts in
+`agentic-starter-kits`. It defines the routing, ownership, severity, and
+SLA-path conventions for shared-branch CI alerts in this repository.
+
+## Related tracking
+
+- `RHAIENG-5827`: layered Quality Gates initiative
+- `RHAIENG-5936`: CI alert policy definition
+- `RHAIENG-5938`: CI alert runbook follow-on
 
 ## Scope
 
@@ -29,24 +34,24 @@ This MVP does not send team Slack alerts for:
 
 ## MVP Policy Summary
 
-- `Route:` one shared CI alert destination, backed by the repository
+- **Route:** one shared CI alert destination, backed by the repository
   `SLACK_WEBHOOK_URL` secret.
-- `Accountable owner group:` `@aaet-tooling-experience` (interim).
-- `Human handling model:` notify-only. Alerts are visible and actionable, but
+- **Accountable owner group:** `@aaet-tooling-experience` (interim).
+- **Human handling model:** notify-only. Alerts are visible and actionable, but
   this MVP does not define an acknowledgement SLA, resolution SLA, or after-hours
   on-call expectation.
-- `System delivery expectation:` qualifying alerts should land in Slack within
+- **System delivery expectation:** qualifying alerts should land in Slack within
   5 minutes of workflow failure.
-- `Severity model:` canonical severity fingerprinting is based on the Quality
+- **Severity model:** canonical severity fingerprinting is based on the Quality
   Gate ladder, with lower-numbered QGs treated as higher priority.
-- `Current implementation note:` not every current alert source is a canonical
+- **Current implementation note:** not every current alert source is a canonical
   QG signal. `Code Quality` and `Agent Tests` remain non-canonical supporting
   signals for now.
 
 ## Canonical QG Severity Model
 
-The canonical severity fingerprint follows the layered Quality Gate model
-defined in `RHAIENG-5827`.
+The canonical severity fingerprint follows the layered Quality Gate model for
+this repository.
 
 - `QG1` is the highest-priority fingerprint.
 - Priority decreases as the workflow progresses upward through the stack.
@@ -66,6 +71,9 @@ flowchart TD
   QG8 -->|"on failure"| QG9["QG9: Self-Healing"]
   QG9 -->|"retry from QG4"| QG4
 ```
+
+Only `QG4` and `QG7` emit alerts today. The remaining fingerprints are defined
+here for future use as more of the QG ladder becomes alert-backed.
 
 ### Canonical ladder
 
@@ -139,7 +147,8 @@ This MVP defines a system delivery path, not a human response SLA.
 3. The alert should arrive within 5 minutes of the qualifying failure.
 4. The responder follows the workflow run link first, then uses the CI health
    dashboard for broader context.
-5. Detailed triage steps live in the runbook work tracked by `RHAIENG-5938`.
+5. Detailed triage steps live in the CI alert runbook that builds on this
+   policy.
 
 ### Human expectation
 
@@ -157,12 +166,3 @@ This policy does not define:
 - per-workflow Slack destinations
 - retroactive renaming of current workflows to force canonical QG labels
 - a canonical QG fingerprint for `Code Quality` or `Agent Tests`
-
-## Downstream dependency
-
-`RHAIENG-5938` should inherit this policy directly:
-
-- use the shared route and owner model documented here
-- use `QG4` and `QG7` as the current canonical severity fingerprints
-- treat `Code Quality` and `Agent Tests` as non-canonical supporting signals
-- keep the runbook aligned with the notify-only MVP handling model
