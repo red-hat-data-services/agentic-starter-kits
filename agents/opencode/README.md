@@ -79,6 +79,8 @@ deployment/overlays/mlflow-tracing/  # Overlay: MLflow tracing integration
 
 Edit `manifests/kustomization.yaml` to configure the model endpoint, API key, model name, and storage class. Apply overlays with `oc apply -k overlays/<mode>`.
 
+To use a lighter model for summarization, commit messages, and other quick tasks, set `SMALL_MODEL_NAME` in the deployment environment. If not set, it defaults to `MODEL_NAME`. Both models must be reachable through the configured provider endpoint.
+
 ## Extending OpenCode at startup
 
 - **MCP servers** — Inject MCP server configuration at startup via ConfigMap (`opencode-web-mcp`), extending the agent with additional tools without rebuilding the image.
