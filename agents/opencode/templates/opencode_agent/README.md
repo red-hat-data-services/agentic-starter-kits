@@ -2,15 +2,24 @@
 
 ## What this agent does
 
-AI-powered terminal-based coding agent built on [OpenCode](https://github.com/sst/opencode). Provides code generation, editing, and debugging through an interactive CLI. Uses any OpenAI-compatible API endpoint for model inference.
+AI-powered terminal-based coding agent built on [OpenCode](https://github.com/sst/opencode). Provides code generation, multi-file editing, code review, and debugging capabilities. Deploys in web mode (OAuth-secured browser UI) or headless CLI mode for terminal sessions and CI pipelines.
+
+## Supported backends
+
+| Backend | Description |
+|---------|-------------|
+| vLLM | Self-hosted OpenAI-compatible model serving |
+| vLLM via OGX | vLLM routed through an OGX gateway |
 
 ## Key features
 
-- Interactive terminal-based coding assistant
-- Code generation, editing, and debugging
-- Works with any OpenAI-compatible model endpoint (vLLM, OGX, external APIs)
-- Lightweight Node.js-based runtime
+- Two deployment modes: web (OAuth + browser UI) and CLI (headless, `oc exec`)
+- Works with any OpenAI-compatible model endpoint
+- Session persistence across pod restarts
+- MCP server integration for extended tool use
+- MLflow tracing support for observability
+- Enterprise-ready container image (UBI 9, non-root, restricted-v2 SCC)
 
 ## Deployment
 
-For full deployment instructions, see the [deployment guide](../../deployment/README.md).
+For full deployment instructions, see the [deployment guide](../../README.md).

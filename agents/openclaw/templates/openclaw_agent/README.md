@@ -2,18 +2,23 @@
 
 ## What this agent does
 
-Open-source AI coding assistant with gateway-based model routing and multi-channel support. OpenClaw provides a web-based interface for code generation, editing, and debugging tasks, routing requests through a configurable gateway to any OpenAI-compatible model endpoint.
+Open-source AI coding assistant built on [OpenClaw](https://github.com/openclaw/openclaw) with gateway-based model routing. Provides a web-based interface for code generation, editing, and debugging, routing requests through a built-in gateway to any OpenAI-compatible model endpoint.
 
-## Architecture
+## Supported backends
 
-OpenClaw runs as a single container with a built-in gateway on port 18789. It connects to any vLLM, KServe, or external API endpoint for model serving, and uses persistent storage for session data.
+| Backend | Description |
+|---------|-------------|
+| vLLM | Self-hosted OpenAI-compatible model serving |
+| vLLM via OGX | vLLM routed through an OGX gateway |
 
 ## Key features
 
-- Web-based coding assistant interface
+- Web-based coding assistant with built-in gateway (port 18789)
 - Gateway-based model routing to any OpenAI-compatible endpoint
 - Persistent storage for session and workspace data
-- Config-driven deployment (no API keys required by default)
+- Config-driven deployment via kustomize overlays
+- MLflow tracing support via OTel collector sidecar
+- OpenShell sandbox mode for experimentation
 
 ## Deployment
 
