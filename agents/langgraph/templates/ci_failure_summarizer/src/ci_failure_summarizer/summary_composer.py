@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from textwrap import dedent
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -11,6 +12,7 @@ from langchain_openai import ChatOpenAI
 from ci_failure_summarizer.config import SummarizerConfig
 from ci_failure_summarizer.models import FailureRecord, Incident, WorkflowRun
 
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = dedent(
     """
@@ -90,12 +92,21 @@ def compose_summary(
         {_serialize_failures(run, failures, incidents)}
         """
     ).strip()
-    response = chat.invoke(
-        [
-            SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(content=user_prompt),
-        ]
-    )
+    try:
+        response = chat.invoke(
+            [
+                SystemMessage(content=SYSTEM_PROMPT),
+                HumanMessage(content=user_prompt),
+            ]
+        )
+    except Exception as exc:
+        logger.warning(
+            "LLM summarization failed, falling back to metadata-only summary: %s",
+            exc,
+        )
+        return compose_fallback_summary(
+            run=run, failures=failures, incidents=incidents
+        )
     content = response.content
     if isinstance(content, str):
         return content.strip()

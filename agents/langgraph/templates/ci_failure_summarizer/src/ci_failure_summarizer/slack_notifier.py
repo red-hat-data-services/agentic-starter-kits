@@ -118,5 +118,9 @@ def maybe_post_summary(
 ) -> tuple[bool, str | None]:
     if not webhook_url:
         return False, "SLACK_WEBHOOK_URL is not configured"
-    post_summary(webhook_url=webhook_url, payload=payload)
+    try:
+        post_summary(webhook_url=webhook_url, payload=payload)
+    except Exception as exc:
+        logger.exception("Failed to post CI triage summary to Slack")
+        return False, f"Slack delivery failed: {exc}"
     return True, None

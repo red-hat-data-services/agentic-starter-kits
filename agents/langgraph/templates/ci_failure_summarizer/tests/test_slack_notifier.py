@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from ci_failure_summarizer.grouping import group_failures
 from ci_failure_summarizer.models import WorkflowJob, WorkflowRun
-from ci_failure_summarizer.slack_notifier import build_slack_payload
+from ci_failure_summarizer.slack_notifier import (
+    build_slack_payload,
+    maybe_post_summary,
+)
 
 
 def test_build_slack_payload_includes_summary_and_links():
@@ -45,3 +50,18 @@ def test_build_slack_payload_includes_summary_and_links():
     assert "metadata-only triage" in text_blob
     assert "https://github.com/example/repo/actions/runs/123" in text_blob
     assert "red-hat-data-services.github.io/agentic-starter-kits" in text_blob
+
+
+def test_maybe_post_summary_returns_failure_reason_without_raising():
+    with patch(
+        "ci_failure_summarizer.slack_notifier.post_summary",
+        side_effect=RuntimeError("Slack webhook returned HTTP 500"),
+    ):
+        posted, reason = maybe_post_summary(
+            webhook_url="https://hooks.slack.com/services/test",
+            payload={"text": "summary"},
+        )
+
+    assert posted is False
+    assert reason is not None
+    assert "Slack delivery failed" in reason

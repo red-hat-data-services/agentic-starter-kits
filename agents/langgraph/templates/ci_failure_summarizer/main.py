@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -610,7 +611,7 @@ async def summarize(request: SummarizeRequest):
             config=config,
             incident_store=incident_store,
         )
-        result = orchestrator.run(run_id=request.run_id)
+        result = await asyncio.to_thread(orchestrator.run, run_id=request.run_id)
         return _summary_to_response(result)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
