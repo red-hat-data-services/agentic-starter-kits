@@ -170,7 +170,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 # Create FastAPI app
 app = FastAPI(
     title="LangGraph CI Failure Summarizer API",
-    description="FastAPI service for LangGraph React Agent with PostgreSQL persistence and OpenAI-compatible chat completions API.",
+    description="FastAPI service for the LangGraph CI Failure Summarizer with PostgreSQL-backed incident persistence, GitHub workflow targeting, Slack summary posting, and OpenAI-compatible chat completions API.",
     lifespan=lifespan,
     openapi_tags=[
         {"name": "Chat", "description": "Chat completion operations"},

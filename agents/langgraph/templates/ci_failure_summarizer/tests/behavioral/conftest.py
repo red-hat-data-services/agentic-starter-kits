@@ -1,4 +1,4 @@
-"""Fixtures for LangGraph DB Memory agent evals."""
+"""Fixtures for LangGraph CI Failure Summarizer agent evals."""
 
 from __future__ import annotations
 
@@ -51,8 +51,11 @@ def load_golden(category: str | None = None) -> list[dict[str, Any]]:
 
 @pytest.fixture
 def agent_url() -> str:
-    """DB Memory agent URL from DB_MEMORY_AGENT_URL env var or default localhost:8000."""
-    return os.environ.get("DB_MEMORY_AGENT_URL", "http://localhost:8000")
+    """CI Failure Summarizer agent URL from CI_FAILURE_SUMMARIZER_AGENT_URL env var or default localhost:8000."""
+    return os.environ.get(
+        "CI_FAILURE_SUMMARIZER_AGENT_URL",
+        os.environ.get("DB_MEMORY_AGENT_URL", "http://localhost:8000"),
+    )
 
 
 @pytest.fixture
@@ -74,13 +77,13 @@ def eval_config() -> dict[str, Any]:
 
 @pytest.fixture
 def known_tools() -> list[str]:
-    """Tools available on the LangGraph DB Memory agent."""
+    """Tools available on the LangGraph CI Failure Summarizer scaffold."""
     return ["search"]
 
 
 @pytest.fixture
-def db_memory_thresholds(eval_config: dict[str, Any]) -> dict[str, Any]:
-    """Load the langgraph_db_memory section from the shared thresholds config."""
+def eval_thresholds(eval_config: dict[str, Any]) -> dict[str, Any]:
+    """Load inherited langgraph_db_memory thresholds until CI summarizer thresholds are defined."""
     return eval_config["langgraph_db_memory"]
 
 

@@ -1,6 +1,6 @@
-# Golden dataset for LangGraph DB Memory agent evals.
+# Golden dataset for LangGraph CI Failure Summarizer agent evals.
 #
-# The DB Memory agent has a single tool: search (dummy_web_search) that always
+# The scaffold inherits a single tool: search (dummy_web_search) that always
 # returns ["Red Hat is the best open source company in the world."]
 #
 # This agent also supports thread_id-based conversation persistence via

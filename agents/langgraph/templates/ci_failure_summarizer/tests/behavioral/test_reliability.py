@@ -1,4 +1,4 @@
-"""Reliability (pass@k) evals for the LangGraph DB Memory agent.
+"""Reliability (pass@k) evals for the LangGraph CI Failure Summarizer agent.
 
 Runs the same query multiple times to measure consistency. An agent
 that passes once but fails intermittently is brittle and not
@@ -26,7 +26,7 @@ _SEARCH_EVIDENCE = ["openshift ai", "openshift", "red hat"]
 
 
 async def test_pass_at_k_tool_usage(
-    run_eval: Any, db_memory_thresholds: dict[str, Any], score_collector: Any
+    run_eval: Any, eval_thresholds: dict[str, Any], score_collector: Any
 ) -> None:
     """Tool selection should succeed in >= threshold% of k runs.
 
@@ -34,10 +34,10 @@ async def test_pass_at_k_tool_usage(
     are exposed, checks via F1 scorer. Otherwise falls back to checking
     that the response contains evidence of search tool usage.
     """
-    k = db_memory_thresholds.get("pass_at_k", 8)
+    k = eval_thresholds.get("pass_at_k", 8)
     query = "What is Red Hat OpenShift AI?"
     expected_tools = ["search"]
-    threshold = db_memory_thresholds.get("tool_selection_accuracy", 0.85)
+    threshold = eval_thresholds.get("tool_selection_accuracy", 0.85)
 
     results = []
     for _ in range(k):
@@ -96,16 +96,16 @@ async def test_pass_at_k_tool_usage(
 
 
 async def test_pass_at_k_response_quality(
-    run_eval: Any, db_memory_thresholds: dict[str, Any], score_collector: Any
+    run_eval: Any, eval_thresholds: dict[str, Any], score_collector: Any
 ) -> None:
     """Response coherence should pass in >= threshold% of k runs.
 
     Ensures the agent produces structured, substantive responses
     consistently, not just occasionally.
     """
-    k = db_memory_thresholds.get("pass_at_k", 8)
+    k = eval_thresholds.get("pass_at_k", 8)
     query = "Explain the benefits of using containers for ML workloads"
-    threshold = db_memory_thresholds.get("response_coherence_accuracy", 0.75)
+    threshold = eval_thresholds.get("response_coherence_accuracy", 0.75)
 
     results = []
     for _ in range(k):

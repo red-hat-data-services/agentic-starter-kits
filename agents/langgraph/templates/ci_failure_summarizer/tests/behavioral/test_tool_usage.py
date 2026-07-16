@@ -1,7 +1,7 @@
-"""Tool usage evals for the LangGraph DB Memory agent.
+"""Tool usage evals for the LangGraph CI Failure Summarizer agent.
 
-Validates that the agent selects, calls, and uses tools correctly
-for various query types. The DB Memory agent has a single tool: ``search``
+Validates that the scaffold agent selects, calls, and uses tools correctly
+for various query types. The scaffold inherits a single tool: ``search``
 (dummy_web_search) that returns a canned answer about Red Hat.
 
 NOTE: Most agents do not expose tool_calls in the OpenAI-compatible

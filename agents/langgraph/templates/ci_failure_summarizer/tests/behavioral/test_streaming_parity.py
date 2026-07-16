@@ -1,4 +1,4 @@
-"""Streaming parity evals for the LangGraph DB Memory agent.
+"""Streaming parity evals for the LangGraph CI Failure Summarizer agent.
 
 Verifies that the agent produces equivalent results in streaming and
 non-streaming modes. Sends the same query with stream=false and

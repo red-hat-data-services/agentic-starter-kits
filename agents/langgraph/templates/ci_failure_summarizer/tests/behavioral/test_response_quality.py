@@ -1,4 +1,4 @@
-"""Response quality evals for the LangGraph DB Memory agent.
+"""Response quality evals for the LangGraph CI Failure Summarizer agent.
 
 Validates that agent responses are coherent, structured, and substantive.
 """

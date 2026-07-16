@@ -1,4 +1,4 @@
-"""Latency evals for the LangGraph DB Memory agent.
+"""Latency evals for the LangGraph CI Failure Summarizer agent.
 
 Validates that the agent stays within latency budgets defined in
 configs/thresholds.yaml.
@@ -15,10 +15,10 @@ pytestmark = pytest.mark.langgraph_db_memory
 
 
 async def test_latency_under_threshold(
-    run_eval: Any, db_memory_thresholds: dict[str, Any], score_collector: Any
+    run_eval: Any, eval_thresholds: dict[str, Any], score_collector: Any
 ) -> None:
     """Response latency must stay within the p95 threshold."""
-    max_latency = db_memory_thresholds["max_latency_p95"]
+    max_latency = eval_thresholds["max_latency_p95"]
     query = "What is Red Hat OpenShift AI?"
     result = await run_eval(query)
     assert result.success, f"Agent request failed: {result.error}"

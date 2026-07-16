@@ -1,5 +1,5 @@
 # Golden queries for agentic tool-use benchmark.
-# Each query defines expected tool calls for a search-tool agent with DB memory.
+# Scaffold inherits the template search tool; queries validate baseline tool-use behavior.
 queries:
   - query: "What is the current weather in New York City?"
     expected_tools: ["search"]

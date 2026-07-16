@@ -110,7 +110,7 @@ MLFLOW_WORKSPACE="default"
 
 - `MLFLOW_TRACKING_URI` - URL of your MLflow server. For local development, use `http://localhost:5000`. If using MLflow on an OpenShift cluster, replace `<openshift-dashboard-url>` with your cluster's data science gateway URL.
 - `MLFLOW_TRACKING_TOKEN` - Required for OpenShift only. Your OpenShift authentication token, obtained from the OpenShift console.
-- `MLFLOW_EXPERIMENT_NAME` - A descriptive name for your experiment (e.g., "LangGraph DB Memory Demo")
+- `MLFLOW_EXPERIMENT_NAME` - A descriptive name for your experiment (e.g., "langgraph-ci-failure-summarizer-agent")
 - `MLFLOW_TRACKING_INSECURE_TLS` - Required for OpenShift only. Set to `"true"` if your cluster does not use trusted certificates.
 - `MLFLOW_WORKSPACE` - Required for OpenShift only. Project name.
 
@@ -332,7 +332,7 @@ make test
 Behavioral tests validate tool selection, response quality, latency, and reliability against a live agent. They require MLflow tracing to extract tool_calls from trace spans.
 
 ```bash
-DB_MEMORY_AGENT_URL=https://<agent-route> \
+CI_FAILURE_SUMMARIZER_AGENT_URL=https://<agent-route> \
 MLFLOW_TRACKING_URI=<mlflow-uri> \
 MLFLOW_EXPERIMENT_NAME=<experiment> \
 MLFLOW_TRACKING_TOKEN=$(oc whoami -t) \

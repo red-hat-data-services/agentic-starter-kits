@@ -1,9 +1,9 @@
-"""Memory isolation evals for the LangGraph DB Memory agent.
+"""Memory isolation evals for the LangGraph CI Failure Summarizer agent.
 
 Validates that conversation threads are isolated — messages sent on one
 thread_id must not be visible to another thread_id.
 
-Requires a running DB Memory agent with PostgreSQL configured.
+Requires a running CI Failure Summarizer agent with PostgreSQL configured.
 """
 
 from __future__ import annotations

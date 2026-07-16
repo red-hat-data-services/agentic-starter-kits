@@ -1,10 +1,10 @@
-"""Memory persistence evals for the LangGraph DB Memory agent.
+"""Memory persistence evals for the LangGraph CI Failure Summarizer agent.
 
 Validates that the agent retains conversation context across multiple
 turns within the same thread_id, and that a new thread_id starts with
 no prior context.
 
-Requires a running DB Memory agent with PostgreSQL configured.
+Requires a running CI Failure Summarizer agent with PostgreSQL configured.
 """
 
 from __future__ import annotations
