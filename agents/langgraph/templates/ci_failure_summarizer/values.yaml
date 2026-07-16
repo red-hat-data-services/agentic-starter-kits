@@ -1,0 +1,12 @@
+nameOverride: "langgraph-ci-failure-summarizer-agent"
+
+env:
+  MODEL_ID: ""
+  BASE_URL: ""
+  POSTGRES_HOST: ""
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: ""
+  POSTGRES_USER: ""
+  GITHUB_REPOSITORY: ""
+  GITHUB_WORKFLOW: ""
+  SLACK_WEBHOOK_URL: ""
