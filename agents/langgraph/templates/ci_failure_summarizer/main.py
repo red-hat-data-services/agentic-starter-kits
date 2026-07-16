@@ -26,6 +26,10 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from pydantic import BaseModel, Field
 from ci_failure_summarizer.agent import get_graph_closure
+from ci_failure_summarizer.config import SummarizerConfig
+from ci_failure_summarizer.incident_store import IncidentStore
+from ci_failure_summarizer.models import SummaryResult
+from ci_failure_summarizer.orchestrator import SummarizerOrchestrator
 from ci_failure_summarizer.tracing import enable_tracing
 from ci_failure_summarizer.utils import (
     get_database_uri,
@@ -136,15 +140,48 @@ class HealthResponse(BaseModel):
     )
 
 
+class SummarizeRequest(BaseModel):
+    """Manual trigger for CI failure summarization."""
+
+    run_id: int | None = Field(
+        None,
+        description="Optional workflow run id. Defaults to the latest QG4 run.",
+    )
+    post_to_slack: bool = Field(
+        True,
+        description="When false, build the summary without posting to Slack.",
+    )
+
+
+class FailureSummaryItem(BaseModel):
+    fingerprint: str
+    job_name: str
+    failed_step: str | None = None
+    logs_available: bool = False
+    occurrence_count: int = 1
+
+
+class SummarizeResponse(BaseModel):
+    run_id: int
+    run_url: str
+    workflow_name: str
+    failures: list[FailureSummaryItem]
+    summary_text: str
+    slack_posted: bool
+    slack_skipped_reason: str | None = None
+    logs_available: bool = False
+
+
 # Global variables
 agent_graph_closure = None
 DB_URI = None
+incident_store = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize the ReAct agent graph on startup and clear it on shutdown."""
-    global agent_graph_closure, DB_URI
+    global agent_graph_closure, DB_URI, incident_store
 
     enable_tracing()
 
@@ -159,12 +196,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     with PostgresSaver.from_conn_string(DB_URI) as saver:
         saver.setup()
 
+    incident_store = IncidentStore(DB_URI)
+    incident_store.setup()
+
     agent_graph_closure = get_graph_closure(model_id=model_id, base_url=base_url)
 
     yield
 
     agent_graph_closure = None
     DB_URI = None
+    incident_store = None
 
 
 # Create FastAPI app
@@ -175,6 +216,7 @@ app = FastAPI(
     openapi_tags=[
         {"name": "Chat", "description": "Chat completion operations"},
         {"name": "Health", "description": "Service health monitoring"},
+        {"name": "Summarize", "description": "Manual CI failure summarization trigger"},
     ],
 )
 
@@ -510,6 +552,75 @@ async def health():
     if not initialized:
         return JSONResponse(status_code=503, content=body)
     return body
+
+
+def _summary_to_response(result: SummaryResult) -> SummarizeResponse:
+    incident_counts = {
+        incident.fingerprint: incident.occurrence_count for incident in result.incidents
+    }
+    return SummarizeResponse(
+        run_id=result.run_id,
+        run_url=result.run_url,
+        workflow_name=result.workflow_name,
+        failures=[
+            FailureSummaryItem(
+                fingerprint=failure.fingerprint,
+                job_name=failure.job_name,
+                failed_step=failure.failed_step,
+                logs_available=failure.logs_available,
+                occurrence_count=incident_counts.get(failure.fingerprint, 1),
+            )
+            for failure in result.failures
+        ],
+        summary_text=result.summary_text,
+        slack_posted=result.slack_posted,
+        slack_skipped_reason=result.slack_skipped_reason,
+        logs_available=result.logs_available,
+    )
+
+
+@app.post(
+    "/summarize",
+    response_model=SummarizeResponse,
+    summary="Trigger CI failure summarization",
+    description="Manually ingest the latest (or specified) QG4 workflow run, group failures, persist incidents, compose a triage summary, and optionally post to Slack.",
+    tags=["Summarize"],
+)
+async def summarize(request: SummarizeRequest):
+    global incident_store
+
+    if incident_store is None:
+        raise HTTPException(status_code=503, detail="Incident store not initialized")
+
+    try:
+        config = SummarizerConfig.from_env()
+        if not request.post_to_slack:
+            config = SummarizerConfig(
+                repository=config.repository,
+                workflow_name=config.workflow_name,
+                slack_webhook_url=None,
+                github_token=config.github_token,
+                model_id=config.model_id,
+                base_url=config.base_url,
+                api_key=config.api_key,
+                workflow_file=config.workflow_file,
+                dashboard_url=config.dashboard_url,
+            )
+        orchestrator = SummarizerOrchestrator(
+            config=config,
+            incident_store=incident_store,
+        )
+        result = orchestrator.run(run_id=request.run_id)
+        return _summary_to_response(result)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Error running CI failure summarizer")
+        raise HTTPException(
+            status_code=500, detail=f"Error running summarizer: {exc}"
+        ) from exc
 
 
 # ── Playground UI ────────────────────────────────────────────────────────────

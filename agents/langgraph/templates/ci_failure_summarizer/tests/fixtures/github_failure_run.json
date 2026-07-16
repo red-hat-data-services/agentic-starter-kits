@@ -1,0 +1,57 @@
+{
+  "workflow_runs": [
+    {
+      "id": 123456789,
+      "name": "QG4: Agent Deployment Integration Tests",
+      "event": "schedule",
+      "head_branch": "main",
+      "status": "completed",
+      "conclusion": "failure",
+      "html_url": "https://github.com/red-hat-data-services/agentic-starter-kits/actions/runs/123456789",
+      "created_at": "2026-07-15T02:30:00Z",
+      "workflow_id": 987654
+    }
+  ],
+  "jobs": {
+    "123456789": {
+      "jobs": [
+        {
+          "id": 111,
+          "name": "verify-cluster-connection",
+          "status": "completed",
+          "conclusion": "success",
+          "html_url": "https://github.com/example/jobs/111",
+          "steps": [
+            {
+              "name": "Check cluster",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            }
+          ]
+        },
+        {
+          "id": 222,
+          "name": "test-agent (langgraph-react-agent)",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/example/jobs/222",
+          "steps": [
+            {
+              "name": "Deploy agent",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Health check",
+              "status": "completed",
+              "conclusion": "failure",
+              "number": 2
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
