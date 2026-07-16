@@ -14,6 +14,11 @@ This follows the [Bring Your Own Container](https://github.com/NVIDIA/OpenShell/
 
 ```bash
 cd agents/google/templates/adk
+
+# Copy repo-level images into build context (playground UI assets)
+cp -r ../../../../images ./images
+trap 'rm -rf ./images' EXIT
+
 podman build --platform linux/amd64 -t quay.io/<your-org>/adk-sandbox:latest -f Containerfile.openshell .
 podman push quay.io/<your-org>/adk-sandbox:latest
 ```

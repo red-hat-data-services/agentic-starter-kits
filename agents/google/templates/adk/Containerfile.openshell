@@ -3,7 +3,8 @@
 # BYOC (Bring Your Own Container) image following the OpenShell pattern:
 # https://github.com/NVIDIA/OpenShell/tree/main/examples/bring-your-own-container
 #
-# Build:
+# Build (copy repo-level images/ into context first):
+#   cp -r ../../../../images ./images && trap 'rm -rf ./images' EXIT
 #   podman build --platform linux/amd64 -t adk-sandbox:latest -f Containerfile.openshell .
 #
 # Run (OpenShell replaces CMD -- pass the start command after --):
@@ -29,11 +30,12 @@ WORKDIR /sandbox
 # Install Python dependencies using the image's Python 3.12
 COPY --chown=1001:0 pyproject.toml .
 COPY --chown=1001:0 src/ ./src/
-RUN uv pip install --python /opt/app-root/bin/python3 --no-cache "."
+RUN uv pip install --python /opt/app-root/bin/python3 --no-cache ".[tracing]"
 
-# Application code
+# Application code and assets
 COPY --chown=1001:0 main.py .
 COPY --chown=1001:0 playground/ ./playground/
+COPY --chown=1001:0 images/ ./images/
 
 USER 1001
 
