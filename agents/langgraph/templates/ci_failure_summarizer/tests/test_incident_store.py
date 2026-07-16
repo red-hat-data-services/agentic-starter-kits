@@ -123,3 +123,40 @@ def test_record_summary_returns_inserted_id():
     execute_kwargs = mock_conn.execute.call_args.args[1]
     assert execute_kwargs["run_id"] == 123456789
     assert execute_kwargs["fingerprints"] == ["fp-abc123"]
+
+
+def test_upsert_failures_skips_occurrence_increment_for_same_run_id():
+    store = IncidentStore("postgresql://test")
+    now = datetime(2026, 7, 15, 2, 30, tzinfo=UTC)
+    row = {
+        "id": 1,
+        "fingerprint": "fp-abc123",
+        "workflow_name": "QG4: Agent Deployment Integration Tests",
+        "workflow_file": "agent-deployment-test.yaml",
+        "job_name": "test-agent (langgraph-react-agent)",
+        "failed_step": "Health check",
+        "branch": "main",
+        "event": "schedule",
+        "qg_label": "QG4",
+        "first_seen_at": now,
+        "last_seen_at": now,
+        "occurrence_count": 2,
+        "latest_run_id": 123456789,
+        "latest_run_url": "https://github.com/example/actions/runs/123456789",
+        "metadata": {"failure_area": "health-check"},
+    }
+
+    mock_conn = MagicMock()
+    mock_conn.execute.return_value.fetchone.return_value = row
+
+    @contextmanager
+    def fake_connection():
+        yield mock_conn
+
+    with patch.object(store, "_connection", fake_connection):
+        incidents = store.upsert_failures([_sample_failure()])
+
+    sql = mock_conn.execute.call_args.args[0]
+    assert "latest_run_id IS DISTINCT FROM EXCLUDED.latest_run_id" in sql
+    assert len(incidents) == 1
+    assert incidents[0].occurrence_count == 2

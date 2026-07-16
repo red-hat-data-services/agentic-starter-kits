@@ -93,8 +93,16 @@ class IncidentStore:
                         branch = EXCLUDED.branch,
                         event = EXCLUDED.event,
                         qg_label = EXCLUDED.qg_label,
-                        last_seen_at = EXCLUDED.last_seen_at,
-                        occurrence_count = ci_incidents.occurrence_count + 1,
+                        last_seen_at = CASE
+                            WHEN ci_incidents.latest_run_id IS DISTINCT FROM EXCLUDED.latest_run_id
+                            THEN EXCLUDED.last_seen_at
+                            ELSE ci_incidents.last_seen_at
+                        END,
+                        occurrence_count = CASE
+                            WHEN ci_incidents.latest_run_id IS DISTINCT FROM EXCLUDED.latest_run_id
+                            THEN ci_incidents.occurrence_count + 1
+                            ELSE ci_incidents.occurrence_count
+                        END,
                         latest_run_id = EXCLUDED.latest_run_id,
                         latest_run_url = EXCLUDED.latest_run_url,
                         metadata = ci_incidents.metadata || EXCLUDED.metadata

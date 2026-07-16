@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 INTERNAL_REGISTRY = "image-registry.openshift-image-registry.svc:5000"
 
+# Keep in sync with agent.yaml env.required / env.optional and SummarizerConfig.from_env().
 _REQUIRED_ENV = (
     "BASE_URL",
     "MODEL_ID",
@@ -36,6 +37,11 @@ _OPTIONAL_ENV = (
     "GITHUB_TOKEN",
     "SLACK_WEBHOOK_URL",
 )
+
+_DEFAULTS = {
+    "GITHUB_WORKFLOW": "QG4: Agent Deployment Integration Tests",
+    "GITHUB_WORKFLOW_FILE": "agent-deployment-test.yaml",
+}
 
 
 @pytest.fixture(scope="module")
@@ -70,7 +76,7 @@ def _write_env_file(agent_dir, container_image):
         f"GITHUB_REPOSITORY={os.environ['GITHUB_REPOSITORY']}",
     ]
     for var in _OPTIONAL_ENV:
-        value = os.environ.get(var)
+        value = os.environ.get(var) or _DEFAULTS.get(var)
         if value:
             lines.append(f"{var}={value}")
     env_path.write_text("\n".join(lines) + "\n")

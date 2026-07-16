@@ -34,6 +34,7 @@ Lightweight **spike** for a daily QG4 CI failure summarizer. It keeps the standa
 **Known limitations:**
 
 - GitHub ingest is **unauthenticated by default**. Public workflow metadata (runs, jobs, steps) works without a token.
+- Unauthenticated GitHub API access is subject to **low rate limits** (60 requests/hour per IP). Expect `403`/`rate limit` errors under heavy use; set `GITHUB_TOKEN` to raise limits.
 - Job log download often returns **HTTP 403** without repository admin access or `GITHUB_TOKEN`. The summarizer degrades gracefully to metadata-only triage.
 - Slack delivery is a single top-level message, not a thread under an existing alert.
 
@@ -234,7 +235,7 @@ make ogx-server
 
 ```bash
 cd agents/langgraph/templates/ci_failure_summarizer
-make run-app           # fails if port is already in use and print steps TO-DO
+make run-app           # fails if port is already in use; use make run-app-fresh to restart
 ```
 
 ### Interactive CLI

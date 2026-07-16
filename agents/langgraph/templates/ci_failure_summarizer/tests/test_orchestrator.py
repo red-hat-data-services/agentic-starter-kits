@@ -172,3 +172,42 @@ def test_run_accepts_explicit_run_id_for_configured_workflow():
     github.get_run.assert_called_once_with(run.id)
     github.get_latest_run.assert_not_called()
     assert result.run_id == run.id
+
+
+def test_run_records_summary_when_latest_run_did_not_fail():
+    run = WorkflowRun(
+        id=456,
+        name="QG4: Agent Deployment Integration Tests",
+        event="schedule",
+        head_branch="main",
+        status="completed",
+        conclusion="success",
+        html_url="https://github.com/example/repo/actions/runs/456",
+        created_at="2026-07-15T02:30:00Z",
+        path=".github/workflows/agent-deployment-test.yaml",
+    )
+
+    github = MagicMock()
+    github.resolve_workflow_file.return_value = (
+        ".github/workflows/agent-deployment-test.yaml"
+    )
+    github.get_latest_run.return_value = run
+
+    store = MagicMock()
+
+    orchestrator = SummarizerOrchestrator(
+        config=_config(),
+        incident_store=store,
+        github_client=github,
+    )
+
+    result = orchestrator.run()
+
+    assert result.failures == []
+    assert result.slack_skipped_reason == "latest run did not fail"
+    store.upsert_failures.assert_not_called()
+    store.record_summary.assert_called_once()
+    call_kwargs = store.record_summary.call_args.kwargs
+    assert call_kwargs["run_id"] == run.id
+    assert call_kwargs["slack_posted"] is False
+    assert call_kwargs["metadata"]["slack_skipped_reason"] == "latest run did not fail"

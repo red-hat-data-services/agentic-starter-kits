@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import requests
@@ -10,6 +11,25 @@ import requests
 from ci_failure_summarizer.models import FailureRecord, WorkflowRun
 
 logger = logging.getLogger(__name__)
+
+_SLACK_WEBHOOK_RE = re.compile(r"https://hooks\.slack\.com/\S+")
+
+
+def sanitize_slack_error(
+    exc: BaseException,
+    *,
+    webhook_url: str | None = None,
+) -> str:
+    """Return a safe Slack delivery error without leaking webhook URLs."""
+    message = str(exc).strip()
+    if webhook_url and webhook_url in message:
+        message = message.replace(webhook_url, "<redacted-webhook-url>")
+    message = _SLACK_WEBHOOK_RE.sub("<redacted-webhook-url>", message)
+    if isinstance(exc, requests.RequestException):
+        return "Slack delivery failed: network error contacting webhook"
+    if message:
+        return f"Slack delivery failed: {message}"
+    return "Slack delivery failed"
 
 
 def build_slack_payload(
@@ -103,7 +123,10 @@ def post_summary(
     payload: dict[str, Any],
     timeout: int = 15,
 ) -> None:
-    response = requests.post(webhook_url, json=payload, timeout=timeout)
+    try:
+        response = requests.post(webhook_url, json=payload, timeout=timeout)
+    except requests.RequestException as exc:
+        raise RuntimeError(sanitize_slack_error(exc, webhook_url=webhook_url)) from exc
     if response.status_code >= 400:
         raise RuntimeError(
             f"Slack webhook returned HTTP {response.status_code}: {response.text}"
@@ -121,6 +144,7 @@ def maybe_post_summary(
     try:
         post_summary(webhook_url=webhook_url, payload=payload)
     except Exception as exc:
-        logger.exception("Failed to post CI triage summary to Slack")
-        return False, f"Slack delivery failed: {exc}"
+        safe_message = sanitize_slack_error(exc, webhook_url=webhook_url)
+        logger.error("%s", safe_message)
+        return False, safe_message
     return True, None

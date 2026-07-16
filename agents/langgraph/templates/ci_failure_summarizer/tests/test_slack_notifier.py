@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import requests
 
 from ci_failure_summarizer.grouping import group_failures
 from ci_failure_summarizer.models import WorkflowJob, WorkflowRun
 from ci_failure_summarizer.slack_notifier import (
     build_slack_payload,
     maybe_post_summary,
+    sanitize_slack_error,
 )
 
 
@@ -65,3 +68,34 @@ def test_maybe_post_summary_returns_failure_reason_without_raising():
     assert posted is False
     assert reason is not None
     assert "Slack delivery failed" in reason
+
+
+def test_maybe_post_summary_redacts_webhook_url_from_request_errors():
+    webhook = "https://hooks.slack.com/services/T00/B00/secret-token"
+    with patch(
+        "ci_failure_summarizer.slack_notifier.post_summary",
+        side_effect=requests.ConnectionError(
+            f"HTTPSConnectionPool(host='hooks.slack.com', port=443): "
+            f"Max retries exceeded with url: {webhook}"
+        ),
+    ):
+        posted, reason = maybe_post_summary(
+            webhook_url=webhook,
+            payload={"text": "summary"},
+        )
+
+    assert posted is False
+    assert reason is not None
+    assert webhook not in reason
+    assert "network error contacting webhook" in reason
+
+
+def test_sanitize_slack_error_strips_embedded_webhook_urls():
+    webhook = "https://hooks.slack.com/services/T00/B00/secret-token"
+    message = sanitize_slack_error(
+        RuntimeError(f"Failed POST to {webhook}"),
+        webhook_url=webhook,
+    )
+
+    assert webhook not in message
+    assert "<redacted-webhook-url>" in message

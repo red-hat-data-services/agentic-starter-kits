@@ -6,8 +6,11 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import requests
+
 from ci_failure_summarizer.github_client import (
     GitHubActionsClient,
+    canonical_workflow_file,
     normalize_workflow_path,
     workflow_paths_match,
 )
@@ -37,6 +40,32 @@ def test_resolve_workflow_file_preserves_dotgithub_prefix():
     )
 
     assert workflow_file == ".github/workflows/agent-deployment-test.yaml"
+
+
+def test_resolve_workflow_file_normalizes_fallback_basename():
+    client = GitHubActionsClient("red-hat-data-services/agentic-starter-kits")
+    response = MagicMock()
+    response.ok = True
+    response.json.return_value = {"workflows": []}
+    client._request = MagicMock(return_value=response)  # type: ignore[method-assign]
+
+    workflow_file = client.resolve_workflow_file(
+        "Missing Workflow",
+        "agent-deployment-test.yaml",
+    )
+
+    assert workflow_file == ".github/workflows/agent-deployment-test.yaml"
+
+
+def test_canonical_workflow_file_preserves_dotgithub_path():
+    assert (
+        canonical_workflow_file(".github/workflows/agent-deployment-test.yaml")
+        == ".github/workflows/agent-deployment-test.yaml"
+    )
+    assert (
+        canonical_workflow_file("agent-deployment-test.yaml")
+        == ".github/workflows/agent-deployment-test.yaml"
+    )
 
 
 def test_normalize_workflow_path_strips_relative_prefix_only():
@@ -91,6 +120,22 @@ def test_request_surfaces_not_found_for_missing_run():
     except RuntimeError as exc:
         assert "Not Found" in str(exc)
         assert "actions/runs/999" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError")
+
+
+def test_request_surfaces_network_error_for_metadata_fetch():
+    client = GitHubActionsClient("red-hat-data-services/agentic-starter-kits")
+    client._session = MagicMock()
+    client._session.request.side_effect = requests.ConnectionError(
+        "HTTPSConnectionPool(host='api.github.com', port=443): Max retries exceeded"
+    )
+
+    try:
+        client.get_run(123)
+    except RuntimeError as exc:
+        assert "network error" in str(exc).lower()
+        assert "actions/runs/123" in str(exc)
     else:
         raise AssertionError("expected RuntimeError")
 

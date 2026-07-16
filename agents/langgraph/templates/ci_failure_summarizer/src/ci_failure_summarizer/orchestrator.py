@@ -52,6 +52,18 @@ class SummarizerOrchestrator:
                 f"Latest workflow run #{run.id} concluded with "
                 f"`{run.conclusion or run.status}`; no triage summary posted."
             )
+            self.incident_store.record_summary(
+                run_id=run.id,
+                summary_text=summary_text,
+                slack_posted=False,
+                logs_available=False,
+                incident_fingerprints=[],
+                metadata={
+                    "workflow_file": workflow_file,
+                    "slack_skipped_reason": "latest run did not fail",
+                    "run_conclusion": run.conclusion or run.status,
+                },
+            )
             return SummaryResult(
                 run_id=run.id,
                 run_url=run.html_url,

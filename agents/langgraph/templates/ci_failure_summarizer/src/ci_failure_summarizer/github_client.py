@@ -70,9 +70,20 @@ def _classify_log_fetch_error(response: requests.Response) -> str:
     return "Job logs unavailable"
 
 
+WORKFLOW_DIR = ".github/workflows"
+
+
 def normalize_workflow_path(path: str) -> str:
     """Normalize workflow file paths from GitHub API or config."""
     return path.removeprefix("./")
+
+
+def canonical_workflow_file(path: str) -> str:
+    """Return a repo-relative workflow file path suitable for matching and storage."""
+    normalized = normalize_workflow_path(path.strip())
+    if "/" in normalized:
+        return normalized
+    return f"{WORKFLOW_DIR}/{normalized}"
 
 
 def workflow_paths_match(expected_file: str, actual_path: str | None) -> bool:
@@ -115,9 +126,14 @@ class GitHubActionsClient:
         allow_statuses: frozenset[int] | None = None,
     ) -> requests.Response:
         url = f"{API_ROOT}{path}"
-        response = self._session.request(
-            method, url, params=params, timeout=30
-        )
+        try:
+            response = self._session.request(
+                method, url, params=params, timeout=30
+            )
+        except requests.RequestException as exc:
+            raise RuntimeError(
+                f"GitHub API network error while {method} {path}: {type(exc).__name__}"
+            ) from exc
         if allow_statuses and response.status_code in allow_statuses:
             return response
         if not response.ok:
@@ -136,13 +152,13 @@ class GitHubActionsClient:
         payload = self._request("GET", path, params={"per_page": 100}).json()
         for workflow in payload.get("workflows", []):
             if workflow.get("name") == workflow_name and workflow.get("path"):
-                return normalize_workflow_path(workflow["path"])
+                return canonical_workflow_file(workflow["path"])
         logger.warning(
             "Workflow %r not found via API; using fallback file %s",
             workflow_name,
             fallback_file,
         )
-        return fallback_file
+        return canonical_workflow_file(fallback_file)
 
     def get_run(self, run_id: int) -> WorkflowRun:
         path = f"/repos/{self.repository}/actions/runs/{run_id}"

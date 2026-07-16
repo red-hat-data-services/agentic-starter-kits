@@ -19,6 +19,14 @@ AGENT_URL="${AGENT_URL:-http://localhost:8000}"
 POST_TO_SLACK="${POST_TO_SLACK:-true}"
 RUN_ID="${RUN_ID:-}"
 
+case "$POST_TO_SLACK" in
+  true|false) ;;
+  *)
+    echo "ERROR: POST_TO_SLACK must be 'true' or 'false' (got: $POST_TO_SLACK)" >&2
+    exit 1
+    ;;
+esac
+
 payload='{"post_to_slack": '"$POST_TO_SLACK"'}'
 if [[ -n "$RUN_ID" ]]; then
   payload='{"run_id": '"$RUN_ID"', "post_to_slack": '"$POST_TO_SLACK"'}'
