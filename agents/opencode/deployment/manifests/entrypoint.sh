@@ -126,13 +126,20 @@ CONFIG=$(jq '
   )
 ' /config-template/config-template.json)
 
+# Register small model in provider model lists if different from primary
+if [ -n "${SMALL_MODEL_NAME:-}" ] && [ "$SMALL_MODEL_NAME" != "$MODEL_NAME" ]; then
+    CONFIG=$(echo "$CONFIG" | jq --arg sm "$SMALL_MODEL_NAME" '
+      .provider[].models[$sm] = {name: $sm}
+    ')
+fi
+
 # Merge MCP config if mounted
 if [ -f /mcp-config/mcp-servers.json ]; then
   MCP_SERVERS=$(cat /mcp-config/mcp-servers.json)
   CONFIG=$(echo "$CONFIG" | jq --argjson mcp "$MCP_SERVERS" '. + {mcp: $mcp}')
 fi
 
-unset API_KEY BASE_URL MODEL_NAME
+unset API_KEY BASE_URL MODEL_NAME SMALL_MODEL_NAME
 
 MODE="${OPENCODE_MODE:-web}"
 
