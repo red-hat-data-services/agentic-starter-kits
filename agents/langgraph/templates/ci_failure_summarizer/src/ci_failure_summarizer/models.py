@@ -17,6 +17,7 @@ class WorkflowRun:
     html_url: str
     created_at: str
     workflow_id: int | None = None
+    path: str | None = None
 
     @classmethod
     def from_api(cls, payload: dict[str, Any]) -> WorkflowRun:
@@ -30,6 +31,7 @@ class WorkflowRun:
             html_url=payload.get("html_url") or "",
             created_at=payload.get("created_at") or "",
             workflow_id=payload.get("workflow_id"),
+            path=payload.get("path"),
         )
 
 

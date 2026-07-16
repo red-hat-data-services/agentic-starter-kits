@@ -137,7 +137,7 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	    --set env.POSTGRES_DB="$${POSTGRES_DB}" \
 	    --set env.POSTGRES_USER="$${POSTGRES_USER}" \
 	    --set env.GITHUB_REPOSITORY="$${GITHUB_REPOSITORY}" \
-	    --set env.GITHUB_WORKFLOW="$${GITHUB_WORKFLOW}" \
+	    $${GITHUB_WORKFLOW:+--set env.GITHUB_WORKFLOW="$${GITHUB_WORKFLOW}"} \
 	    --set env.SLACK_WEBHOOK_URL="$${SLACK_WEBHOOK_URL}" \
 	    $${GITHUB_WORKFLOW_FILE:+--set env.GITHUB_WORKFLOW_FILE="$${GITHUB_WORKFLOW_FILE}"} \
 	    $${MLFLOW_TRACKING_URI:+--set env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
@@ -173,7 +173,7 @@ dry-run: _check-env ## Render Helm templates without deploying
 	    --set env.POSTGRES_DB="$${POSTGRES_DB}" \
 	    --set env.POSTGRES_USER="$${POSTGRES_USER}" \
 	    --set env.GITHUB_REPOSITORY="$${GITHUB_REPOSITORY}" \
-	    --set env.GITHUB_WORKFLOW="$${GITHUB_WORKFLOW}" \
+	    $${GITHUB_WORKFLOW:+--set env.GITHUB_WORKFLOW="$${GITHUB_WORKFLOW}"} \
 	    --set env.SLACK_WEBHOOK_URL="$${SLACK_WEBHOOK_URL}" \
 	    $${GITHUB_WORKFLOW_FILE:+--set env.GITHUB_WORKFLOW_FILE="$${GITHUB_WORKFLOW_FILE}"} \
 	    $${MLFLOW_TRACKING_URI:+--set env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \

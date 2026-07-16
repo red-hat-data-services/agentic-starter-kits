@@ -26,6 +26,15 @@ _REQUIRED_ENV = (
     "POSTGRES_DB",
     "POSTGRES_USER",
     "POSTGRES_PASSWORD",
+    "GITHUB_REPOSITORY",
+)
+
+# Optional agent env vars forwarded when present (secrets stay out of logs).
+_OPTIONAL_ENV = (
+    "GITHUB_WORKFLOW",
+    "GITHUB_WORKFLOW_FILE",
+    "GITHUB_TOKEN",
+    "SLACK_WEBHOOK_URL",
 )
 
 
@@ -48,17 +57,23 @@ def _write_env_file(agent_dir, container_image):
             "Set them in the CI workflow or export locally."
         )
     env_path = agent_dir / ".env"
-    env_path.write_text(
-        f"API_KEY={os.environ.get('API_KEY', 'not-needed')}\n"
-        f"BASE_URL={os.environ['BASE_URL']}\n"
-        f"MODEL_ID={os.environ['MODEL_ID']}\n"
-        f"CONTAINER_IMAGE={container_image}\n"
-        f"POSTGRES_HOST={os.environ['POSTGRES_HOST']}\n"
-        f"POSTGRES_PORT={os.environ['POSTGRES_PORT']}\n"
-        f"POSTGRES_DB={os.environ['POSTGRES_DB']}\n"
-        f"POSTGRES_USER={os.environ['POSTGRES_USER']}\n"
-        f"POSTGRES_PASSWORD={os.environ['POSTGRES_PASSWORD']}\n"
-    )
+    lines = [
+        f"API_KEY={os.environ.get('API_KEY', 'not-needed')}",
+        f"BASE_URL={os.environ['BASE_URL']}",
+        f"MODEL_ID={os.environ['MODEL_ID']}",
+        f"CONTAINER_IMAGE={container_image}",
+        f"POSTGRES_HOST={os.environ['POSTGRES_HOST']}",
+        f"POSTGRES_PORT={os.environ['POSTGRES_PORT']}",
+        f"POSTGRES_DB={os.environ['POSTGRES_DB']}",
+        f"POSTGRES_USER={os.environ['POSTGRES_USER']}",
+        f"POSTGRES_PASSWORD={os.environ['POSTGRES_PASSWORD']}",
+        f"GITHUB_REPOSITORY={os.environ['GITHUB_REPOSITORY']}",
+    ]
+    for var in _OPTIONAL_ENV:
+        value = os.environ.get(var)
+        if value:
+            lines.append(f"{var}={value}")
+    env_path.write_text("\n".join(lines) + "\n")
     return env_path
 
 

@@ -5,7 +5,10 @@ from __future__ import annotations
 import logging
 
 from ci_failure_summarizer.config import SummarizerConfig
-from ci_failure_summarizer.github_client import GitHubActionsClient
+from ci_failure_summarizer.github_client import (
+    GitHubActionsClient,
+    workflow_paths_match,
+)
 from ci_failure_summarizer.grouping import group_failures
 from ci_failure_summarizer.incident_store import IncidentStore
 from ci_failure_summarizer.models import SummaryResult, WorkflowRun
@@ -121,5 +124,12 @@ class SummarizerOrchestrator:
         run_id: int | None,
     ) -> WorkflowRun | None:
         if run_id is not None:
-            return self.github.get_run(run_id)
+            run = self.github.get_run(run_id)
+            if not workflow_paths_match(workflow_file, run.path):
+                raise ValueError(
+                    f"Run {run_id} is not from workflow "
+                    f"{self.config.workflow_name!r} ({workflow_file}); "
+                    f"got path {run.path!r}"
+                )
+            return run
         return self.github.get_latest_run(workflow_file)

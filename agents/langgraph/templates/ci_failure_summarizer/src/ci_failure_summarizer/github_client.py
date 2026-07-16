@@ -16,20 +16,47 @@ FAILED_CONCLUSIONS = frozenset({"failure", "cancelled", "timed_out"})
 LOG_EXCERPT_MAX_CHARS = 4000
 
 
-def _classify_log_fetch_error(response: requests.Response) -> str:
-    """Map GitHub log-download failures to actionable, less misleading messages."""
+def _extract_github_message(response: requests.Response) -> str:
     try:
         body = response.json()
-        message = (body.get("message") or "").strip()
+        return (body.get("message") or "").strip()
     except ValueError:
-        message = ""
+        return ""
 
+
+def _is_rate_limited(response: requests.Response, message: str) -> bool:
     remaining = response.headers.get("X-RateLimit-Remaining")
-    if remaining == "0" or "rate limit" in message.lower():
-        retry_after = response.headers.get("Retry-After")
-        if retry_after:
-            return f"GitHub API rate limit exceeded (retry after {retry_after}s)"
-        return "GitHub API rate limit exceeded"
+    return remaining == "0" or "rate limit" in message.lower()
+
+
+def _format_rate_limit_message(response: requests.Response) -> str:
+    retry_after = response.headers.get("Retry-After")
+    if retry_after:
+        return f"GitHub API rate limit exceeded (retry after {retry_after}s)"
+    return "GitHub API rate limit exceeded"
+
+
+def _classify_api_error(response: requests.Response, *, operation: str) -> str:
+    """Map GitHub metadata API failures to actionable messages."""
+    message = _extract_github_message(response)
+    if _is_rate_limited(response, message):
+        return f"{_format_rate_limit_message(response)} while {operation}"
+    if response.status_code == 404:
+        detail = message or "resource not found"
+        return f"GitHub {detail} while {operation}"
+    if message:
+        return (
+            f"GitHub API error ({response.status_code}) while {operation}: {message}"
+        )
+    return f"GitHub API request failed ({response.status_code}) while {operation}"
+
+
+def _classify_log_fetch_error(response: requests.Response) -> str:
+    """Map GitHub log-download failures to actionable, less misleading messages."""
+    message = _extract_github_message(response)
+
+    if _is_rate_limited(response, message):
+        return _format_rate_limit_message(response)
 
     if response.status_code == 404:
         return message or "Job logs not found"
@@ -41,6 +68,27 @@ def _classify_log_fetch_error(response: requests.Response) -> str:
         return "Job logs unavailable without repository admin access"
 
     return "Job logs unavailable"
+
+
+def normalize_workflow_path(path: str) -> str:
+    """Normalize workflow file paths from GitHub API or config."""
+    return path.removeprefix("./")
+
+
+def workflow_paths_match(expected_file: str, actual_path: str | None) -> bool:
+    """Return True when run/workflow paths refer to the same workflow file."""
+    if not actual_path:
+        return False
+    expected = normalize_workflow_path(expected_file)
+    actual = normalize_workflow_path(actual_path)
+    if expected == actual:
+        return True
+    return expected.rsplit("/", 1)[-1] == actual.rsplit("/", 1)[-1]
+
+
+def workflow_api_ref(workflow_file: str) -> str:
+    """Return the workflow file basename accepted by GitHub workflow endpoints."""
+    return workflow_file.rsplit("/", 1)[-1]
 
 
 class GitHubActionsClient:
@@ -72,7 +120,13 @@ class GitHubActionsClient:
         )
         if allow_statuses and response.status_code in allow_statuses:
             return response
-        response.raise_for_status()
+        if not response.ok:
+            raise RuntimeError(
+                _classify_api_error(
+                    response,
+                    operation=f"{method} {path}",
+                )
+            )
         return response
 
     def resolve_workflow_file(self, workflow_name: str, fallback_file: str) -> str:
@@ -82,7 +136,7 @@ class GitHubActionsClient:
         payload = self._request("GET", path, params={"per_page": 100}).json()
         for workflow in payload.get("workflows", []):
             if workflow.get("name") == workflow_name and workflow.get("path"):
-                return workflow["path"].lstrip("./")
+                return normalize_workflow_path(workflow["path"])
         logger.warning(
             "Workflow %r not found via API; using fallback file %s",
             workflow_name,
@@ -96,7 +150,8 @@ class GitHubActionsClient:
         return WorkflowRun.from_api(payload)
 
     def get_latest_run(self, workflow_file: str) -> WorkflowRun | None:
-        path = f"/repos/{self.repository}/actions/workflows/{workflow_file}/runs"
+        workflow_ref = workflow_api_ref(workflow_file)
+        path = f"/repos/{self.repository}/actions/workflows/{workflow_ref}/runs"
         payload = self._request("GET", path, params={"per_page": 1}).json()
         runs = payload.get("workflow_runs") or []
         if not runs:
@@ -117,15 +172,13 @@ class GitHubActionsClient:
                 path,
                 allow_statuses=frozenset({403, 404}),
             )
-        except requests.HTTPError as exc:
-            status = exc.response.status_code if exc.response is not None else None
+        except requests.RequestException as exc:
             return LogFetchResult(
                 job_id=job_id,
                 available=False,
-                status_code=status,
                 error=str(exc),
             )
-        except requests.RequestException as exc:
+        except RuntimeError as exc:
             return LogFetchResult(
                 job_id=job_id,
                 available=False,

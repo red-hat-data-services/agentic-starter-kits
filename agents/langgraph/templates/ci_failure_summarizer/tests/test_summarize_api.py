@@ -168,3 +168,16 @@ class TestSummarizeRoute:
 
         assert response.status_code == 502
         assert "No workflow runs found" in response.json()["detail"]
+
+    def test_summarize_maps_run_mismatch_to_400(self, summarize_client):
+        with patch(
+            "main.SummarizerOrchestrator.run",
+            side_effect=ValueError("Run 999 is not from workflow"),
+        ):
+            response = summarize_client.post(
+                "/summarize",
+                json={"run_id": 999, "post_to_slack": False},
+            )
+
+        assert response.status_code == 400
+        assert "Run 999 is not from workflow" in response.json()["detail"]

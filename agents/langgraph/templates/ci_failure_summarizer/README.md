@@ -392,11 +392,11 @@ Focused spike tests (no live GitHub, Slack, or PostgreSQL required):
 
 | Test file | Covers |
 | --- | --- |
-| `test_github_client.py` | Workflow/job parsing; 403 log-download degradation |
+| `test_github_client.py` | Workflow path resolution, metadata error surfacing, job parsing, log degradation |
 | `test_grouping.py` | Deterministic fingerprinting and grouping |
 | `test_summary_composer.py` | LLM fallback and metadata-only summary formatting |
 | `test_slack_notifier.py` | Slack Block Kit payload composition |
-| `test_orchestrator.py` | End-to-end orchestration when Slack delivery fails |
+| `test_orchestrator.py` | End-to-end orchestration, explicit `run_id` workflow validation |
 | `test_incident_store.py` | Incident upsert and summary history persistence (mocked DB) |
 | `test_summarize_api.py` | `/summarize` request models and route behavior |
 
@@ -479,7 +479,7 @@ curl -X POST http://localhost:8000/summarize \
 
 Optional body fields:
 
-- `run_id` — target a specific workflow run (defaults to latest QG4 run)
+- `run_id` — target a specific workflow run (defaults to latest QG4 run); must belong to the configured `GITHUB_WORKFLOW` / workflow file
 - `post_to_slack` — set `false` to skip Slack webhook delivery
 
 ## Architecture

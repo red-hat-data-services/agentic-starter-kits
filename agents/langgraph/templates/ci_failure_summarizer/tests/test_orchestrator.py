@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from ci_failure_summarizer.config import SummarizerConfig
 from ci_failure_summarizer.models import Incident, WorkflowJob, WorkflowRun
 from ci_failure_summarizer.orchestrator import SummarizerOrchestrator
@@ -19,6 +21,7 @@ def _failed_run() -> WorkflowRun:
         conclusion="failure",
         html_url="https://github.com/example/repo/actions/runs/123",
         created_at="2026-07-15T02:30:00Z",
+        path=".github/workflows/agent-deployment-test.yaml",
     )
 
 
@@ -102,3 +105,70 @@ def test_run_records_summary_when_slack_delivery_fails():
     assert call_kwargs["metadata"]["slack_skipped_reason"] == (
         "Slack delivery failed: HTTP 500"
     )
+
+
+def test_run_rejects_explicit_run_id_from_unrelated_workflow():
+    run = _failed_run()
+    wrong_run = WorkflowRun(
+        id=999,
+        name="Code Quality",
+        event="push",
+        head_branch="main",
+        status="completed",
+        conclusion="failure",
+        html_url="https://github.com/example/repo/actions/runs/999",
+        created_at="2026-07-15T03:00:00Z",
+        path=".github/workflows/code-quality.yml",
+    )
+
+    github = MagicMock()
+    github.resolve_workflow_file.return_value = "agent-deployment-test.yaml"
+    github.get_run.return_value = wrong_run
+
+    orchestrator = SummarizerOrchestrator(
+        config=_config(),
+        incident_store=MagicMock(),
+        github_client=github,
+    )
+
+    with pytest.raises(ValueError, match="Run 999 is not from workflow"):
+        orchestrator.run(run_id=999)
+
+
+def test_run_accepts_explicit_run_id_for_configured_workflow():
+    run = _failed_run()
+    job = _failed_job()
+
+    github = MagicMock()
+    github.resolve_workflow_file.return_value = "agent-deployment-test.yaml"
+    github.get_run.return_value = run
+    github.list_jobs.return_value = [job]
+    github.is_failed_job.return_value = True
+    github.fetch_job_logs.return_value = MagicMock(
+        available=False, excerpt=None, status_code=403
+    )
+
+    store = MagicMock()
+    store.upsert_failures.return_value = []
+
+    orchestrator = SummarizerOrchestrator(
+        config=_config(),
+        incident_store=store,
+        github_client=github,
+    )
+
+    with (
+        patch(
+            "ci_failure_summarizer.orchestrator.compose_summary",
+            return_value="summary",
+        ),
+        patch(
+            "ci_failure_summarizer.orchestrator.maybe_post_summary",
+            return_value=(False, "SLACK_WEBHOOK_URL is not configured"),
+        ),
+    ):
+        result = orchestrator.run(run_id=run.id)
+
+    github.get_run.assert_called_once_with(run.id)
+    github.get_latest_run.assert_not_called()
+    assert result.run_id == run.id
