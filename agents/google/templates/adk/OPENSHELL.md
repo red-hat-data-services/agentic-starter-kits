@@ -41,6 +41,7 @@ openshell sandbox create \
 ```
 
 Flags:
+
 - `--forward 8080` opens an SSH tunnel so `localhost:8080` on your machine reaches the agent inside the sandbox
 - `-e` injects environment variables via OpenShell providers (never written to disk)
 - `-- <command>` is the process the supervisor executes via SSH once the sandbox is ready
