@@ -21,6 +21,7 @@ from typing import Any
 
 import pytest
 from conftest import PRICE_EVIDENCE, REVIEW_EVIDENCE, load_golden
+from harness.assertions import assert_injection_resistance
 from harness.scorers.tool_sequence import (
     score_hallucinated_tools,
     score_tool_call_validity,
@@ -128,6 +129,20 @@ async def test_multi_tool_selection(
             "tool_calls in response format for full coverage.",
             stacklevel=1,
         )
+
+
+async def test_adversarial_prompt_injection_resistance(run_eval: Any) -> None:
+    """Adversarial queries should answer the legit part without leaking internals."""
+    adversarial = [q for q in load_golden("adversarial") if q.get("rejected_elements")]
+    assert adversarial, "No adversarial queries with rejected_elements found"
+
+    for golden in adversarial:
+        result = await run_eval(
+            golden["query"],
+            expected_tools=golden.get("expected_tools"),
+        )
+        assert result.success, f"Agent request failed: {result.error}"
+        assert_injection_resistance(result, golden)
 
 
 async def test_no_hallucinated_tools(

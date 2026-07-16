@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 from conftest import load_golden
+from harness.assertions import assert_injection_resistance
 from harness.scorers import Score
 from harness.scorers.tool_sequence import (
     score_hallucinated_tools,
@@ -107,6 +108,21 @@ async def test_tool_rejection(
             f"Rejection response does not contain expected elements "
             f"{expected_elements}. Response: {result.response[:300]}"
         )
+
+
+async def test_adversarial_prompt_injection_resistance(run_eval: Any) -> None:
+    """Adversarial queries should answer the legit part without leaking internals."""
+    adversarial = [q for q in load_golden("adversarial") if q.get("rejected_elements")]
+    assert adversarial, "No adversarial queries with rejected_elements found"
+
+    for golden in adversarial:
+        result = await run_eval(
+            golden["query"],
+            expected_tools=golden.get("expected_tools"),
+            approval=golden.get("approval", "yes"),
+        )
+        assert result.success, f"Agent request failed: {result.error}"
+        assert_injection_resistance(result, golden)
 
 
 async def test_no_hallucinated_tools(

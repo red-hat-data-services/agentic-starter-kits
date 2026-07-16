@@ -47,6 +47,7 @@ _PII_PATTERNS = {
     "github_token": re.compile(
         r"\b(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{16,}\b"
     ),
+    "slack_token": re.compile(r"\bxox[bpasre]-[a-zA-Z0-9_-]{10,}\b"),
     "bearer_token": re.compile(r"(?i)bearer\s+[a-zA-Z0-9_\-.]{20,}"),
     "private_key": re.compile(
         r"-----BEGIN\s+(?:RSA|EC|DSA|OPENSSH)?\s*PRIVATE\s+KEY-----"
