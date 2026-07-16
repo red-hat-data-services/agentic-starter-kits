@@ -10,22 +10,32 @@
 
 ## What this agent does
 
-LangGraph agent scaffold for a lightweight daily QG4 CI failure summarizer spike. It inherits the standard FastAPI
-agent contract (`POST /chat/completions`, `GET /health`) and PostgreSQL-backed persistence from the DB-memory template.
-Task 2 will add GitHub Actions ingest, deterministic failure grouping, LLM summarization, and Slack posting.
+Lightweight **spike** for a daily QG4 CI failure summarizer. It keeps the standard FastAPI contract
+(`POST /chat/completions`, `GET /health`) from the DB-memory template and adds a manual summarization trigger
+(`POST /summarize`).
 
-Key features (planned for the spike):
+**Spike scope (implemented):**
 
-- **QG4 workflow targeting** -- configured via `GITHUB_REPOSITORY` and `GITHUB_WORKFLOW`
-- **Slack triage summaries** -- posted through an incoming webhook (`SLACK_WEBHOOK_URL`)
-- **PostgreSQL persistence** -- reuse LangGraph checkpoint storage for grouped incidents and prior summary attempts
-- **Standard deployment flow** -- same Makefile/Helm pattern as other LangGraph template agents
+- **QG4 workflow targeting** — ingest the latest (or specified) run from `GITHUB_REPOSITORY` / `GITHUB_WORKFLOW`
+- **Deterministic grouping** — fingerprint failures by workflow, job, step, branch, event, and QG label (outside the LLM)
+- **PostgreSQL incident store** — dedicated `ci_incidents` and `ci_summary_history` tables (separate from LangGraph chat checkpoints)
+- **LLM or metadata-only summary** — triage text via configured model endpoint, with fallback when logs or LLM are unavailable
+- **Slack triage post** — top-level incoming webhook message with workflow links and grouped failure context
+- **Manual trigger only** — `POST /summarize`, `examples/trigger_summary.py`, or `examples/trigger_daily_summary_after_qg4.sh`
 
-Current scaffold status:
+**Explicitly out of scope for this spike:**
 
-- Package and deployment metadata renamed to `ci_failure_summarizer`
-- Spike env vars prepared in `.env.example`, `agent.yaml`, and `values.yaml`
-- GitHub ingest / grouping / Slack logic not yet implemented (Task 2)
+- No Slack thread replies or per-job threaded follow-ups
+- No Jira write-back or ticket creation
+- No automated remediation execution
+- No built-in scheduler or CronJob (trigger manually after QG4 completes)
+- No auth on `/summarize` (same open pattern as other template agents)
+
+**Known limitations:**
+
+- GitHub ingest is **unauthenticated by default**. Public workflow metadata (runs, jobs, steps) works without a token.
+- Job log download often returns **HTTP 403** without repository admin access or `GITHUB_TOKEN`. The summarizer degrades gracefully to metadata-only triage.
+- Slack delivery is a single top-level message, not a thread under an existing alert.
 
 ---
 
@@ -64,13 +74,49 @@ make env
 
 In addition to the standard LLM and PostgreSQL settings, configure GitHub and Slack targets in `.env`:
 
-| Variable | Purpose |
-| --- | --- |
-| `GITHUB_REPOSITORY` | `owner/repo` for the public repository to monitor |
-| `GITHUB_WORKFLOW` | Workflow display name (default: `QG4: Agent Deployment Integration Tests`) |
-| `SLACK_WEBHOOK_URL` | Incoming webhook URL for daily triage summaries |
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `GITHUB_REPOSITORY` | yes | `owner/repo` for the public repository to monitor (default: `red-hat-data-services/agentic-starter-kits`) |
+| `GITHUB_WORKFLOW` | yes | Workflow display name (default: `QG4: Agent Deployment Integration Tests`) |
+| `SLACK_WEBHOOK_URL` | yes* | Incoming webhook URL for triage summaries (*omit or leave empty to dry-run without posting) |
+| `GITHUB_TOKEN` | no | Optional PAT for authenticated job log download when admin access is available |
+| `GITHUB_WORKFLOW_FILE` | no | Fallback workflow file if name resolution fails (default: `agent-deployment-test.yaml`) |
 
-These variables are declared in `agent.yaml` and `values.yaml` for deployment; ingest and posting logic arrives in Task 2.
+These variables are declared in `agent.yaml` and `values.yaml` for Helm deployment.
+
+### Manual daily summary trigger
+
+After QG4 completes (scheduled ~11 PM EDT or via `workflow_dispatch`), trigger a summary manually:
+
+**HTTP (agent running locally or on OpenShift):**
+
+```bash
+# Dry-run: build summary without Slack
+curl -X POST http://localhost:8000/summarize \
+  -H 'Content-Type: application/json' \
+  -d '{"post_to_slack": false}'
+
+# Target a specific workflow run
+curl -X POST http://localhost:8000/summarize \
+  -H 'Content-Type: application/json' \
+  -d '{"run_id": 123456789, "post_to_slack": true}'
+```
+
+**Python script (no HTTP server required):**
+
+```bash
+cd agents/langgraph/templates/ci_failure_summarizer
+uv run python examples/trigger_summary.py --no-slack
+```
+
+**Shell helper (post-QG4 example):**
+
+```bash
+chmod +x examples/trigger_daily_summary_after_qg4.sh
+AGENT_URL=https://<route-host> POST_TO_SLACK=false ./examples/trigger_daily_summary_after_qg4.sh
+```
+
+Response fields include `summary_text`, grouped `failures` (with fingerprints and occurrence counts), `slack_posted`, and `logs_available`.
 
 ### Tracing (optional)
 
@@ -205,6 +251,25 @@ displayed inline with colored output. Your `thread_id` is shown at startup so yo
 
 ## Deploying to OpenShift
 
+### ci-testing deployment notes
+
+QG4 agent deployment tests run in the **`ci-testing`** namespace on the demo OpenShift cluster. To exercise this spike against real QG4 failures:
+
+1. Deploy the summarizer to the same cluster (or locally with network access to GitHub and your model endpoint).
+2. Point `GITHUB_REPOSITORY` at `red-hat-data-services/agentic-starter-kits` and keep the default `GITHUB_WORKFLOW`.
+3. Configure `SLACK_WEBHOOK_URL` with a test-channel webhook for spike validation.
+4. Reuse the shared PostgreSQL service used by other DB-memory agents (`POSTGRES_*` from cluster vars) or provision a dedicated database.
+5. After the nightly QG4 workflow finishes, call `POST /summarize` on the deployed route:
+
+```bash
+ROUTE="$(oc -n ci-testing get route langgraph-ci-failure-summarizer-agent -o jsonpath='{.spec.host}')"
+curl -X POST "https://${ROUTE}/summarize" \
+  -H 'Content-Type: application/json' \
+  -d '{"post_to_slack": false}'
+```
+
+This spike does not register itself in the QG4 matrix yet; deploy and trigger manually for validation.
+
 ### Setup
 
 ```bash
@@ -323,8 +388,22 @@ See [OpenShift Deployment](../../../docs/openshift-deployment.md) for more detai
 
 ### Unit tests
 
+Focused spike tests (no live GitHub, Slack, or PostgreSQL required):
+
+| Test file | Covers |
+| --- | --- |
+| `test_github_client.py` | Workflow/job parsing; 403 log-download degradation |
+| `test_grouping.py` | Deterministic fingerprinting and grouping |
+| `test_summary_composer.py` | LLM fallback and metadata-only summary formatting |
+| `test_slack_notifier.py` | Slack Block Kit payload composition |
+| `test_orchestrator.py` | End-to-end orchestration when Slack delivery fails |
+| `test_incident_store.py` | Incident upsert and summary history persistence (mocked DB) |
+| `test_summarize_api.py` | `/summarize` request models and route behavior |
+
 ```bash
 make test
+# or without make:
+uv run --extra dev python -m pytest tests/ --ignore=tests/integration --ignore=tests/behavioral -q
 ```
 
 ### Behavioral tests
@@ -388,40 +467,43 @@ is saved). When provided, messages are stored in PostgreSQL and retrieved on sub
 curl http://localhost:8000/health
 ```
 
+### POST /summarize
+
+Manual CI failure summarization trigger (spike-specific):
+
+```bash
+curl -X POST http://localhost:8000/summarize \
+  -H 'Content-Type: application/json' \
+  -d '{"post_to_slack": false}'
+```
+
+Optional body fields:
+
+- `run_id` — target a specific workflow run (defaults to latest QG4 run)
+- `post_to_slack` — set `false` to skip Slack webhook delivery
+
 ## Architecture
 
-This agent combines three key components:
+This agent has two paths:
 
-1. **LangGraph ReACT Agent** -- reasoning and action loop with tool calling
-2. **PostgresSaver Checkpointer** -- persistent conversation memory in PostgreSQL
-3. **ChatOpenAI** -- OpenAI-compatible LLM client (connects to OGX or any OpenAI-compatible endpoint)
+### Chat completions (standard template)
+
+1. **LangGraph ReACT Agent** — reasoning and action loop with tool calling
+2. **PostgresSaver Checkpointer** — persistent conversation memory in PostgreSQL
+3. **ChatOpenAI** — OpenAI-compatible LLM client
+
+### CI summarization (spike)
 
 ```text
-User Input --> LangGraph Agent --> ChatOpenAI --> LLM (Ollama/OpenAI)
-                   |                               |
-            PostgreSQL <-- PostgresSaver <-- Messages & State
+POST /summarize
+    --> GitHubActionsClient (public metadata; logs degrade on 403)
+    --> grouping.py (deterministic fingerprints)
+    --> IncidentStore (ci_incidents + ci_summary_history)
+    --> summary_composer.py (LLM or metadata-only fallback)
+    --> slack_notifier.py (incoming webhook, top-level post only)
 ```
 
-**Message Flow:**
-
-1. User sends message with optional `thread_id`
-2. Agent loads conversation history from PostgreSQL (if thread exists)
-3. FIFO trimmer keeps only the last 5 messages for the LLM context window
-4. Agent processes with ReACT loop (reason, act, observe)
-5. New messages saved to PostgreSQL
-6. Response returned to user
-
-**Customization:**
-
-Edit `src/ci_failure_summarizer/agent.py`:
-
-```python
-# Change context window size (default: 5 messages)
-max_messages_in_context = 10  # Keep last 10 messages
-
-# Change default system prompt
-default_system_prompt = "You are a specialized assistant..."
-```
+**Chat customization:** edit `src/ci_failure_summarizer/agent.py` for context window size and default system prompt.
 
 ### Inspecting Conversation History
 
