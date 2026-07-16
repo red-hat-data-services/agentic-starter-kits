@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from os import getenv
 
 QG4_WORKFLOW_FILE = "agent-deployment-test.yaml"
@@ -49,3 +49,7 @@ class SummarizerConfig:
                 or QG4_WORKFLOW_FILE
             ),
         )
+
+    def without_slack_posting(self) -> SummarizerConfig:
+        """Return a copy that skips Slack webhook delivery (dry-run / no-post mode)."""
+        return replace(self, slack_webhook_url=None)

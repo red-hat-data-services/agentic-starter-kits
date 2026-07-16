@@ -9,4 +9,8 @@ env:
   POSTGRES_USER: ""
   GITHUB_REPOSITORY: ""
   GITHUB_WORKFLOW: ""
+  GITHUB_WORKFLOW_FILE: ""
   SLACK_WEBHOOK_URL: ""
+
+extraSecrets: {}
+  # Optional sensitive env vars (e.g. GITHUB_TOKEN) injected from the Helm secret.

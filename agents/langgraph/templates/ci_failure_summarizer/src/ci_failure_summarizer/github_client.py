@@ -16,6 +16,33 @@ FAILED_CONCLUSIONS = frozenset({"failure", "cancelled", "timed_out"})
 LOG_EXCERPT_MAX_CHARS = 4000
 
 
+def _classify_log_fetch_error(response: requests.Response) -> str:
+    """Map GitHub log-download failures to actionable, less misleading messages."""
+    try:
+        body = response.json()
+        message = (body.get("message") or "").strip()
+    except ValueError:
+        message = ""
+
+    remaining = response.headers.get("X-RateLimit-Remaining")
+    if remaining == "0" or "rate limit" in message.lower():
+        retry_after = response.headers.get("Retry-After")
+        if retry_after:
+            return f"GitHub API rate limit exceeded (retry after {retry_after}s)"
+        return "GitHub API rate limit exceeded"
+
+    if response.status_code == 404:
+        return message or "Job logs not found"
+
+    if message:
+        return message
+
+    if response.status_code == 403:
+        return "Job logs unavailable without repository admin access"
+
+    return "Job logs unavailable"
+
+
 class GitHubActionsClient:
     """Fetch public GitHub Actions metadata; degrade when logs require auth."""
 
@@ -51,6 +78,7 @@ class GitHubActionsClient:
     def resolve_workflow_file(self, workflow_name: str, fallback_file: str) -> str:
         """Resolve workflow file path by display name, falling back to known QG4 file."""
         path = f"/repos/{self.repository}/actions/workflows"
+        # Spike assumption: repository has <=100 workflows; no Link pagination yet.
         payload = self._request("GET", path, params={"per_page": 100}).json()
         for workflow in payload.get("workflows", []):
             if workflow.get("name") == workflow_name and workflow.get("path"):
@@ -77,6 +105,7 @@ class GitHubActionsClient:
 
     def list_jobs(self, run_id: int, *, per_page: int = 100) -> list[WorkflowJob]:
         path = f"/repos/{self.repository}/actions/runs/{run_id}/jobs"
+        # Spike assumption: QG4 runs have <=100 jobs; no Link pagination yet.
         payload = self._request("GET", path, params={"per_page": per_page}).json()
         return [WorkflowJob.from_api(job) for job in payload.get("jobs") or []]
 
@@ -104,12 +133,7 @@ class GitHubActionsClient:
             )
 
         if response.status_code in {403, 404}:
-            message = "Job logs unavailable without repository admin access"
-            try:
-                body = response.json()
-                message = body.get("message", message)
-            except ValueError:
-                pass
+            message = _classify_log_fetch_error(response)
             logger.info(
                 "Job %s logs unavailable (HTTP %s): %s",
                 job_id,

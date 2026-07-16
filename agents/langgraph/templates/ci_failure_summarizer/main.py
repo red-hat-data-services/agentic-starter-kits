@@ -596,17 +596,7 @@ async def summarize(request: SummarizeRequest):
     try:
         config = SummarizerConfig.from_env()
         if not request.post_to_slack:
-            config = SummarizerConfig(
-                repository=config.repository,
-                workflow_name=config.workflow_name,
-                slack_webhook_url=None,
-                github_token=config.github_token,
-                model_id=config.model_id,
-                base_url=config.base_url,
-                api_key=config.api_key,
-                workflow_file=config.workflow_file,
-                dashboard_url=config.dashboard_url,
-            )
+            config = config.without_slack_posting()
         orchestrator = SummarizerOrchestrator(
             config=config,
             incident_store=incident_store,

@@ -123,6 +123,7 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	  umask 077 && \
 	  { printf 'secrets:\n  apiKey: "%s"\n  postgresPassword: "%s"\n' "$${API_KEY}" "$${POSTGRES_PASSWORD}"; \
 	    [ -z "$${MLFLOW_TRACKING_TOKEN}" ] || printf '  mlflowTrackingToken: "%s"\n' "$${MLFLOW_TRACKING_TOKEN}"; \
+	    if [ -n "$${GITHUB_TOKEN}" ]; then printf 'extraSecrets:\n  GITHUB_TOKEN: "%s"\n' "$${GITHUB_TOKEN}"; fi; \
 	  } > .helm-secrets.yaml && \
 	  helm upgrade --install $(AGENT_NAME) $(CHART_DIR) \
 	    -f $(VALUES_FILE) \
@@ -138,6 +139,7 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	    --set env.GITHUB_REPOSITORY="$${GITHUB_REPOSITORY}" \
 	    --set env.GITHUB_WORKFLOW="$${GITHUB_WORKFLOW}" \
 	    --set env.SLACK_WEBHOOK_URL="$${SLACK_WEBHOOK_URL}" \
+	    $${GITHUB_WORKFLOW_FILE:+--set env.GITHUB_WORKFLOW_FILE="$${GITHUB_WORKFLOW_FILE}"} \
 	    $${MLFLOW_TRACKING_URI:+--set env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
 	    $${MLFLOW_EXPERIMENT_NAME:+--set env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
 	    $${MLFLOW_TRACKING_INSECURE_TLS:+--set env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
@@ -173,8 +175,10 @@ dry-run: _check-env ## Render Helm templates without deploying
 	    --set env.GITHUB_REPOSITORY="$${GITHUB_REPOSITORY}" \
 	    --set env.GITHUB_WORKFLOW="$${GITHUB_WORKFLOW}" \
 	    --set env.SLACK_WEBHOOK_URL="$${SLACK_WEBHOOK_URL}" \
+	    $${GITHUB_WORKFLOW_FILE:+--set env.GITHUB_WORKFLOW_FILE="$${GITHUB_WORKFLOW_FILE}"} \
 	    $${MLFLOW_TRACKING_URI:+--set env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
 	    $${MLFLOW_TRACKING_TOKEN:+--set secrets.mlflowTrackingToken="REDACTED"} \
+	    $${GITHUB_TOKEN:+--set extraSecrets.GITHUB_TOKEN="REDACTED"} \
 	    $${MLFLOW_EXPERIMENT_NAME:+--set env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
 	    $${MLFLOW_TRACKING_INSECURE_TLS:+--set env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
 	    $${MLFLOW_WORKSPACE:+--set env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"}

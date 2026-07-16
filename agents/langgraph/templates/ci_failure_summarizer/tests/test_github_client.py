@@ -16,6 +16,7 @@ def test_fetch_job_logs_degrades_on_403():
     client = GitHubActionsClient("red-hat-data-services/agentic-starter-kits")
     response = MagicMock()
     response.status_code = 403
+    response.headers = {}
     response.json.return_value = {
         "message": "Must have admin rights to Repository."
     }
@@ -26,6 +27,27 @@ def test_fetch_job_logs_degrades_on_403():
     assert result.available is False
     assert result.status_code == 403
     assert "admin rights" in (result.error or "")
+
+
+def test_fetch_job_logs_reports_rate_limit_on_403():
+    client = GitHubActionsClient("red-hat-data-services/agentic-starter-kits")
+    response = MagicMock()
+    response.status_code = 403
+    response.headers = {
+        "X-RateLimit-Remaining": "0",
+        "Retry-After": "42",
+    }
+    response.json.return_value = {
+        "message": "API rate limit exceeded for user"
+    }
+    client._request = MagicMock(return_value=response)  # type: ignore[method-assign]
+
+    result = client.fetch_job_logs(222)
+
+    assert result.available is False
+    assert result.status_code == 403
+    assert "rate limit" in (result.error or "").lower()
+    assert "42" in (result.error or "")
 
 
 def test_fetch_job_logs_returns_excerpt_on_success():

@@ -77,8 +77,8 @@ In addition to the standard LLM and PostgreSQL settings, configure GitHub and Sl
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `GITHUB_REPOSITORY` | yes | `owner/repo` for the public repository to monitor (default: `red-hat-data-services/agentic-starter-kits`) |
-| `GITHUB_WORKFLOW` | yes | Workflow display name (default: `QG4: Agent Deployment Integration Tests`) |
-| `SLACK_WEBHOOK_URL` | yes* | Incoming webhook URL for triage summaries (*omit or leave empty to dry-run without posting) |
+| `GITHUB_WORKFLOW` | no | Workflow display name (default: `QG4: Agent Deployment Integration Tests`) |
+| `SLACK_WEBHOOK_URL` | no | Incoming webhook URL for triage summaries (omit or leave empty to dry-run without posting) |
 | `GITHUB_TOKEN` | no | Optional PAT for authenticated job log download when admin access is available |
 | `GITHUB_WORKFLOW_FILE` | no | Fallback workflow file if name resolution fails (default: `agent-deployment-test.yaml`) |
 
