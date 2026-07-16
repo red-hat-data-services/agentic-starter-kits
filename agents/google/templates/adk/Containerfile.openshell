@@ -12,7 +12,7 @@
 #     -e API_KEY=<key> -e BASE_URL=<url> -e MODEL_ID=<model> \
 #     -- uvicorn main:app --host 0.0.0.0 --port 8080
 
-FROM registry.access.redhat.com/ubi9/python-312:latest
+FROM registry.access.redhat.com/ubi9/python-312@sha256:e95978812895b9abb2bdc109b501078da2a47c8dbb9fa23758af40ed50ab6023
 
 USER 0
 
