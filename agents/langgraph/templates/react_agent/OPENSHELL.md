@@ -18,10 +18,12 @@ cd agents/langgraph/templates/react_agent
 # Copy repo-level assets into build context
 cp -r ../../../../images ./images
 mkdir -p ./components && cp -r ../../../../components/auth ./components/auth
-trap 'rm -rf ./images ./components' EXIT
 
 podman build --platform linux/amd64 -t quay.io/<your-org>/langgraph-sandbox:latest -f Containerfile.openshell .
 podman push quay.io/<your-org>/langgraph-sandbox:latest
+
+# Clean up build context
+rm -rf ./images ./components
 ```
 
 Ensure the quay.io repository is public so the cluster can pull without imagePullSecrets.

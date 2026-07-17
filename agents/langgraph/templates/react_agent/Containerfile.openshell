@@ -29,6 +29,8 @@ COPY --from=ghcr.io/astral-sh/uv@sha256:fc93e9ecd7218e9ec8fba117af89348eef8fd246
 RUN install -d -o 1001 -g 0 -m 775 /sandbox
 WORKDIR /sandbox
 
+USER 1001
+
 # Install the auth component first (resolves the path dependency issue),
 # then install the main package with tracing extra.
 COPY --chown=1001:0 components/auth/ ./components/auth/
@@ -46,8 +48,6 @@ RUN sed -i '/^\[tool\.uv\.sources\]/,/^\[/{/agent-auth/d}' pyproject.toml && \
 COPY --chown=1001:0 main.py .
 COPY --chown=1001:0 playground/ ./playground/
 COPY --chown=1001:0 images/ ./images/
-
-USER 1001
 
 ENV PORT=8080 \
     PYTHONPATH=/sandbox \
