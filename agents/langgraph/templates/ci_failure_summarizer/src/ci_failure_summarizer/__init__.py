@@ -1,3 +1,2 @@
-from .tools import dummy_web_search
-
-TOOLS = [dummy_web_search]
+# Chat scaffold from the DB-memory template; CI summarization uses /summarize, not tools.
+TOOLS: list = []

@@ -584,7 +584,13 @@ def _summary_to_response(result: SummaryResult) -> SummarizeResponse:
     "/summarize",
     response_model=SummarizeResponse,
     summary="Trigger CI failure summarization",
-    description="Manually ingest the latest (or specified) QG4 workflow run, group failures, persist incidents, compose a triage summary, and optionally post to Slack.",
+    description=(
+        "Manually ingest the latest (or specified) QG4 workflow run, group failures, "
+        "persist incidents, compose a triage summary, and optionally post to Slack. "
+        "Spike posture: unauthenticated endpoint intended for manual/operator triggers "
+        "(curl, example scripts, or cluster CronJob you wire up); not hardened for "
+        "untrusted public exposure."
+    ),
     tags=["Summarize"],
 )
 async def summarize(request: SummarizeRequest):

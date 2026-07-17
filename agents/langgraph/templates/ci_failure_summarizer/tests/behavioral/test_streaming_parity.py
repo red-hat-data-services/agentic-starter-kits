@@ -27,14 +27,14 @@ async def test_streaming_parity_content(agent_url: str, http_client: Any) -> Non
     config_sync = TaskConfig(
         agent_url=agent_url,
         query=_PARITY_QUERY,
-        expected_tools=["search"],
+        expected_tools=[],
         timeout_seconds=30.0,
         stream=False,
     )
     config_stream = TaskConfig(
         agent_url=agent_url,
         query=_PARITY_QUERY,
-        expected_tools=["search"],
+        expected_tools=[],
         timeout_seconds=30.0,
         stream=True,
     )
@@ -64,14 +64,14 @@ async def test_streaming_parity_tool_calls(agent_url: str, http_client: Any) -> 
     config_sync = TaskConfig(
         agent_url=agent_url,
         query=_PARITY_QUERY,
-        expected_tools=["search"],
+        expected_tools=[],
         timeout_seconds=30.0,
         stream=False,
     )
     config_stream = TaskConfig(
         agent_url=agent_url,
         query=_PARITY_QUERY,
-        expected_tools=["search"],
+        expected_tools=[],
         timeout_seconds=30.0,
         stream=True,
     )

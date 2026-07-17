@@ -1,20 +1,20 @@
 # Golden queries for agentic tool-use benchmark.
-# Scaffold inherits the template search tool; queries validate baseline tool-use behavior.
+# Chat scaffold has no tools; queries validate LLM-only responses (no tool calls).
 queries:
   - query: "What is the current weather in New York City?"
-    expected_tools: ["search"]
+    expected_tools: []
     expected_elements: ["weather", "New York"]
 
   - query: "Find recent news about artificial intelligence regulation in the EU"
-    expected_tools: ["search"]
+    expected_tools: []
     expected_elements: ["AI", "regulation", "EU"]
 
   - query: "What are the latest developments in quantum computing?"
-    expected_tools: ["search"]
+    expected_tools: []
     expected_elements: ["quantum", "computing"]
 
   - query: "Search for the population of Tokyo and compare it to New York"
-    expected_tools: ["search", "search"]
+    expected_tools: []
     expected_elements: ["Tokyo", "New York", "population"]
 
   - query: "Hello, how are you today?"

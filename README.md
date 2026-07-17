@@ -19,6 +19,7 @@ Agents are organized by framework. Pick one and follow its README:
 | **LangGraph** | [ReAct Agent](./agents/langgraph/templates/react_agent/) | General-purpose agent using a ReAct loop: it reasons and calls tools (e.g. search, math) step by step. Built with LangGraph and LangChain. |
 | **LangGraph** | [Agentic RAG](./agents/langgraph/templates/agentic_rag/) | RAG agent that indexes documents in a vector store (Milvus) and retrieves relevant chunks to augment the LLM's answers with your own data. |
 | **LangGraph** | [ReAct + DB Memory](./agents/langgraph/templates/react_with_database_memory/) | ReAct agent with PostgreSQL-backed conversation memory. Full chat history is persisted in the database while a FIFO sliding window keeps only the last N messages in the LLM context. |
+| **LangGraph** | [CI Failure Summarizer](./agents/langgraph/templates/ci_failure_summarizer/) | Spike agent that ingests QG4 GitHub Actions failures, groups incidents in PostgreSQL, composes triage summaries, and posts to Slack via manual `POST /summarize` trigger. |
 | **LangGraph** | [Human-in-the-Loop](./agents/langgraph/templates/human_in_the_loop/) | ReAct agent with a human approval step. The agent pauses before executing tool calls and waits for user confirmation, enabling oversight of critical actions. |
 | **LlamaIndex** | [WebSearch Agent](./agents/llamaindex/templates/websearch_agent/) | Agent built on LlamaIndex that uses a web search tool to query the internet and use the results in its answers. |
 | **CrewAI** | [WebSearch Agent](./agents/crewai/templates/websearch_agent/) | CrewAI-based agent with a web search tool to query the internet and answer user questions. |
@@ -60,6 +61,7 @@ agentic-starter-kits/
 │   │   │   ├── react_agent/
 │   │   │   ├── agentic_rag/
 │   │   │   ├── react_with_database_memory/
+│   │   │   ├── ci_failure_summarizer/
 │   │   │   └── human_in_the_loop/
 │   │   ├── examples/                    # Business use-case demos
 │   │   └── deployment/                  # Helm chart for this framework
@@ -104,6 +106,7 @@ Tests require a running agent. Set the target URL via environment variables:
 | `CREWAI_WEBSEARCH_AGENT_URL` | CrewAI Websearch agent tests |
 | `AGENTIC_RAG_AGENT_URL` | LangGraph Agentic RAG agent tests |
 | `DB_MEMORY_AGENT_URL` | LangGraph DB Memory agent tests |
+| `CI_FAILURE_SUMMARIZER_AGENT_URL` | LangGraph CI Failure Summarizer agent tests |
 | `LLAMAINDEX_WEBSEARCH_AGENT_URL` | LlamaIndex Websearch agent tests |
 | `LANGFLOW_TOOL_CALLING_AGENT_URL` | Langflow Simple Tool Calling agent tests |
 | `LANGFLOW_FLOW_ID` | Langflow flow ID (changes on re-import) |

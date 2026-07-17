@@ -48,7 +48,12 @@ CREATE TABLE IF NOT EXISTS ci_summary_history (
 
 
 class IncidentStore:
-    """Dedicated incident persistence separate from LangGraph checkpoints."""
+    """Dedicated incident persistence separate from LangGraph checkpoints.
+
+    Spike trade-off: each public method opens a fresh psycopg connection via
+    ``_connection()`` rather than pooling. Fine for manual /summarize triggers;
+    production would want a shared pool or context-managed lifecycle.
+    """
 
     def __init__(self, db_uri: str) -> None:
         self.db_uri = db_uri

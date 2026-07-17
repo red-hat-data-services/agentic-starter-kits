@@ -31,6 +31,8 @@ Lightweight **spike** for a daily QG4 CI failure summarizer. It keeps the standa
 - No built-in scheduler or CronJob (trigger manually after QG4 completes)
 - No auth on `/summarize` (same open pattern as other template agents)
 
+**Spike operational posture:** `/summarize` is **unauthenticated** and **manual-trigger only** — call it after QG4 completes (see examples below). There is no built-in scheduler, API key gate, or production hardening; treat the route as operator-only on a trusted network.
+
 **Known limitations:**
 
 - GitHub ingest is **unauthenticated by default**. Public workflow metadata (runs, jobs, steps) works without a token.
@@ -470,7 +472,7 @@ curl http://localhost:8000/health
 
 ### POST /summarize
 
-Manual CI failure summarization trigger (spike-specific):
+Manual CI failure summarization trigger (spike-specific). **Unauthenticated** — intended for operator/cron triggers on a trusted network, not public exposure.
 
 ```bash
 curl -X POST http://localhost:8000/summarize \
@@ -489,17 +491,17 @@ This agent has two paths:
 
 ### Chat completions (standard template)
 
-1. **LangGraph ReACT Agent** — reasoning and action loop with tool calling
+1. **LangGraph ReACT Agent** — reasoning loop inherited from the DB-memory scaffold (no chat tools in this spike)
 2. **PostgresSaver Checkpointer** — persistent conversation memory in PostgreSQL
 3. **ChatOpenAI** — OpenAI-compatible LLM client
 
 ### CI summarization (spike)
 
 ```text
-POST /summarize
+POST /summarize  (manual, unauthenticated — operator/cron trigger only)
     --> GitHubActionsClient (public metadata; logs degrade on 403)
     --> grouping.py (deterministic fingerprints)
-    --> IncidentStore (ci_incidents + ci_summary_history)
+    --> IncidentStore (ci_incidents + ci_summary_history; connection-per-call spike trade-off)
     --> summary_composer.py (LLM or metadata-only fallback)
     --> slack_notifier.py (incoming webhook, top-level post only)
 ```

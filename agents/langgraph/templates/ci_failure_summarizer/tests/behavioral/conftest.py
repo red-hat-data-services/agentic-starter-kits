@@ -77,8 +77,8 @@ def eval_config() -> dict[str, Any]:
 
 @pytest.fixture
 def known_tools() -> list[str]:
-    """Tools available on the LangGraph CI Failure Summarizer scaffold."""
-    return ["search"]
+    """Tools available on the LangGraph CI Failure Summarizer chat scaffold."""
+    return []
 
 
 @pytest.fixture
