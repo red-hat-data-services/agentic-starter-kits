@@ -20,6 +20,10 @@ _GENERIC_WRAPPER_RE = re.compile(
     r"pytest\.fail\(|ERROR tests/|Process completed with exit code|During handling of the above exception",
     re.IGNORECASE,
 )
+_ROUTE_SERVER_NOT_FOUND_RE = re.compile(
+    r'routes\.route\.openshift\.io\s+"[^"]+"\s+not found',
+    re.IGNORECASE,
+)
 
 
 def _truncate_excerpt(text: str) -> str | None:
@@ -87,7 +91,7 @@ def _score_error_marker(marker: str) -> tuple[int, int]:
         score -= 100
     if "container_image" in lower:
         score += 120
-    if "routenotfounderror" in lower or "routes.route.openshift.io" in lower:
+    if "routenotfounderror" in lower or _ROUTE_SERVER_NOT_FOUND_RE.search(marker):
         score += 120
     if "error from server" in lower:
         score += 30

@@ -181,3 +181,15 @@ class TestSummarizeRoute:
 
         assert response.status_code == 400
         assert "Run 999 is not from workflow" in response.json()["detail"]
+
+    def test_images_route_rejects_path_traversal(self, summarize_client, tmp_path):
+        import main
+
+        images_dir = tmp_path / "images"
+        images_dir.mkdir()
+        (tmp_path / "secret.txt").write_text("secret")
+
+        with patch.object(main, "_IMAGES_DIR", images_dir):
+            response = summarize_client.get("/images/../secret.txt")
+
+        assert response.status_code == 404

@@ -35,6 +35,7 @@ from langchain_core.messages import (
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from pydantic import BaseModel, Field
+from werkzeug.utils import safe_join
 
 logger = logging.getLogger(__name__)
 
@@ -639,11 +640,10 @@ async def playground():
 async def serve_image(filename: str):
     """Serve images from the project-level images directory."""
     base = _IMAGES_DIR.resolve()
-    file_path = (base / filename).resolve()
-    try:
-        file_path.relative_to(base)
-    except ValueError:
+    safe_path = safe_join(str(base), filename)
+    if safe_path is None:
         raise HTTPException(status_code=404, detail="Image not found")
+    file_path = Path(safe_path).resolve()
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(file_path)

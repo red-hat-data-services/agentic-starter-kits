@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import requests
+from ci_failure_summarizer.failure_evidence import select_best_error_marker
 from ci_failure_summarizer.github_client import (
     GitHubActionsClient,
     canonical_workflow_file,
@@ -226,6 +227,16 @@ def test_fetch_job_logs_prefers_failed_step_section_over_cleanup_tail():
     assert "Process completed with exit code 2" in (result.excerpt or "")
     assert "Removing SSH command configuration" not in (result.excerpt or "")
     assert "Removing includeIf entries" not in (result.excerpt or "")
+
+
+def test_select_best_error_marker_prefers_specific_route_not_found_marker():
+    wrapper = "E Failed: Pre-deployed agent route not found"
+    route_marker = (
+        'E oc stderr: Error from server (NotFound): routes.route.openshift.io '
+        '"langflow-simple-tool-calling-agent" not found'
+    )
+
+    assert select_best_error_marker([wrapper, route_marker]) == route_marker
 
 
 def test_list_jobs_parses_fixture_payload():
