@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 import requests
-
 from ci_failure_summarizer.failure_evidence import extract_relevant_log_excerpt
 from ci_failure_summarizer.models import LogFetchResult, WorkflowJob, WorkflowRun
 

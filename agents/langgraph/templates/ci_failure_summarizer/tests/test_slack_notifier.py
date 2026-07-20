@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import requests
-
 from ci_failure_summarizer.grouping import group_failures
 from ci_failure_summarizer.models import WorkflowJob, WorkflowRun
 from ci_failure_summarizer.slack_notifier import (

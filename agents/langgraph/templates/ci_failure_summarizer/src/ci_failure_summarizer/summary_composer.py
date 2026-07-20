@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import re
 
-from ci_failure_summarizer.failure_evidence import resolve_failure_evidence, select_best_error_marker
+from ci_failure_summarizer.failure_evidence import (
+    resolve_failure_evidence,
+    select_best_error_marker,
+)
 from ci_failure_summarizer.models import FailureRecord, Incident, WorkflowRun
 
 _ROUTE_NOT_FOUND_RE = re.compile(

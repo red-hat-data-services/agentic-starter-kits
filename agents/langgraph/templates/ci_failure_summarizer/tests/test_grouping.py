@@ -12,7 +12,12 @@ from ci_failure_summarizer.grouping import (
     group_failures,
     infer_failure_area,
 )
-from ci_failure_summarizer.models import FailureEvidence, LogFetchResult, WorkflowJob, WorkflowRun
+from ci_failure_summarizer.models import (
+    FailureEvidence,
+    LogFetchResult,
+    WorkflowJob,
+    WorkflowRun,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

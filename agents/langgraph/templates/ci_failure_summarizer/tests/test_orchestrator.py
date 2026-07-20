@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from ci_failure_summarizer.config import SummarizerConfig
 from ci_failure_summarizer.models import Incident, WorkflowJob, WorkflowRun
 from ci_failure_summarizer.orchestrator import SummarizerOrchestrator
@@ -173,7 +172,6 @@ def test_run_records_failure_evidence_in_summary_metadata():
 
 
 def test_run_rejects_explicit_run_id_from_unrelated_workflow():
-    run = _failed_run()
     wrong_run = WorkflowRun(
         id=999,
         name="Code Quality",

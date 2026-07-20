@@ -9,10 +9,9 @@ from datetime import UTC, datetime
 from typing import Any, Iterator
 
 import psycopg
-from psycopg.rows import dict_row
-
 from ci_failure_summarizer.failure_evidence import evidence_to_metadata
 from ci_failure_summarizer.models import FailureRecord, Incident
+from psycopg.rows import dict_row
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +168,10 @@ class IncidentStore:
                 },
             ).fetchone()
             conn.commit()
+            if row is None:
+                raise RuntimeError(
+                    "Failed to record summary history row for CI summarizer run"
+                )
             return int(row["id"])
 
     def get_incident(self, fingerprint: str) -> Incident | None:

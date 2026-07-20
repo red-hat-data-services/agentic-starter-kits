@@ -82,7 +82,7 @@ run-app-fresh: ## Kill existing process on port and run agent with hot-reload
 
 run-cli: ## Run interactive CLI chat (no web server)
 	@source .venv/bin/activate && set -a && source .env && set +a && \
-	  cd examples && uv run $${MLFLOW_TRACKING_URI:+--extra tracing} python execute_ai_service_locally.py
+	  uv run $${MLFLOW_TRACKING_URI:+--extra tracing} python -m examples.execute_ai_service_locally
 
 build: ## Build container image locally (podman/docker)
 	@[ -n "$(CONTAINER_CLI)" ] || { echo "ERROR: neither podman nor docker found in PATH"; exit 1; } && \

@@ -261,6 +261,8 @@ make run-cli
 
 This launches an interactive prompt where you can pick predefined questions or type your own. Tool calls and results are
 displayed inline with colored output. Your `thread_id` is shown at startup so you can resume conversations later.
+The CLI now runs as a package module (`python -m examples.execute_ai_service_locally`) so local example imports stay
+type-checkable.
 
 ## Deploying to OpenShift
 

@@ -1,13 +1,13 @@
 from os import getenv
 from typing import Any, Callable
 
+from ci_failure_summarizer import TOOLS
 from langchain.agents import create_agent
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
-from ci_failure_summarizer import TOOLS
 
 
 class FIFOMessageTrimmer(AgentMiddleware):

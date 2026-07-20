@@ -1,5 +1,7 @@
 from typing import Generator
 
+from ci_failure_summarizer.agent import get_graph_closure
+from ci_failure_summarizer.utils import get_database_uri
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -7,8 +9,6 @@ from langchain_core.messages import (
     SystemMessage,
 )
 from langgraph.checkpoint.postgres import PostgresSaver
-from ci_failure_summarizer.agent import get_graph_closure
-from ci_failure_summarizer.utils import get_database_uri
 
 
 def ai_stream_service(

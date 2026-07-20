@@ -7,7 +7,6 @@ import re
 from typing import Any
 
 import requests
-
 from ci_failure_summarizer.models import FailureRecord, WorkflowRun
 
 logger = logging.getLogger(__name__)

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from ci_failure_summarizer.models import Incident, WorkflowRun
-from ci_failure_summarizer.summary_composer import compose_summary
 from ci_failure_summarizer.grouping import group_failures
-from ci_failure_summarizer.models import WorkflowJob
+from ci_failure_summarizer.models import Incident, WorkflowJob, WorkflowRun
+from ci_failure_summarizer.summary_composer import compose_summary
 
 
 def test_compose_fallback_summary_notes_missing_logs():

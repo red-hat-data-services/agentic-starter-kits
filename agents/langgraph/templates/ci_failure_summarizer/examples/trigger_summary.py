@@ -5,14 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
-
-from dotenv import load_dotenv
 
 from ci_failure_summarizer.config import SummarizerConfig
 from ci_failure_summarizer.incident_store import IncidentStore
 from ci_failure_summarizer.orchestrator import SummarizerOrchestrator
 from ci_failure_summarizer.utils import get_database_uri
+from dotenv import load_dotenv
 
 
 def build_parser() -> argparse.ArgumentParser:

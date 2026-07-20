@@ -7,7 +7,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import requests
-
 from ci_failure_summarizer.github_client import (
     GitHubActionsClient,
     canonical_workflow_file,

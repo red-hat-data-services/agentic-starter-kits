@@ -3,10 +3,10 @@ Query PostgreSQL checkpoint database to inspect stored conversation messages.
 Set thread_id below and run the script.
 """
 
+from ci_failure_summarizer.utils import get_database_uri
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.postgres import PostgresSaver
-from ci_failure_summarizer.utils import get_database_uri
 
 load_dotenv()
 
