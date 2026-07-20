@@ -25,10 +25,7 @@ def compose_summary(
     incidents: list[Incident],
 ) -> str:
     if not failures:
-        return (
-            f"No failed jobs found for workflow run #{run.id} "
-            f"({run.html_url})."
-        )
+        return f"No failed jobs found for workflow run #{run.id} ({run.html_url})."
     incident_by_fp = {incident.fingerprint: incident for incident in incidents}
     lines = [
         f"*CI Triage Summary* — {run.name}",
@@ -82,13 +79,18 @@ def _classify_failure(
     excerpt = evidence.excerpt if evidence else ""
     haystack = "\n".join(markers + ([excerpt] if excerpt else []))
     evidence_line = select_best_error_marker(markers) or (
-        _first_meaningful_line(excerpt) or "No deterministic evidence markers extracted."
+        _first_meaningful_line(excerpt)
+        or "No deterministic evidence markers extracted."
     )
     source = _source_label(failure, evidence)
 
     route_match = _ROUTE_NOT_FOUND_RE.search(haystack)
     if route_match:
-        route_name = route_match.group("route") or route_match.group("route2") or failure.job_name
+        route_name = (
+            route_match.group("route")
+            or route_match.group("route2")
+            or failure.job_name
+        )
         return {
             "cause": "The pre-deployed agent route was missing, so the integration test could not resolve the expected endpoint.",
             "evidence": f"{source}: {evidence_line}",

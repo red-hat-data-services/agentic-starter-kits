@@ -145,9 +145,7 @@ def test_fetch_job_logs_degrades_on_403():
     response = MagicMock()
     response.status_code = 403
     response.headers = {}
-    response.json.return_value = {
-        "message": "Must have admin rights to Repository."
-    }
+    response.json.return_value = {"message": "Must have admin rights to Repository."}
     client._request = MagicMock(return_value=response)  # type: ignore[method-assign]
 
     result = client.fetch_job_logs(222)
@@ -165,9 +163,7 @@ def test_fetch_job_logs_reports_rate_limit_on_403():
         "X-RateLimit-Remaining": "0",
         "Retry-After": "42",
     }
-    response.json.return_value = {
-        "message": "API rate limit exceeded for user"
-    }
+    response.json.return_value = {"message": "API rate limit exceeded for user"}
     client._request = MagicMock(return_value=response)  # type: ignore[method-assign]
 
     result = client.fetch_job_logs(222)
@@ -200,14 +196,14 @@ def test_fetch_job_logs_prefers_failed_step_section_over_cleanup_tail():
     response.text = "\n".join(
         [
             "2026-07-20T04:19:20.4451275Z ##[group]Run oc login \\",
-            '2026-07-20T04:19:20.4451819Z oc login --token=\"$OC_TOKEN\"',
+            '2026-07-20T04:19:20.4451819Z oc login --token="$OC_TOKEN"',
             "2026-07-20T04:19:20.4452455Z oc login --namespace=ci-testing",
             "2026-07-20T04:19:20.4535385Z env:",
             "2026-07-20T04:19:20.4535806Z   API_KEY: not_needed",
             "2026-07-20T04:19:20.4536805Z   MODEL_ID: qwen2-5-7b-instruct",
             "2026-07-20T04:19:24.5216230Z >           raise RouteNotFoundError(agent_name, stderr=result.stderr.strip())",
             "2026-07-20T04:19:24.5217171Z E           integration.utils.RouteNotFoundError: No route found for langflow-simple-tool-calling-agent",
-            '2026-07-20T04:19:24.5217971Z E           oc stderr: Error from server (NotFound): routes.route.openshift.io \"langflow-simple-tool-calling-agent\" not found',
+            '2026-07-20T04:19:24.5217971Z E           oc stderr: Error from server (NotFound): routes.route.openshift.io "langflow-simple-tool-calling-agent" not found',
             "2026-07-20T04:19:24.5225846Z tests/integration/conftest.py:33: Failed",
             "2026-07-20T04:19:24.5655062Z ##[error]Process completed with exit code 2.",
             "2026-07-20T04:19:24.5725669Z ##[group]Run actions/upload-artifact@v4",
@@ -232,7 +228,7 @@ def test_fetch_job_logs_prefers_failed_step_section_over_cleanup_tail():
 def test_select_best_error_marker_prefers_specific_route_not_found_marker():
     wrapper = "E Failed: Pre-deployed agent route not found"
     route_marker = (
-        'E oc stderr: Error from server (NotFound): routes.route.openshift.io '
+        "E oc stderr: Error from server (NotFound): routes.route.openshift.io "
         '"langflow-simple-tool-calling-agent" not found'
     )
 

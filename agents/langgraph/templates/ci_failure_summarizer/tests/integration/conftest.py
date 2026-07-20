@@ -64,6 +64,7 @@ def _write_env_file(agent_dir, container_image):
             "Set them in the CI workflow or export locally."
         )
     env_path = agent_dir / ".env"
+
     def shell_assign(name: str, value: str) -> str:
         return f"{name}={shlex.quote(value)}"
 

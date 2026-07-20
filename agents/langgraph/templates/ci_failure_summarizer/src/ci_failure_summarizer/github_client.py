@@ -44,9 +44,7 @@ def _classify_api_error(response: requests.Response, *, operation: str) -> str:
         detail = message or "resource not found"
         return f"GitHub {detail} while {operation}"
     if message:
-        return (
-            f"GitHub API error ({response.status_code}) while {operation}: {message}"
-        )
+        return f"GitHub API error ({response.status_code}) while {operation}: {message}"
     return f"GitHub API request failed ({response.status_code}) while {operation}"
 
 
@@ -126,9 +124,7 @@ class GitHubActionsClient:
     ) -> requests.Response:
         url = f"{API_ROOT}{path}"
         try:
-            response = self._session.request(
-                method, url, params=params, timeout=30
-            )
+            response = self._session.request(method, url, params=params, timeout=30)
         except requests.RequestException as exc:
             raise RuntimeError(
                 f"GitHub API network error while {method} {path}: {type(exc).__name__}"
@@ -236,9 +232,7 @@ class GitHubActionsClient:
     @staticmethod
     def failed_step_name(job: WorkflowJob) -> str | None:
         failed_steps = [
-            step.name
-            for step in job.steps
-            if step.conclusion in FAILED_CONCLUSIONS
+            step.name for step in job.steps if step.conclusion in FAILED_CONCLUSIONS
         ]
         if failed_steps:
             return failed_steps[-1]

@@ -129,7 +129,9 @@ def build_evidence_signature(
     fallback_excerpt: str | None = None,
 ) -> str | None:
     payload_parts = markers or ([fallback_excerpt] if fallback_excerpt else [])
-    normalized = [part.strip().lower() for part in payload_parts if part and part.strip()]
+    normalized = [
+        part.strip().lower() for part in payload_parts if part and part.strip()
+    ]
     if not normalized:
         return None
     return sha256("|".join(normalized).encode("utf-8")).hexdigest()[:16]
@@ -170,7 +172,9 @@ def evidence_from_metadata(metadata: dict[str, Any] | None) -> FailureEvidence |
     excerpt = str(metadata.get("evidence_excerpt") or "").strip()
     markers = tuple(
         marker
-        for marker in (str(value).strip() for value in metadata.get("evidence_markers") or [])
+        for marker in (
+            str(value).strip() for value in metadata.get("evidence_markers") or []
+        )
         if marker
     )
     signature = metadata.get("evidence_signature")
@@ -184,7 +188,9 @@ def evidence_from_metadata(metadata: dict[str, Any] | None) -> FailureEvidence |
         source=source,
         excerpt=excerpt,
         markers=markers,
-        signature=str(signature) if signature else build_evidence_signature(list(markers), fallback_excerpt=excerpt),
+        signature=str(signature)
+        if signature
+        else build_evidence_signature(list(markers), fallback_excerpt=excerpt),
         run_id=run_id,
     )
 
@@ -199,9 +205,13 @@ def merge_failure_evidence(
         return primary
     excerpt = primary.excerpt or fallback.excerpt
     markers = primary.markers or fallback.markers
-    signature = primary.signature or fallback.signature or build_evidence_signature(
-        list(markers),
-        fallback_excerpt=excerpt,
+    signature = (
+        primary.signature
+        or fallback.signature
+        or build_evidence_signature(
+            list(markers),
+            fallback_excerpt=excerpt,
+        )
     )
     return FailureEvidence(
         source=primary.source or fallback.source,

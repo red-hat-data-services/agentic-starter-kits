@@ -25,10 +25,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 def _load_fixture() -> tuple[WorkflowRun, list[WorkflowJob]]:
     payload = json.loads((FIXTURES / "github_failure_run.json").read_text())
     run = WorkflowRun.from_api(payload["workflow_runs"][0])
-    jobs = [
-        WorkflowJob.from_api(job)
-        for job in payload["jobs"][str(run.id)]["jobs"]
-    ]
+    jobs = [WorkflowJob.from_api(job) for job in payload["jobs"][str(run.id)]["jobs"]]
     return run, jobs
 
 
@@ -37,7 +34,10 @@ def test_extract_qg_label_from_workflow_name():
 
 
 def test_infer_failure_area_for_health_check():
-    assert infer_failure_area("test-agent (langgraph-react-agent)", "Health check") == "health-check"
+    assert (
+        infer_failure_area("test-agent (langgraph-react-agent)", "Health check")
+        == "health-check"
+    )
 
 
 def test_build_fingerprint_is_stable():

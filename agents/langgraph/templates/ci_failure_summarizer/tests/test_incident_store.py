@@ -192,18 +192,23 @@ def test_upsert_failures_persists_typed_failure_evidence():
 
     failure = _sample_failure()
     failure = FailureRecord(
-        **{**failure.__dict__, "evidence": FailureEvidence(
-            source="github_job_log",
-            excerpt="ERROR: health check failed",
-            markers=("ERROR: health check failed",),
-            signature="sig-123",
-            run_id=123456789,
-        )}
+        **{
+            **failure.__dict__,
+            "evidence": FailureEvidence(
+                source="github_job_log",
+                excerpt="ERROR: health check failed",
+                markers=("ERROR: health check failed",),
+                signature="sig-123",
+                run_id=123456789,
+            ),
+        }
     )
 
     with patch.object(store, "_connection", fake_connection):
         store.upsert_failures([failure])
 
     execute_kwargs = mock_conn.execute.call_args.args[1]
-    assert '"evidence_excerpt": "ERROR: health check failed"' in execute_kwargs["metadata"]
+    assert (
+        '"evidence_excerpt": "ERROR: health check failed"' in execute_kwargs["metadata"]
+    )
     assert '"evidence_signature": "sig-123"' in execute_kwargs["metadata"]

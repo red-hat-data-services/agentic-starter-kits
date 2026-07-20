@@ -237,5 +237,8 @@ def test_compose_fallback_summary_renders_missing_env_var_recommendation():
     assert "`CONTAINER_IMAGE`" in summary
     assert "`CONTAINER_IMAGE_CREW`" in summary
     assert "`CONTAINER_IMAGE_LANGGRAPH`" in summary
-    assert "ERROR: Set CONTAINER_IMAGE or both CONTAINER_IMAGE_CREW and CONTAINER_IMAGE_LANGGRAPH in .env" in summary
+    assert (
+        "ERROR: Set CONTAINER_IMAGE or both CONTAINER_IMAGE_CREW and CONTAINER_IMAGE_LANGGRAPH in .env"
+        in summary
+    )
     assert 'pytest.fail(f"Deployment failed: {exc}")' not in summary
