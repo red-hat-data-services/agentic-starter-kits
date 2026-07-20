@@ -188,12 +188,6 @@ class GitHubActionsClient:
                 path,
                 allow_statuses=frozenset({403, 404}),
             )
-        except requests.RequestException as exc:
-            return LogFetchResult(
-                job_id=job_id,
-                available=False,
-                error=str(exc),
-            )
         except RuntimeError as exc:
             return LogFetchResult(
                 job_id=job_id,

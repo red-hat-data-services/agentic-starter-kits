@@ -4,6 +4,21 @@ CHART_DIR      := ../../deployment
 VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
+HELM_ENV_SET   = --set image.repository="$${IMAGE_REPO}" \
+	--set image.tag="$${IMAGE_TAG}" \
+	--set env.BASE_URL="$${BASE_URL}" \
+	--set env.MODEL_ID="$${MODEL_ID}" \
+	--set env.POSTGRES_HOST="$${POSTGRES_HOST}" \
+	--set env.POSTGRES_PORT="$${POSTGRES_PORT}" \
+	--set env.POSTGRES_DB="$${POSTGRES_DB}" \
+	--set env.POSTGRES_USER="$${POSTGRES_USER}" \
+	--set env.GITHUB_REPOSITORY="$${GITHUB_REPOSITORY}" \
+	$${GITHUB_WORKFLOW:+--set env.GITHUB_WORKFLOW="$${GITHUB_WORKFLOW}"} \
+	$${GITHUB_WORKFLOW_FILE:+--set env.GITHUB_WORKFLOW_FILE="$${GITHUB_WORKFLOW_FILE}"} \
+	$${MLFLOW_TRACKING_URI:+--set env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
+	$${MLFLOW_EXPERIMENT_NAME:+--set env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
+	$${MLFLOW_TRACKING_INSECURE_TLS:+--set env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
+	$${MLFLOW_WORKSPACE:+--set env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"}
 
 .PHONY: init re-init env ollama ogx-server run-app run-app-fresh run-cli build push build-openshift deploy undeploy test test-integration dry-run help
 
@@ -132,21 +147,7 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	  helm upgrade --install $(AGENT_NAME) $(CHART_DIR) \
 	    -f $(VALUES_FILE) \
 	    -f .helm-secrets.yaml \
-	    --set image.repository="$${IMAGE_REPO}" \
-	    --set image.tag="$${IMAGE_TAG}" \
-	    --set env.BASE_URL="$${BASE_URL}" \
-	    --set env.MODEL_ID="$${MODEL_ID}" \
-	    --set env.POSTGRES_HOST="$${POSTGRES_HOST}" \
-	    --set env.POSTGRES_PORT="$${POSTGRES_PORT}" \
-	    --set env.POSTGRES_DB="$${POSTGRES_DB}" \
-	    --set env.POSTGRES_USER="$${POSTGRES_USER}" \
-	    --set env.GITHUB_REPOSITORY="$${GITHUB_REPOSITORY}" \
-	    $${GITHUB_WORKFLOW:+--set env.GITHUB_WORKFLOW="$${GITHUB_WORKFLOW}"} \
-	    $${GITHUB_WORKFLOW_FILE:+--set env.GITHUB_WORKFLOW_FILE="$${GITHUB_WORKFLOW_FILE}"} \
-	    $${MLFLOW_TRACKING_URI:+--set env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
-	    $${MLFLOW_EXPERIMENT_NAME:+--set env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
-	    $${MLFLOW_TRACKING_INSECURE_TLS:+--set env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
-	    $${MLFLOW_WORKSPACE:+--set env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"} && \
+	    $(HELM_ENV_SET) && \
 	  if command -v oc >/dev/null 2>&1; then \
 	    echo "" && echo "Waiting for rollout to complete..." && \
 	    if oc rollout status deployment/$(AGENT_NAME) --timeout=120s; then \
@@ -167,24 +168,10 @@ dry-run: _check-env ## Render Helm templates without deploying
 	    -f $(VALUES_FILE) \
 	    --set secrets.apiKey="REDACTED" \
 	    --set secrets.postgresPassword="REDACTED" \
-	    --set image.repository="$${IMAGE_REPO}" \
-	    --set image.tag="$${IMAGE_TAG}" \
-	    --set env.BASE_URL="$${BASE_URL}" \
-	    --set env.MODEL_ID="$${MODEL_ID}" \
-	    --set env.POSTGRES_HOST="$${POSTGRES_HOST}" \
-	    --set env.POSTGRES_PORT="$${POSTGRES_PORT}" \
-	    --set env.POSTGRES_DB="$${POSTGRES_DB}" \
-	    --set env.POSTGRES_USER="$${POSTGRES_USER}" \
-	    --set env.GITHUB_REPOSITORY="$${GITHUB_REPOSITORY}" \
-	    $${GITHUB_WORKFLOW:+--set env.GITHUB_WORKFLOW="$${GITHUB_WORKFLOW}"} \
-	    $${GITHUB_WORKFLOW_FILE:+--set env.GITHUB_WORKFLOW_FILE="$${GITHUB_WORKFLOW_FILE}"} \
-	    $${MLFLOW_TRACKING_URI:+--set env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
+	    $(HELM_ENV_SET) \
 	    $${MLFLOW_TRACKING_TOKEN:+--set secrets.mlflowTrackingToken="REDACTED"} \
 	    $${GITHUB_TOKEN:+--set extraSecrets.GITHUB_TOKEN="REDACTED"} \
 	    $${SLACK_WEBHOOK_URL:+--set extraSecrets.SLACK_WEBHOOK_URL="REDACTED"} \
-	    $${MLFLOW_EXPERIMENT_NAME:+--set env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
-	    $${MLFLOW_TRACKING_INSECURE_TLS:+--set env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
-	    $${MLFLOW_WORKSPACE:+--set env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"}
 
 undeploy: ## Remove deployment from cluster
 	helm uninstall $(AGENT_NAME)

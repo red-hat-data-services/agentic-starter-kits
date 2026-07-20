@@ -1,6 +1,8 @@
 import uuid
 from os import getenv
 
+from ci_failure_summarizer.config import normalize_base_url
+
 from ._interactive_chat import InteractiveChat
 from .ai_service import ai_stream_service
 
@@ -30,9 +32,7 @@ base_url = getenv("BASE_URL")
 model_id = getenv("MODEL_ID")
 api_key = getenv("API_KEY")
 
-# Ensure base_url ends with /v1 if provided
-if base_url and not base_url.endswith("/v1"):
-    base_url = base_url.rstrip("/") + "/v1"
+base_url = normalize_base_url(base_url)
 
 context = SimpleContext()
 ai_service_resp_func = ai_stream_service(

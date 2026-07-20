@@ -182,6 +182,28 @@ class IncidentStore:
             ).fetchone()
         return self._row_to_incident(row) if row else None
 
+    def get_latest_summary_for_run(self, run_id: int) -> dict[str, Any] | None:
+        with self._connection() as conn:
+            row = conn.execute(
+                """
+                SELECT slack_posted, metadata
+                FROM ci_summary_history
+                WHERE run_id = %s
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """,
+                (run_id,),
+            ).fetchone()
+        if not row:
+            return None
+        metadata = row.get("metadata") or {}
+        if isinstance(metadata, str):
+            metadata = json.loads(metadata)
+        return {
+            "slack_posted": bool(row.get("slack_posted")),
+            "metadata": metadata,
+        }
+
     @staticmethod
     def _row_to_incident(row: dict[str, Any]) -> Incident:
         metadata = row.get("metadata") or {}

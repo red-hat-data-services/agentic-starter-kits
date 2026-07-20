@@ -16,10 +16,20 @@ spec:
       template:
         spec:
           restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: trigger
               image: image-registry.openshift-image-registry.svc:5000/ci-testing/langgraph-ci-failure-summarizer-agent:latest
               imagePullPolicy: Always
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
               command:
                 - python
                 - -c

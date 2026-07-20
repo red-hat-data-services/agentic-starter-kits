@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
@@ -190,18 +191,15 @@ def test_upsert_failures_persists_typed_failure_evidence():
     def fake_connection():
         yield mock_conn
 
-    failure = _sample_failure()
-    failure = FailureRecord(
-        **{
-            **failure.__dict__,
-            "evidence": FailureEvidence(
-                source="github_job_log",
-                excerpt="ERROR: health check failed",
-                markers=("ERROR: health check failed",),
-                signature="sig-123",
-                run_id=123456789,
-            ),
-        }
+    failure = dataclasses.replace(
+        _sample_failure(),
+        evidence=FailureEvidence(
+            source="github_job_log",
+            excerpt="ERROR: health check failed",
+            markers=("ERROR: health check failed",),
+            signature="sig-123",
+            run_id=123456789,
+        ),
     )
 
     with patch.object(store, "_connection", fake_connection):

@@ -12,9 +12,6 @@ class InteractiveChat:
         verbose: bool = True,
     ) -> None:
         self.ai_service_invoke = ai_service_invoke
-        self._ordered_list = lambda seq_: "\n".join(
-            f"\t{i}) {k}" for i, k in enumerate(seq_, 1)
-        )
         self._delta_start = False
         self.verbose = verbose
         self.stream = stream
@@ -24,13 +21,8 @@ class InteractiveChat:
         The following commands are supported:
           --> help | h : prints this help message
           --> quit | q : exits the prompt and ends the program
-          --> list_questions : prints a list of available questions
         """
         )
-
-    @property
-    def questions(self) -> tuple:
-        return self._questions
 
     def _user_input_loop(self) -> Generator[tuple[str, str], None, None]:
         print(self._help_message)
@@ -41,14 +33,15 @@ class InteractiveChat:
             _ = yield q, "question"
 
     def _print_message(self, choice: dict) -> None:
-        if delta := choice.get("delta"):
+        if "delta" in choice:
+            delta = choice["delta"] or {}
+            if not delta:
+                return
             if not self._delta_start:
                 header = f" {delta['role'].capitalize()} Message ".center(80, "=")
                 print("\n", header)
                 self._delta_start = (
-                    True
-                    and (choice.get("finish_reason") is None)
-                    and delta["role"] != "tool"
+                    choice.get("finish_reason") is None and delta["role"] != "tool"
                 )
             print(delta.get("content") or delta.get("tool_calls"), flush=True, end="")
         else:

@@ -2,6 +2,7 @@ from os import getenv
 from typing import Any, Callable
 
 from ci_failure_summarizer import TOOLS
+from ci_failure_summarizer.config import normalize_base_url
 from langchain.agents import create_agent
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import BaseMessage
@@ -69,9 +70,7 @@ def get_graph_closure(
     if not model_id:
         model_id = getenv("MODEL_ID")
 
-    # Ensure base_url ends with /v1
-    if base_url and not base_url.endswith("/v1"):
-        base_url = base_url.rstrip("/") + "/v1"
+    base_url = normalize_base_url(base_url)
 
     # Validate API key for non-local environments
     if not base_url:

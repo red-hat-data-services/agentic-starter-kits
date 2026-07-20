@@ -106,6 +106,59 @@ def test_run_records_summary_when_slack_delivery_fails():
     )
 
 
+def test_run_skips_duplicate_slack_post_for_same_run():
+    run = _failed_run()
+    job = _failed_job()
+    incident = Incident(
+        id=1,
+        fingerprint="abc123",
+        workflow_name=run.name,
+        workflow_file="agent-deployment-test.yaml",
+        job_name=job.name,
+        failed_step=None,
+        branch=run.head_branch,
+        event=run.event,
+        qg_label="QG4",
+        occurrence_count=1,
+    )
+
+    github = MagicMock()
+    github.resolve_workflow_file.return_value = "agent-deployment-test.yaml"
+    github.get_latest_run.return_value = run
+    github.list_jobs.return_value = [job]
+    github.is_failed_job.return_value = True
+    github.fetch_job_logs.return_value = MagicMock(
+        available=False, excerpt=None, status_code=403
+    )
+
+    store = MagicMock()
+    store.upsert_failures.return_value = [incident]
+    store.get_latest_summary_for_run.return_value = {"slack_posted": True}
+
+    orchestrator = SummarizerOrchestrator(
+        config=_config(),
+        incident_store=store,
+        github_client=github,
+    )
+
+    with (
+        patch(
+            "ci_failure_summarizer.orchestrator.compose_summary",
+            return_value="summary",
+        ),
+        patch("ci_failure_summarizer.orchestrator.maybe_post_summary") as mock_post,
+    ):
+        result = orchestrator.run()
+
+    mock_post.assert_not_called()
+    assert result.slack_posted is True
+    assert result.slack_skipped_reason == "summary already posted for this run"
+    call_kwargs = store.record_summary.call_args.kwargs
+    assert call_kwargs["metadata"]["slack_skipped_reason"] == (
+        "summary already posted for this run"
+    )
+
+
 def test_run_records_failure_evidence_in_summary_metadata():
     run = _failed_run()
     job = _failed_job()

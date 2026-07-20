@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ci_failure_summarizer.agent import get_graph_closure
-from ci_failure_summarizer.config import SummarizerConfig
+from ci_failure_summarizer.config import SummarizerConfig, normalize_base_url
 from ci_failure_summarizer.incident_store import IncidentStore
 from ci_failure_summarizer.models import SummaryResult
 from ci_failure_summarizer.orchestrator import SummarizerOrchestrator
@@ -187,11 +187,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     enable_tracing()
 
-    base_url = getenv("BASE_URL")
+    base_url = normalize_base_url(getenv("BASE_URL"))
     model_id = getenv("MODEL_ID")
-
-    if base_url and not base_url.endswith("/v1"):
-        base_url = base_url.rstrip("/") + "/v1"
 
     DB_URI = get_database_uri()
 
@@ -392,10 +389,9 @@ async def _handle_chat(
             "usage": _extract_usage(new_messages),
         }
 
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error processing request: {str(e)}"
-        )
+    except Exception:
+        logger.exception("Error processing chat completion request")
+        raise HTTPException(status_code=500, detail="Error processing request")
 
 
 async def _handle_stream(
@@ -614,11 +610,9 @@ async def summarize(request: SummarizeRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except Exception as exc:
+    except Exception:
         logger.exception("Error running CI failure summarizer")
-        raise HTTPException(
-            status_code=500, detail=f"Error running summarizer: {exc}"
-        ) from exc
+        raise HTTPException(status_code=500, detail="Error running summarizer")
 
 
 # ── Playground UI ────────────────────────────────────────────────────────────
@@ -627,7 +621,7 @@ _PLAYGROUND_HTML = _BASE_DIR / "playground" / "templates" / "index.html"
 # In Docker the images are copied to /opt/app-root/src/images; locally they live at the repo root
 _IMAGES_DIR = _BASE_DIR / "images"
 if not _IMAGES_DIR.is_dir():
-    _IMAGES_DIR = _BASE_DIR.parent.parent.parent / "images"
+    _IMAGES_DIR = _BASE_DIR.parent.parent.parent.parent / "images"
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)

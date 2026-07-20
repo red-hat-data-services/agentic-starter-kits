@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
 import requests
 from ci_failure_summarizer.failure_evidence import select_best_error_marker
 from ci_failure_summarizer.github_client import (
@@ -95,14 +96,12 @@ def test_request_surfaces_rate_limit_for_metadata_fetch():
     client._session = MagicMock()
     client._session.request.return_value = response
 
-    try:
+    with pytest.raises(RuntimeError) as exc_info:
         client.get_run(123456789)
-    except RuntimeError as exc:
-        assert "rate limit" in str(exc).lower()
-        assert "60" in str(exc)
-        assert "actions/runs/123456789" in str(exc)
-    else:
-        raise AssertionError("expected RuntimeError")
+    exc = exc_info.value
+    assert "rate limit" in str(exc).lower()
+    assert "60" in str(exc)
+    assert "actions/runs/123456789" in str(exc)
 
 
 def test_request_surfaces_not_found_for_missing_run():
@@ -115,13 +114,11 @@ def test_request_surfaces_not_found_for_missing_run():
     client._session = MagicMock()
     client._session.request.return_value = response
 
-    try:
+    with pytest.raises(RuntimeError) as exc_info:
         client.get_run(999)
-    except RuntimeError as exc:
-        assert "Not Found" in str(exc)
-        assert "actions/runs/999" in str(exc)
-    else:
-        raise AssertionError("expected RuntimeError")
+    exc = exc_info.value
+    assert "Not Found" in str(exc)
+    assert "actions/runs/999" in str(exc)
 
 
 def test_request_surfaces_network_error_for_metadata_fetch():
@@ -131,13 +128,11 @@ def test_request_surfaces_network_error_for_metadata_fetch():
         "HTTPSConnectionPool(host='api.github.com', port=443): Max retries exceeded"
     )
 
-    try:
+    with pytest.raises(RuntimeError) as exc_info:
         client.get_run(123)
-    except RuntimeError as exc:
-        assert "network error" in str(exc).lower()
-        assert "actions/runs/123" in str(exc)
-    else:
-        raise AssertionError("expected RuntimeError")
+    exc = exc_info.value
+    assert "network error" in str(exc).lower()
+    assert "actions/runs/123" in str(exc)
 
 
 def test_fetch_job_logs_degrades_on_403():

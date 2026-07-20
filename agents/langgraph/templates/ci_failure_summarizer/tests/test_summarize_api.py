@@ -182,6 +182,16 @@ class TestSummarizeRoute:
         assert response.status_code == 400
         assert "Run 999 is not from workflow" in response.json()["detail"]
 
+    def test_summarize_hides_unexpected_exception_detail(self, summarize_client):
+        with patch(
+            "main.SummarizerOrchestrator.run",
+            side_effect=Exception("db password leaked"),
+        ):
+            response = summarize_client.post("/summarize", json={})
+
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Error running summarizer"
+
     def test_images_route_rejects_path_traversal(self, summarize_client, tmp_path):
         import main
 

@@ -85,6 +85,7 @@ def _write_env_file(agent_dir, container_image):
         if value:
             lines.append(shell_assign(var, value))
     env_path.write_text("\n".join(lines) + "\n")
+    env_path.chmod(0o600)
     return env_path
 
 

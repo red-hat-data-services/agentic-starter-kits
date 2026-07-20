@@ -9,6 +9,15 @@ QG4_WORKFLOW_FILE = "agent-deployment-test.yaml"
 CI_DASHBOARD_URL = "https://red-hat-data-services.github.io/agentic-starter-kits/"
 
 
+def normalize_base_url(base_url: str | None) -> str | None:
+    if not base_url:
+        return base_url
+    normalized = base_url.rstrip("/")
+    if not normalized.endswith("/v1"):
+        normalized = normalized + "/v1"
+    return normalized
+
+
 @dataclass(frozen=True)
 class SummarizerConfig:
     repository: str
@@ -24,15 +33,14 @@ class SummarizerConfig:
     @classmethod
     def from_env(cls) -> SummarizerConfig:
         repository = getenv("GITHUB_REPOSITORY", "").strip()
-        workflow_name = getenv(
-            "GITHUB_WORKFLOW", "QG4: Agent Deployment Integration Tests"
-        ).strip()
+        workflow_name = (
+            getenv("GITHUB_WORKFLOW", "QG4: Agent Deployment Integration Tests").strip()
+            or "QG4: Agent Deployment Integration Tests"
+        )
         if not repository:
             raise ValueError("GITHUB_REPOSITORY is required")
 
-        base_url = getenv("BASE_URL")
-        if base_url and not base_url.endswith("/v1"):
-            base_url = base_url.rstrip("/") + "/v1"
+        base_url = normalize_base_url(getenv("BASE_URL"))
 
         return cls(
             repository=repository,

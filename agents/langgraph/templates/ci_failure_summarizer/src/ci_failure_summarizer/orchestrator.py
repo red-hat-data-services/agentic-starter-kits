@@ -104,10 +104,15 @@ class SummarizerOrchestrator:
             failures=failures,
             dashboard_url=self.config.dashboard_url,
         )
-        slack_posted, slack_skipped_reason = maybe_post_summary(
-            webhook_url=self.config.slack_webhook_url,
-            payload=payload,
-        )
+        latest_summary = self.incident_store.get_latest_summary_for_run(run.id)
+        if isinstance(latest_summary, dict) and latest_summary.get("slack_posted"):
+            slack_posted = True
+            slack_skipped_reason = "summary already posted for this run"
+        else:
+            slack_posted, slack_skipped_reason = maybe_post_summary(
+                webhook_url=self.config.slack_webhook_url,
+                payload=payload,
+            )
         logs_available = any(failure.logs_available for failure in failures)
         self.incident_store.record_summary(
             run_id=run.id,

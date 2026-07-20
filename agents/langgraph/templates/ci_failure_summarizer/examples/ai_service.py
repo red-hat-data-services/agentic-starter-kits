@@ -54,7 +54,10 @@ def ai_stream_service(
                     }
         elif role == "ai":  # this implies resp.additional_kwargs
             if additional_kw := resp.additional_kwargs:
-                tool_call = additional_kw["tool_calls"][0]
+                tool_calls = additional_kw.get("tool_calls")
+                if not tool_calls:
+                    return None
+                tool_call = tool_calls[0]
                 if is_assistant:
                     return {
                         "role": "assistant",
