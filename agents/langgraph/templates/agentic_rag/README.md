@@ -370,7 +370,7 @@ helm upgrade langgraph-agentic-rag ../../deployment \
   --reuse-values \
   --set auth.enabled=true \
   --set auth.audience="langgraph-agentic-rag" \
-  --set auth.allowedServiceAccounts="<namespace>:my-caller" \
+  --set-string "auth.allowedServiceAccounts[0]=<namespace>:my-caller" \
   --set serviceAccount.create=true \
   --set auth.createAuthDelegatorBinding=true
 ```
