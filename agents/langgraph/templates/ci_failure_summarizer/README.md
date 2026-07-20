@@ -19,19 +19,18 @@ Lightweight **spike** for a daily QG4 CI failure summarizer. It keeps the standa
 - **QG4 workflow targeting** — ingest the latest (or specified) run from `GITHUB_REPOSITORY` / `GITHUB_WORKFLOW`
 - **Deterministic grouping** — fingerprint failures by workflow, job, step, branch, event, and QG label (outside the LLM)
 - **PostgreSQL incident store** — dedicated `ci_incidents` and `ci_summary_history` tables (separate from LangGraph chat checkpoints)
-- **LLM or metadata-only summary** — triage text via configured model endpoint, with fallback when logs or LLM are unavailable
+- **Deterministic summary rendering** — triage text is rendered from extracted evidence and persisted signatures, with metadata-only degradation when logs are unavailable
 - **Slack triage post** — top-level incoming webhook message with workflow links and grouped failure context
-- **Manual trigger only** — `POST /summarize`, `examples/trigger_summary.py`, or `examples/trigger_daily_summary_after_qg4.sh`
+- **Operator-managed trigger** — call `POST /summarize` manually, use `examples/trigger_daily_summary_after_qg4.sh`, or schedule `examples/trigger_daily_summary_cronjob.yaml`
 
 **Explicitly out of scope for this spike:**
 
 - No Slack thread replies or per-job threaded follow-ups
 - No Jira write-back or ticket creation
 - No automated remediation execution
-- No built-in scheduler or CronJob (trigger manually after QG4 completes)
 - No auth on `/summarize` (same open pattern as other template agents)
 
-**Spike operational posture:** `/summarize` is **unauthenticated** and **manual-trigger only** — call it after QG4 completes (see examples below). There is no built-in scheduler, API key gate, or production hardening; treat the route as operator-only on a trusted network.
+**Spike operational posture:** `/summarize` is **unauthenticated** and intended for operator- or platform-managed triggering after QG4 completes (see examples below). There is no API key gate or production hardening; treat the route as operator-only on a trusted network.
 
 **Known limitations:**
 
@@ -86,6 +85,7 @@ In addition to the standard LLM and PostgreSQL settings, configure GitHub and Sl
 | `GITHUB_WORKFLOW_FILE` | no | Fallback workflow file if name resolution fails (default: `agent-deployment-test.yaml`) |
 
 These variables are declared in `agent.yaml` and `values.yaml` for Helm deployment.
+If you set `GITHUB_WORKFLOW` in `.env`, quote it because the default display name contains spaces.
 
 ### Manual daily summary trigger
 
@@ -117,6 +117,16 @@ uv run python examples/trigger_summary.py --no-slack
 ```bash
 chmod +x examples/trigger_daily_summary_after_qg4.sh
 AGENT_URL=https://<route-host> POST_TO_SLACK=false ./examples/trigger_daily_summary_after_qg4.sh
+```
+
+**OpenShift CronJob example (11 AM IST):**
+
+```bash
+oc apply -f examples/trigger_daily_summary_cronjob.yaml
+
+# Optional: trigger it immediately once for smoke validation
+oc create job --from=cronjob/langgraph-ci-failure-summarizer-trigger \
+  langgraph-ci-failure-summarizer-trigger-manual-$(date +%s) -n ci-testing
 ```
 
 Response fields include `summary_text`, grouped `failures` (with fingerprints and occurrence counts), `slack_posted`, and `logs_available`.
@@ -397,7 +407,7 @@ Focused spike tests (no live GitHub, Slack, or PostgreSQL required):
 | --- | --- |
 | `test_github_client.py` | Workflow path resolution, metadata error surfacing, job parsing, log degradation |
 | `test_grouping.py` | Deterministic fingerprinting and grouping |
-| `test_summary_composer.py` | LLM fallback and metadata-only summary formatting |
+| `test_summary_composer.py` | Deterministic summary rendering and metadata-only degradation |
 | `test_slack_notifier.py` | Slack Block Kit payload composition |
 | `test_orchestrator.py` | End-to-end orchestration, explicit `run_id` workflow validation |
 | `test_incident_store.py` | Incident upsert and summary history persistence (mocked DB) |
@@ -502,7 +512,7 @@ POST /summarize  (manual, unauthenticated — operator/cron trigger only)
     --> GitHubActionsClient (public metadata; logs degrade on 403)
     --> grouping.py (deterministic fingerprints)
     --> IncidentStore (ci_incidents + ci_summary_history; connection-per-call spike trade-off)
-    --> summary_composer.py (LLM or metadata-only fallback)
+    --> summary_composer.py (deterministic rendering from current or persisted evidence)
     --> slack_notifier.py (incoming webhook, top-level post only)
 ```
 

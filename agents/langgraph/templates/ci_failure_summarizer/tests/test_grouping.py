@@ -6,12 +6,13 @@ import json
 from pathlib import Path
 
 from ci_failure_summarizer.grouping import (
+    build_failure_record,
     build_fingerprint,
     extract_qg_label,
     group_failures,
     infer_failure_area,
 )
-from ci_failure_summarizer.models import LogFetchResult, WorkflowJob, WorkflowRun
+from ci_failure_summarizer.models import FailureEvidence, LogFetchResult, WorkflowJob, WorkflowRun
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -82,3 +83,52 @@ def test_group_failures_deduplicates_and_handles_missing_logs():
     assert failure.logs_available is False
     assert failure.metadata["failure_area"] == "health-check"
     assert failure.metadata["log_status_code"] == 403
+
+
+def test_build_failure_record_attaches_typed_failure_evidence():
+    run = WorkflowRun(
+        id=123,
+        name="QG4: Agent Deployment Integration Tests",
+        event="schedule",
+        head_branch="main",
+        status="completed",
+        conclusion="failure",
+        html_url="https://github.com/example/repo/actions/runs/123",
+        created_at="2026-07-15T02:30:00Z",
+    )
+    job = WorkflowJob(
+        id=222,
+        name="langflow-simple-tool-calling-agent",
+        status="completed",
+        conclusion="failure",
+        html_url="https://github.com/example/jobs/222",
+        steps=(),
+    )
+    excerpt = "\n".join(
+        [
+            "E integration.utils.RouteNotFoundError: No route found for langflow-simple-tool-calling-agent",
+            'E oc stderr: Error from server (NotFound): routes.route.openshift.io "langflow-simple-tool-calling-agent" not found',
+            "tests/integration/conftest.py:33: Failed",
+        ]
+    )
+    log_result = LogFetchResult(
+        job_id=222,
+        available=True,
+        status_code=200,
+        excerpt=excerpt,
+    )
+
+    failure = build_failure_record(
+        run=run,
+        job=job,
+        workflow_file="agent-deployment-test.yaml",
+        log_result=log_result,
+    )
+
+    assert failure is not None
+    assert isinstance(failure.evidence, FailureEvidence)
+    assert failure.evidence.source == "github_job_log"
+    assert failure.evidence.excerpt == excerpt
+    assert failure.evidence.signature
+    assert any("RouteNotFoundError" in marker for marker in failure.evidence.markers)
+    assert "evidence_excerpt" not in failure.metadata

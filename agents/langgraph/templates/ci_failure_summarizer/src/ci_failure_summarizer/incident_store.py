@@ -11,6 +11,7 @@ from typing import Any, Iterator
 import psycopg
 from psycopg.rows import dict_row
 
+from ci_failure_summarizer.failure_evidence import evidence_to_metadata
 from ci_failure_summarizer.models import FailureRecord, Incident
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,9 @@ class IncidentStore:
 
         with self._connection() as conn:
             for failure in failures:
+                metadata = dict(failure.metadata)
+                if failure.evidence is not None:
+                    metadata.update(evidence_to_metadata(failure.evidence))
                 row = conn.execute(
                     """
                     INSERT INTO ci_incidents (
@@ -125,7 +129,7 @@ class IncidentStore:
                         "now": now,
                         "run_id": failure.run_id,
                         "run_url": failure.run_url,
-                        "metadata": json.dumps(failure.metadata),
+                        "metadata": json.dumps(metadata),
                     },
                 ).fetchone()
                 incidents.append(self._row_to_incident(row))

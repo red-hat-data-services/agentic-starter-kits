@@ -107,6 +107,71 @@ def test_run_records_summary_when_slack_delivery_fails():
     )
 
 
+def test_run_records_failure_evidence_in_summary_metadata():
+    run = _failed_run()
+    job = _failed_job()
+    incident = Incident(
+        id=1,
+        fingerprint="abc123",
+        workflow_name=run.name,
+        workflow_file="agent-deployment-test.yaml",
+        job_name=job.name,
+        failed_step=None,
+        branch=run.head_branch,
+        event=run.event,
+        qg_label="QG4",
+        occurrence_count=1,
+    )
+
+    github = MagicMock()
+    github.resolve_workflow_file.return_value = "agent-deployment-test.yaml"
+    github.get_latest_run.return_value = run
+    github.list_jobs.return_value = [job]
+    github.is_failed_job.return_value = True
+    github.failed_step_name.return_value = "Run integration test"
+    github.fetch_job_logs.return_value = MagicMock(
+        available=True,
+        excerpt=(
+            "integration.utils.RouteNotFoundError: No route found for "
+            "langflow-simple-tool-calling-agent"
+        ),
+        status_code=200,
+        error=None,
+    )
+
+    store = MagicMock()
+    store.upsert_failures.return_value = [incident]
+
+    orchestrator = SummarizerOrchestrator(
+        config=_config(),
+        incident_store=store,
+        github_client=github,
+    )
+
+    with (
+        patch(
+            "ci_failure_summarizer.orchestrator.compose_summary",
+            return_value="*CI Triage Summary* — test summary",
+        ),
+        patch(
+            "ci_failure_summarizer.orchestrator.maybe_post_summary",
+            return_value=(False, "SLACK_WEBHOOK_URL is not configured"),
+        ),
+    ):
+        orchestrator.run()
+
+    call_kwargs = store.record_summary.call_args.kwargs
+    evidence = call_kwargs["metadata"]["failure_evidence"]
+    assert evidence
+    fingerprint, details = next(iter(evidence.items()))
+    assert fingerprint
+    assert details["job_name"] == job.name
+    assert details["evidence_signature"]
+    assert "RouteNotFoundError" in details["primary_marker"]
+    assert "evidence_excerpt" not in details
+    assert "evidence_markers" not in details
+
+
 def test_run_rejects_explicit_run_id_from_unrelated_workflow():
     run = _failed_run()
     wrong_run = WorkflowRun(

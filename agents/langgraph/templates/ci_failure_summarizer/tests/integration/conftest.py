@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shlex
 
 import pytest
 from integration.conftest import cluster_auth, repo_root  # noqa: F401
@@ -63,22 +64,25 @@ def _write_env_file(agent_dir, container_image):
             "Set them in the CI workflow or export locally."
         )
     env_path = agent_dir / ".env"
+    def shell_assign(name: str, value: str) -> str:
+        return f"{name}={shlex.quote(value)}"
+
     lines = [
-        f"API_KEY={os.environ.get('API_KEY', 'not-needed')}",
-        f"BASE_URL={os.environ['BASE_URL']}",
-        f"MODEL_ID={os.environ['MODEL_ID']}",
-        f"CONTAINER_IMAGE={container_image}",
-        f"POSTGRES_HOST={os.environ['POSTGRES_HOST']}",
-        f"POSTGRES_PORT={os.environ['POSTGRES_PORT']}",
-        f"POSTGRES_DB={os.environ['POSTGRES_DB']}",
-        f"POSTGRES_USER={os.environ['POSTGRES_USER']}",
-        f"POSTGRES_PASSWORD={os.environ['POSTGRES_PASSWORD']}",
-        f"GITHUB_REPOSITORY={os.environ['GITHUB_REPOSITORY']}",
+        shell_assign("API_KEY", os.environ.get("API_KEY", "not-needed")),
+        shell_assign("BASE_URL", os.environ["BASE_URL"]),
+        shell_assign("MODEL_ID", os.environ["MODEL_ID"]),
+        shell_assign("CONTAINER_IMAGE", container_image),
+        shell_assign("POSTGRES_HOST", os.environ["POSTGRES_HOST"]),
+        shell_assign("POSTGRES_PORT", os.environ["POSTGRES_PORT"]),
+        shell_assign("POSTGRES_DB", os.environ["POSTGRES_DB"]),
+        shell_assign("POSTGRES_USER", os.environ["POSTGRES_USER"]),
+        shell_assign("POSTGRES_PASSWORD", os.environ["POSTGRES_PASSWORD"]),
+        shell_assign("GITHUB_REPOSITORY", os.environ["GITHUB_REPOSITORY"]),
     ]
     for var in _OPTIONAL_ENV:
         value = os.environ.get(var) or _DEFAULTS.get(var)
         if value:
-            lines.append(f"{var}={value}")
+            lines.append(shell_assign(var, value))
     env_path.write_text("\n".join(lines) + "\n")
     return env_path
 

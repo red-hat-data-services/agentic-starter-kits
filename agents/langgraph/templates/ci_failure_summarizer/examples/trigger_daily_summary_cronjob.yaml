@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: langgraph-ci-failure-summarizer-trigger
+  namespace: ci-testing
+spec:
+  schedule: "0 11 * * *"
+  timeZone: Asia/Kolkata
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: trigger
+              image: image-registry.openshift-image-registry.svc:5000/ci-testing/langgraph-ci-failure-summarizer-agent:latest
+              imagePullPolicy: Always
+              command:
+                - python
+                - -c
+              args:
+                - |
+                  import json
+                  import urllib.request
+
+                  url = "http://langgraph-ci-failure-summarizer-agent:8080/summarize"
+                  payload = json.dumps({"post_to_slack": True}).encode("utf-8")
+                  request = urllib.request.Request(
+                      url,
+                      data=payload,
+                      headers={"Content-Type": "application/json"},
+                      method="POST",
+                  )
+                  with urllib.request.urlopen(request, timeout=300) as response:
+                      body = response.read().decode("utf-8")
+                  print(body)

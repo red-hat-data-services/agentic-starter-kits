@@ -7,13 +7,13 @@ from typing import Any
 
 import requests
 
+from ci_failure_summarizer.failure_evidence import extract_relevant_log_excerpt
 from ci_failure_summarizer.models import LogFetchResult, WorkflowJob, WorkflowRun
 
 logger = logging.getLogger(__name__)
 
 API_ROOT = "https://api.github.com"
 FAILED_CONCLUSIONS = frozenset({"failure", "cancelled", "timed_out"})
-LOG_EXCERPT_MAX_CHARS = 4000
 
 
 def _extract_github_message(response: requests.Response) -> str:
@@ -180,7 +180,12 @@ class GitHubActionsClient:
         payload = self._request("GET", path, params={"per_page": per_page}).json()
         return [WorkflowJob.from_api(job) for job in payload.get("jobs") or []]
 
-    def fetch_job_logs(self, job_id: int) -> LogFetchResult:
+    def fetch_job_logs(
+        self,
+        job_id: int,
+        *,
+        failed_step: str | None = None,
+    ) -> LogFetchResult:
         path = f"/repos/{self.repository}/actions/jobs/{job_id}/logs"
         try:
             response = self._request(
@@ -217,12 +222,12 @@ class GitHubActionsClient:
             )
 
         text = response.text or ""
-        excerpt = text[-LOG_EXCERPT_MAX_CHARS:] if len(text) > LOG_EXCERPT_MAX_CHARS else text
+        excerpt = extract_relevant_log_excerpt(text, failed_step=failed_step)
         return LogFetchResult(
             job_id=job_id,
             available=True,
             status_code=response.status_code,
-            excerpt=excerpt.strip() or None,
+            excerpt=excerpt,
         )
 
     @staticmethod

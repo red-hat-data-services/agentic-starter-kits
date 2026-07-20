@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from ci_failure_summarizer.config import SummarizerConfig
+from ci_failure_summarizer.failure_evidence import build_summary_failure_evidence
 from ci_failure_summarizer.github_client import (
     GitHubActionsClient,
     workflow_paths_match,
@@ -77,7 +78,10 @@ class SummarizerOrchestrator:
 
         jobs = self.github.list_jobs(run.id)
         log_results = {
-            job.id: self.github.fetch_job_logs(job.id)
+            job.id: self.github.fetch_job_logs(
+                job.id,
+                failed_step=self.github.failed_step_name(job),
+            )
             for job in jobs
             if self.github.is_failed_job(job)
         }
@@ -89,7 +93,6 @@ class SummarizerOrchestrator:
         )
         incidents = self.incident_store.upsert_failures(failures)
         summary_text = compose_summary(
-            config=self.config,
             run=run,
             failures=failures,
             incidents=incidents,
@@ -115,6 +118,7 @@ class SummarizerOrchestrator:
             metadata={
                 "workflow_file": workflow_file,
                 "slack_skipped_reason": slack_skipped_reason,
+                "failure_evidence": build_summary_failure_evidence(failures, incidents),
             },
         )
         return SummaryResult(

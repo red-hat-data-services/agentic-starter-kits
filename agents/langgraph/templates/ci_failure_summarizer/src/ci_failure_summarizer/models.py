@@ -84,6 +84,15 @@ class LogFetchResult:
 
 
 @dataclass(frozen=True)
+class FailureEvidence:
+    source: str
+    excerpt: str
+    markers: tuple[str, ...] = ()
+    signature: str | None = None
+    run_id: int | None = None
+
+
+@dataclass(frozen=True)
 class FailureRecord:
     workflow_name: str
     workflow_file: str
@@ -99,6 +108,7 @@ class FailureRecord:
     fingerprint: str
     logs_available: bool = False
     log_excerpt: str | None = None
+    evidence: FailureEvidence | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
 

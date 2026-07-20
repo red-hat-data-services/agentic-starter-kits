@@ -6,6 +6,7 @@ import hashlib
 import re
 from collections.abc import Iterable
 
+from ci_failure_summarizer.failure_evidence import build_failure_evidence
 from ci_failure_summarizer.github_client import GitHubActionsClient
 from ci_failure_summarizer.models import (
     FailureRecord,
@@ -86,6 +87,21 @@ def build_failure_record(
 
     logs_available = bool(log_result and log_result.available)
     log_excerpt = log_result.excerpt if logs_available else None
+    evidence = (
+        build_failure_evidence(
+            log_excerpt,
+            source="github_job_log",
+            run_id=run.id,
+        )
+        if logs_available
+        else None
+    )
+    metadata = {
+        "failure_area": failure_area,
+        "job_conclusion": job.conclusion,
+        "log_status_code": log_result.status_code if log_result else None,
+        "log_error": log_result.error if log_result else None,
+    }
 
     return FailureRecord(
         workflow_name=run.name,
@@ -102,12 +118,8 @@ def build_failure_record(
         fingerprint=fingerprint,
         logs_available=logs_available,
         log_excerpt=log_excerpt,
-        metadata={
-            "failure_area": failure_area,
-            "job_conclusion": job.conclusion,
-            "log_status_code": log_result.status_code if log_result else None,
-            "log_error": log_result.error if log_result else None,
-        },
+        evidence=evidence,
+        metadata=metadata,
     )
 
 

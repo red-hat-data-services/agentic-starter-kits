@@ -192,6 +192,43 @@ def test_fetch_job_logs_returns_excerpt_on_success():
     assert "health check failed" in (result.excerpt or "")
 
 
+def test_fetch_job_logs_prefers_failed_step_section_over_cleanup_tail():
+    client = GitHubActionsClient("red-hat-data-services/agentic-starter-kits")
+    response = MagicMock()
+    response.ok = True
+    response.status_code = 200
+    response.text = "\n".join(
+        [
+            "2026-07-20T04:19:20.4451275Z ##[group]Run oc login \\",
+            '2026-07-20T04:19:20.4451819Z oc login --token=\"$OC_TOKEN\"',
+            "2026-07-20T04:19:20.4452455Z oc login --namespace=ci-testing",
+            "2026-07-20T04:19:20.4535385Z env:",
+            "2026-07-20T04:19:20.4535806Z   API_KEY: not_needed",
+            "2026-07-20T04:19:20.4536805Z   MODEL_ID: qwen2-5-7b-instruct",
+            "2026-07-20T04:19:24.5216230Z >           raise RouteNotFoundError(agent_name, stderr=result.stderr.strip())",
+            "2026-07-20T04:19:24.5217171Z E           integration.utils.RouteNotFoundError: No route found for langflow-simple-tool-calling-agent",
+            '2026-07-20T04:19:24.5217971Z E           oc stderr: Error from server (NotFound): routes.route.openshift.io \"langflow-simple-tool-calling-agent\" not found',
+            "2026-07-20T04:19:24.5225846Z tests/integration/conftest.py:33: Failed",
+            "2026-07-20T04:19:24.5655062Z ##[error]Process completed with exit code 2.",
+            "2026-07-20T04:19:24.5725669Z ##[group]Run actions/upload-artifact@v4",
+            "2026-07-20T04:19:24.7146604Z With the provided path, there will be 1 file uploaded",
+            "2026-07-20T04:19:24.9000000Z Post job cleanup.",
+            "2026-07-20T04:19:24.9100000Z Removing SSH command configuration",
+            "2026-07-20T04:19:24.9200000Z Removing HTTP extra header",
+            "2026-07-20T04:19:24.9300000Z Removing includeIf entries pointing to credentials config files",
+        ]
+    )
+    client._request = MagicMock(return_value=response)  # type: ignore[method-assign]
+
+    result = client.fetch_job_logs(222, failed_step="Run integration test")
+
+    assert result.available is True
+    assert "RouteNotFoundError" in (result.excerpt or "")
+    assert "Process completed with exit code 2" in (result.excerpt or "")
+    assert "Removing SSH command configuration" not in (result.excerpt or "")
+    assert "Removing includeIf entries" not in (result.excerpt or "")
+
+
 def test_list_jobs_parses_fixture_payload():
     payload = json.loads((FIXTURES / "github_failure_run.json").read_text())
     client = GitHubActionsClient("red-hat-data-services/agentic-starter-kits")
