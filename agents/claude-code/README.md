@@ -769,7 +769,7 @@ The default Containerfile uses MLflow 3.12 with a Python hook. MLflow 3.14+ also
 >
 > Both point to the same file (`/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt`). Do not remove `MLFLOW_TRACKING_SERVER_CERT_PATH` when switching to the plugin path — the setup step will fail with an SSL error. Upstream work is in progress to support `MLFLOW_TRACKING_SERVER_CERT_PATH` in the TS SDK directly ([mlflow#24140](https://github.com/mlflow/mlflow/issues/24140)). Kubernetes-native auth (`MLFLOW_TRACKING_AUTH`) is also being added to the TypeScript SDK ([mlflow#24141](https://github.com/mlflow/mlflow/issues/24141)).
 >
-> **Workspace:** The MLflow Claude plugin path requires `MLFLOW_WORKSPACE` to be set to your namespace name in the deployment manifest. The Python hook path (3.12) does not need this — see [TypeScript SDK: What's Different](../../docs/mlflow-openshift-auth-and-tls.md#typescript-sdk-whats-different) for why.
+> **Workspace:** The MLflow Claude Code plugin path requires `MLFLOW_WORKSPACE` to be set to your namespace name in the deployment manifest. The Python hook path (3.12) does not need this — see [TypeScript SDK: What's Different](../../docs/mlflow-openshift-auth-and-tls.md#typescript-sdk-whats-different) for why.
 
 For detailed tracing investigation results and benchmark data, see [mlflow-tracing.md](mlflow-tracing.md).
 

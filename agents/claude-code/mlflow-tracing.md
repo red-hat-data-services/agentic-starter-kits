@@ -1,6 +1,6 @@
 # MLflow Tracing for Claude Code Agent Runtimes on RHOAI
 
-> **Setup instructions:** For how to enable MLflow tracing in your Claude Code deployment, see the [MLflow Tracing section of the deployment guide](README.md#mlflow-tracing-optional). For TLS and RBAC configuration on RHOAI, see [MLflow on OpenShift: Authentication and TLS](../docs/mlflow-openshift-auth-and-tls.md). This document covers the investigation and validation of the tracing stack.
+> **Setup instructions:** For how to enable MLflow tracing in your Claude Code deployment, see the [MLflow Tracing section of the deployment guide](README.md#mlflow-tracing-optional). For TLS and RBAC configuration on RHOAI, see [MLflow on OpenShift: Authentication and TLS](../../docs/mlflow-openshift-auth-and-tls.md). This document covers the investigation and validation of the tracing stack.
 
 Deploy Claude Code as a containerized agent on Red Hat OpenShift AI and wire it up to the MLflow instance running on the same cluster. To validate the full tracing stack, the same prompt, **"build me a tetris game"**, was run through three different backends: Vertex AI (Google Cloud), vLLM directly, and OGX routing to vLLM. In all three cases, MLflow captured the complete session trace including every tool call, token usage, latency, and the full execution waterfall. The sections below document the telemetry investigation, the tracing prototype, and session-level metrics.
 
