@@ -120,6 +120,10 @@ class ChatCompletionResponse(BaseModel):
     )
     model: str = Field(..., description="The model used for the chat completion.")
     choices: list[Choice] = Field(..., description="A list of chat completion choices.")
+    context: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="OpenAI-compatible context of new messages generated in this turn.",
+    )
 
     usage: dict | None = Field(
         None, description="Usage statistics for the completion request."
@@ -337,8 +341,6 @@ async def _handle_chat(
     try:
         assert agent_graph_closure is not None
         async with AsyncPostgresSaver.from_conn_string(DB_URI) as saver:
-            await saver.setup()
-
             if system_prompt:
                 agent = agent_graph_closure(saver, thread_id, system_prompt)
             else:
@@ -410,8 +412,6 @@ async def _handle_stream(
         try:
             assert agent_graph_closure is not None
             async with AsyncPostgresSaver.from_conn_string(DB_URI) as saver:
-                await saver.setup()
-
                 if system_prompt:
                     agent = agent_graph_closure(saver, thread_id, system_prompt)
                 else:

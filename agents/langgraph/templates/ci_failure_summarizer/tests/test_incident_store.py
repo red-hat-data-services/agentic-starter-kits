@@ -64,6 +64,23 @@ def test_upsert_failures_returns_empty_for_no_input():
     assert store.upsert_failures([]) == []
 
 
+def test_connection_uses_bounded_connect_timeout():
+    store = IncidentStore("postgresql://test")
+    mock_conn = MagicMock()
+    mock_ctx = MagicMock()
+    mock_ctx.__enter__.return_value = mock_conn
+    mock_ctx.__exit__.return_value = False
+
+    with patch(
+        "ci_failure_summarizer.incident_store.psycopg.connect", return_value=mock_ctx
+    ) as mock_connect:
+        with store._connection() as conn:
+            assert conn is mock_conn
+
+    assert mock_connect.call_args.args[0] == "postgresql://test"
+    assert mock_connect.call_args.kwargs["connect_timeout"] == 10
+
+
 def test_upsert_failures_commits_inserted_row():
     store = IncidentStore("postgresql://test")
     now = datetime(2026, 7, 15, 2, 30, tzinfo=UTC)
@@ -172,6 +189,84 @@ def test_finalize_slack_post_claim_deletes_on_failed_post():
     sql = mock_conn.execute.call_args.args[0]
     assert "DELETE FROM ci_slack_post_claims" in sql
     mock_conn.commit.assert_called_once()
+
+
+def test_finalize_slack_post_claim_updates_on_successful_post():
+    store = IncidentStore("postgresql://test")
+    mock_conn = MagicMock()
+
+    @contextmanager
+    def fake_connection():
+        yield mock_conn
+
+    with patch.object(store, "_connection", fake_connection):
+        store.finalize_slack_post_claim(123, posted=True)
+
+    sql = mock_conn.execute.call_args.args[0]
+    assert "UPDATE ci_slack_post_claims" in sql
+    assert "COALESCE(posted_at, NOW())" in sql
+    mock_conn.commit.assert_called_once()
+
+
+def test_get_incident_returns_matching_row():
+    store = IncidentStore("postgresql://test")
+    now = datetime(2026, 7, 15, 2, 30, tzinfo=UTC)
+    mock_conn = MagicMock()
+    mock_conn.execute.return_value.fetchone.return_value = {
+        "id": 7,
+        "fingerprint": "fp-abc123",
+        "workflow_name": "QG4: Agent Deployment Integration Tests",
+        "workflow_file": "agent-deployment-test.yaml",
+        "job_name": "test-agent (langgraph-react-agent)",
+        "failed_step": "Health check",
+        "branch": "main",
+        "event": "schedule",
+        "qg_label": "QG4",
+        "first_seen_at": now,
+        "last_seen_at": now,
+        "occurrence_count": 3,
+        "latest_run_id": 123456789,
+        "latest_run_url": "https://github.com/example/actions/runs/123456789",
+        "metadata": '{"failure_area": "health-check"}',
+    }
+
+    @contextmanager
+    def fake_connection():
+        yield mock_conn
+
+    with patch.object(store, "_connection", fake_connection):
+        incident = store.get_incident("fp-abc123")
+
+    assert incident is not None
+    assert incident.fingerprint == "fp-abc123"
+    assert incident.occurrence_count == 3
+    assert incident.metadata["failure_area"] == "health-check"
+    assert mock_conn.execute.call_args.args == (
+        "SELECT * FROM ci_incidents WHERE fingerprint = %s",
+        ("fp-abc123",),
+    )
+
+
+def test_get_latest_summary_for_run_returns_latest_row():
+    store = IncidentStore("postgresql://test")
+    mock_conn = MagicMock()
+    mock_conn.execute.return_value.fetchone.return_value = {
+        "slack_posted": True,
+        "metadata": '{"slack_skipped_reason": "already posted"}',
+    }
+
+    @contextmanager
+    def fake_connection():
+        yield mock_conn
+
+    with patch.object(store, "_connection", fake_connection):
+        summary = store.get_latest_summary_for_run(123456789)
+
+    assert summary == {
+        "slack_posted": True,
+        "metadata": {"slack_skipped_reason": "already posted"},
+    }
+    assert mock_conn.execute.call_args.args[1] == (123456789,)
 
 
 def test_upsert_failures_skips_occurrence_increment_for_same_run_id():

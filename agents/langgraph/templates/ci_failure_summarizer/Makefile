@@ -138,10 +138,7 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	  umask 077 && \
 	  API_KEY="$${API_KEY}" POSTGRES_PASSWORD="$${POSTGRES_PASSWORD}" \
 	  MLFLOW_TRACKING_TOKEN="$${MLFLOW_TRACKING_TOKEN}" GITHUB_TOKEN="$${GITHUB_TOKEN}" \
-	  SLACK_WEBHOOK_URL="$${SLACK_WEBHOOK_URL}" python3 -c 'import json, os, pathlib; doc={"secrets":{"apiKey": os.environ["API_KEY"], "postgresPassword": os.environ["POSTGRES_PASSWORD"]}}; mlflow=os.environ.get("MLFLOW_TRACKING_TOKEN"); extra={k: os.environ[k] for k in ("GITHUB_TOKEN", "SLACK_WEBHOOK_URL") if os.environ.get(k)}; \
-if mlflow: doc["secrets"]["mlflowTrackingToken"]=mlflow; \
-if extra: doc["extraSecrets"]=extra; \
-pathlib.Path(".helm-secrets.yaml").write_text(json.dumps(doc) + "\n")' && \
+	  SLACK_WEBHOOK_URL="$${SLACK_WEBHOOK_URL}" python3 -c 'import json, os, pathlib; doc={"secrets":{"apiKey": os.environ["API_KEY"], "postgresPassword": os.environ["POSTGRES_PASSWORD"]}}; mlflow=os.environ.get("MLFLOW_TRACKING_TOKEN"); extra={k: os.environ[k] for k in ("GITHUB_TOKEN", "SLACK_WEBHOOK_URL") if os.environ.get(k)}; doc["secrets"].update({"mlflowTrackingToken": mlflow} if mlflow else {}); doc.update({"extraSecrets": extra} if extra else {}); pathlib.Path(".helm-secrets.yaml").write_text(json.dumps(doc) + "\n")' && \
 	  helm upgrade --install $(AGENT_NAME) $(CHART_DIR) \
 	    -f $(VALUES_FILE) \
 	    -f .helm-secrets.yaml \

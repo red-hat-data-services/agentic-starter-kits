@@ -66,7 +66,11 @@ class IncidentStore:
 
     @contextmanager
     def _connection(self) -> Iterator[psycopg.Connection]:
-        with psycopg.connect(self.db_uri, row_factory=dict_row) as conn:
+        with psycopg.connect(
+            self.db_uri,
+            row_factory=dict_row,
+            connect_timeout=10,
+        ) as conn:
             yield conn
 
     def setup(self) -> None:

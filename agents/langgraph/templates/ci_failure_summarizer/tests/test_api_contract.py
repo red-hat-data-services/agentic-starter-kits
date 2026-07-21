@@ -9,12 +9,13 @@ Covers:
 import os
 import sys
 from contextlib import asynccontextmanager
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from pydantic import ValidationError
+from starlette.testclient import TestClient
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -108,6 +109,35 @@ class TestExtractUsage:
         assert _extract_usage([]) is None
 
 
+def test_chat_completion_response_model_preserves_context_field():
+    app = FastAPI()
+    payload = {
+        "id": "chatcmpl-test123",
+        "object": "chat.completion",
+        "created": 1,
+        "model": "test-model",
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": "answer"},
+                "finish_reason": "stop",
+            }
+        ],
+        "context": [{"role": "tool", "content": "result", "name": "lookup"}],
+        "usage": None,
+    }
+
+    @app.get("/completion", response_model=main.ChatCompletionResponse)
+    def completion():
+        return payload
+
+    with TestClient(app) as client:
+        response = client.get("/completion")
+
+    assert response.status_code == 200
+    assert response.json()["context"] == payload["context"]
+
+
 @pytest.mark.anyio
 async def test_handle_chat_hides_internal_exception_detail():
     class FakeAgent:
@@ -142,3 +172,80 @@ async def test_handle_chat_hides_internal_exception_detail():
 
     assert exc_info.value.status_code == 500
     assert exc_info.value.detail == "Error processing request"
+
+
+@pytest.mark.anyio
+async def test_handle_chat_does_not_call_saver_setup_per_request():
+    class FakeAgent:
+        async def ainvoke(self, *_args, **_kwargs):
+            return {"messages": [AIMessage(content="response")]}
+
+    class FakeSaver:
+        def __init__(self) -> None:
+            self.setup = AsyncMock()
+
+        async def aget_tuple(self, _config):
+            return None
+
+    fake_saver = FakeSaver()
+
+    @asynccontextmanager
+    async def fake_saver_ctx(*_args, **_kwargs):
+        yield fake_saver
+
+    with (
+        patch.object(main, "DB_URI", "postgresql://test"),
+        patch.object(
+            main,
+            "agent_graph_closure",
+            lambda *_args, **_kwargs: FakeAgent(),
+        ),
+        patch(
+            "main.AsyncPostgresSaver.from_conn_string",
+            side_effect=fake_saver_ctx,
+        ),
+    ):
+        response = await main._handle_chat(
+            [HumanMessage(content="hi")], "test-model", None, None
+        )
+
+    assert response["choices"][0]["message"]["content"] == "response"
+    fake_saver.setup.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_handle_stream_does_not_call_saver_setup_per_request():
+    class FakeAgent:
+        async def astream_events(self, *_args, **_kwargs):
+            if False:
+                yield {}
+
+    class FakeSaver:
+        def __init__(self) -> None:
+            self.setup = AsyncMock()
+
+    fake_saver = FakeSaver()
+
+    @asynccontextmanager
+    async def fake_saver_ctx(*_args, **_kwargs):
+        yield fake_saver
+
+    with (
+        patch.object(main, "DB_URI", "postgresql://test"),
+        patch.object(
+            main,
+            "agent_graph_closure",
+            lambda *_args, **_kwargs: FakeAgent(),
+        ),
+        patch(
+            "main.AsyncPostgresSaver.from_conn_string",
+            side_effect=fake_saver_ctx,
+        ),
+    ):
+        response = await main._handle_stream(
+            [HumanMessage(content="hi")], "test-model", None, None
+        )
+        chunks = [chunk async for chunk in response.body_iterator]
+
+    assert chunks[-1] == "data: [DONE]\n\n"
+    fake_saver.setup.assert_not_awaited()
