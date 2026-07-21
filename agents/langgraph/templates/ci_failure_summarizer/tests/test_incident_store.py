@@ -126,6 +126,54 @@ def test_record_summary_returns_inserted_id():
     assert execute_kwargs["fingerprints"] == ["fp-abc123"]
 
 
+def test_claim_slack_post_returns_true_when_inserted():
+    store = IncidentStore("postgresql://test")
+    mock_conn = MagicMock()
+    mock_conn.execute.return_value.fetchone.return_value = {"run_id": 123}
+
+    @contextmanager
+    def fake_connection():
+        yield mock_conn
+
+    with patch.object(store, "_connection", fake_connection):
+        claimed = store.claim_slack_post(123)
+
+    assert claimed is True
+    mock_conn.commit.assert_called_once()
+
+
+def test_claim_slack_post_returns_false_when_already_claimed():
+    store = IncidentStore("postgresql://test")
+    mock_conn = MagicMock()
+    mock_conn.execute.return_value.fetchone.return_value = None
+
+    @contextmanager
+    def fake_connection():
+        yield mock_conn
+
+    with patch.object(store, "_connection", fake_connection):
+        claimed = store.claim_slack_post(123)
+
+    assert claimed is False
+    mock_conn.commit.assert_called_once()
+
+
+def test_finalize_slack_post_claim_deletes_on_failed_post():
+    store = IncidentStore("postgresql://test")
+    mock_conn = MagicMock()
+
+    @contextmanager
+    def fake_connection():
+        yield mock_conn
+
+    with patch.object(store, "_connection", fake_connection):
+        store.finalize_slack_post_claim(123, posted=False)
+
+    sql = mock_conn.execute.call_args.args[0]
+    assert "DELETE FROM ci_slack_post_claims" in sql
+    mock_conn.commit.assert_called_once()
+
+
 def test_upsert_failures_skips_occurrence_increment_for_same_run_id():
     store = IncidentStore("postgresql://test")
     now = datetime(2026, 7, 15, 2, 30, tzinfo=UTC)

@@ -74,6 +74,7 @@ def test_run_records_summary_when_slack_delivery_fails():
 
     store = MagicMock()
     store.upsert_failures.return_value = [incident]
+    store.claim_slack_post.return_value = True
 
     orchestrator = SummarizerOrchestrator(
         config=_config(),
@@ -104,6 +105,7 @@ def test_run_records_summary_when_slack_delivery_fails():
     assert call_kwargs["metadata"]["slack_skipped_reason"] == (
         "Slack delivery failed: HTTP 500"
     )
+    store.finalize_slack_post_claim.assert_called_once_with(run.id, posted=False)
 
 
 def test_run_skips_duplicate_slack_post_for_same_run():
@@ -133,7 +135,7 @@ def test_run_skips_duplicate_slack_post_for_same_run():
 
     store = MagicMock()
     store.upsert_failures.return_value = [incident]
-    store.get_latest_summary_for_run.return_value = {"slack_posted": True}
+    store.claim_slack_post.return_value = False
 
     orchestrator = SummarizerOrchestrator(
         config=_config(),
@@ -151,12 +153,13 @@ def test_run_skips_duplicate_slack_post_for_same_run():
         result = orchestrator.run()
 
     mock_post.assert_not_called()
-    assert result.slack_posted is True
-    assert result.slack_skipped_reason == "summary already posted for this run"
+    assert result.slack_posted is False
+    assert result.slack_skipped_reason == "summary already claimed for this run"
     call_kwargs = store.record_summary.call_args.kwargs
     assert call_kwargs["metadata"]["slack_skipped_reason"] == (
-        "summary already posted for this run"
+        "summary already claimed for this run"
     )
+    store.finalize_slack_post_claim.assert_not_called()
 
 
 def test_run_records_failure_evidence_in_summary_metadata():

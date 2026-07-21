@@ -44,6 +44,12 @@ CREATE TABLE IF NOT EXISTS ci_summary_history (
     incident_fingerprints TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb
 );
+
+CREATE TABLE IF NOT EXISTS ci_slack_post_claims (
+    run_id BIGINT PRIMARY KEY,
+    claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    posted_at TIMESTAMPTZ
+);
 """
 
 
@@ -203,6 +209,41 @@ class IncidentStore:
             "slack_posted": bool(row.get("slack_posted")),
             "metadata": metadata,
         }
+
+    def claim_slack_post(self, run_id: int) -> bool:
+        with self._connection() as conn:
+            row = conn.execute(
+                """
+                INSERT INTO ci_slack_post_claims (run_id)
+                VALUES (%s)
+                ON CONFLICT (run_id) DO NOTHING
+                RETURNING run_id
+                """,
+                (run_id,),
+            ).fetchone()
+            conn.commit()
+        return row is not None
+
+    def finalize_slack_post_claim(self, run_id: int, *, posted: bool) -> None:
+        with self._connection() as conn:
+            if posted:
+                conn.execute(
+                    """
+                    UPDATE ci_slack_post_claims
+                    SET posted_at = COALESCE(posted_at, NOW())
+                    WHERE run_id = %s
+                    """,
+                    (run_id,),
+                )
+            else:
+                conn.execute(
+                    """
+                    DELETE FROM ci_slack_post_claims
+                    WHERE run_id = %s AND posted_at IS NULL
+                    """,
+                    (run_id,),
+                )
+            conn.commit()
 
     @staticmethod
     def _row_to_incident(row: dict[str, Any]) -> Incident:

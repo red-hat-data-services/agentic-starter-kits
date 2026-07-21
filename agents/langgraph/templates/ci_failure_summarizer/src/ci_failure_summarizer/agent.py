@@ -71,6 +71,10 @@ def get_graph_closure(
         model_id = getenv("MODEL_ID")
 
     base_url = normalize_base_url(base_url)
+    if not model_id:
+        raise ValueError(
+            "MODEL_ID is required. Set it via argument or MODEL_ID env var."
+        )
 
     # Validate API key for non-local environments
     if not base_url:
