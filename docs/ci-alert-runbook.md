@@ -25,6 +25,27 @@ This runbook covers the shared-branch CI Slack alerts for
 - Matrix failures are aggregated into one workflow-level alert with a failed-job list.
 - If the GitHub jobs API lookup fails, the alert still sends without job detail.
 
+## Severity Interpretation
+
+- `QG4` is the highest current action priority because lower-numbered canonical
+  QGs outrank higher-numbered ones.
+- `QG7` is the next current canonical priority and should be triaged after
+  `QG4` but ahead of supporting signals.
+- `Code Quality` and `Agent Tests` are supporting signals without canonical
+  fingerprints yet; treat them as operationally important but lower urgency
+  unless the failure is novel, repeated, or blocks shared-branch progress.
+
+## Non-alert Cases
+
+The current implementation does not send a team Slack alert for:
+
+- `pull_request` runs
+- `workflow_dispatch` runs on non-`main` branches
+- successful workflow runs
+
+If one of these runs fails, responders should expect no Slack message and
+should inspect the GitHub Actions run directly.
+
 ## SLA Path
 
 1. A qualifying shared-branch workflow run fails.
@@ -32,6 +53,21 @@ This runbook covers the shared-branch CI Slack alerts for
 3. The alert should arrive within 5 minutes of workflow failure.
 4. The responder opens the workflow run first, then the CI dashboard.
 5. The responder follows the validation and triage guidance in this runbook.
+
+## Responder Checklist
+
+1. Open the workflow run link from Slack and confirm the run is a qualifying
+   shared-branch failure.
+2. Review the failed-job list in Slack; if it is missing, use the workflow run
+   page because the alert may have sent without job detail.
+3. Use the workflow logs to decide whether the failure is transient, already
+   known, or a new defect.
+4. Open the CI health dashboard to check whether the same workflow or related
+   shared-branch signals are already failing.
+5. Prioritize follow-up using the severity interpretation in this runbook and
+   the proposed team SLA table below.
+6. Route the follow-up through the normal team remediation or backlog path
+   because this MVP remains `notify-only`.
 
 ## Proposed Team SLA (discussion item)
 
