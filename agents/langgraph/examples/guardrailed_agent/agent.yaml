@@ -1,0 +1,27 @@
+name: langgraph-guardrailed-agent
+displayName: "LangGraph Guardrailed Agent"
+framework: langgraph
+description: >
+  FSI customer service agent with NeMo Guardrails safety layer.
+  Demonstrates content safety rails (input + output), topical guardrails
+  (banking domain boundary), and regex-based input filtering using the
+  NeMo Guardrails proxy pattern. Built on the LangGraph ReAct agent template.
+labels:
+  - guardrails
+  - nemo-guardrails
+  - safety
+  - customer-service
+  - react
+env:
+  required:
+    - API_KEY
+    - BASE_URL
+    - MODEL_ID
+  optional:
+    - PORT
+    - CONTAINER_IMAGE
+    - GUARDRAILS_PORT
+    - LLM_BASE_URL
+    - AUTH_ENABLED
+    - AUTH_AUDIENCE
+    - AUTH_ALLOWED_SERVICEACCOUNTS

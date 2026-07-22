@@ -1,0 +1,50 @@
+[project]
+name = "guardrailed_agent"
+version = "0.1.0"
+description = "An FSI customer service agent with NeMo Guardrails safety layer. Demonstrates content safety, topical guardrails, and regex filtering using the proxy pattern."
+authors = [{ name = "Your Name", email = "you@example.com" }]
+license = { text = "MIT" }
+requires-python = ">=3.12,<=3.14"
+dependencies = [
+    "fastapi>=0.135.1",
+    "uvicorn[standard]>=0.41.0",
+    "langchain>=1.2.10",
+    "langchain-openai>=1.1.10",
+    "langgraph-prebuilt>=1.0.8",
+    "openai>=2.24.0",
+    "milvus-lite>=2.5.1",
+    "pymilvus==2.6.9",
+    "python-dotenv>=1.2.2",
+    "setuptools>=80.9.0,<83.0.0",
+    "chardet>=7.1.0",
+    "pypdf>=6.9.0",
+    "flask>=3.1.0",
+    "starlette>=1.0.1",
+    "protobuf<7",
+]
+
+[project.optional-dependencies]
+auth = [
+    "agent-auth",
+]
+dev = [
+    "pytest>=9.0.2",
+    "httpx>=0.27",
+    "pyyaml>=6.0",
+]
+guardrails = [
+    "nemoguardrails[server]==0.21.0",
+]
+tracing = [
+    "mlflow[kubernetes]>=3.11.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv.sources]
+agent-auth = { path = "../../../../components/auth" }
+
+[build-system]
+requires = ["setuptools>=80.9.0"]
+build-backend = "setuptools.build_meta"

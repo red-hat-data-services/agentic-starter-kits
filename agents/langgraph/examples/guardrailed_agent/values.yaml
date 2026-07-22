@@ -1,0 +1,11 @@
+nameOverride: "langgraph-guardrailed-agent"
+
+env:
+  MODEL_ID: ""
+  BASE_URL: ""
+
+auth:
+  enabled: false
+  audience: "langgraph-guardrailed-agent"
+  allowedServiceAccounts: []
+  createAuthDelegatorBinding: true
