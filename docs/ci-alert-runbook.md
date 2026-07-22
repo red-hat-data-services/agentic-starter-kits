@@ -76,3 +76,9 @@ should inspect the GitHub Actions run directly.
 | Highest current priority | `QG4` | Within 1 business hour | Same business day |
 | Next current priority | `QG7` | Within 4 business hours | Next business half-day |
 | Supporting signals | `Code Quality`, `Agent Tests` | By next business day | Next business day or convert to backlog follow-up if duplicate |
+
+## Validation Evidence
+
+- Current evidence snapshot: [CI Alert Validation Report](./ci-alert-validation-report.md)
+- The report records the exact `main` run IDs and observed notify-job timings
+  used to validate this runbook.
