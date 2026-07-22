@@ -28,9 +28,9 @@ Lightweight **spike** for a daily QG4 CI failure summarizer. It keeps the standa
 - No Slack thread replies or per-job threaded follow-ups
 - No Jira write-back or ticket creation
 - No automated remediation execution
-- No auth on `/summarize` (same open pattern as other template agents)
+- No auth on `/summarize` (unauthenticated spike endpoint)
 
-**Spike operational posture:** `/summarize` is **unauthenticated** and intended for operator- or platform-managed triggering after QG4 completes (see examples below). There is no API key gate or production hardening; treat the route as operator-only on a trusted network.
+**Spike operational posture:** `/summarize` is **unauthenticated** and intended for operator- or platform-managed triggering after QG4 completes (see examples below). There is no API key gate or production hardening. **The OpenShift Route is disabled by default** to prevent untrusted access -- you must explicitly enable it (`openshift.route.enabled: true` in Helm values) and ensure the endpoint is only accessible from a trusted network / by authorized operators.
 
 **Known limitations:**
 
@@ -274,7 +274,8 @@ QG4 agent deployment tests run in the **`ci-testing`** namespace on the demo Ope
 2. Point `GITHUB_REPOSITORY` at `red-hat-data-services/agentic-starter-kits` and keep the default `GITHUB_WORKFLOW`.
 3. Configure `SLACK_WEBHOOK_URL` with a test-channel webhook for spike validation.
 4. Reuse the shared PostgreSQL service used by other DB-memory agents (`POSTGRES_*` from cluster vars) or provision a dedicated database.
-5. After the nightly QG4 workflow finishes, call `POST /summarize` on the deployed route:
+5. **Enable the OpenShift Route** in your Helm values (`openshift.route.enabled: true`) only if deploying in a trusted/controlled environment.
+6. After the nightly QG4 workflow finishes, call `POST /summarize` on the deployed route:
 
 ```bash
 ROUTE="$(oc -n ci-testing get route langgraph-ci-failure-summarizer-agent -o jsonpath='{.spec.host}')"
@@ -297,16 +298,16 @@ make init
 Edit `.env` with your model endpoint, PostgreSQL credentials, and container image:
 
 ```ini
-API_KEY = your-api-key-here
-BASE_URL = https://your-model-endpoint.com/v1
-MODEL_ID = llama-3.1-8b-instruct
-CONTAINER_IMAGE = quay.io/your-username/langgraph-ci-failure-summarizer-agent:latest
+API_KEY=your-api-key-here
+BASE_URL=https://your-model-endpoint.com/v1
+MODEL_ID=llama-3.1-8b-instruct
+CONTAINER_IMAGE=quay.io/your-username/langgraph-ci-failure-summarizer-agent:latest
 
-POSTGRES_HOST = your-postgres-host.com
-POSTGRES_PORT = 5432
-POSTGRES_DB = agent_memory
-POSTGRES_USER = your_db_user
-POSTGRES_PASSWORD = your_db_password
+POSTGRES_HOST=your-postgres-host.com
+POSTGRES_PORT=5432
+POSTGRES_DB=agent_memory
+POSTGRES_USER=your_db_user
+POSTGRES_PASSWORD=your_db_password
 ```
 
 **Notes:**
@@ -339,13 +340,14 @@ POSTGRES_PASSWORD = your_db_password
 Login to OC
 
 ```bash
-oc login -u "login" -p "password" https://super-link-to-cluster:111
+oc login -u "login" https://super-link-to-cluster:111
+# You will be prompted for your password interactively
 ```
 
 Login ex. Docker
 
 ```bash
-docker login -u='login' -p='password' quay.io
+echo 'password' | docker login -u='login' --password-stdin quay.io
 ```
 
 #### Option A: Build locally and push to a registry

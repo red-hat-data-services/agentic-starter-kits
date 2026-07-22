@@ -1,5 +1,12 @@
 nameOverride: "langgraph-ci-failure-summarizer-agent"
 
+# Security: /summarize endpoint is unauthenticated in this spike.
+# Route is disabled by default to prevent untrusted access.
+# Enable only in controlled environments (trusted network / operator-only access).
+openshift:
+  route:
+    enabled: false
+
 env:
   MODEL_ID: ""
   BASE_URL: ""

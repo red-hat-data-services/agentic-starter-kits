@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Iterator
 
 import psycopg
@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS ci_summary_history (
 CREATE TABLE IF NOT EXISTS ci_slack_post_claims (
     run_id BIGINT PRIMARY KEY,
     claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    claim_expires_at TIMESTAMPTZ NOT NULL,
     posted_at TIMESTAMPTZ
 );
 """
@@ -214,38 +215,76 @@ class IncidentStore:
             "metadata": metadata,
         }
 
-    def claim_slack_post(self, run_id: int) -> bool:
+    def claim_slack_post(self, run_id: int, lease_duration_seconds: int = 300) -> bool:
+        """Claim the right to post a Slack summary for a run.
+
+        Returns True if the claim was successfully acquired (either new or reclaimed
+        from an expired lease). Returns False if another active (non-expired,
+        non-finalized) claim exists.
+
+        Args:
+            run_id: The workflow run ID to claim.
+            lease_duration_seconds: Duration in seconds before the claim expires
+                and can be reclaimed by another worker. Default: 300 (5 minutes).
+        """
+        now = datetime.now(UTC)
+        expires_at = now + timedelta(seconds=lease_duration_seconds)
+
         with self._connection() as conn:
+            # Try to insert a new claim or update an expired/unposted claim
             row = conn.execute(
                 """
-                INSERT INTO ci_slack_post_claims (run_id)
-                VALUES (%s)
-                ON CONFLICT (run_id) DO NOTHING
+                INSERT INTO ci_slack_post_claims (run_id, claimed_at, claim_expires_at)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (run_id) DO UPDATE SET
+                    claimed_at = EXCLUDED.claimed_at,
+                    claim_expires_at = EXCLUDED.claim_expires_at
+                WHERE
+                    ci_slack_post_claims.posted_at IS NULL
+                    AND ci_slack_post_claims.claim_expires_at < EXCLUDED.claimed_at
                 RETURNING run_id
                 """,
-                (run_id,),
+                (run_id, now, expires_at),
             ).fetchone()
             conn.commit()
         return row is not None
 
     def finalize_slack_post_claim(self, run_id: int, *, posted: bool) -> None:
+        """Finalize a Slack post claim after attempting delivery.
+
+        Only finalizes if the claim is still active (not expired, not already posted).
+        If posted=True, marks the claim as completed. If posted=False, releases the
+        claim so it can be retried later.
+
+        Args:
+            run_id: The workflow run ID to finalize.
+            posted: True if the Slack message was successfully posted, False otherwise.
+        """
+        now = datetime.now(UTC)
+
         with self._connection() as conn:
             if posted:
+                # Mark as posted only if the claim is still active (not expired, not already posted)
                 conn.execute(
                     """
                     UPDATE ci_slack_post_claims
                     SET posted_at = COALESCE(posted_at, NOW())
                     WHERE run_id = %s
+                      AND posted_at IS NULL
+                      AND claim_expires_at >= %s
                     """,
-                    (run_id,),
+                    (run_id, now),
                 )
             else:
+                # Release the claim only if it's still active (not expired, not already posted)
                 conn.execute(
                     """
                     DELETE FROM ci_slack_post_claims
-                    WHERE run_id = %s AND posted_at IS NULL
+                    WHERE run_id = %s
+                      AND posted_at IS NULL
+                      AND claim_expires_at >= %s
                     """,
-                    (run_id,),
+                    (run_id, now),
                 )
             conn.commit()
 
