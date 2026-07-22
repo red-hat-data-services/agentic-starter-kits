@@ -147,8 +147,7 @@ This MVP defines a system delivery path, not a human response SLA.
 3. The alert should arrive within 5 minutes of the qualifying failure.
 4. The responder follows the workflow run link first, then uses the CI health
    dashboard for broader context.
-5. Detailed triage steps live in the CI alert runbook that builds on this
-   policy.
+5. Detailed triage steps live in the [CI Alert Runbook](./ci-alert-runbook.md).
 
 ### Human expectation
 

@@ -31,6 +31,9 @@ Pull request runs are excluded from the summary to keep the page focused on shar
 Routing, ownership, severity, and MVP handling expectations for these alerts are
 defined in [CI Alert Policy](./ci-alert-policy.md).
 
+Responder workflow, dedupe semantics, and validation guidance live in
+[CI Alert Runbook](./ci-alert-runbook.md).
+
 ## Slack alerts
 
 The same four workflows also send immediate Slack alerts when a shared-branch run fails:
