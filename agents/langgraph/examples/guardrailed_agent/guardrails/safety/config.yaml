@@ -1,0 +1,45 @@
+# NeMo Guardrails configuration for the guardrailed agent.
+# Model endpoints below are defaults for local Ollama. To use a different LLM:
+#   1. Edit the base_url and model values below, OR
+#   2. Run `make guardrails-config` to update from .env (LLM_BASE_URL, MODEL_ID)
+models:
+  - type: main
+    engine: openai
+    model: llama3.1:8b
+    parameters:
+      base_url: http://localhost:11434/v1
+    api_key_env_var: API_KEY
+
+  - type: content_safety
+    engine: openai
+    model: llama3.1:8b
+    parameters:
+      base_url: http://localhost:11434/v1
+    api_key_env_var: API_KEY
+
+  - type: topic_control
+    engine: openai
+    model: llama3.1:8b
+    parameters:
+      base_url: http://localhost:11434/v1
+    api_key_env_var: API_KEY
+
+rails:
+  config:
+    regex_detection:
+      input:
+        patterns:
+          - "\\b(hack|exploit|bypass|inject)\\s+(the|this|my)\\s+(system|filter|guardrail)"
+          - "ignore\\s+(all\\s+)?(previous|above)\\s+(instructions|rules|prompts)"
+          - "\\bDAN\\b.*\\bjailbreak\\b"
+        case_insensitive: true
+  input:
+    flows:
+      - regex check input
+      - content safety check input $model=content_safety
+      - topic safety check input $model=topic_control
+  output:
+    flows:
+      - content safety check output $model=content_safety
+    streaming:
+      enabled: True
