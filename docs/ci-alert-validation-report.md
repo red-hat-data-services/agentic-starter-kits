@@ -2,18 +2,21 @@
 
 ## Evidence Summary
 
+Timestamps below come from the GitHub Actions Jobs API (`gh run view <run-id> --json jobs`) unless noted as a notify-step or log observation.
+
 | Workflow | Run ID | Event | Failure signal | Notify evidence | Observation |
 | --- | --- | --- | --- | --- | --- |
-| `Inner Loop Gating` | `29016905658` | `workflow_dispatch` on `main` | `Cluster Behavioral Tests` failed at `2026-07-09T12:07:04Z` | `Notify Slack` completed successfully; `Send Slack notification` completed at `2026-07-09T12:07:38Z` | One workflow-level alert was sent 34 seconds after the failing job completed |
-| `QG4: Agent Deployment Integration Tests` | `29890165253` | `schedule` on `main` | `langflow-simple-tool-calling-agent` failed at `2026-07-22T04:06:44Z` | `Notify Slack` completed successfully; log contains `Slack notification sent` at `2026-07-22T04:13:21Z` | Matrix failures are deduped into one alert after the workflow conclusion is known |
+| `Inner Loop Gating` | `29016905658` | `workflow_dispatch` on `main` | `Cluster Behavioral Tests`: failing step `Run shared btest runner` at `2026-07-09T12:07:04Z`; job `completedAt` `2026-07-09T12:07:08Z` | `Notify Slack` completed successfully; `Send Slack notification` step at `2026-07-09T12:07:38Z`; job `completedAt` `2026-07-09T12:07:41Z` | One workflow-level alert was sent 34 seconds after the failing step completed |
+| `QG4: Agent Deployment Integration Tests` | `29890165253` | `schedule` on `main` | `langflow-simple-tool-calling-agent`: failing step `Run integration test` at `2026-07-22T04:06:44Z`; job `completedAt` `2026-07-22T04:06:46Z` | `Notify Slack` completed successfully; `Send Slack notification` step at `2026-07-22T04:13:21Z`; log contains `Slack notification sent` | Matrix failures are deduped into one alert after the workflow conclusion is known |
 
 ## SLA Measurement Note
 
 - The current notify path emits one alert after the workflow conclusion is known,
   not when the first matrix leg fails.
 - For `QG4: Agent Deployment Integration Tests` run `29890165253`, the first
-  failing matrix job completed at `2026-07-22T04:06:44Z`, the final non-notify
-  job completed at `2026-07-22T04:13:15Z`, and `Slack notification sent` was
+  failing matrix step completed at `2026-07-22T04:06:44Z`, that job's Jobs API
+  `completedAt` was `2026-07-22T04:06:46Z`, the final non-notify job
+  `completedAt` was `2026-07-22T04:13:15Z`, and `Slack notification sent` was
   logged at `2026-07-22T04:13:21Z`.
 - Measured from workflow-level failure/conclusion readiness, the sample meets
   the current expectation because the alert followed the matrix conclusion by
@@ -23,6 +26,10 @@
   runbook/policy clarification.
 
 ## Payload Quality Verification
+
+These observations come from the local `render_payload.sh` preview command in
+`docs/ci-health-dashboard.md`, using representative `Code Quality` inputs. They
+are not from a captured live `Code Quality` failure on `main`.
 
 - The rendered header preserves the workflow name: `CI Failure: Code Quality`.
 - The payload fields preserve the expected event/ref context:
