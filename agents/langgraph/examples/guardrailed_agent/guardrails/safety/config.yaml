@@ -1,27 +1,28 @@
 # NeMo Guardrails configuration for the guardrailed agent.
-# Model endpoints below are defaults for local Ollama. To use a different LLM:
+# Model endpoints below default to the local OGX server (make ogx-server).
+# To use a different LLM:
 #   1. Edit the base_url and model values below, OR
 #   2. Run `make guardrails-config` to update from .env (LLM_BASE_URL, MODEL_ID)
 models:
   - type: main
     engine: openai
-    model: llama3.1:8b
+    model: ollama/Llama3.1:8B
     parameters:
-      base_url: http://localhost:11434/v1
+      base_url: http://localhost:8321/v1
     api_key_env_var: API_KEY
 
   - type: content_safety
     engine: openai
-    model: llama3.1:8b
+    model: ollama/Llama3.1:8B
     parameters:
-      base_url: http://localhost:11434/v1
+      base_url: http://localhost:8321/v1
     api_key_env_var: API_KEY
 
   - type: topic_control
     engine: openai
-    model: llama3.1:8b
+    model: ollama/Llama3.1:8B
     parameters:
-      base_url: http://localhost:11434/v1
+      base_url: http://localhost:8321/v1
     api_key_env_var: API_KEY
 
 rails:
