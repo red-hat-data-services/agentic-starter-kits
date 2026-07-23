@@ -69,7 +69,7 @@ ogx-server: ## Install OGX and start OGX server
 guardrails-config: ## Update guardrails config.yaml with LLM endpoint from .env
 	@source .venv/bin/activate && set -a && source .env && set +a && \
 	  LLM_URL=$${LLM_BASE_URL:-http://localhost:8321/v1} && \
-	  MODEL=$${MODEL_ID:-ollama/Llama3.1:8B} && \
+	  MODEL=$${MODEL_ID:-llama3.1:8b} && \
 	  sed -i.bak \
 	    -e "s|base_url:.*|base_url: $$LLM_URL|g" \
 	    -e "s|model:.*|model: $$MODEL|g" \

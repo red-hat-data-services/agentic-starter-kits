@@ -6,21 +6,21 @@
 models:
   - type: main
     engine: openai
-    model: ollama/Llama3.1:8B
+    model: llama3.1:8b
     parameters:
       base_url: http://localhost:8321/v1
     api_key_env_var: API_KEY
 
   - type: content_safety
     engine: openai
-    model: ollama/Llama3.1:8B
+    model: llama3.1:8b
     parameters:
       base_url: http://localhost:8321/v1
     api_key_env_var: API_KEY
 
   - type: topic_control
     engine: openai
-    model: ollama/Llama3.1:8B
+    model: llama3.1:8b
     parameters:
       base_url: http://localhost:8321/v1
     api_key_env_var: API_KEY
