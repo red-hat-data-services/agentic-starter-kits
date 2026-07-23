@@ -573,5 +573,5 @@ To permanently delete a conversation thread (or all threads), use the provided s
 - [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
 - [LangGraph Checkpointers](https://langchain-ai.github.io/langgraph/concepts/persistence/)
 - [LangChain Documentation](https://python.langchain.com/)
-- [OGX Documentation](https://ogx-ai.github.io/docs/)
+- [OGX Documentation](https://ogx-ai.github.io/docs)
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
