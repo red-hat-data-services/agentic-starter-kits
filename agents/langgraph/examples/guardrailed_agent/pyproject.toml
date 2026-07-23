@@ -35,6 +35,7 @@ dev = [
 guardrails = [
     "nemoguardrails[server]==0.21.0",
     "dataclasses-json>=0.6.7",
+    "langchain-community>=0.2,<0.4",
 ]
 tracing = [
     "mlflow[kubernetes]>=3.11.0",
