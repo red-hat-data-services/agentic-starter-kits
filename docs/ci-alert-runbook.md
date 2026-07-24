@@ -50,7 +50,7 @@ should inspect the GitHub Actions run directly.
 
 1. A qualifying shared-branch workflow run fails.
 2. The repository posts one alert into the shared CI Slack destination.
-3. The alert should arrive within 5 minutes of workflow failure.
+3. The alert should arrive within 5 minutes of workflow conclusion.
 4. The responder opens the workflow run first, then the CI dashboard.
 5. The responder follows the validation and triage guidance in this runbook.
 

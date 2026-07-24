@@ -41,7 +41,7 @@ This MVP does not send team Slack alerts for:
   this MVP does not define an acknowledgement SLA, resolution SLA, or after-hours
   on-call expectation.
 - **System delivery expectation:** qualifying alerts should land in Slack within
-  5 minutes of workflow failure.
+  5 minutes of workflow conclusion.
 - **Severity model:** canonical severity fingerprinting is based on the Quality
   Gate ladder, with lower-numbered QGs treated as higher priority.
 - **Current implementation note:** not every current alert source is a canonical
@@ -144,7 +144,7 @@ This MVP defines a system delivery path, not a human response SLA.
 
 1. A qualifying shared-branch workflow run fails.
 2. The repository posts one alert into the shared CI Slack destination.
-3. The alert should arrive within 5 minutes of the qualifying failure.
+3. The alert should arrive within 5 minutes of workflow conclusion.
 4. The responder follows the workflow run link first, then uses the CI health
    dashboard for broader context.
 5. Detailed triage steps live in the [CI Alert Runbook](./ci-alert-runbook.md).
