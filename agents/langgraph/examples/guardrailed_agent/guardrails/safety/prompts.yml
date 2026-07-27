@@ -87,3 +87,4 @@ prompts:
       - Do not answer questions about entertainment, sports, or celebrity gossip.
       - Do not answer questions about personal relationships or dating advice.
       - If a user asks topics irrelevant to banking and financial services, politely redirect.
+    max_tokens: 10

@@ -60,12 +60,14 @@ guardrails-config: ## Update guardrails config.yaml with LLM endpoint from .env
 	@source .venv/bin/activate && set -a && source .env && set +a && \
 	  LLM_URL=$${LLM_BASE_URL:-http://localhost:11434/v1} && \
 	  MODEL=$${MODEL_ID:-llama3.1:8b} && \
+	  KEY=$${API_KEY:-not-needed} && \
 	  sed -i.bak \
 	    -e "s|base_url:.*|base_url: $$LLM_URL|g" \
 	    -e "s|model:.*|model: $$MODEL|g" \
+	    -e "s|api_key:.*|api_key: $$KEY|g" \
 	    guardrails/safety/config.yaml && \
 	  rm -f guardrails/safety/config.yaml.bak && \
-	  echo "Updated guardrails/safety/config.yaml with LLM_BASE_URL=$$LLM_URL MODEL_ID=$$MODEL"
+	  echo "Updated guardrails/safety/config.yaml with LLM_BASE_URL=$$LLM_URL MODEL_ID=$$MODEL API_KEY=***"
 
 guardrails-server: ## Start NeMo Guardrails server on GUARDRAILS_PORT (default 8090)
 	@source .venv/bin/activate && set -a && source .env && set +a && \

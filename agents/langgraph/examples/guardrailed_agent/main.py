@@ -18,9 +18,23 @@ from fastapi.responses import (
 from guardrailed_agent.agent import get_graph_closure
 from guardrailed_agent.tracing import enable_tracing
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from openai import APIError as OpenAIAPIError
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+_GUARDRAILS_REFUSAL = "I'm sorry, I can't respond to that."
+
+
+def _is_guardrails_block(exc: Exception) -> bool:
+    """NeMo Guardrails v0.21.0 has no typed exception for rail blocks.
+    It raises openai.APIError with 'Blocked by ... rails' in the message.
+    This coupling is version-specific and may need updating for newer NeMo."""
+    return (
+        isinstance(exc, OpenAIAPIError)
+        and "Blocked by" in str(exc)
+        and "rails" in str(exc)
+    )
 
 
 # OpenAI-compatible request/response models
@@ -143,8 +157,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 # Create FastAPI app
 app = FastAPI(
-    title="LangGraph React Agent API",
-    description="FastAPI service for LangGraph React Agent with OpenAI-compatible chat completions API.",
+    title="LangGraph Guardrailed Agent API",
+    description="FastAPI service for LangGraph Guardrailed Agent with OpenAI-compatible chat completions API.",
     lifespan=lifespan,
     openapi_tags=[
         {"name": "Chat", "description": "Chat completion operations"},
@@ -301,7 +315,7 @@ async def _handle_chat(messages: list[HumanMessage], model_id: str) -> dict[str,
         }
 
     except Exception as e:
-        if "Blocked by" in str(e) and "rails" in str(e):
+        if _is_guardrails_block(e):
             return {
                 "id": _make_completion_id(),
                 "object": "chat.completion",
@@ -312,16 +326,16 @@ async def _handle_chat(messages: list[HumanMessage], model_id: str) -> dict[str,
                         "index": 0,
                         "message": {
                             "role": "assistant",
-                            "content": "I'm sorry, I can't respond to that.",
+                            "content": getattr(e, "message", None)
+                            or _GUARDRAILS_REFUSAL,
                         },
                         "finish_reason": "stop",
                     }
                 ],
                 "usage": None,
             }
-        raise HTTPException(
-            status_code=500, detail=f"Error processing request: {str(e)}"
-        )
+        logger.exception("Error processing chat request")
+        raise HTTPException(status_code=500, detail="Error processing request")
 
 
 async def _handle_stream(
@@ -437,7 +451,7 @@ async def _handle_stream(
             yield "data: [DONE]\n\n"
 
         except Exception as e:
-            if "Blocked by" in str(e) and "rails" in str(e):
+            if _is_guardrails_block(e):
                 final_data = {
                     "id": completion_id,
                     "object": "chat.completion.chunk",

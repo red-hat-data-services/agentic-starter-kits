@@ -1,11 +1,4 @@
 from langchain_core.tools import tool
-from pydantic import BaseModel, Field
-
-
-class AccountInput(BaseModel):
-    """Schema for the account balance tool input."""
-
-    account_id: str = Field(description="The customer account ID to look up.")
 
 
 @tool("check_balance", parse_docstring=True)
