@@ -14,8 +14,9 @@ re-init: ## Activate venv and reload .env variables
 	@source .venv/bin/activate && set -a && source .env && set +a && \
 	  echo "Venv activated and .env variables loaded."
 
-init: ## Copy .env.example to .env for configuration
+init: ## Copy .env.example and guardrails config template for configuration
 	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from .env.example - edit it with your configuration"; else echo ".env already exists - skipping"; fi
+	@if [ ! -f guardrails/safety/config.yaml ]; then cp guardrails/safety/config.yaml.example guardrails/safety/config.yaml && echo "Created guardrails/safety/config.yaml from template"; else echo "guardrails/safety/config.yaml already exists - skipping"; fi
 
 env: ## Create venv, load .env, and install dependencies (including NeMo Guardrails)
 	@echo "==> Creating virtual environment and installing dependencies..." && \
@@ -57,6 +58,7 @@ ollama: ## Install Ollama, start it, and pull models
 	  echo "Done. Run 'make guardrails-server' to start NeMo Guardrails."
 
 guardrails-config: ## Update guardrails config.yaml with LLM endpoint from .env
+	@[ -f guardrails/safety/config.yaml ] || cp guardrails/safety/config.yaml.example guardrails/safety/config.yaml
 	@source .venv/bin/activate && set -a && source .env && set +a && \
 	  python3 -c "\
 	import yaml, sys; \

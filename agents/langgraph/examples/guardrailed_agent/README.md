@@ -74,16 +74,13 @@ Ensure Ollama is running (the macOS desktop app handles this automatically; othe
 make guardrails-server   # starts on port 8090, proxies to Ollama on 11434
 ```
 
-The guardrails server reads its config from `guardrails/safety/config.yaml`.
+The guardrails server reads its config from `guardrails/safety/config.yaml` (created by `make init` from the `.example` template). This file is gitignored to prevent accidental credential commits.
 
 > **Using a different model?** Set `MODEL_ID` in `.env`, pull it with
 > `ollama pull <model>`, then run `make guardrails-config` to update the guardrails config.
 >
 > **Using a remote endpoint instead of Ollama?** Set `LLM_BASE_URL` in `.env` to your
 > OpenAI-compatible endpoint, then run `make guardrails-config`.
->
-> **Warning:** `make guardrails-config` writes your `API_KEY` into `guardrails/safety/config.yaml`.
-> Do not commit this file after running with real credentials.
 
 ### 5. Start the agent
 
@@ -198,7 +195,8 @@ curl http://localhost:8000/health
 
 | File | Purpose |
 |------|---------|
-| `guardrails/safety/config.yaml` | Model endpoints, rail ordering, streaming, regex patterns |
+| `guardrails/safety/config.yaml.example` | Template with safe defaults (committed) |
+| `guardrails/safety/config.yaml` | Runtime config (gitignored, created by `make init`) |
 | `guardrails/safety/prompts.yml` | Content safety (S1–S13) and topic safety classification prompts |
 | `guardrails/safety/rails.co` | Colang greeting flows (required by RHOAI entrypoint) |
 
@@ -207,6 +205,11 @@ curl http://localhost:8000/health
 - Config file must be `config.yaml` (not `.yml`) — RHOAI container entrypoint requirement
 - `rails.co` must exist — RHOAI container entrypoint requirement (can be minimal)
 - NeMo Guardrails version pinned to `0.21.0` to match RHOAI
+
+## Known Limitations
+
+- **Single-turn only** — the agent uses only the last user message; prior conversation history is not forwarded to the LLM. This matches the template pattern and is adequate for demonstrating guardrails behavior.
+- **Health probe as readiness** — `/health` returns 503 when guardrails are unreachable. Use it as a Kubernetes **readiness** probe, not a liveness probe, to avoid unnecessary pod restarts.
 
 ## Resources
 

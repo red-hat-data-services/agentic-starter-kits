@@ -33,6 +33,11 @@ def get_graph_closure(
     if not model_id:
         model_id = getenv("MODEL_ID")
 
+    if not model_id:
+        raise ValueError(
+            "MODEL_ID is required. Set it via argument or MODEL_ID env var."
+        )
+
     if not base_url:
         raise ValueError(
             "BASE_URL is required. Set it via argument or BASE_URL env var."

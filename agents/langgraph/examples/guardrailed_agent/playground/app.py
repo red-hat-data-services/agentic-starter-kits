@@ -32,7 +32,7 @@ from flask import (
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-IMAGES_DIR = Path(__file__).resolve().parents[4] / "images"
+IMAGES_DIR = Path(__file__).resolve().parents[5] / "images"
 
 app = Flask(__name__)
 

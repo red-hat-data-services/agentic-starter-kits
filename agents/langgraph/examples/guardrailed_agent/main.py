@@ -8,6 +8,7 @@ from os import getenv
 from pathlib import Path
 from typing import Any
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import (
     FileResponse,
@@ -137,6 +138,7 @@ class HealthResponse(BaseModel):
 
 # Global variable for agent graph
 agent_graph = None
+_health_client = httpx.AsyncClient(timeout=2)
 
 
 @asynccontextmanager
@@ -455,6 +457,20 @@ async def _handle_stream(
 
         except Exception as e:
             if _is_guardrails_block(e):
+                refusal_data = {
+                    "id": completion_id,
+                    "object": "chat.completion.chunk",
+                    "created": created,
+                    "model": model_id,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {"content": _GUARDRAILS_REFUSAL},
+                            "finish_reason": None,
+                        }
+                    ],
+                }
+                yield f"data: {json.dumps(refusal_data)}\n\n"
                 final_data = {
                     "id": completion_id,
                     "object": "chat.completion.chunk",
@@ -495,13 +511,10 @@ async def health():
     guardrails_ok = False
     base_url = getenv("BASE_URL", "")
     if initialized and base_url:
-        import httpx
-
         probe_url = base_url.rstrip("/").removesuffix("/v1")
         try:
-            async with httpx.AsyncClient(timeout=2) as client:
-                r = await client.get(probe_url)
-                guardrails_ok = r.status_code < 500
+            r = await _health_client.get(probe_url)
+            guardrails_ok = r.status_code == 200
         except Exception:
             guardrails_ok = False
 

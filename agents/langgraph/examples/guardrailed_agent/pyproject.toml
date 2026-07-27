@@ -3,7 +3,7 @@ name = "guardrailed_agent"
 version = "0.1.0"
 description = "A banking customer service agent with NeMo Guardrails safety layer. Demonstrates content safety, topical guardrails, and regex filtering using the proxy pattern."
 authors = [{ name = "Your Name", email = "you@example.com" }]
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "fastapi>=0.135.1",
@@ -17,6 +17,8 @@ dependencies = [
     "setuptools>=80.9.0,<83.0.0",
     "starlette>=1.0.1",
     "protobuf<7",
+    "flask>=3.1.0",
+    "requests>=2.32.0",
 ]
 
 [project.optional-dependencies]

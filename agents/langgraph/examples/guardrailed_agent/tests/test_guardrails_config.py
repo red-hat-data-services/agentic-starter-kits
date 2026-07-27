@@ -10,15 +10,17 @@ import yaml
 
 AGENT_DIR = Path(__file__).resolve().parents[1]
 GUARDRAILS_DIR = AGENT_DIR / "guardrails" / "safety"
+CONFIG_FILE = GUARDRAILS_DIR / "config.yaml.example"
 
 
 class TestConfigFilesExist:
-    def test_config_yaml_exists(self):
-        assert (GUARDRAILS_DIR / "config.yaml").is_file()
+    def test_config_yaml_example_exists(self):
+        assert CONFIG_FILE.is_file()
 
     def test_config_uses_yaml_extension_not_yml(self):
-        assert (GUARDRAILS_DIR / "config.yaml").is_file()
+        assert CONFIG_FILE.is_file()
         assert not (GUARDRAILS_DIR / "config.yml").exists()
+        assert not (GUARDRAILS_DIR / "config.yml.example").exists()
 
     def test_prompts_yml_exists(self):
         assert (GUARDRAILS_DIR / "prompts.yml").is_file()
@@ -30,9 +32,7 @@ class TestConfigFilesExist:
 class TestConfigYaml:
     @classmethod
     def setup_class(cls):
-        cls.config = yaml.safe_load(
-            (GUARDRAILS_DIR / "config.yaml").read_text(encoding="utf-8")
-        )
+        cls.config = yaml.safe_load(CONFIG_FILE.read_text(encoding="utf-8"))
 
     def test_has_models_section(self):
         assert "models" in self.config
