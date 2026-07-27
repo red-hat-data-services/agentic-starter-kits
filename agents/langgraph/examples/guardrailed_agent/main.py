@@ -301,6 +301,24 @@ async def _handle_chat(messages: list[HumanMessage], model_id: str) -> dict[str,
         }
 
     except Exception as e:
+        if "Blocked by" in str(e) and "rails" in str(e):
+            return {
+                "id": _make_completion_id(),
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": model_id,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "I'm sorry, I can't respond to that.",
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": None,
+            }
         raise HTTPException(
             status_code=500, detail=f"Error processing request: {str(e)}"
         )
