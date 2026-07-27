@@ -5,7 +5,7 @@ VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
 
-.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test test-integration test-auth-integration dry-run help guardrails-config guardrails-server
+.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test dry-run help guardrails-config guardrails-server
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -211,14 +211,4 @@ undeploy: ## Remove deployment from cluster
 	helm uninstall $(AGENT_NAME)
 
 test: ## Run unit tests
-	uv run --extra dev python -m pytest tests/ --ignore=tests/integration --ignore=tests/behavioral $(PYTEST_ARGS)
-
-test-integration: ## Run integration deployment test
-	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \
-	  uv run --extra dev python -m pytest tests/integration/test_deployment.py \
-	    -v --tb=long --junitxml=results.xml
-
-test-auth-integration: ## Run auth-enabled integration deployment test
-	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \
-	  uv run --extra dev python -m pytest tests/integration/test_auth.py \
-	    -v --tb=long --junitxml=results-auth.xml
+	uv run --extra dev python -m pytest tests/ $(PYTEST_ARGS)
