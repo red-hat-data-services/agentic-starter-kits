@@ -1,7 +1,7 @@
 [project]
 name = "guardrailed_agent"
 version = "0.1.0"
-description = "An FSI customer service agent with NeMo Guardrails safety layer. Demonstrates content safety, topical guardrails, and regex filtering using the proxy pattern."
+description = "A banking customer service agent with NeMo Guardrails safety layer. Demonstrates content safety, topical guardrails, and regex filtering using the proxy pattern."
 authors = [{ name = "Your Name", email = "you@example.com" }]
 license = { text = "MIT" }
 requires-python = ">=3.12,<3.14"
