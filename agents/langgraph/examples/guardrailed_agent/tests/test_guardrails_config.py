@@ -39,6 +39,10 @@ class TestConfigYaml:
         model_types = {m["type"] for m in self.config["models"]}
         assert "main" in model_types
         assert "content_safety" in model_types
+        assert "topic_control" in model_types
+
+    def test_passthrough_enabled(self):
+        assert self.config.get("passthrough") is True
 
     def test_has_input_rails(self):
         flows = self.config["rails"]["input"]["flows"]

@@ -129,6 +129,10 @@ class HealthResponse(BaseModel):
         ...,
         description="Whether the agent has been initialized and is ready to serve requests.",
     )
+    guardrails_reachable: bool = Field(
+        False,
+        description="Whether the NeMo Guardrails proxy server is reachable.",
+    )
 
 
 # Global variable for agent graph
@@ -326,8 +330,7 @@ async def _handle_chat(messages: list[HumanMessage], model_id: str) -> dict[str,
                         "index": 0,
                         "message": {
                             "role": "assistant",
-                            "content": getattr(e, "message", None)
-                            or _GUARDRAILS_REFUSAL,
+                            "content": _GUARDRAILS_REFUSAL,
                         },
                         "finish_reason": "stop",
                     }
@@ -489,11 +492,25 @@ async def _handle_stream(
 )
 async def health():
     initialized = agent_graph is not None
+    guardrails_ok = False
+    base_url = getenv("BASE_URL", "")
+    if initialized and base_url:
+        import httpx
+
+        probe_url = base_url.rstrip("/").removesuffix("/v1")
+        try:
+            async with httpx.AsyncClient(timeout=2) as client:
+                r = await client.get(probe_url)
+                guardrails_ok = r.status_code < 500
+        except Exception:
+            guardrails_ok = False
+
     body = {
-        "status": "healthy" if initialized else "not_ready",
+        "status": "healthy" if initialized and guardrails_ok else "not_ready",
         "agent_initialized": initialized,
+        "guardrails_reachable": guardrails_ok,
     }
-    if not initialized:
+    if not initialized or not guardrails_ok:
         return JSONResponse(status_code=503, content=body)
     return body
 
@@ -504,7 +521,7 @@ _PLAYGROUND_HTML = _BASE_DIR / "playground" / "templates" / "index.html"
 # In Docker the images are copied to /opt/app-root/src/images; locally they live at the repo root
 _IMAGES_DIR = _BASE_DIR / "images"
 if not _IMAGES_DIR.is_dir():
-    _IMAGES_DIR = _BASE_DIR.parent.parent.parent / "images"
+    _IMAGES_DIR = _BASE_DIR.parent.parent.parent.parent / "images"
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)

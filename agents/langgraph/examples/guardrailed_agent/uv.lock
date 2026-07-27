@@ -746,6 +746,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "langchain" },
     { name = "langchain-openai" },
     { name = "langgraph-prebuilt" },
@@ -780,6 +781,7 @@ requires-dist = [
     { name = "agent-auth", marker = "extra == 'auth'", directory = "../../../../components/auth" },
     { name = "dataclasses-json", marker = "extra == 'guardrails'", specifier = ">=0.6.7" },
     { name = "fastapi", specifier = ">=0.135.1" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "langchain", specifier = ">=1.2.10" },
     { name = "langchain-community", marker = "extra == 'guardrails'", specifier = ">=0.2,<0.4" },

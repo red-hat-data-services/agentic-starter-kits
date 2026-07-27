@@ -81,6 +81,9 @@ The guardrails server reads its config from `guardrails/safety/config.yaml`.
 >
 > **Using a remote endpoint instead of Ollama?** Set `LLM_BASE_URL` in `.env` to your
 > OpenAI-compatible endpoint, then run `make guardrails-config`.
+>
+> **Warning:** `make guardrails-config` writes your `API_KEY` into `guardrails/safety/config.yaml`.
+> Do not commit this file after running with real credentials.
 
 ### 5. Start the agent
 
