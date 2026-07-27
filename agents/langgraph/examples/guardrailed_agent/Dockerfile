@@ -19,6 +19,8 @@ COPY src/ ./src/
 COPY components/auth/ /opt/app-root/src/components/auth/
 
 # Install the project and its dependencies using uv
+# NeMo Guardrails runs as a separate pod in production (managed by NemoGuardrails CRD),
+# so the [guardrails] extra is intentionally omitted from the agent container image.
 RUN uv pip install --no-cache ".[tracing,auth]"
 
 # Copy the application entrypoint, playground UI, and images

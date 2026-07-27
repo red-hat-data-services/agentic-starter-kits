@@ -16,7 +16,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "setuptools>=80.9.0,<83.0.0",
     "starlette>=1.0.1",
-    "protobuf<7",
+    "protobuf<7",  # nemoguardrails 0.21.0 pulls grpcio which conflicts with protobuf 7+
     "flask>=3.1.0",
     "requests>=2.32.0",
 ]
@@ -31,9 +31,9 @@ dev = [
     "pyyaml>=6.0",
 ]
 guardrails = [
-    "nemoguardrails[server]==0.21.0",
-    "dataclasses-json>=0.6.7",
-    "langchain-community>=0.2,<0.4",
+    "nemoguardrails[server]==0.21.0",  # pinned to match RHOAI container version
+    "dataclasses-json>=0.6.7",  # undeclared transitive dep of nemoguardrails 0.21.0
+    "langchain-community>=0.2,<0.4",  # >=0.4 drops GoogleSearchAPIWrapper, breaks nemoguardrails imports
 ]
 tracing = [
     "mlflow[kubernetes]>=3.11.0",
