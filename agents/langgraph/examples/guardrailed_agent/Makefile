@@ -54,7 +54,7 @@ ollama: ## Install Ollama, start it, and pull models
 	  echo "==> Pulling $(MODEL)..." && \
 	  ollama pull $(MODEL) && \
 	  echo "" && \
-	  echo "Done. Run 'make ogx-server' to start the OGX server."
+	  echo "Done. Run 'make guardrails-server' to start NeMo Guardrails."
 
 ogx-server: ## Install OGX and start OGX server
 	@source .venv/bin/activate && set -a && source .env && set +a && \
