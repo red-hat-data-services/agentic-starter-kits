@@ -436,15 +436,32 @@ async def _handle_stream(
             yield f"data: {json.dumps(final_data)}\n\n"
             yield "data: [DONE]\n\n"
 
-        except Exception:
-            logger.exception("Error in stream event_generator")
-            error_data = {
-                "error": {
-                    "message": "Internal server error",
-                    "type": "server_error",
+        except Exception as e:
+            if "Blocked by" in str(e) and "rails" in str(e):
+                final_data = {
+                    "id": completion_id,
+                    "object": "chat.completion.chunk",
+                    "created": created,
+                    "model": model_id,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {},
+                            "finish_reason": "stop",
+                        }
+                    ],
                 }
-            }
-            yield f"data: {json.dumps(error_data)}\n\n"
+                yield f"data: {json.dumps(final_data)}\n\n"
+                yield "data: [DONE]\n\n"
+            else:
+                logger.exception("Error in stream event_generator")
+                error_data = {
+                    "error": {
+                        "message": "Internal server error",
+                        "type": "server_error",
+                    }
+                }
+                yield f"data: {json.dumps(error_data)}\n\n"
 
     return StreamingResponse(
         event_generator(),
