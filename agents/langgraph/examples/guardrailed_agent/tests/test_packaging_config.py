@@ -27,8 +27,7 @@ def test_makefile_stages_auth_component_for_container_builds() -> None:
     assert len(re.findall(cleanup_pattern, NORMALIZED_MAKEFILE)) == 2
 
 
-def test_makefile_has_guardrails_targets() -> None:
-    assert re.search(r"(?m)^guardrails-config:", MAKEFILE)
+def test_makefile_has_guardrails_server_target() -> None:
     assert re.search(r"(?m)^guardrails-server:", MAKEFILE)
 
 

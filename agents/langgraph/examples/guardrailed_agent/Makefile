@@ -5,7 +5,7 @@ VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
 
-.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test dry-run help guardrails-config guardrails-server
+.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test dry-run help guardrails-server
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -14,9 +14,8 @@ re-init: ## Activate venv and reload .env variables
 	@source .venv/bin/activate && set -a && source .env && set +a && \
 	  echo "Venv activated and .env variables loaded."
 
-init: ## Copy .env.example and guardrails config template for configuration
+init: ## Copy .env.example to .env for configuration
 	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from .env.example - edit it with your configuration"; else echo ".env already exists - skipping"; fi
-	@if [ ! -f guardrails/safety/config.yaml ]; then cp guardrails/safety/config.yaml.example guardrails/safety/config.yaml && echo "Created guardrails/safety/config.yaml from template"; else echo "guardrails/safety/config.yaml already exists - skipping"; fi
 
 env: ## Create venv, load .env, and install dependencies (including NeMo Guardrails)
 	@echo "==> Creating virtual environment and installing dependencies..." && \
@@ -57,11 +56,11 @@ ollama: ## Install Ollama, start it, and pull models
 	  echo "" && \
 	  echo "Done. Run 'make guardrails-server' to start NeMo Guardrails."
 
-guardrails-config: ## Update guardrails config.yaml with LLM endpoint from .env
-	@[ -f guardrails/safety/config.yaml ] || cp guardrails/safety/config.yaml.example guardrails/safety/config.yaml
+guardrails-server: ## Generate config from .env and start NeMo Guardrails proxy
 	@source .venv/bin/activate && set -a && source .env && set +a && \
+	  cp guardrails/safety/config.yaml.example guardrails/safety/config.yaml && \
 	  python3 -c "\
-	import yaml, sys; \
+	import yaml; \
 	f='guardrails/safety/config.yaml'; \
 	c=yaml.safe_load(open(f)); \
 	url='$${LLM_BASE_URL:-http://localhost:11434/v1}'; \
@@ -69,10 +68,7 @@ guardrails-config: ## Update guardrails config.yaml with LLM endpoint from .env
 	key='$${API_KEY:-not-needed}'; \
 	[m['parameters'].update(base_url=url, api_key=key) or m.update(model=model) for m in c['models']]; \
 	yaml.dump(c, open(f,'w'), default_flow_style=False, sort_keys=False); \
-	print(f'Updated {f} with LLM_BASE_URL={url} MODEL_ID={model} API_KEY=***')"
-
-guardrails-server: ## Start NeMo Guardrails server on GUARDRAILS_PORT (default 8090)
-	@source .venv/bin/activate && set -a && source .env && set +a && \
+	print(f'Config generated: LLM_BASE_URL={url} MODEL_ID={model}')" && \
 	  echo "Starting NeMo Guardrails server on port $${GUARDRAILS_PORT:-8090}..." && \
 	  nemoguardrails server --config guardrails --default-config-id safety --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui
 
