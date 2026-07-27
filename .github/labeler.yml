@@ -1,4 +1,4 @@
-# Path-based label mappings for actions/labeler@v6
+# Path-based label mappings for actions/labeler@v7
 # Uses any-glob-to-any-file: a single file match triggers the label
 
 area/langgraph:

@@ -167,6 +167,7 @@ jobs:
         with:
           version: "0.11.21"
           enable-cache: true
+          prune-cache: true
 
       - name: Install ty
         run: uv tool install ty==0.0.51
