@@ -64,21 +64,14 @@ Install Ollama and pull the default model:
 make ollama  # installs Ollama (if needed) and pulls llama3.1:8b
 ```
 
-### 4. Start OGX server
+Ensure Ollama is running (the macOS desktop app handles this automatically; otherwise run `ollama serve` in a separate terminal).
 
-> **Keep this terminal open** — the OGX server needs to keep running.
-> NeMo Guardrails will proxy LLM requests through OGX to Ollama.
+### 4. Start NeMo Guardrails proxy
 
-```bash
-make ogx-server  # starts on port 8321
-```
-
-### 5. Start NeMo Guardrails proxy
-
-> **In a separate terminal.** Keep it open — the guardrails server needs to keep running.
+> **Keep this terminal open** — the guardrails server needs to keep running.
 
 ```bash
-make guardrails-server   # starts on port 8090, proxies to OGX on 8321
+make guardrails-server   # starts on port 8090, proxies to Ollama on 11434
 ```
 
 The guardrails server reads its config from `guardrails/safety/config.yaml`.
@@ -86,10 +79,10 @@ The guardrails server reads its config from `guardrails/safety/config.yaml`.
 > **Using a different model?** Set `MODEL_ID` in `.env`, pull it with
 > `ollama pull <model>`, then run `make guardrails-config` to update the guardrails config.
 >
-> **Using a remote endpoint instead of OGX?** Set `LLM_BASE_URL` in `.env` to your
+> **Using a remote endpoint instead of Ollama?** Set `LLM_BASE_URL` in `.env` to your
 > OpenAI-compatible endpoint, then run `make guardrails-config`.
 
-### 6. Start the agent
+### 5. Start the agent
 
 > **In a separate terminal:**
 
@@ -97,7 +90,7 @@ The guardrails server reads its config from `guardrails/safety/config.yaml`.
 make run-app   # starts on port 8000
 ```
 
-### 7. Test the guardrails
+### 6. Test the guardrails
 
 ```bash
 # On-topic question — should respond normally
