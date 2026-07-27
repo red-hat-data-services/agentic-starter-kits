@@ -5,7 +5,7 @@ VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
 
-.PHONY: init re-init env ollama ogx-server run-app run-app-fresh build push build-openshift deploy undeploy test test-integration test-auth-integration dry-run help guardrails-config guardrails-server
+.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test test-integration test-auth-integration dry-run help guardrails-config guardrails-server
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -17,7 +17,7 @@ re-init: ## Activate venv and reload .env variables
 init: ## Copy .env.example to .env for configuration
 	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from .env.example - edit it with your configuration"; else echo ".env already exists - skipping"; fi
 
-env: ## Create venv, load .env, and install dependencies (add --extra guardrails for NeMo)
+env: ## Create venv, load .env, and install dependencies (including NeMo Guardrails)
 	@echo "==> Creating virtual environment and installing dependencies..." && \
 	  rm -rf .venv && \
 	  uv sync --python 3.12 --extra guardrails && \
@@ -56,19 +56,9 @@ ollama: ## Install Ollama, start it, and pull models
 	  echo "" && \
 	  echo "Done. Run 'make guardrails-server' to start NeMo Guardrails."
 
-ogx-server: ## Install OGX and start OGX server
-	@source .venv/bin/activate && set -a && source .env && set +a && \
-	  echo "==> Installing OGX..." && \
-	  uv pip install "ogx[starter]==1.1.0" "ogx-api==1.1.0" ollama "pymilvus==2.6.9" "milvus-lite>=2.5.1" "setuptools>=80.9.0,<82.0.0" && \
-	  mkdir -p ../../../../milvus_data && \
-	  echo "==> Killing any existing process on port 8321..." && \
-	  lsof -ti:8321 | xargs kill -9 2>/dev/null; true && \
-	  echo "==> Starting OGX server on port 8321..." && \
-	  ogx run ../../../../run_ogx_server.yaml
-
 guardrails-config: ## Update guardrails config.yaml with LLM endpoint from .env
 	@source .venv/bin/activate && set -a && source .env && set +a && \
-	  LLM_URL=$${LLM_BASE_URL:-http://localhost:8321/v1} && \
+	  LLM_URL=$${LLM_BASE_URL:-http://localhost:11434/v1} && \
 	  MODEL=$${MODEL_ID:-llama3.1:8b} && \
 	  sed -i.bak \
 	    -e "s|base_url:.*|base_url: $$LLM_URL|g" \
