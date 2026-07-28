@@ -1,0 +1,52 @@
+ARG BASE_IMAGE=codex:latest
+FROM ${BASE_IMAGE}
+
+LABEL name="codex-mlflow" \
+      vendor="Red Hat" \
+      summary="Codex CLI with MLflow tracing for OpenShift AI" \
+      description="Extends the RHOAI Codex image with MLflow experiment tracking and the @mlflow/codex notify hook" \
+      license="Apache-2.0"
+
+USER 0
+
+# Python 3.12 (MLflow 3.14 requires >= 3.10) + build tools + coreutils for /usr/bin/env
+RUN microdnf install -y --nodocs \
+        python3.12 \
+        python3.12-pip \
+        coreutils-single \
+        git \
+        make \
+        gcc-c++ \
+        tar \
+        xz \
+    && ln -sf /usr/bin/python3.12 /usr/bin/python3 \
+    && ln -sf /usr/bin/pip3.12 /usr/bin/pip3 \
+    && microdnf clean all \
+    && rm -rf /var/cache/yum
+
+# Node.js 20 (RHEL 9 ships v16, but @mlflow/codex requires >= 18)
+RUN curl -sL https://nodejs.org/dist/v20.19.2/node-v20.19.2-linux-x64.tar.xz \
+    | tar -xJ -C /usr/local --strip-components=1 \
+    && node --version && npm --version
+
+# MLflow Python SDK
+RUN pip3 install --no-cache-dir 'mlflow[kubernetes]>=3.14,<4'
+
+# @mlflow/codex — build from source (npm package lacks workspace header fix, mlflow#23927)
+# npm install -g doesn't copy build artifacts, so we manually install the built package
+RUN git clone --depth 1 --branch v3.14.0 https://github.com/mlflow/mlflow.git /tmp/mlflow \
+    && cd /tmp/mlflow/libs/typescript && npm install && npm run build \
+    && mkdir -p /usr/local/lib/node_modules/@mlflow \
+    && cp -r /tmp/mlflow/libs/typescript/integrations/codex /usr/local/lib/node_modules/@mlflow/codex \
+    && ln -sf ../lib/node_modules/@mlflow/codex/bundle/cli.js /usr/local/bin/mlflow-codex \
+    && chmod +x /usr/local/lib/node_modules/@mlflow/codex/bundle/cli.js \
+    && rm -rf /tmp/mlflow
+
+# Verify both CLIs work
+RUN mlflow --version && mlflow-codex --help >/dev/null 2>&1
+
+COPY setup-mlflow.sh /usr/local/bin/setup-mlflow.sh
+COPY codex-traced-exec.sh /usr/local/bin/codex-traced-exec.sh
+RUN chmod +x /usr/local/bin/setup-mlflow.sh /usr/local/bin/codex-traced-exec.sh
+
+USER 1001

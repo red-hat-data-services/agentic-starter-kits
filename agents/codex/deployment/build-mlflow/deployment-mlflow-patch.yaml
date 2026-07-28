@@ -1,0 +1,32 @@
+# Strategic merge patch — adds MLflow tracing to an existing Codex deployment.
+# Apply after the base deployment is running:
+#   oc patch deployment codex --patch-file deployment-mlflow-patch.yaml --type=strategic
+#
+# Prerequisites:
+#   - codex-mlflow ImageStream built (oc start-build codex-mlflow --from-dir=. --follow)
+#   - RBAC applied (rbac-mlflow.yaml + openclaw-mlflow-traces ClusterRole)
+spec:
+  template:
+    spec:
+      containers:
+        - name: codex
+          image: image-registry.openshift-image-registry.svc:5000/hmoghani-codex/codex-mlflow:latest
+          args:
+            - "setup-mlflow.sh"
+            - "sleep"
+            - "infinity"
+          env:
+            - name: MLFLOW_TRACKING_URI
+              value: "https://mlflow.redhat-ods-applications.svc.cluster.local:8443/mlflow"
+            - name: MLFLOW_EXPERIMENT_NAME
+              value: "codex-traces"
+            - name: MLFLOW_TRACKING_AUTH
+              value: "kubernetes-namespaced"
+            - name: MLFLOW_WORKSPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: MLFLOW_EXPERIMENT_ID
+              value: "54"
+            - name: MLFLOW_TRACKING_INSECURE_TLS
+              value: "true"
