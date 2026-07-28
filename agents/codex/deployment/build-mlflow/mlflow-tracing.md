@@ -4,7 +4,7 @@ Extends the Codex CLI deployment with MLflow experiment tracking via the `@mlflo
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │  Codex Pod (codex-mlflow:latest)                        │
 │                                                         │
@@ -103,11 +103,13 @@ oc start-build codex-mlflow --from-dir=. --follow
 Two ClusterRoleBindings are required:
 
 1. **mlflow-tracing-reader** — K8s RBAC for SA token auth:
+
    ```bash
    oc apply -f rbac-mlflow.yaml
    ```
 
 2. **openclaw-mlflow-traces** — MLflow API permissions for experiment/trace creation:
+
    ```bash
    oc adm policy add-cluster-role-to-user openclaw-mlflow-traces \
      system:serviceaccount:<namespace>:default
@@ -200,7 +202,7 @@ for t in traces:
 
 Each Codex turn produces a trace with the following structure:
 
-```
+```text
 Trace (request_id: tr-...)
 ├── experiment_id: "54"
 ├── status: OK
@@ -247,6 +249,7 @@ The `codex exec` (non-interactive) mode does not trigger the `notify` hook confi
 ### Project-Level Config Precedence
 
 `@mlflow/codex` resolves config in this order:
+
 1. `MLFLOW_TRACKING_URI` / `MLFLOW_EXPERIMENT_ID` environment variables
 2. `$CWD/.codex/mlflow-tracing.json` (project-level)
 3. `~/.codex/mlflow-tracing.json` (user-level)
