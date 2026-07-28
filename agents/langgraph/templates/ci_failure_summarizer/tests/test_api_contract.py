@@ -109,6 +109,13 @@ class TestExtractUsage:
         assert _extract_usage([]) is None
 
 
+def test_playground_routes_are_not_registered():
+    route_paths = {route.path for route in main.app.routes}
+
+    assert "/" not in route_paths
+    assert "/images/{filename:path}" not in route_paths
+
+
 def test_chat_completion_response_model_preserves_context_field():
     app = FastAPI()
     payload = {

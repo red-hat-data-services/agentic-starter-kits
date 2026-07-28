@@ -192,14 +192,6 @@ class TestSummarizeRoute:
         assert response.status_code == 500
         assert response.json()["detail"] == "Error running summarizer"
 
-    def test_images_route_rejects_path_traversal(self, summarize_client, tmp_path):
-        import main
-
-        images_dir = tmp_path / "images"
-        images_dir.mkdir()
-        (tmp_path / "secret.txt").write_text("secret")
-
-        with patch.object(main, "_IMAGES_DIR", images_dir):
-            response = summarize_client.get("/images/../secret.txt")
-
+    def test_images_path_is_not_exposed(self, summarize_client):
+        response = summarize_client.get("/images/../secret.txt")
         assert response.status_code == 404

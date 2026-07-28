@@ -14,6 +14,10 @@ Lightweight **spike** for a daily QG4 CI failure summarizer. It keeps the standa
 (`POST /chat/completions`, `GET /health`) from the DB-memory template and adds a manual summarization trigger
 (`POST /summarize`).
 
+The spike's primary path is `POST /summarize`. That flow is fully deterministic and does **not** invoke the LLM.
+The LLM configuration (`MODEL_ID`, `BASE_URL`, `API_KEY`) is retained only for the inherited
+`POST /chat/completions` scaffold that ships with the standard agent template.
+
 **Spike scope (implemented):**
 
 - **QG4 workflow targeting** — ingest the latest (or specified) run from `GITHUB_REPOSITORY` / `GITHUB_WORKFLOW`
@@ -86,6 +90,8 @@ In addition to the standard LLM and PostgreSQL settings, configure GitHub and Sl
 
 These variables are declared in `agent.yaml` and `values.yaml` for Helm deployment.
 If you set `GITHUB_WORKFLOW` in `.env`, quote it because the default display name contains spaces.
+The standard `MODEL_ID`, `BASE_URL`, and `API_KEY` settings still exist in `.env`, but they only power the inherited
+`/chat/completions` scaffold; the `/summarize` workflow itself is deterministic.
 
 ### Manual daily summary trigger
 
@@ -240,9 +246,9 @@ make ollama
 make ogx-server
 ```
 
-### Run the interactive web application
+### Run the API locally
 
-> **Keep this terminal open** – the app needs to keep running.
+> **Keep this terminal open** – the API needs to keep running.
 > You should see output indicating the app started on `http://localhost:8000`.
 
 ```bash
@@ -250,9 +256,12 @@ cd agents/langgraph/templates/ci_failure_summarizer
 make run-app           # fails if port is already in use; use make run-app-fresh to restart
 ```
 
+This starts the retained chat scaffold endpoints and the spike-specific `/summarize` endpoint. The template does not
+ship a built-in playground UI.
+
 ### Interactive CLI
 
-For terminal-based testing without a browser:
+For terminal-based testing of the inherited `/chat/completions` scaffold without a browser:
 
 ```bash
 cd agents/langgraph/templates/ci_failure_summarizer
@@ -312,6 +321,8 @@ POSTGRES_PASSWORD=your_db_password
 
 **Notes:**
 
+- `API_KEY`, `BASE_URL`, and `MODEL_ID` are required for the inherited `/chat/completions` scaffold. The
+  `/summarize` workflow does not call the LLM.
 - `API_KEY` - your API key or contact your cluster administrator
 - `BASE_URL` - should end with `/v1`. For local OGX, use `http://localhost:8321/v1`
 - `MODEL_ID` - model identifier available on your endpoint
@@ -411,6 +422,7 @@ Focused spike tests (no live GitHub, Slack, or PostgreSQL required):
 | --- | --- |
 | `test_github_client.py` | Workflow path resolution, metadata error surfacing, job parsing, log degradation |
 | `test_grouping.py` | Deterministic fingerprinting and grouping |
+| `test_failure_evidence.py` | Failure excerpt extraction, marker ranking, signature generation, and evidence resolution |
 | `test_summary_composer.py` | Deterministic summary rendering and metadata-only degradation |
 | `test_slack_notifier.py` | Slack Block Kit payload composition |
 | `test_orchestrator.py` | End-to-end orchestration, explicit `run_id` workflow validation |
@@ -420,26 +432,18 @@ Focused spike tests (no live GitHub, Slack, or PostgreSQL required):
 ```bash
 make test
 # or without make:
-uv run --extra dev python -m pytest tests/ --ignore=tests/integration --ignore=tests/behavioral -q
+uv run --extra dev python -m pytest tests/ --ignore=tests/integration -q
 ```
 
-### Behavioral tests
-
-Behavioral tests validate tool selection, response quality, latency, and reliability against a live agent. They require MLflow tracing to extract tool_calls from trace spans.
-
-```bash
-CI_FAILURE_SUMMARIZER_AGENT_URL=https://<agent-route> \
-MLFLOW_TRACKING_URI=<mlflow-uri> \
-MLFLOW_EXPERIMENT_NAME=<experiment> \
-MLFLOW_TRACKING_TOKEN=$(oc whoami -t) \
-pytest tests/behavioral/ -v
-```
-
-Skip slow pass@k tests with `-m "not slow"`.
+This spike intentionally concentrates its test investment on deterministic summarizer logic and contract/unit coverage
+for the inherited chat scaffold, rather than shipping a separate behavioral suite for the scaffolded chat path.
 
 ## API Endpoints
 
 ### POST /chat/completions
+
+Inherited chat scaffold retained to satisfy the standard agent contract. This endpoint is not used by the
+deterministic `/summarize` flow.
 
 Non-streaming:
 
@@ -503,13 +507,7 @@ Optional body fields:
 
 This agent has two paths:
 
-### Chat completions (standard template)
-
-1. **LangGraph ReACT Agent** — reasoning loop inherited from the DB-memory scaffold (no chat tools in this spike)
-2. **PostgresSaver Checkpointer** — persistent conversation memory in PostgreSQL
-3. **ChatOpenAI** — OpenAI-compatible LLM client
-
-### CI summarization (spike)
+### CI summarization (primary spike path)
 
 ```text
 POST /summarize  (manual, unauthenticated — operator/cron trigger only)
@@ -520,53 +518,16 @@ POST /summarize  (manual, unauthenticated — operator/cron trigger only)
     --> slack_notifier.py (incoming webhook, top-level post only)
 ```
 
-**Chat customization:** edit `src/ci_failure_summarizer/agent.py` for context window size and default system prompt.
+This path is deterministic. It does not call the LLM.
 
-### Inspecting Conversation History
+### Chat completions (inherited scaffold)
 
-To list all stored threads or view messages in a specific thread:
+1. **LangGraph ReACT Agent** — reasoning loop inherited from the DB-memory scaffold (no chat tools in this spike)
+2. **PostgresSaver Checkpointer** — persistent conversation memory in PostgreSQL
+3. **ChatOpenAI** — OpenAI-compatible LLM client
 
-1. Edit `examples/query_existing_deployment.py`
-2. To list all threads, leave `thread_id` empty:
-
-   ```python
-   thread_id = ""
-   ```
-
-   To view messages for a specific thread, set it:
-
-   ```python
-   thread_id = "123e4567-e89b-12d3-a456-426614174000"
-   ```
-
-3. Run the script:
-
-   ```bash
-   uv run python examples/query_existing_deployment.py
-   ```
-
-### Deleting Thread History
-
-To permanently delete a conversation thread (or all threads), use the provided script:
-
-1. Edit `examples/clear_thread_history.py`
-2. To delete a specific thread, set the `thread_id`:
-
-   ```python
-   thread_id = "123e4567-e89b-12d3-a456-426614174000"
-   ```
-
-   To delete **all** threads, leave it empty:
-
-   ```python
-   thread_id = ""
-   ```
-
-3. Run the script:
-
-   ```bash
-   uv run python examples/clear_thread_history.py
-   ```
+**Chat customization:** edit `src/ci_failure_summarizer/agent.py` for context window size and default system prompt if
+you want to invest in the inherited chat scaffold beyond the standard template contract.
 
 ## Resources
 

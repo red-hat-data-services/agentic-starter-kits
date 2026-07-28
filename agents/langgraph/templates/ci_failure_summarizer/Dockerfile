@@ -19,10 +19,8 @@ COPY src/ ./src/
 # Install the project and its dependencies using uv
 RUN uv pip install --no-cache ".[tracing]"
 
-# Copy the application entrypoint, playground UI, and images
+# Copy the application entrypoint
 COPY main.py .
-COPY playground/ ./playground/
-COPY images/ ./images/
 
 # Make everything group-writable (GID 0) for OpenShift arbitrary UID support
 RUN chown -R 1001:0 /opt/app-root/src \
