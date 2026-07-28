@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import (
     FileResponse,
@@ -192,6 +193,7 @@ def _configure_auth_middleware() -> None:
     app.add_middleware(SATokenAuthMiddleware)
 
 
+load_dotenv()
 _configure_auth_middleware()
 
 

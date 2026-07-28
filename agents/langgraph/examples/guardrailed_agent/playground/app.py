@@ -29,7 +29,10 @@ from flask import (
     stream_with_context,
 )
 
-logging.basicConfig(level=logging.DEBUG)
+_log_level = (
+    logging.DEBUG if getenv("FLASK_DEBUG", "false").lower() == "true" else logging.INFO
+)
+logging.basicConfig(level=_log_level)
 logger = logging.getLogger(__name__)
 
 IMAGES_DIR = Path(__file__).resolve().parents[5] / "images"
@@ -51,7 +54,7 @@ def index():
     return render_template("index.html")
 
 
-@app.route("/api/health", methods=["GET"])
+@app.route("/health", methods=["GET"])
 def health():
     """Check if the agent is reachable."""
     try:
@@ -70,7 +73,7 @@ def health():
         )
 
 
-@app.route("/api/chat", methods=["POST"])
+@app.route("/chat/completions", methods=["POST"])
 def chat():
     """Proxy chat requests to the agent with streaming."""
     data = request.get_json() or {}
