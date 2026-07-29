@@ -1,8 +1,7 @@
-# NeMo Guardrails configuration for the guardrailed agent.
+# NeMo Guardrails configuration template for the guardrailed agent.
 # Model endpoints below default to Ollama on localhost.
-# To use a different LLM:
-#   1. Edit the base_url, model, and api_key values below, OR
-#   2. Run `make guardrails-config` to update from .env (LLM_BASE_URL, MODEL_ID)
+# `make guardrails-server` generates config.yaml from this template,
+# injecting LLM_BASE_URL, MODEL_ID, and API_KEY from .env.
 models:
   - type: main
     engine: openai

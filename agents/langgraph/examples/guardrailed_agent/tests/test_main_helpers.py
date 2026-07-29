@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+from openai import APIConnectionError as OpenAIConnectionError
 from openai import APIError as OpenAIAPIError
 
 
@@ -43,4 +44,9 @@ class TestIsGuardrailsBlock:
 
     def test_partial_match_rails_without_blocked(self):
         exc = _make_openai_error("Error in rails processing")
+        assert self._call(exc) is False
+
+    def test_connection_error_not_matched(self):
+        req = MagicMock()
+        exc = OpenAIConnectionError(request=req)
         assert self._call(exc) is False

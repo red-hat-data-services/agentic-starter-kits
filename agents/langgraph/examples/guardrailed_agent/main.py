@@ -20,12 +20,16 @@ from fastapi.responses import (
 from guardrailed_agent.agent import get_graph_closure
 from guardrailed_agent.tracing import enable_tracing
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from openai import APIConnectionError as OpenAIConnectionError
 from openai import APIError as OpenAIAPIError
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
 _GUARDRAILS_REFUSAL = "I'm sorry, I can't respond to that."
+_GUARDRAILS_UNAVAILABLE = (
+    "The guardrails server is unreachable. Please try again later."
+)
 
 
 def _is_guardrails_block(exc: Exception) -> bool:
@@ -322,6 +326,9 @@ async def _handle_chat(messages: list[HumanMessage], model_id: str) -> dict[str,
             "usage": _extract_usage(result.get("messages", [])),
         }
 
+    except OpenAIConnectionError:
+        logger.error("Guardrails server unreachable at %s", getenv("BASE_URL"))
+        raise HTTPException(status_code=503, detail=_GUARDRAILS_UNAVAILABLE)
     except Exception as e:
         if _is_guardrails_block(e):
             return {
@@ -457,6 +464,15 @@ async def _handle_stream(
             yield f"data: {json.dumps(final_data)}\n\n"
             yield "data: [DONE]\n\n"
 
+        except OpenAIConnectionError:
+            logger.error("Guardrails server unreachable at %s", getenv("BASE_URL"))
+            error_data = {
+                "error": {
+                    "message": _GUARDRAILS_UNAVAILABLE,
+                    "type": "service_unavailable",
+                }
+            }
+            yield f"data: {json.dumps(error_data)}\n\n"
         except Exception as e:
             if _is_guardrails_block(e):
                 refusal_data = {
