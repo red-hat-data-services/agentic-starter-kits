@@ -114,6 +114,9 @@ class GitHubActionsClient:
             headers["Authorization"] = f"Bearer {token}"
         self._session.headers.update(headers)
 
+    def close(self) -> None:
+        self._session.close()
+
     def _request(
         self,
         method: str,
@@ -173,7 +176,15 @@ class GitHubActionsClient:
         path = f"/repos/{self.repository}/actions/runs/{run_id}/jobs"
         # Spike assumption: QG4 runs have <=100 jobs; no Link pagination yet.
         payload = self._request("GET", path, params={"per_page": per_page}).json()
-        return [WorkflowJob.from_api(job) for job in payload.get("jobs") or []]
+        jobs = payload.get("jobs") or []
+        if len(jobs) >= per_page:
+            logger.warning(
+                "GitHub returned %s jobs for run %s, matching per_page=%s; additional jobs may be truncated",
+                len(jobs),
+                run_id,
+                per_page,
+            )
+        return [WorkflowJob.from_api(job) for job in jobs]
 
     def fetch_job_logs(
         self,

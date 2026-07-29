@@ -106,6 +106,7 @@ def test_run_records_summary_when_slack_delivery_fails():
         "Slack delivery failed: HTTP 500"
     )
     store.finalize_slack_post_claim.assert_called_once_with(run.id, posted=False)
+    github.close.assert_called_once()
 
 
 def test_run_skips_duplicate_slack_post_for_same_run():
@@ -160,6 +161,7 @@ def test_run_skips_duplicate_slack_post_for_same_run():
         "summary already claimed for this run"
     )
     store.finalize_slack_post_claim.assert_not_called()
+    github.close.assert_called_once()
 
 
 def test_run_records_failure_evidence_in_summary_metadata():
@@ -225,6 +227,7 @@ def test_run_records_failure_evidence_in_summary_metadata():
     assert "RouteNotFoundError" in details["primary_marker"]
     assert "evidence_excerpt" not in details
     assert "evidence_markers" not in details
+    github.close.assert_called_once()
 
 
 def test_run_rejects_explicit_run_id_from_unrelated_workflow():
@@ -252,6 +255,8 @@ def test_run_rejects_explicit_run_id_from_unrelated_workflow():
 
     with pytest.raises(ValueError, match="Run 999 is not from workflow"):
         orchestrator.run(run_id=999)
+
+    github.close.assert_called_once()
 
 
 def test_run_accepts_explicit_run_id_for_configured_workflow():
@@ -291,6 +296,7 @@ def test_run_accepts_explicit_run_id_for_configured_workflow():
     github.get_run.assert_called_once_with(run.id)
     github.get_latest_run.assert_not_called()
     assert result.run_id == run.id
+    github.close.assert_called_once()
 
 
 def test_run_records_summary_when_latest_run_did_not_fail():
@@ -330,3 +336,4 @@ def test_run_records_summary_when_latest_run_did_not_fail():
     assert call_kwargs["run_id"] == run.id
     assert call_kwargs["slack_posted"] is False
     assert call_kwargs["metadata"]["slack_skipped_reason"] == "latest run did not fail"
+    github.close.assert_called_once()

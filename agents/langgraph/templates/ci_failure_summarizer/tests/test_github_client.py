@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
@@ -244,6 +244,42 @@ def test_list_jobs_parses_fixture_payload():
     assert len(jobs) == 2
     assert jobs[1].name == "test-agent (langgraph-react-agent)"
     assert jobs[1].steps[-1].name == "Health check"
+
+
+def test_list_jobs_warns_when_page_size_boundary_is_hit():
+    client = GitHubActionsClient("red-hat-data-services/agentic-starter-kits")
+    response = MagicMock()
+    response.ok = True
+    response.json.return_value = {
+        "jobs": [
+            {
+                "id": idx,
+                "name": f"job-{idx}",
+                "status": "completed",
+                "conclusion": "failure",
+                "html_url": f"https://github.com/example/jobs/{idx}",
+                "steps": [],
+            }
+            for idx in range(100)
+        ]
+    }
+    client._session = MagicMock()
+    client._session.request.return_value = response
+
+    with patch("ci_failure_summarizer.github_client.logger.warning") as warn:
+        jobs = client.list_jobs(123456789, per_page=100)
+
+    assert len(jobs) == 100
+    warn.assert_called_once()
+
+
+def test_close_closes_underlying_session():
+    client = GitHubActionsClient("red-hat-data-services/agentic-starter-kits")
+    client._session = MagicMock()
+
+    client.close()
+
+    client._session.close.assert_called_once()
 
 
 def test_get_latest_run_uses_workflow_basename_in_api_path():

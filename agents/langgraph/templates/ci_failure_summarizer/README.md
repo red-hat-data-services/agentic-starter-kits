@@ -40,6 +40,7 @@ The LLM configuration (`MODEL_ID`, `BASE_URL`, `API_KEY`) is retained only for t
 
 - GitHub ingest is **unauthenticated by default**. Public workflow metadata (runs, jobs, steps) works without a token.
 - Unauthenticated GitHub API access is subject to **low rate limits** (60 requests/hour per IP). Expect `403`/`rate limit` errors under heavy use; set `GITHUB_TOKEN` to raise limits.
+- Workflow and job discovery currently read a **single GitHub API page** (`per_page=1` for the latest run lookup and `per_page=100` for workflow/job lists). This matches the current nightly QG4 cadence and repo size, but higher-frequency triggers or >100 matching records would need pagination or a push-based trigger model.
 - Job log download often returns **HTTP 403** without repository admin access or `GITHUB_TOKEN`. The summarizer degrades gracefully to metadata-only triage.
 - Slack delivery is a single top-level message, not a thread under an existing alert.
 
@@ -502,6 +503,8 @@ Optional body fields:
 
 - `run_id` — target a specific workflow run (defaults to latest QG4 run); must belong to the configured `GITHUB_WORKFLOW` / workflow file
 - `post_to_slack` — set `false` to skip Slack webhook delivery
+
+If your deployment may see multiple relevant workflow runs between trigger executions, prefer calling `/summarize` with an explicit `run_id` (or wiring a push-style workflow callback) rather than relying on the default "latest run" selection.
 
 ## Architecture
 

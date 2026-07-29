@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+import pytest
 import requests
 from ci_failure_summarizer.grouping import group_failures
 from ci_failure_summarizer.models import WorkflowJob, WorkflowRun
 from ci_failure_summarizer.slack_notifier import (
     build_slack_payload,
     maybe_post_summary,
+    post_summary,
     sanitize_slack_error,
 )
 
@@ -96,5 +98,27 @@ def test_sanitize_slack_error_strips_embedded_webhook_urls():
         webhook_url=webhook,
     )
 
+    assert webhook not in message
+    assert "<redacted-webhook-url>" in message
+
+
+def test_post_summary_redacts_webhook_url_from_http_error_body():
+    webhook = "https://hooks.slack.com/services/T00/B00/secret-token"
+    response = MagicMock()
+    response.status_code = 500
+    response.text = f"invalid payload for {webhook}"
+
+    with (
+        patch(
+            "ci_failure_summarizer.slack_notifier.requests.post", return_value=response
+        ),
+        pytest.raises(RuntimeError) as exc_info,
+    ):
+        post_summary(
+            webhook_url=webhook,
+            payload={"text": "summary"},
+        )
+
+    message = str(exc_info.value)
     assert webhook not in message
     assert "<redacted-webhook-url>" in message

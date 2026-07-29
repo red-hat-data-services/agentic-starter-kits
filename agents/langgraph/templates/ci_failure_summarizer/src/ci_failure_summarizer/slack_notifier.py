@@ -14,16 +14,20 @@ logger = logging.getLogger(__name__)
 _SLACK_WEBHOOK_RE = re.compile(r"https://hooks\.slack\.com/\S+")
 
 
+def _redact_slack_message(message: str, *, webhook_url: str | None = None) -> str:
+    message = message.strip()
+    if webhook_url and webhook_url in message:
+        message = message.replace(webhook_url, "<redacted-webhook-url>")
+    return _SLACK_WEBHOOK_RE.sub("<redacted-webhook-url>", message)
+
+
 def sanitize_slack_error(
     exc: BaseException,
     *,
     webhook_url: str | None = None,
 ) -> str:
     """Return a safe Slack delivery error without leaking webhook URLs."""
-    message = str(exc).strip()
-    if webhook_url and webhook_url in message:
-        message = message.replace(webhook_url, "<redacted-webhook-url>")
-    message = _SLACK_WEBHOOK_RE.sub("<redacted-webhook-url>", message)
+    message = _redact_slack_message(str(exc), webhook_url=webhook_url)
     if isinstance(exc, requests.RequestException):
         return "Slack delivery failed: network error contacting webhook"
     if message:
@@ -127,8 +131,9 @@ def post_summary(
     except requests.RequestException as exc:
         raise RuntimeError(sanitize_slack_error(exc, webhook_url=webhook_url)) from exc
     if response.status_code >= 400:
+        safe_text = _redact_slack_message(response.text or "", webhook_url=webhook_url)
         raise RuntimeError(
-            f"Slack webhook returned HTTP {response.status_code}: {response.text}"
+            f"Slack webhook returned HTTP {response.status_code}: {safe_text}"
         )
     logger.info("Posted CI triage summary to Slack")
 
