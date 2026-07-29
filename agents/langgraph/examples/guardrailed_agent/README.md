@@ -249,7 +249,6 @@ curl http://localhost:8000/health
 - Config file must be `config.yaml` (not `.yml`) — RHOAI container entrypoint requirement (undocumented)
 - `rails.co` must exist — RHOAI container entrypoint validates this file on startup
 - NeMo Guardrails pinned to `0.21.0` to match RHOAI container version
-- `api_key_env_var` field is broken in v0.21.0 — API key must be set directly in config (handled by `make guardrails-server`)
 
 ## Known Limitations
 
