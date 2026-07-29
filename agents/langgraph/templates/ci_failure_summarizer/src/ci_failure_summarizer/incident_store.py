@@ -1,0 +1,316 @@
+"""PostgreSQL-backed incident and summary history store."""
+
+from __future__ import annotations
+
+import json
+import logging
+from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
+from typing import Any, Iterator
+
+import psycopg
+from ci_failure_summarizer.failure_evidence import evidence_to_metadata
+from ci_failure_summarizer.models import FailureRecord, Incident
+from psycopg.rows import dict_row
+
+logger = logging.getLogger(__name__)
+
+SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS ci_incidents (
+    id SERIAL PRIMARY KEY,
+    fingerprint TEXT NOT NULL UNIQUE,
+    workflow_name TEXT NOT NULL,
+    workflow_file TEXT,
+    job_name TEXT NOT NULL,
+    failed_step TEXT,
+    branch TEXT,
+    event TEXT,
+    qg_label TEXT,
+    first_seen_at TIMESTAMPTZ NOT NULL,
+    last_seen_at TIMESTAMPTZ NOT NULL,
+    occurrence_count INTEGER NOT NULL DEFAULT 1,
+    latest_run_id BIGINT,
+    latest_run_url TEXT,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS ci_summary_history (
+    id SERIAL PRIMARY KEY,
+    run_id BIGINT NOT NULL,
+    summary_text TEXT NOT NULL,
+    slack_posted BOOLEAN NOT NULL DEFAULT FALSE,
+    logs_available BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    incident_fingerprints TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS ci_slack_post_claims (
+    run_id BIGINT PRIMARY KEY,
+    claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    claim_expires_at TIMESTAMPTZ NOT NULL,
+    posted_at TIMESTAMPTZ
+);
+"""
+
+
+class IncidentStore:
+    """Dedicated incident persistence separate from LangGraph checkpoints.
+
+    Spike trade-off: each public method opens a fresh psycopg connection via
+    ``_connection()`` rather than pooling. Fine for manual /summarize triggers;
+    production would want a shared pool or context-managed lifecycle.
+    """
+
+    def __init__(self, db_uri: str) -> None:
+        self.db_uri = db_uri
+
+    @contextmanager
+    def _connection(self) -> Iterator[psycopg.Connection]:
+        with psycopg.connect(
+            self.db_uri,
+            row_factory=dict_row,
+            connect_timeout=10,
+        ) as conn:
+            yield conn
+
+    def setup(self) -> None:
+        with self._connection() as conn:
+            conn.execute(SCHEMA_SQL)
+            conn.commit()
+
+    def upsert_failures(self, failures: list[FailureRecord]) -> list[Incident]:
+        if not failures:
+            return []
+
+        now = datetime.now(UTC)
+        incidents: list[Incident] = []
+
+        with self._connection() as conn:
+            for failure in failures:
+                metadata = dict(failure.metadata)
+                if failure.evidence is not None:
+                    metadata.update(evidence_to_metadata(failure.evidence))
+                row = conn.execute(
+                    """
+                    INSERT INTO ci_incidents (
+                        fingerprint, workflow_name, workflow_file, job_name,
+                        failed_step, branch, event, qg_label,
+                        first_seen_at, last_seen_at, occurrence_count,
+                        latest_run_id, latest_run_url, metadata
+                    ) VALUES (
+                        %(fingerprint)s, %(workflow_name)s, %(workflow_file)s, %(job_name)s,
+                        %(failed_step)s, %(branch)s, %(event)s, %(qg_label)s,
+                        %(now)s, %(now)s, 1,
+                        %(run_id)s, %(run_url)s, %(metadata)s::jsonb
+                    )
+                    ON CONFLICT (fingerprint) DO UPDATE SET
+                        workflow_name = EXCLUDED.workflow_name,
+                        workflow_file = EXCLUDED.workflow_file,
+                        job_name = EXCLUDED.job_name,
+                        failed_step = EXCLUDED.failed_step,
+                        branch = EXCLUDED.branch,
+                        event = EXCLUDED.event,
+                        qg_label = EXCLUDED.qg_label,
+                        last_seen_at = CASE
+                            WHEN ci_incidents.latest_run_id IS DISTINCT FROM EXCLUDED.latest_run_id
+                            THEN EXCLUDED.last_seen_at
+                            ELSE ci_incidents.last_seen_at
+                        END,
+                        occurrence_count = CASE
+                            WHEN ci_incidents.latest_run_id IS DISTINCT FROM EXCLUDED.latest_run_id
+                            THEN ci_incidents.occurrence_count + 1
+                            ELSE ci_incidents.occurrence_count
+                        END,
+                        latest_run_id = EXCLUDED.latest_run_id,
+                        latest_run_url = EXCLUDED.latest_run_url,
+                        metadata = ci_incidents.metadata || EXCLUDED.metadata
+                    RETURNING *
+                    """,
+                    {
+                        "fingerprint": failure.fingerprint,
+                        "workflow_name": failure.workflow_name,
+                        "workflow_file": failure.workflow_file,
+                        "job_name": failure.job_name,
+                        "failed_step": failure.failed_step,
+                        "branch": failure.branch,
+                        "event": failure.event,
+                        "qg_label": failure.qg_label,
+                        "now": now,
+                        "run_id": failure.run_id,
+                        "run_url": failure.run_url,
+                        "metadata": json.dumps(metadata),
+                    },
+                ).fetchone()
+                incidents.append(self._row_to_incident(row))
+            conn.commit()
+
+        return incidents
+
+    def record_summary(
+        self,
+        *,
+        run_id: int,
+        summary_text: str,
+        slack_posted: bool,
+        logs_available: bool,
+        incident_fingerprints: list[str],
+        metadata: dict[str, Any] | None = None,
+    ) -> int:
+        with self._connection() as conn:
+            row = conn.execute(
+                """
+                INSERT INTO ci_summary_history (
+                    run_id, summary_text, slack_posted, logs_available,
+                    incident_fingerprints, metadata
+                ) VALUES (
+                    %(run_id)s, %(summary_text)s, %(slack_posted)s, %(logs_available)s,
+                    %(fingerprints)s, %(metadata)s::jsonb
+                )
+                RETURNING id
+                """,
+                {
+                    "run_id": run_id,
+                    "summary_text": summary_text,
+                    "slack_posted": slack_posted,
+                    "logs_available": logs_available,
+                    "fingerprints": incident_fingerprints,
+                    "metadata": json.dumps(metadata or {}),
+                },
+            ).fetchone()
+            conn.commit()
+            if row is None:
+                raise RuntimeError(
+                    "Failed to record summary history row for CI summarizer run"
+                )
+            return int(row["id"])
+
+    def get_incident(self, fingerprint: str) -> Incident | None:
+        with self._connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM ci_incidents WHERE fingerprint = %s",
+                (fingerprint,),
+            ).fetchone()
+        return self._row_to_incident(row) if row else None
+
+    def get_latest_summary_for_run(self, run_id: int) -> dict[str, Any] | None:
+        with self._connection() as conn:
+            row = conn.execute(
+                """
+                SELECT slack_posted, metadata
+                FROM ci_summary_history
+                WHERE run_id = %s
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """,
+                (run_id,),
+            ).fetchone()
+        if not row:
+            return None
+        metadata = row.get("metadata") or {}
+        if isinstance(metadata, str):
+            metadata = json.loads(metadata)
+        return {
+            "slack_posted": bool(row.get("slack_posted")),
+            "metadata": metadata,
+        }
+
+    def claim_slack_post(self, run_id: int, lease_duration_seconds: int = 300) -> bool:
+        """Claim the right to post a Slack summary for a run.
+
+        Returns True if the claim was successfully acquired (either new or reclaimed
+        from an expired lease). Returns False if another active (non-expired,
+        non-finalized) claim exists.
+
+        Args:
+            run_id: The workflow run ID to claim.
+            lease_duration_seconds: Duration in seconds before the claim expires
+                and can be reclaimed by another worker. Default: 300 (5 minutes).
+        """
+        now = datetime.now(UTC)
+        expires_at = now + timedelta(seconds=lease_duration_seconds)
+
+        with self._connection() as conn:
+            # Try to insert a new claim or update an expired/unposted claim
+            row = conn.execute(
+                """
+                INSERT INTO ci_slack_post_claims (run_id, claimed_at, claim_expires_at)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (run_id) DO UPDATE SET
+                    claimed_at = EXCLUDED.claimed_at,
+                    claim_expires_at = EXCLUDED.claim_expires_at
+                WHERE
+                    ci_slack_post_claims.posted_at IS NULL
+                    AND ci_slack_post_claims.claim_expires_at < EXCLUDED.claimed_at
+                RETURNING run_id
+                """,
+                (run_id, now, expires_at),
+            ).fetchone()
+            conn.commit()
+        return row is not None
+
+    def finalize_slack_post_claim(self, run_id: int, *, posted: bool) -> None:
+        """Finalize a Slack post claim after attempting delivery.
+
+        Only finalizes if the claim is still active (not expired, not already posted).
+        If posted=True, marks the claim as completed. If posted=False, releases the
+        claim so it can be retried later.
+
+        Args:
+            run_id: The workflow run ID to finalize.
+            posted: True if the Slack message was successfully posted, False otherwise.
+        """
+        now = datetime.now(UTC)
+
+        with self._connection() as conn:
+            if posted:
+                # Mark as posted only if the claim is still active (not expired, not already posted)
+                conn.execute(
+                    """
+                    UPDATE ci_slack_post_claims
+                    SET posted_at = COALESCE(posted_at, NOW())
+                    WHERE run_id = %s
+                      AND posted_at IS NULL
+                      AND claim_expires_at >= %s
+                    """,
+                    (run_id, now),
+                )
+            else:
+                # Release the claim only if it's still active (not expired, not already posted)
+                conn.execute(
+                    """
+                    DELETE FROM ci_slack_post_claims
+                    WHERE run_id = %s
+                      AND posted_at IS NULL
+                      AND claim_expires_at >= %s
+                    """,
+                    (run_id, now),
+                )
+            conn.commit()
+
+    @staticmethod
+    def _row_to_incident(row: dict[str, Any]) -> Incident:
+        metadata = row.get("metadata") or {}
+        if isinstance(metadata, str):
+            metadata = json.loads(metadata)
+        return Incident(
+            id=row["id"],
+            fingerprint=row["fingerprint"],
+            workflow_name=row["workflow_name"],
+            workflow_file=row.get("workflow_file"),
+            job_name=row["job_name"],
+            failed_step=row.get("failed_step"),
+            branch=row.get("branch"),
+            event=row.get("event"),
+            qg_label=row.get("qg_label"),
+            first_seen_at=row["first_seen_at"].isoformat()
+            if row.get("first_seen_at")
+            else None,
+            last_seen_at=row["last_seen_at"].isoformat()
+            if row.get("last_seen_at")
+            else None,
+            occurrence_count=int(row.get("occurrence_count") or 1),
+            latest_run_id=row.get("latest_run_id"),
+            latest_run_url=row.get("latest_run_url"),
+            metadata=metadata,
+        )

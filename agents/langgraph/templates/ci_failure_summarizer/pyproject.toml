@@ -1,0 +1,42 @@
+[project]
+name = "ci_failure_summarizer"
+version = "0.1.0"
+description = "LangGraph CI failure summarizer spike. Ingests public GitHub Actions QG4 failures, persists grouped incidents in PostgreSQL, and posts Slack triage summaries."
+authors = [{ name = "Your Name", email = "you@example.com" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "fastapi>=0.135.1",
+    "starlette>=1.0.1",
+    "uvicorn[standard]>=0.41.0",
+    "pydantic>=2.12.5",
+    "langchain>=1.2.10",
+    "langchain-core>=1.2.15",
+    "langchain-openai>=1.1.10",
+    "langgraph>=1.0.9",
+    "langgraph-prebuilt>=1.0.0",
+    "langgraph-checkpoint-postgres>=3.0.0",
+    "psycopg[binary,pool]>=3.2.9",
+    "openai>=2.21.0",
+    "python-dotenv>=1.2.1",
+    "setuptools>=80.9.0,<83.0.0",
+    "typing-extensions>=4.15.0",
+    "requests>=2.31.0",
+    "flask>=3.1.0",
+]
+
+[project.optional-dependencies]
+tracing = [
+    "mlflow>=3.10.0",
+]
+dev = [
+    "pytest>=9.0.2",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=80.9.0"]
+build-backend = "setuptools.build_meta"
