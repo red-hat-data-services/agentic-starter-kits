@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 _GUARDRAILS_REFUSAL = "I'm sorry, I can't respond to that."
 _GUARDRAILS_UNAVAILABLE = (
-    "The guardrails server is unreachable. Please try again later."
+    "The guardrails server is unavailable. Please try again later."
 )
 
 
@@ -473,6 +473,7 @@ async def _handle_stream(
                 }
             }
             yield f"data: {json.dumps(error_data)}\n\n"
+            yield "data: [DONE]\n\n"
         except Exception as e:
             if _is_guardrails_block(e):
                 refusal_data = {
