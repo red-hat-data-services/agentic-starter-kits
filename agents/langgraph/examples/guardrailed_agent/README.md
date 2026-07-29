@@ -58,11 +58,12 @@ LLM response
 
 **What the user sees when blocked:**
 
-| Mode | Response |
-|------|----------|
-| Non-streaming | `200` with `"I'm sorry, I can't respond to that."` |
-| Streaming | Content chunk with refusal text, then `finish_reason: stop` |
-| Guardrails server down | `503` with `"The guardrails server is unreachable."` |
+| Mode | Scenario | Response |
+|------|----------|----------|
+| Non-streaming | Rail blocks | `200` with `"I'm sorry, I can't respond to that."` |
+| Streaming | Rail blocks | Content chunk with refusal text, then `finish_reason: stop` |
+| Non-streaming | Guardrails down | `503` with `"The guardrails server is unreachable."` |
+| Streaming | Guardrails down | `200` with SSE error event `{"error": {"type": "service_unavailable"}}` |
 
 ### Customizing the rails
 
