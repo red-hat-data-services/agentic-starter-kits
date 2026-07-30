@@ -73,7 +73,27 @@ LLM response
 
 **Disable a rail** — remove its entry from `rails.input.flows` or `rails.output.flows` in `config.yaml.example`. For example, remove `topic safety check input` to allow any topic.
 
-**Use a separate safety model** — the `content_safety` and `topic_control` model types in `config.yaml.example` can point to a different endpoint than `main`. This lets you use a small, fast model for classification while keeping a larger model for responses.
+**Use a different model per layer** — each of the 3 model roles (`main`, `content_safety`, `topic_control`) can be pointed at its own model/endpoint/key/engine via `.env` overrides: `MAIN_MODEL_ID`/`MAIN_LLM_BASE_URL`/`MAIN_API_KEY`/`MAIN_MODEL_ENGINE`, `CONTENT_SAFETY_MODEL_ID`/`CONTENT_SAFETY_LLM_BASE_URL`/`CONTENT_SAFETY_API_KEY`/`CONTENT_SAFETY_MODEL_ENGINE`, and the `TOPIC_CONTROL_*` equivalents (see `.env.example`). Any override left unset falls back to the shared `MODEL_ID`/`LLM_BASE_URL`/`API_KEY`, so single-model setups need no changes. This lets you use a small, fast model for classification while keeping a larger model for responses — or a purpose-built safety classifier for the rail layers only.
+
+**Using NVIDIA's dedicated NemoGuard NIM models** — set a role's `_MODEL_ENGINE` to `nim` to route it through NeMo Guardrails' NIM/`ChatNVIDIA` integration (requires the `langchain-nvidia-ai-endpoints` package, included in the `guardrails` extra) instead of the generic OpenAI-compatible client:
+
+```ini
+CONTENT_SAFETY_MODEL_ID=nvidia/llama-3.1-nemotron-safety-guard-8b-v3
+CONTENT_SAFETY_MODEL_ENGINE=nim
+```
+
+Verified working against NVIDIA's hosted NIM catalog (`https://integrate.api.nvidia.com/v1`) — correctly classifies both unsafe and safe inputs using this repo's existing `content_safety_check_input`/`content_safety_check_output` prompts, no prompt changes needed. (`nvidia/llama-3.1-nemotron-safety-guard-8b-v3` is the current, newer/renamed successor to `nvidia/llama-3.1-nemoguard-8b-content-safety`; both work as drop-ins.)
+
+**`topic_control` on a NIM model** — NVIDIA's dedicated `nvidia/llama-3.1-nemoguard-8b-topic-control` model was the intended pairing for this role, but as of testing on 2026-07-30 it was returning `500` errors (TensorRT-LLM CUDA crash) on NVIDIA's hosted free tier — a server-side issue on NVIDIA's end, not a config problem. Its would-be unified successor, `nvidia/nemotron-content-safety-reasoning-4b`, reached end-of-life the same day.
+
+Instead, this repo wires `topic_control` to **`nvidia/nemotron-3.5-content-safety`**, which classifies against a free-text policy (passed via `chat_template_kwargs.custom_policy`) rather than a fixed taxonomy, and returns a `"User Safety: safe|unsafe"` verdict — different enough from NeMo Guardrails' built-in on-topic/off-topic prompt that it needs its own action/flow (`guardrails/safety/actions.py` + `topic_policy.co`) instead of the library's `topic_safety_check_input`. `generate_config.py` auto-detects this model id (or any set via `TOPIC_CONTROL_CUSTOM_POLICY`), injects the topic-boundary policy into the model's `chat_template_kwargs`, and swaps the `topic_control` input rail flow accordingly — no manual `config.yaml` edits needed:
+
+```ini
+TOPIC_CONTROL_MODEL_ID=nvidia/nemotron-3.5-content-safety
+TOPIC_CONTROL_MODEL_ENGINE=nim
+```
+
+Verified end-to-end on 2026-07-30: correctly passes banking questions and blocks off-topic ones (e.g. recipe requests) using the default policy text baked into `generate_config.py`. Override the policy text with `TOPIC_CONTROL_CUSTOM_POLICY` in `.env`.
 
 ---
 

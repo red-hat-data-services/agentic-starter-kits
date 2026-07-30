@@ -34,6 +34,7 @@ guardrails = [
     "nemoguardrails[server]==0.21.0",  # pinned to match RHOAI container version
     "dataclasses-json>=0.6.7",  # undeclared transitive dep of nemoguardrails 0.21.0
     "langchain-community>=0.2,<0.4",  # >=0.4 drops GoogleSearchAPIWrapper, breaks nemoguardrails imports
+    "langchain-nvidia-ai-endpoints>=1.4.3",  # required for engine=nim (NVIDIA NemoGuard NIM models)
 ]
 tracing = [
     "mlflow[kubernetes]>=3.11.0",
