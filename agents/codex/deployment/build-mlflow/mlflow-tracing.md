@@ -131,16 +131,12 @@ oc patch deployment codex --type=json -p '[
    "value": ["setup-mlflow.sh", "sleep", "infinity"]}
 ]'
 
-# Add env vars
-oc set env deployment/codex \
-  MLFLOW_TRACKING_URI=https://mlflow.redhat-ods-applications.svc.cluster.local:8443/mlflow \
-  MLFLOW_EXPERIMENT_NAME=codex-traces \
-  MLFLOW_TRACKING_AUTH=kubernetes-namespaced \
-  MLFLOW_TRACKING_SERVER_CERT_PATH=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt \
-  NODE_EXTRA_CA_CERTS=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+# Add env vars (oc set env cannot use fieldRef, so apply the strategic patch
+# for MLFLOW_WORKSPACE — or set it manually to your namespace)
+oc patch deployment codex --patch-file deployment-mlflow-patch.yaml --type=strategic
 ```
 
-The `MLFLOW_WORKSPACE` env var is auto-set to the pod's namespace via `fieldRef: metadata.namespace`. The experiment ID is resolved dynamically from `MLFLOW_EXPERIMENT_NAME` by `setup-mlflow.sh`.
+The strategic patch sets `MLFLOW_WORKSPACE` to the pod's namespace via `fieldRef: metadata.namespace`. The experiment ID is resolved dynamically from `MLFLOW_EXPERIMENT_NAME` by `setup-mlflow.sh`.
 
 ## Environment Variables
 
@@ -168,9 +164,10 @@ oc exec -it deployment/codex -- codex \
 
 ```bash
 # Via MLflow REST API
-curl -sk -H "Authorization: Bearer $TOKEN" \
+curl -s --cacert /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt \
+  -H "Authorization: Bearer $TOKEN" \
   -H "X-MLFLOW-WORKSPACE: <namespace>" \
-  "https://mlflow.../mlflow/api/2.0/mlflow/traces?experiment_ids=<id>&max_results=10"
+  "https://mlflow.redhat-ods-applications.svc:8443/mlflow/api/2.0/mlflow/traces?experiment_ids=<id>&max_results=10"
 
 # Via Python SDK
 python3 -c "

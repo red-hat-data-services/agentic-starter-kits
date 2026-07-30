@@ -13,6 +13,7 @@ setup_mlflow() {
     log_info "Configuring MLflow tracing → ${MLFLOW_TRACKING_URI}"
 
     export CODEX_HOME="${CODEX_HOME:-/workspace/.codex}"
+    mkdir -p "${CODEX_HOME}"
     export MLFLOW_TRACKING_AUTH="${MLFLOW_TRACKING_AUTH:-kubernetes-namespaced}"
 
     local experiment_name="${MLFLOW_EXPERIMENT_NAME:-codex-traces}"
@@ -48,11 +49,14 @@ except Exception as e:
         local exp_id="${MLFLOW_EXPERIMENT_ID:-}"
         if [[ -z "${exp_id}" ]]; then
             exp_id=$(python3 -c "
-import mlflow, os
+import mlflow, os, sys
 mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
 exp = mlflow.get_experiment_by_name('${experiment_name}')
-print(exp.experiment_id if exp else '0')
-" 2>/dev/null) || exp_id="0"
+if not exp:
+    print('[mlflow-setup] ERROR: experiment not found', file=sys.stderr)
+    sys.exit(1)
+print(exp.experiment_id)
+" 2>/dev/null) || { log_warn "Could not resolve experiment ID for '${experiment_name}' — skipping hook setup"; return; }
         fi
 
         # Write correct mlflow-tracing.json to CODEX_HOME (user-level)
