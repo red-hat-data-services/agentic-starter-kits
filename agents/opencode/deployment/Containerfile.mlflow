@@ -4,7 +4,7 @@
 # - mlflow[kubernetes] for experiment creation and SA token auth
 # - Pre-built @mlflow/core from v3.14.0 (workspace header fix)
 
-FROM quay.io/opendatahub/odh-opencode-rhel9:1.4.4
+FROM quay.io/opendatahub/odh-opencode-rhel9:v1.18.3
 
 USER 0
 
