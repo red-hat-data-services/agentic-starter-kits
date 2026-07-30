@@ -18,20 +18,17 @@ Extends the Codex CLI deployment with MLflow experiment tracking via the `@mlflo
 │   ├─ Register notify hook in config.toml                │
 │   └─ exec sleep infinity                                │
 │                                                         │
-│  oc exec → codex exec "prompt"                          │
+│  oc exec -it → codex "prompt"                           │
 │       │                                                 │
 │       ▼                                                 │
-│  codex-traced-exec.sh (wrapper)                         │
-│   ├─ Set MLFLOW_TRACKING_TOKEN from SA token            │
-│   ├─ Run codex exec with all args                       │
-│   ├─ Extract session data from JSONL transcript         │
-│   └─ Call mlflow-codex notify-hook with turn payload    │
+│  codex (interactive) fires notify hook natively          │
 │       │                                                 │
 │       ▼                                                 │
 │  @mlflow/codex  ─────────────────────────────────────►  │
 └─────────────────────────────────────────────────────────┘
                                                     │
                                           HTTPS + SA token
+                                          service-ca.crt TLS
                                           X-MLFLOW-WORKSPACE
                                                     │
                                                     ▼
@@ -94,42 +91,38 @@ oc start-build codex-mlflow --from-dir=. --follow
 | Node.js | Node.js from official tarball | 20.19.2 | `@mlflow/codex` notify hook CLI |
 | MLflow SDK | `mlflow[kubernetes]` | >=3.14 | Trace export, experiment management |
 | @mlflow/codex | Built from source (v3.14.0) | 3.14.0 | Codex notify hook for MLflow tracing |
-| codex-traced-exec.sh | Shell wrapper | — | Triggers trace export after `codex exec` |
 
 `@mlflow/codex` is built from source because the npm package (as of v3.14.0) lacks the `X-MLFLOW-WORKSPACE` header needed for RHOAI's kubernetes-namespaced auth (upstream issue: mlflow#23927).
 
-## RBAC
+## Authentication, TLS, and RBAC
 
-Two ClusterRoleBindings are required:
+Follow the shared guide at [docs/mlflow-openshift-auth-and-tls.md](../../../../docs/mlflow-openshift-auth-and-tls.md). The key steps for Codex:
 
-1. **mlflow-tracing-reader** — K8s RBAC for SA token auth:
-
-   ```bash
-   oc apply -f rbac-mlflow.yaml
-   ```
-
-2. **openclaw-mlflow-traces** — MLflow API permissions for experiment/trace creation:
+1. **RBAC** — Bind the `mlflow-integration` ClusterRole to the pod's service account:
 
    ```bash
-   oc adm policy add-cluster-role-to-user openclaw-mlflow-traces \
-     system:serviceaccount:<namespace>:default
+   # Find the ClusterRole name
+   oc get clusterroles | grep mlflow-integration
+
+   # Bind it to the default SA in your namespace
+   oc -n <namespace> create rolebinding codex-mlflow-integration \
+     --clusterrole=<mlflow-integration-clusterrole> \
+     --serviceaccount=<namespace>:default
    ```
 
-Both are needed. The first allows the SA token to authenticate; the second grants permission to create experiments and write traces via the MLflow REST API.
+2. **TLS** — Use the OpenShift service CA (auto-mounted at `/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt`). The deployment patch sets both `MLFLOW_TRACKING_SERVER_CERT_PATH` (Python SDK) and `NODE_EXTRA_CA_CERTS` (TypeScript SDK) to this path.
+
+3. **Auth** — The deployment patch sets `MLFLOW_TRACKING_AUTH=kubernetes-namespaced`, which auto-reads the SA token and namespace from the pod filesystem.
+
+### Codex-Specific Notes
+
+Codex uses the `@mlflow/codex` TypeScript plugin, which does not read `MLFLOW_TRACKING_AUTH` natively. The `setup-mlflow.sh` entrypoint handles this by reading the SA token from disk and exporting `MLFLOW_TRACKING_TOKEN` before launching. See the [TypeScript SDK: What's Different](../../../../docs/mlflow-openshift-auth-and-tls.md#typescript-sdk-whats-different) section in the shared doc for details.
 
 ## Deployment Patch
 
 Patch the existing Codex deployment to use the MLflow image:
 
 ```bash
-# Add env vars
-oc set env deployment/codex \
-  MLFLOW_TRACKING_URI=https://mlflow.redhat-ods-applications.svc.cluster.local:8443/mlflow \
-  MLFLOW_EXPERIMENT_NAME=codex-traces \
-  MLFLOW_EXPERIMENT_ID=<experiment-id> \
-  MLFLOW_TRACKING_AUTH=kubernetes-namespaced \
-  MLFLOW_TRACKING_INSECURE_TLS=true
-
 # Switch to MLflow image and chain setup-mlflow.sh after entrypoint
 oc patch deployment codex --type=json -p '[
   {"op": "replace", "path": "/spec/template/spec/containers/0/image",
@@ -137,46 +130,38 @@ oc patch deployment codex --type=json -p '[
   {"op": "replace", "path": "/spec/template/spec/containers/0/args",
    "value": ["setup-mlflow.sh", "sleep", "infinity"]}
 ]'
+
+# Add env vars
+oc set env deployment/codex \
+  MLFLOW_TRACKING_URI=https://mlflow.redhat-ods-applications.svc.cluster.local:8443/mlflow \
+  MLFLOW_EXPERIMENT_NAME=codex-traces \
+  MLFLOW_TRACKING_AUTH=kubernetes-namespaced \
+  MLFLOW_TRACKING_SERVER_CERT_PATH=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt \
+  NODE_EXTRA_CA_CERTS=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
 ```
 
-The `MLFLOW_WORKSPACE` env var is auto-set to the pod's namespace via `fieldRef: metadata.namespace`.
+The `MLFLOW_WORKSPACE` env var is auto-set to the pod's namespace via `fieldRef: metadata.namespace`. The experiment ID is resolved dynamically from `MLFLOW_EXPERIMENT_NAME` by `setup-mlflow.sh`.
 
 ## Environment Variables
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `MLFLOW_TRACKING_URI` | Yes | — | MLflow server URL (include `/mlflow` path prefix) |
-| `MLFLOW_EXPERIMENT_NAME` | No | `codex-traces` | Experiment name for auto-creation |
-| `MLFLOW_EXPERIMENT_ID` | Yes | — | Numeric experiment ID (takes precedence over project-level config) |
+| `MLFLOW_EXPERIMENT_NAME` | No | `codex-traces` | Experiment name (auto-created if missing) |
 | `MLFLOW_TRACKING_AUTH` | No | `kubernetes-namespaced` | Auth plugin for SA token |
-| `MLFLOW_TRACKING_INSECURE_TLS` | No | `false` | Skip TLS verification (cluster-internal) |
+| `MLFLOW_TRACKING_SERVER_CERT_PATH` | No | — | Path to CA cert for TLS verification (Python SDK) |
+| `NODE_EXTRA_CA_CERTS` | No | — | Path to CA cert for TLS verification (Node.js / TS SDK) |
 | `MLFLOW_WORKSPACE` | Auto | Pod namespace | Namespace for `X-MLFLOW-WORKSPACE` header |
 
 ## Usage
 
-### Traced Execution
-
-Use the wrapper script for automatic trace export:
+Interactive Codex fires the notify hook natively after each turn, so traces are exported automatically:
 
 ```bash
-oc exec deployment/codex -- bash -c '
-  codex-traced-exec.sh \
-    --model qwen3.6-27b \
-    -c "model_provider=\"vllm\"" \
-    "explain what 2+2 equals"
-'
-```
-
-### Manual Trace Export
-
-If using `codex exec` directly (e.g., interactive mode), manually trigger the notify hook:
-
-```bash
-oc exec deployment/codex -- bash -c '
-  export MLFLOW_TRACKING_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-  export NODE_TLS_REJECT_UNAUTHORIZED=0
-  mlflow-codex notify-hook '"'"'{"type":"agent-turn-complete","thread-id":"<session-id>","input-messages":["<prompt>"],"last-assistant-message":"<response>"}'"'"'
-'
+oc exec -it deployment/codex -- codex \
+  --model qwen3.6-27b \
+  -c 'model_provider="vllm"' \
+  "explain what 2+2 equals"
 ```
 
 ### Querying Traces
@@ -198,21 +183,25 @@ for t in traces:
 "
 ```
 
+## Trace Results
+
+Validated end-to-end with Qwen3.6-27B via vLLM, producing 10-span traces with tool call child spans.
+
+### vLLM Direct (`qwen3.6-27b`)
+
+![vLLM trace](screenshots/vllm-codex-trace.png)
+
 ## Trace Schema
 
 Each Codex turn produces a trace with the following structure:
 
 ```text
 Trace (request_id: tr-...)
-├── experiment_id: "54"
 ├── status: OK
-├── timestamp_ms: 1784661353172
-├── execution_time_ms: 10093
 ├── request_metadata:
 │   ├── mlflow.traceInputs: "<user prompt>"
 │   ├── mlflow.traceOutputs: "<assistant response>"
 │   ├── mlflow.trace.session: "<codex session uuid>"
-│   ├── mlflow.trace.user: ""
 │   ├── mlflow.trace.tokenUsage:
 │   │   ├── input_tokens: 10198
 │   │   ├── output_tokens: 369
@@ -242,10 +231,6 @@ Child spans are created when the `@mlflow/codex` notify hook can read the sessio
 
 ## Known Issues
 
-### `codex exec` Does Not Fire Notify Hooks
-
-The `codex exec` (non-interactive) mode does not trigger the `notify` hook configured in `config.toml`. This is a Codex CLI limitation — notify hooks only fire in interactive mode. The `codex-traced-exec.sh` wrapper works around this by manually extracting session data and calling `mlflow-codex notify-hook` after completion.
-
 ### Project-Level Config Precedence
 
 `@mlflow/codex` resolves config in this order:
@@ -254,7 +239,7 @@ The `codex exec` (non-interactive) mode does not trigger the `notify` hook confi
 2. `$CWD/.codex/mlflow-tracing.json` (project-level)
 3. `~/.codex/mlflow-tracing.json` (user-level)
 
-The `mlflow-codex setup --non-interactive` command writes to the project-level config (CWD) with incorrect defaults (`localhost:5000`, experiment ID `0`). The `MLFLOW_EXPERIMENT_ID` env var in the deployment spec overrides this.
+The `mlflow-codex setup --non-interactive` command writes to the project-level config (CWD) with incorrect defaults (`localhost:5000`, experiment ID `0`). The `setup-mlflow.sh` entrypoint writes the correct values to the user-level config after resolving the experiment ID dynamically.
 
 ### Model Tool Call Support
 
@@ -270,7 +255,6 @@ OGX endpoints were not available in the test namespace. The vLLM-direct path was
 |------|-------------|
 | `Containerfile.mlflow` | Image layer with Python 3.12, Node.js 20, MLflow SDK, @mlflow/codex |
 | `setup-mlflow.sh` | Post-entrypoint setup: SA token, experiment, notify hook, config fixups |
-| `rbac-mlflow.yaml` | ClusterRole + RoleBinding for SA token auth |
-| `deployment-mlflow-patch.yaml` | Strategic merge patch for env vars |
-| `codex-traced-exec.sh` | Wrapper for `codex exec` that triggers trace export |
+| `deployment-mlflow-patch.yaml` | Strategic merge patch for env vars and image |
+| `screenshots/` | MLflow trace screenshots |
 | `mlflow-tracing.md` | This document |

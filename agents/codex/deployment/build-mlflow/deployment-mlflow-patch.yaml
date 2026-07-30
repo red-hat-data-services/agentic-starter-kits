@@ -4,13 +4,14 @@
 #
 # Prerequisites:
 #   - codex-mlflow ImageStream built (oc start-build codex-mlflow --from-dir=. --follow)
-#   - RBAC applied (rbac-mlflow.yaml + openclaw-mlflow-traces ClusterRole)
+#   - RBAC: bind the mlflow-integration ClusterRole to the pod's SA
+#     (see docs/mlflow-openshift-auth-and-tls.md)
 spec:
   template:
     spec:
       containers:
         - name: codex
-          image: image-registry.openshift-image-registry.svc:5000/hmoghani-codex/codex-mlflow:latest
+          image: image-registry.openshift-image-registry.svc:5000/<namespace>/codex-mlflow:latest
           args:
             - "setup-mlflow.sh"
             - "sleep"
@@ -26,7 +27,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            - name: MLFLOW_EXPERIMENT_ID
-              value: "54"
-            - name: MLFLOW_TRACKING_INSECURE_TLS
-              value: "true"
+            - name: MLFLOW_TRACKING_SERVER_CERT_PATH
+              value: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+            - name: NODE_EXTRA_CA_CERTS
+              value: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"

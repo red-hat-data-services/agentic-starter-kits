@@ -14,7 +14,6 @@ setup_mlflow() {
 
     export CODEX_HOME="${CODEX_HOME:-/workspace/.codex}"
     export MLFLOW_TRACKING_AUTH="${MLFLOW_TRACKING_AUTH:-kubernetes-namespaced}"
-    export MLFLOW_TRACKING_INSECURE_TLS="${MLFLOW_TRACKING_INSECURE_TLS:-false}"
 
     local experiment_name="${MLFLOW_EXPERIMENT_NAME:-codex-traces}"
 
