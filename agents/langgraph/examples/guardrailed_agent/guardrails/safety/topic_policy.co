@@ -1,0 +1,18 @@
+# Alternative to the built-in "topic safety check input" flow (flows.v1.co in
+# nemoguardrails' topic_safety library), for use with models that return a
+# "User Safety: safe|unsafe" verdict instead of a literal "on-topic"/"off-topic"
+# string — e.g. nvidia/nemotron-3.5-content-safety via its custom_policy mode.
+# Selected automatically by generate_config.py when TOPIC_CONTROL_MODEL_ID
+# matches one of those models, or when TOPIC_CONTROL_CUSTOM_POLICY is set.
+# Colang 1.0 syntax (this repo's default — see rails.co).
+define flow topic policy check input
+  $response = execute topic_policy_check_input
+
+  $on_topic = $response["on_topic"]
+
+  if not $on_topic
+    if $config.enable_rails_exceptions
+      create event TopicPolicyCheckInputException(message="Input not allowed. The input was blocked by the 'topic policy check input $model='{$model}'' flow.")
+    else
+      bot refuse to respond
+    stop

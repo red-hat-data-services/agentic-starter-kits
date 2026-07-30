@@ -59,16 +59,7 @@ ollama: ## Install Ollama, start it, and pull models
 guardrails-server: ## Generate config from .env and start NeMo Guardrails proxy
 	@source .venv/bin/activate && set -a && source .env && set +a && \
 	  cp guardrails/safety/config.yaml.example guardrails/safety/config.yaml && \
-	  python3 -c "\
-	import yaml; \
-	f='guardrails/safety/config.yaml'; \
-	c=yaml.safe_load(open(f)); \
-	url='$${LLM_BASE_URL:-http://localhost:11434/v1}'; \
-	model='$${MODEL_ID:-llama3.1:8b}'; \
-	key='$${API_KEY:-not-needed}'; \
-	[m['parameters'].update(base_url=url, api_key=key) or m.update(model=model) for m in c['models']]; \
-	yaml.dump(c, open(f,'w'), default_flow_style=False, sort_keys=False); \
-	print(f'Config generated: LLM_BASE_URL={url} MODEL_ID={model}')" && \
+	  python3 guardrails/safety/generate_config.py && \
 	  echo "Starting NeMo Guardrails server on port $${GUARDRAILS_PORT:-8090}..." && \
 	  nemoguardrails server --config guardrails --default-config-id safety --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui
 
