@@ -164,10 +164,14 @@ oc exec -it deployment/codex -- codex \
 
 ```bash
 # Via MLflow REST API
+source "${CODEX_HOME:-/workspace/.codex}/.mlflow-env"
 curl -s --cacert /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-MLFLOW-WORKSPACE: <namespace>" \
-  "https://mlflow.redhat-ods-applications.svc:8443/mlflow/api/2.0/mlflow/traces?experiment_ids=<id>&max_results=10"
+  -H "Authorization: Bearer ${MLFLOW_TRACKING_TOKEN:?token required}" \
+  -H "X-MLFLOW-WORKSPACE: ${MLFLOW_WORKSPACE:?workspace required}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  -d '{"experiment_ids":["<id>"],"max_results":10}' \
+  "${MLFLOW_TRACKING_URI}/api/2.0/mlflow/traces/search"
 
 # Via Python SDK
 python3 -c "
