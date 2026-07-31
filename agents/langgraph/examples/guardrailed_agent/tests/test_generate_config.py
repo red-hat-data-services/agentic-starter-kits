@@ -1,8 +1,10 @@
-"""Unit tests for guardrails/safety/generate_config.py.
+"""Unit tests for guardrails/generate_config.py.
 
 Covers the per-role model/engine override logic and the topic_control
 "custom policy" auto-detection that swaps in the topic_policy.co flow for
-models like nvidia/nemotron-3.5-content-safety.
+models like nvidia/nemotron-3.5-content-safety (nemoguard profile), plus basic
+sanity checks that both the local and nemoguard config.yaml.example templates
+generate valid config.yaml files.
 """
 
 import importlib.util
@@ -13,7 +15,8 @@ import pytest
 import yaml
 
 AGENT_DIR = Path(__file__).resolve().parents[1]
-GUARDRAILS_DIR = AGENT_DIR / "guardrails" / "safety"
+GUARDRAILS_DIR = AGENT_DIR / "guardrails"
+CONFIG_DIR = GUARDRAILS_DIR / "config"
 SCRIPT_PATH = GUARDRAILS_DIR / "generate_config.py"
 
 
@@ -66,15 +69,15 @@ class TestTopicControlCustomPolicy:
 
 @pytest.fixture()
 def generated_config(tmp_path, monkeypatch):
-    """Runs generate_config.main() against a scratch copy of config.yaml.example."""
+    """Runs generate_config.generate_config() against a scratch copy of a
+    profile's config.yaml.example."""
 
-    def _generate(env: dict) -> dict:
-        config_path = tmp_path / "config.yaml"
-        shutil.copy(GUARDRAILS_DIR / "config.yaml.example", config_path)
-        monkeypatch.setattr(generate_config, "CONFIG_PATH", str(config_path))
+    def _generate(profile: str, env: dict) -> dict:
+        config_path = tmp_path / f"{profile}-config.yaml"
+        shutil.copy(CONFIG_DIR / profile / "config.yaml.example", config_path)
         for key, value in env.items():
             monkeypatch.setenv(key, value)
-        generate_config.main()
+        generate_config.generate_config(str(config_path))
         return yaml.safe_load(config_path.read_text(encoding="utf-8"))
 
     return _generate
@@ -83,7 +86,8 @@ def generated_config(tmp_path, monkeypatch):
 class TestGenerateConfigMain:
     def test_default_env_keeps_builtin_topic_flow(self, generated_config):
         config = generated_config(
-            {"MODEL_ID": "llama3.1:8b", "LLM_BASE_URL": "http://x", "API_KEY": "k"}
+            "nemoguard",
+            {"MODEL_ID": "llama3.1:8b", "LLM_BASE_URL": "http://x", "API_KEY": "k"},
         )
         flows = config["rails"]["input"]["flows"]
         assert "topic safety check input $model=topic_control" in flows
@@ -95,13 +99,14 @@ class TestGenerateConfigMain:
         self, generated_config
     ):
         config = generated_config(
+            "nemoguard",
             {
                 "MODEL_ID": "llama3.1:8b",
                 "LLM_BASE_URL": "http://x",
                 "API_KEY": "k",
                 "TOPIC_CONTROL_MODEL_ID": "nvidia/nemotron-3.5-content-safety",
                 "TOPIC_CONTROL_MODEL_ENGINE": "nim",
-            }
+            },
         )
         flows = config["rails"]["input"]["flows"]
         assert "topic policy check input $model=topic_control" in flows
@@ -120,13 +125,31 @@ class TestGenerateConfigMain:
         self, generated_config
     ):
         config = generated_config(
+            "nemoguard",
             {
                 "MODEL_ID": "llama3.1:8b",
                 "LLM_BASE_URL": "http://x",
                 "API_KEY": "k",
                 "TOPIC_CONTROL_MODEL_ID": "nvidia/nemotron-3.5-content-safety",
-            }
+            },
         )
         for role in ("main", "content_safety"):
             model = next(m for m in config["models"] if m["type"] == role)
             assert "chat_template_kwargs" not in model["parameters"]
+
+    def test_local_profile_generates_single_main_role_with_self_check(
+        self, generated_config
+    ):
+        config = generated_config(
+            "local",
+            {"MODEL_ID": "llama3.1:8b", "LLM_BASE_URL": "http://x", "API_KEY": "k"},
+        )
+        assert [m["type"] for m in config["models"]] == ["main"]
+        main_model = config["models"][0]
+        assert main_model["model"] == "llama3.1:8b"
+        assert main_model["parameters"]["base_url"] == "http://x"
+
+        input_flows = config["rails"]["input"]["flows"]
+        output_flows = config["rails"]["output"]["flows"]
+        assert "self check input" in input_flows
+        assert "self check output" in output_flows

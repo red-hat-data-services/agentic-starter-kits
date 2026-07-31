@@ -1,0 +1,12 @@
+define user express greeting
+  "Hello"
+  "Hi"
+  "Hey"
+  "Good morning"
+
+define flow
+  user express greeting
+  bot express greeting
+
+define bot express greeting
+  "Hello! Welcome to our banking service. How can I help you today?"

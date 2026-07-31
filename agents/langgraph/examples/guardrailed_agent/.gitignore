@@ -1,6 +1,6 @@
 # Local environment (may contain API keys)
 .env
 
-# NeMo Guardrails config is generated at startup by `make guardrails-server`
+# NeMo Guardrails config is generated at startup by `make guardrails-server-{local,nemoguard}`
 # from .env values — may contain API_KEY, never commit.
-guardrails/safety/config.yaml
+guardrails/config/*/config.yaml

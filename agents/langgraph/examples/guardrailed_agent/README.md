@@ -12,6 +12,13 @@
 
 Banking customer service agent with [NeMo Guardrails](https://github.com/NVIDIA/NeMo-Guardrails) safety layer. Demonstrates how to add content safety, topical guardrails, and regex-based input filtering to a LangGraph ReAct agent using the **proxy pattern** — NeMo Guardrails sits between the agent and the LLM, requiring zero changes to the agent's source code.
 
+Two guardrails config profiles live side by side under `guardrails/config/`, matching two maturity levels of the same rail layering:
+
+| Profile | Rails | Models | Use case |
+|---------|-------|--------|----------|
+| `local` | `self check input`/`self check output` (NeMo Guardrails built-in) | Single model — the same one answering the user's question also classifies it | Zero-setup local demo of the proxy pattern (`make guardrails-server-local`) |
+| `nemoguard` | `content safety check`, `topic safety check`, regex | Purpose-built NemoGuard/Nemotron classifiers, one per rail layer | Dedicated safety models per layer (`make guardrails-server-nemoguard`); works against NVIDIA-hosted NIM today, or an in-cluster endpoint (e.g. RHOAI's `NemoGuardrails` CRD — not included in this repo, see [Deploying to OpenShift](#deploying-to-openshift)) |
+
 ### Guardrails architecture
 
 ```text
@@ -20,9 +27,9 @@ User → Agent (port 8000) → NeMo Guardrails (port 8090) → LLM (port 11434)
 
 The agent uses the **proxy pattern** with `passthrough: true`. NeMo Guardrails sits between the agent and the LLM as a transparent safety filter — it checks every request/response against the configured rails, but passes the agent's system prompt and tool calls through unchanged. Without `passthrough`, NeMo runs its own conversational engine (3 extra LLM calls per request) and ignores the agent's prompts entirely.
 
-### How rail layering works
+### How rail layering works (nemoguard profile)
 
-Rails execute in a defined order. If any rail blocks, later rails in the chain are skipped and a refusal is returned immediately.
+Rails execute in a defined order. If any rail blocks, later rails in the chain are skipped and a refusal is returned immediately. This describes the `nemoguard` profile's layering; the `local` profile is simpler — just `self check input` and `self check output`, using the same model that answers the question (see [Customizing the rails](#customizing-the-rails)).
 
 **Input rails** (checked before the LLM sees the message):
 
@@ -37,12 +44,12 @@ User message
   ├─ 2. Content safety ───── LLM classifies against S1–S13 categories
   │     Catches: violence, sexual content, criminal planning, hate speech, etc.
   │     Cost: 1 LLM call (~50 tokens)
-  │     Config: content_safety_check_input prompt in prompts.yml
+  │     Config: content_safety_check_input prompt in guardrails/config/nemoguard/prompts.yml
   │
   └─ 3. Topic safety ─────── LLM checks domain boundary
         Catches: off-topic requests (recipes, medical advice, dating tips)
         Cost: 1 LLM call (~10 tokens)
-        Config: topic_safety_check_input prompt in prompts.yml
+        Config: topic_safety_check_input prompt in guardrails/config/nemoguard/prompts.yml
 ```
 
 **Output rails** (checked after the LLM responds, before returning to user):
@@ -53,7 +60,7 @@ LLM response
   └─ 4. Content safety ───── LLM classifies response against S1–S13
         Catches: unsafe content the LLM generated despite safe input
         Cost: 1 LLM call (~50 tokens)
-        Config: content_safety_check_output prompt in prompts.yml
+        Config: content_safety_check_output prompt in guardrails/config/nemoguard/prompts.yml
 ```
 
 **What the user sees when blocked:**
@@ -67,9 +74,13 @@ LLM response
 
 ### Customizing the rails
 
-**Change the domain** — edit the topic boundary prompt in `guardrails/safety/prompts.yml` (the `topic_safety_check_input` task). Replace the banking guidelines with your domain's allowed/disallowed topics. Everything else stays the same.
+**Local profile (self-check)** — edit the policy text directly in `guardrails/config/local/prompts.yml` (the `self_check_input`/`self_check_output` tasks). One model does double duty: answering the user and classifying input/output against that policy. No dedicated safety models, no per-layer config — good for a quick demo, not for production-grade classification accuracy.
 
-**Add regex patterns** — add patterns to `rails.config.regex_detection.input.patterns` in `guardrails/safety/config.yaml.example`. These are checked first (no LLM cost) and are good for known jailbreak strings.
+**Nemoguard profile (layered NemoGuard models)**:
+
+**Change the domain** — edit the topic boundary prompt in `guardrails/config/nemoguard/prompts.yml` (the `topic_safety_check_input` task). Replace the banking guidelines with your domain's allowed/disallowed topics. Everything else stays the same.
+
+**Add regex patterns** — add patterns to `rails.config.regex_detection.input.patterns` in `guardrails/config/nemoguard/config.yaml.example`. These are checked first (no LLM cost) and are good for known jailbreak strings.
 
 **Disable a rail** — remove its entry from `rails.input.flows` or `rails.output.flows` in `config.yaml.example`. For example, remove `topic safety check input` to allow any topic.
 
@@ -86,7 +97,7 @@ Verified working against NVIDIA's hosted NIM catalog (`https://integrate.api.nvi
 
 **`topic_control` on a NIM model** — NVIDIA's dedicated `nvidia/llama-3.1-nemoguard-8b-topic-control` model was the intended pairing for this role, but as of testing on 2026-07-30 it was returning `500` errors (TensorRT-LLM CUDA crash) on NVIDIA's hosted free tier — a server-side issue on NVIDIA's end, not a config problem. Its would-be unified successor, `nvidia/nemotron-content-safety-reasoning-4b`, reached end-of-life the same day.
 
-Instead, this repo wires `topic_control` to **`nvidia/nemotron-3.5-content-safety`**, which classifies against a free-text policy (passed via `chat_template_kwargs.custom_policy`) rather than a fixed taxonomy, and returns a `"User Safety: safe|unsafe"` verdict — different enough from NeMo Guardrails' built-in on-topic/off-topic prompt that it needs its own action/flow (`guardrails/safety/actions.py` + `topic_policy.co`) instead of the library's `topic_safety_check_input`. `generate_config.py` auto-detects this model id (or any set via `TOPIC_CONTROL_CUSTOM_POLICY`), injects the topic-boundary policy into the model's `chat_template_kwargs`, and swaps the `topic_control` input rail flow accordingly — no manual `config.yaml` edits needed:
+Instead, this repo wires `topic_control` to **`nvidia/nemotron-3.5-content-safety`**, which classifies against a free-text policy (passed via `chat_template_kwargs.custom_policy`) rather than a fixed taxonomy, and returns a `"User Safety: safe|unsafe"` verdict — different enough from NeMo Guardrails' built-in on-topic/off-topic prompt that it needs its own action/flow (`guardrails/config/nemoguard/actions.py` + `topic_policy.co`) instead of the library's `topic_safety_check_input`. `generate_config.py` auto-detects this model id (or any set via `TOPIC_CONTROL_CUSTOM_POLICY`), injects the topic-boundary policy into the model's `chat_template_kwargs`, and swaps the `topic_control` input rail flow accordingly — no manual `config.yaml` edits needed:
 
 ```ini
 TOPIC_CONTROL_MODEL_ID=nvidia/nemotron-3.5-content-safety
@@ -123,7 +134,7 @@ make env     # creates venv and installs deps (including NeMo Guardrails)
 
 ### 3. Setup Ollama
 
-Install Ollama and pull the default model:
+Install Ollama and pull the default model (only needed for the `local` profile, or if you're pointing `main` at Ollama in the `nemoguard` profile):
 
 ```bash
 make ollama  # installs Ollama (if needed) and pulls llama3.1:8b
@@ -135,17 +146,21 @@ Ensure Ollama is running (the macOS desktop app handles this automatically; othe
 
 > **Keep this terminal open** — the guardrails server needs to keep running.
 
+Pick a profile (see [What this agent does](#what-this-agent-does) for the difference):
+
 ```bash
-make guardrails-server   # starts on port 8090, proxies to Ollama on 11434
+make guardrails-server-local   # self-check rails, single model, starts on port 8090, proxies to Ollama on 11434
+# or
+make guardrails-server-nemoguard   # layered content_safety/topic_control rails on dedicated NemoGuard models
 ```
 
-The guardrails server generates its runtime config from `.env` at startup — no separate config step needed. The generated `config.yaml` is gitignored to prevent accidental credential commits.
+The guardrails server generates its runtime config from `.env` at startup — no separate config step needed. The generated `config.yaml` (under `guardrails/config/local/` or `guardrails/config/nemoguard/`) is gitignored to prevent accidental credential commits.
 
 > **Using a different model?** Set `MODEL_ID` in `.env`, pull it with
-> `ollama pull <model>`, then restart `make guardrails-server`.
+> `ollama pull <model>`, then restart the guardrails server.
 >
 > **Using a remote endpoint instead of Ollama?** Set `LLM_BASE_URL` and `API_KEY` in `.env`,
-> then restart `make guardrails-server`.
+> then restart the guardrails server.
 
 ### 5. Start the agent
 
@@ -202,7 +217,7 @@ MODEL_ID=llama-3.1-8b-instruct
 CONTAINER_IMAGE=quay.io/your-username/langgraph-guardrailed-agent:latest
 ```
 
-> **Note:** In production on RHOAI, NeMo Guardrails runs as a separate pod managed by the `NemoGuardrails` CRD. The agent's `BASE_URL` points to the guardrails service, not directly to the LLM.
+> **Note:** In production on RHOAI, NeMo Guardrails runs as a separate pod managed by the `NemoGuardrails` CRD (TrustyAI Operator, Technology Preview). The agent's `BASE_URL` points to that guardrails service, not directly to the LLM. **This repo does not include that CRD/ConfigMap manifest** — `guardrails/config/nemoguard/` is only wired up for local testing via `make guardrails-server-nemoguard`; deploying the guardrails proxy itself onto RHOAI is a separate, not-yet-implemented step.
 
 ### Build and deploy
 
@@ -260,10 +275,15 @@ curl http://localhost:8000/health
 
 | File | Purpose |
 |------|---------|
-| `guardrails/safety/config.yaml.example` | Template with safe defaults — model endpoints, rail ordering, regex patterns, streaming, `passthrough: true` |
-| `guardrails/safety/config.yaml` | Runtime config (gitignored, generated by `make guardrails-server` from `.env` values) |
-| `guardrails/safety/prompts.yml` | Classification prompts — content safety (S1–S13 categories) and topic safety (banking domain boundary) |
-| `guardrails/safety/rails.co` | Colang greeting flows (required by RHOAI entrypoint, can be minimal) |
+| `guardrails/generate_config.py` | Shared script — applies `.env` overrides to whichever profile's `config.yaml` was just copied from its `.example` |
+| `guardrails/config/local/config.yaml.example` | Local profile template — single model role, `self check input`/`self check output` rails |
+| `guardrails/config/local/prompts.yml` | Self-check policy prompts (plain-text Yes/No classification) |
+| `guardrails/config/local/rails.co` | Colang greeting flow |
+| `guardrails/config/nemoguard/config.yaml.example` | Nemoguard profile template — 3 model roles, rail ordering, regex patterns, streaming, `passthrough: true` |
+| `guardrails/config/nemoguard/prompts.yml` | Classification prompts — content safety (S1–S13 categories) and topic safety (banking domain boundary) |
+| `guardrails/config/nemoguard/rails.co` | Colang greeting flow |
+| `guardrails/config/nemoguard/actions.py`, `topic_policy.co` | Custom `topic_control` action/flow for custom-policy NIM models (e.g. `nvidia/nemotron-3.5-content-safety`) |
+| `guardrails/config/{local,nemoguard}/config.yaml` | Runtime configs (gitignored, generated by `make guardrails-server-{local,nemoguard}` from `.env` values) |
 
 **Key constraints:**
 
