@@ -29,6 +29,28 @@ def _load_generate_config_module():
 
 generate_config = _load_generate_config_module()
 
+# Every env var generate_config.py reads, so tests are never affected by
+# whatever's leaked into the ambient shell (e.g. from `source .env`).
+_ALL_OVERRIDE_ENV_VARS = [
+    "MODEL_ID",
+    "LLM_BASE_URL",
+    "API_KEY",
+    "TOPIC_CONTROL_CUSTOM_POLICY",
+] + [
+    f"{prefix}_{suffix}"
+    for prefix in generate_config._ROLE_ENV_PREFIX.values()
+    for suffix in ("MODEL_ID", "LLM_BASE_URL", "API_KEY", "MODEL_ENGINE")
+]
+
+
+@pytest.fixture(autouse=True)
+def _clean_guardrails_env(monkeypatch):
+    """Clears all generate_config.py-relevant env vars before every test in
+    this module, so ambient shell state (e.g. a previously-sourced .env)
+    can't leak into assertions about default behavior."""
+    for var in _ALL_OVERRIDE_ENV_VARS:
+        monkeypatch.delenv(var, raising=False)
+
 
 class TestTopicControlCustomPolicy:
     def test_no_override_for_generic_instruct_model(self, monkeypatch):

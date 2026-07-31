@@ -39,6 +39,21 @@ TOPIC_CONTROL_CUSTOM_POLICY (free text). When active, the generated
 config.yaml is rewired to use the `topic policy check input` flow
 (topic_policy.co / actions.py) instead of the built-in one.
 
+Caveat for the "main" role specifically (verified against
+nemoguardrails==0.21.0's server/api.py): the NeMo Guardrails server itself
+overrides the "main" model's id/engine on *every* request from the OpenAI
+`model` field the client sends — and this agent always sends
+`model=MODEL_ID`. So MAIN_MODEL_ID has no effect once real traffic is
+flowing through the proxy; it only affects the model id baked into the
+static config.yaml (relevant if something hits the guardrails server
+directly with a model name matching that baked value). MAIN_LLM_BASE_URL
+and MAIN_API_KEY still take effect, since NeMo's override never touches
+`api_key` and only touches `base_url` via its own separate
+MAIN_MODEL_BASE_URL env var (which we don't set). MAIN_MODEL_ENGINE also
+takes effect, but only because NeMo Guardrails' server happens to read
+that exact env var name itself for the same purpose — not because this
+script wires it through.
+
 Invoked by `make guardrails-server-{local,nemoguard}` after the profile's
 config.yaml.example has been copied to config.yaml.
 """
@@ -63,6 +78,11 @@ _CUSTOM_POLICY_MODEL_MARKERS = (
     "nemotron-content-safety-reasoning",
 )
 
+# Deliberately duplicates (in a different format) the banking policy baked
+# into nemoguard/prompts.yml's `topic_safety_check_input` prompt: that prompt
+# feeds the built-in on-topic/off-topic flow via a fixed template, while this
+# one is injected as chat_template_kwargs.custom_policy for custom-policy
+# models. Keep both in sync if the banking policy scope changes.
 _DEFAULT_TOPIC_CONTROL_POLICY = """The AI assistant is a customer service agent at a retail bank, helping customers with their banking needs only.
 Allowed: account balances, transactions, and account history; billing, payments, and due dates; bank products, services, interest rates, and fees; branch locations, hours, and contact information; online banking, mobile app, and password resets; small talk and greetings.
 Not allowed: medical or health advice; legal advice or legal proceedings; investment recommendations or stock picks; cooking, recipes, or food preparation; entertainment, sports, or celebrity gossip; personal relationships or dating advice; any other topic unrelated to banking and financial services."""
@@ -72,6 +92,8 @@ _CUSTOM_POLICY_TOPIC_FLOW = "topic policy check input $model=topic_control"
 
 
 def _role_override(role: str, suffix: str, default: str) -> str:
+    """Look up a ROLE_SUFFIX env var override (e.g. MAIN_LLM_BASE_URL,
+    TOPIC_CONTROL_MODEL_ENGINE), falling back to default if unset."""
     prefix = _ROLE_ENV_PREFIX.get(role)
     if prefix:
         override = os.environ.get(f"{prefix}_{suffix}")
@@ -80,18 +102,15 @@ def _role_override(role: str, suffix: str, default: str) -> str:
     return default
 
 
-def _role_engine_override(role: str, default: str) -> str:
-    prefix = _ROLE_ENV_PREFIX.get(role)
-    if prefix:
-        override = os.environ.get(f"{prefix}_MODEL_ENGINE")
-        if override:
-            return override
-    return default
-
-
 def _topic_control_custom_policy(model_id: str) -> str | None:
     """Return the custom policy text to use for topic_control, or None to
-    keep the built-in on-topic/off-topic flow."""
+    keep the built-in on-topic/off-topic flow.
+
+    There's no opt-out for the auto-detection: if TOPIC_CONTROL_MODEL_ID
+    matches a _CUSTOM_POLICY_MODEL_MARKERS substring, custom-policy mode
+    always activates. If you need a known-custom-policy model to use the
+    built-in flow instead, rename/fork it under a non-matching model id.
+    """
     explicit = os.environ.get("TOPIC_CONTROL_CUSTOM_POLICY")
     if explicit:
         return explicit
@@ -115,14 +134,27 @@ def generate_config(config_path: str) -> list[str]:
     with open(config_path) as f:
         config = yaml.safe_load(f)
 
+    if "models" not in config:
+        raise ValueError(f"Malformed {config_path}: missing top-level 'models' list")
+
     summary = []
     use_custom_topic_flow = False
-    for model in config["models"]:
-        role = model["type"]
+    for index, model in enumerate(config["models"]):
+        role = model.get("type")
+        if role is None:
+            raise ValueError(
+                f"Malformed {config_path}: models[{index}] is missing 'type'"
+            )
+        if "parameters" not in model:
+            raise ValueError(
+                f"Malformed {config_path}: models[{index}] (role={role!r}) is "
+                "missing 'parameters'"
+            )
+
         model_id = _role_override(role, "MODEL_ID", default_model)
         base_url = _role_override(role, "LLM_BASE_URL", default_base_url)
         api_key = _role_override(role, "API_KEY", default_api_key)
-        engine = _role_engine_override(role, model.get("engine", "openai"))
+        engine = _role_override(role, "MODEL_ENGINE", model.get("engine", "openai"))
 
         model["model"] = model_id
         model["engine"] = engine
@@ -143,6 +175,14 @@ def generate_config(config_path: str) -> list[str]:
 
     if use_custom_topic_flow:
         input_flows = config["rails"]["input"]["flows"]
+        if _BUILTIN_TOPIC_FLOW not in input_flows:
+            raise ValueError(
+                f"Malformed {config_path}: topic_control resolved to custom-policy "
+                f"mode, but the expected flow {_BUILTIN_TOPIC_FLOW!r} was not found "
+                f"in rails.input.flows ({input_flows!r}) to swap out for "
+                f"{_CUSTOM_POLICY_TOPIC_FLOW!r}. Add the custom-policy flow to "
+                "rails.input.flows yourself, or restore the built-in flow entry."
+            )
         config["rails"]["input"]["flows"] = [
             _CUSTOM_POLICY_TOPIC_FLOW if f == _BUILTIN_TOPIC_FLOW else f
             for f in input_flows

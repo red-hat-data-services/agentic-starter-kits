@@ -86,6 +86,8 @@ LLM response
 
 **Use a different model per layer** — each of the 3 model roles (`main`, `content_safety`, `topic_control`) can be pointed at its own model/endpoint/key/engine via `.env` overrides: `MAIN_MODEL_ID`/`MAIN_LLM_BASE_URL`/`MAIN_API_KEY`/`MAIN_MODEL_ENGINE`, `CONTENT_SAFETY_MODEL_ID`/`CONTENT_SAFETY_LLM_BASE_URL`/`CONTENT_SAFETY_API_KEY`/`CONTENT_SAFETY_MODEL_ENGINE`, and the `TOPIC_CONTROL_*` equivalents (see `.env.example`). Any override left unset falls back to the shared `MODEL_ID`/`LLM_BASE_URL`/`API_KEY`, so single-model setups need no changes. This lets you use a small, fast model for classification while keeping a larger model for responses — or a purpose-built safety classifier for the rail layers only.
 
+> **Note:** `MAIN_MODEL_ID` has no effect once real traffic flows through the proxy. NeMo Guardrails' own server always overrides the `main` model's id from the client's OpenAI `model` field on every request — and this agent always sends `model=MODEL_ID`. `MAIN_LLM_BASE_URL`/`MAIN_API_KEY` still take effect. See `guardrails/generate_config.py`'s docstring for the full explanation (verified against `nemoguardrails==0.21.0`).
+
 **Using NVIDIA's dedicated NemoGuard NIM models** — set a role's `_MODEL_ENGINE` to `nim` to route it through NeMo Guardrails' NIM/`ChatNVIDIA` integration (requires the `langchain-nvidia-ai-endpoints` package, included in the `guardrails` extra) instead of the generic OpenAI-compatible client:
 
 ```ini
@@ -248,6 +250,8 @@ make undeploy  # remove deployment
 ```bash
 make test
 ```
+
+Includes `tests/test_guardrails_smoke.py`, which loads both profiles' generated `config.yaml` through NeMo Guardrails' own `RailsConfig`/`LLMRails` (no LLM calls) — catching rails/action/prompt wiring bugs that structural YAML checks alone would miss.
 
 ## API Endpoints
 
