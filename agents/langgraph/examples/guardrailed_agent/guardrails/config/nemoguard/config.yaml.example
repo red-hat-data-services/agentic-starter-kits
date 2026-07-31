@@ -1,6 +1,7 @@
-# NeMo Guardrails configuration template for the guardrailed agent.
-# Model endpoints below default to Ollama on localhost.
-# `make guardrails-server` generates config.yaml from this template,
+# NeMo Guardrails configuration template — nemoguard (layered NemoGuard models) profile.
+# Model endpoints below default to Ollama on localhost; override per-role via
+# .env for dedicated safety classifiers (see README's "Nemoguard profile" section).
+# `make guardrails-server-nemoguard` generates config.yaml from this template,
 # injecting LLM_BASE_URL, MODEL_ID, and API_KEY from .env.
 models:
   - type: main

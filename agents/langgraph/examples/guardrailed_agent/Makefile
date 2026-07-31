@@ -5,7 +5,7 @@ VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
 
-.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test dry-run help guardrails-server
+.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test dry-run help guardrails-server-local guardrails-server-nemoguard
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -25,9 +25,10 @@ env: ## Create venv, load .env, and install dependencies (including NeMo Guardra
 	  source .venv/bin/activate && set -a && source .env && set +a && \
 	  echo "" && \
 	  echo "Done. Next steps:" && \
-	  echo "  make ollama             # install Ollama and pull models" && \
-	  echo "  make guardrails-server  # start NeMo Guardrails proxy" && \
-	  echo "  make run-app            # start the agent"
+	  echo "  make ollama                    # install Ollama and pull models" && \
+	  echo "  make guardrails-server-local      # start NeMo Guardrails proxy (self-check, Ollama)" && \
+	  echo "  make guardrails-server-nemoguard  # start NeMo Guardrails proxy (layered NemoGuard models)" && \
+	  echo "  make run-app                   # start the agent"
 
 ollama: ## Install Ollama, start it, and pull models
 	@source .venv/bin/activate && set -a && source .env && set +a && \
@@ -54,14 +55,21 @@ ollama: ## Install Ollama, start it, and pull models
 	  echo "==> Pulling $(MODEL)..." && \
 	  ollama pull $(MODEL) && \
 	  echo "" && \
-	  echo "Done. Run 'make guardrails-server' to start NeMo Guardrails."
+	  echo "Done. Run 'make guardrails-server-local' to start NeMo Guardrails."
 
-guardrails-server: ## Generate config from .env and start NeMo Guardrails proxy
+guardrails-server-local: ## Generate local (self-check, Ollama) config and start NeMo Guardrails proxy
 	@source .venv/bin/activate && set -a && source .env && set +a && \
-	  cp guardrails/safety/config.yaml.example guardrails/safety/config.yaml && \
-	  python3 guardrails/safety/generate_config.py && \
-	  echo "Starting NeMo Guardrails server on port $${GUARDRAILS_PORT:-8090}..." && \
-	  nemoguardrails server --config guardrails --default-config-id safety --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui
+	  cp guardrails/config/local/config.yaml.example guardrails/config/local/config.yaml && \
+	  python3 guardrails/generate_config.py --profile local && \
+	  echo "Starting NeMo Guardrails server (local profile) on port $${GUARDRAILS_PORT:-8090}..." && \
+	  nemoguardrails server --config guardrails/config --default-config-id local --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui
+
+guardrails-server-nemoguard: ## Generate layered NemoGuard-models config and start NeMo Guardrails proxy
+	@source .venv/bin/activate && set -a && source .env && set +a && \
+	  cp guardrails/config/nemoguard/config.yaml.example guardrails/config/nemoguard/config.yaml && \
+	  python3 guardrails/generate_config.py --profile nemoguard && \
+	  echo "Starting NeMo Guardrails server (nemoguard profile) on port $${GUARDRAILS_PORT:-8090}..." && \
+	  nemoguardrails server --config guardrails/config --default-config-id nemoguard --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui
 
 run-app: ## Run agent locally with hot-reload
 	@source .venv/bin/activate && set -a && source .env && set +a && \

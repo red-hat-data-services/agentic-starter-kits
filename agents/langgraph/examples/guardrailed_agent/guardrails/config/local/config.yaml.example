@@ -1,0 +1,38 @@
+# NeMo Guardrails configuration template — local demo profile.
+# Model endpoint below defaults to Ollama on localhost.
+# `make guardrails-server-local` generates config.yaml from this template,
+# injecting LLM_BASE_URL, MODEL_ID, and API_KEY from .env.
+#
+# Uses NeMo Guardrails' built-in self-check rails: the same model answering
+# the user's question also classifies the input/output against a plain-text
+# policy prompt (see prompts.yml). No dedicated safety models required —
+# good for demoing the proxy pattern with zero extra setup. For layered,
+# purpose-built NemoGuard safety models, see ../nemoguard/.
+models:
+  - type: main
+    engine: openai
+    model: llama3.1:8b
+    parameters:
+      base_url: http://localhost:11434/v1
+      api_key: not-needed
+
+passthrough: true
+
+rails:
+  config:
+    regex_detection:
+      input:
+        patterns:
+          - "\\b(hack|exploit|bypass|inject)\\s+(the|this|my)\\s+(system|filter|guardrail)"
+          - "ignore\\s+(all\\s+)?(previous|above)\\s+(instructions|rules|prompts)"
+          - "\\bDAN\\b.*\\bjailbreak\\b"
+        case_insensitive: true
+  input:
+    flows:
+      - regex check input
+      - self check input
+  output:
+    flows:
+      - self check output
+    streaming:
+      enabled: True

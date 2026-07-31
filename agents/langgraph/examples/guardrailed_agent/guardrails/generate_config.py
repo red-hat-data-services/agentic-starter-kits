@@ -1,11 +1,22 @@
 #!/usr/bin/env python3
-"""Generate guardrails/safety/config.yaml from config.yaml.example.
+"""Generate guardrails/config/<profile>/config.yaml from config.yaml.example.
 
-Each model role (main, content_safety, topic_control) can be pointed at a
-different model/endpoint/key/engine via ROLE-prefixed environment variables.
-Any override left unset falls back to the shared MODEL_ID / LLM_BASE_URL /
-API_KEY values (or, for engine, to whatever's already in config.yaml.example),
-so single-model setups need no changes.
+Two profiles live side by side under guardrails/config/:
+
+  local     — self-check rails (self_check_input/output) on a single "main"
+              model, pointed at Ollama by default. No dedicated safety models
+              required; good for demoing the proxy pattern with zero extra setup.
+  nemoguard — layered content_safety/topic_control rails, each backed by a
+              purpose-built NemoGuard model (NVIDIA-hosted NIM today; can be
+              repointed at an in-cluster KServe endpoint too).
+
+Select a profile via `make guardrails-server-local` / `make guardrails-server-nemoguard`.
+
+For the nemoguard profile, each model role (main, content_safety, topic_control)
+can be pointed at a different model/endpoint/key/engine via ROLE-prefixed
+environment variables. Any override left unset falls back to the shared
+MODEL_ID / LLM_BASE_URL / API_KEY values (or, for engine, to whatever's
+already in config.yaml.example), so single-model setups need no changes.
 
     MAIN_MODEL_ID            MAIN_LLM_BASE_URL            MAIN_API_KEY            MAIN_MODEL_ENGINE
     CONTENT_SAFETY_MODEL_ID  CONTENT_SAFETY_LLM_BASE_URL  CONTENT_SAFETY_API_KEY  CONTENT_SAFETY_MODEL_ENGINE
@@ -28,15 +39,14 @@ TOPIC_CONTROL_CUSTOM_POLICY (free text). When active, the generated
 config.yaml is rewired to use the `topic policy check input` flow
 (topic_policy.co / actions.py) instead of the built-in one.
 
-Invoked by `make guardrails-server` after config.yaml.example has been
-copied to config.yaml.
+Invoked by `make guardrails-server-{local,nemoguard}` after the profile's
+config.yaml.example has been copied to config.yaml.
 """
 
+import argparse
 import os
 
 import yaml
-
-CONFIG_PATH = "guardrails/safety/config.yaml"
 
 _ROLE_ENV_PREFIX = {
     "main": "MAIN",
@@ -90,12 +100,19 @@ def _topic_control_custom_policy(model_id: str) -> str | None:
     return None
 
 
-def main() -> None:
+def generate_config(config_path: str) -> list[str]:
+    """Rewrite config_path in place with env-driven model overrides applied.
+
+    config_path must already exist (i.e. config.yaml.example copied to
+    config.yaml) and contain a `models` list with `type`/`engine`/`model`/
+    `parameters` per NeMo Guardrails' config schema. Returns a human-readable
+    summary of what was applied, one line per model role.
+    """
     default_model = os.environ.get("MODEL_ID") or "llama3.1:8b"
     default_base_url = os.environ.get("LLM_BASE_URL") or "http://localhost:11434/v1"
     default_api_key = os.environ.get("API_KEY") or "not-needed"
 
-    with open(CONFIG_PATH) as f:
+    with open(config_path) as f:
         config = yaml.safe_load(f)
 
     summary = []
@@ -134,10 +151,28 @@ def main() -> None:
             "topic_control flow -> topic policy check input (custom policy mode)"
         )
 
-    with open(CONFIG_PATH, "w") as f:
+    with open(config_path, "w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
-    print("Config generated:\n  " + "\n  ".join(summary))
+    return summary
+
+
+_PROFILE_CHOICES = ("local", "nemoguard")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--profile",
+        required=True,
+        choices=sorted(_PROFILE_CHOICES),
+        help="Guardrails profile to generate config.yaml for",
+    )
+    args = parser.parse_args()
+
+    config_path = f"guardrails/config/{args.profile}/config.yaml"
+    summary = generate_config(config_path)
+    print(f"Config generated ({args.profile} profile):\n  " + "\n  ".join(summary))
 
 
 if __name__ == "__main__":
