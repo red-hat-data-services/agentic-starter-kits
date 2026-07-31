@@ -8,13 +8,15 @@ The topic policy itself isn't sent from here — it's baked into the
 topic_control model's `parameters.chat_template_kwargs.custom_policy` in
 config.yaml (see generate_config.py), which these NIM models apply
 server-side. This action just forwards the raw user message and parses the
-"safe"/"unsafe" verdict.
+"User Safety: safe|unsafe" verdict out of the model's raw output, failing
+closed (blocking) if that field can't be found.
 
 Auto-loaded by NeMo Guardrails from this config directory; invoked via the
 `topic policy check input $model` flow in topic_policy.co.
 """
 
 import logging
+import re
 from typing import Dict, Optional
 
 from langchain_core.language_models import BaseLLM
@@ -27,6 +29,30 @@ log = logging.getLogger(__name__)
 
 TOPIC_POLICY_TEMPERATURE = 0.0
 TOPIC_POLICY_MAX_TOKENS = 20
+
+# Tolerates both plain-text ("User Safety: unsafe") and JSON-ish
+# ('"User Safety": "unsafe"') verdict formats.
+_VERDICT_PATTERN = re.compile(r"user\s+safety\"?\s*:\s*\"?(safe|unsafe)", re.IGNORECASE)
+
+
+def _parse_user_safety_verdict(result: str) -> bool:
+    """Parse a "User Safety: safe|unsafe" verdict from the model's raw output.
+
+    Returns True (on-topic, i.e. allow) only for an explicit "safe" match.
+    Fails closed (blocks) on anything else — empty output, a garbled
+    response, or a "User Safety" value the model didn't set to exactly
+    "safe" — since this is a safety rail: silently letting unparseable
+    classifier output through is worse than an occasional false block.
+    """
+    match = _VERDICT_PATTERN.search(result)
+    if match is None:
+        log.warning(
+            "Topic policy check returned an unparseable verdict %r; failing "
+            "closed (blocking).",
+            result,
+        )
+        return False
+    return match.group(1).lower() == "safe"
 
 
 @action()
@@ -67,7 +93,7 @@ async def topic_policy_check_input(
         },
     )
 
-    on_topic = "unsafe" not in result.lower()
+    on_topic = _parse_user_safety_verdict(result)
     log.debug(
         "Topic policy check for %r -> %r (on_topic=%s)", user_input, result, on_topic
     )

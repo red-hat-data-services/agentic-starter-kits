@@ -25,10 +25,10 @@ env: ## Create venv, load .env, and install dependencies (including NeMo Guardra
 	  source .venv/bin/activate && set -a && source .env && set +a && \
 	  echo "" && \
 	  echo "Done. Next steps:" && \
-	  echo "  make ollama                    # install Ollama and pull models" && \
+	  echo "  make ollama                       # install Ollama and pull models" && \
 	  echo "  make guardrails-server-local      # start NeMo Guardrails proxy (self-check, Ollama)" && \
 	  echo "  make guardrails-server-nemoguard  # start NeMo Guardrails proxy (layered NemoGuard models)" && \
-	  echo "  make run-app                   # start the agent"
+	  echo "  make run-app                      # start the agent"
 
 ollama: ## Install Ollama, start it, and pull models
 	@source .venv/bin/activate && set -a && source .env && set +a && \
@@ -207,5 +207,5 @@ dry-run: _check-env ## Render Helm templates without deploying
 undeploy: ## Remove deployment from cluster
 	helm uninstall $(AGENT_NAME)
 
-test: ## Run unit tests
-	uv run --extra dev python -m pytest tests/ $(PYTEST_ARGS)
+test: ## Run unit tests (includes guardrails extra, for the RailsConfig/LLMRails smoke tests)
+	uv run --extra dev --extra guardrails python -m pytest tests/ $(PYTEST_ARGS)
