@@ -24,8 +24,8 @@ RUN microdnf install -y --nodocs \
     && microdnf clean all \
     && rm -rf /var/cache/yum
 
-# Node.js 20 (RHEL 9 ships v16, but @mlflow/codex requires >= 18)
-RUN curl -sL https://nodejs.org/dist/v20.19.2/node-v20.19.2-linux-x64.tar.xz \
+# Node.js 22 LTS (RHEL 9 ships v16, but @mlflow/codex requires >= 18)
+RUN curl -sL https://nodejs.org/dist/v22.23.1/node-v22.23.1-linux-x64.tar.xz \
     | tar -xJ -C /usr/local --strip-components=1 \
     && node --version && npm --version
 

@@ -49,7 +49,7 @@ Extends the Codex CLI deployment with MLflow experiment tracking via the `@mlflo
 
 ## Image Build
 
-The MLflow layer extends the base Codex image with Python 3.12, Node.js 20, MLflow SDK, and `@mlflow/codex`:
+The MLflow layer extends the base Codex image with Python 3.12, Node.js 22, MLflow SDK, and `@mlflow/codex`:
 
 ```bash
 # Create ImageStream and BuildConfig
@@ -88,7 +88,7 @@ oc start-build codex-mlflow --from-dir=. --follow
 | Layer | Package | Version | Purpose |
 |-------|---------|---------|---------|
 | Python | python3.12 + pip | 3.12.x | MLflow SDK, experiment creation |
-| Node.js | Node.js from official tarball | 20.19.2 | `@mlflow/codex` notify hook CLI |
+| Node.js | Node.js from official tarball | 22.23.1 | `@mlflow/codex` notify hook CLI |
 | MLflow SDK | `mlflow[kubernetes]` | >=3.14 | Trace export, experiment management |
 | @mlflow/codex | Built from source (v3.14.0) | 3.14.0 | Codex notify hook for MLflow tracing |
 
@@ -250,7 +250,7 @@ OGX endpoints were not available in the test namespace. The vLLM-direct path was
 
 | File | Description |
 |------|-------------|
-| `Containerfile.mlflow` | Image layer with Python 3.12, Node.js 20, MLflow SDK, @mlflow/codex |
+| `Containerfile.mlflow` | Image layer with Python 3.12, Node.js 22, MLflow SDK, @mlflow/codex |
 | `setup-mlflow.sh` | Post-entrypoint setup: SA token, experiment, notify hook, config fixups |
 | `deployment-mlflow-patch.yaml` | Strategic merge patch for env vars and image |
 | `screenshots/` | MLflow trace screenshots |

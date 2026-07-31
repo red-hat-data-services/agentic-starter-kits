@@ -32,7 +32,7 @@ setup_mlflow() {
     python3 -c "
 import mlflow, os
 mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
-name = '${experiment_name}'
+name = os.environ.get('MLFLOW_EXPERIMENT_NAME', 'codex-traces')
 try:
     mlflow.set_experiment(name)
     print(f'[mlflow-setup] Experiment ready: {name}')
@@ -51,9 +51,10 @@ except Exception as e:
             exp_id=$(python3 -c "
 import mlflow, os, sys
 mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
-exp = mlflow.get_experiment_by_name('${experiment_name}')
+name = os.environ.get('MLFLOW_EXPERIMENT_NAME', 'codex-traces')
+exp = mlflow.get_experiment_by_name(name)
 if not exp:
-    print('[mlflow-setup] ERROR: experiment not found', file=sys.stderr)
+    print(f'[mlflow-setup] ERROR: experiment {name!r} not found', file=sys.stderr)
     sys.exit(1)
 print(exp.experiment_id)
 " 2>/dev/null) || { log_warn "Could not resolve experiment ID for '${experiment_name}' — skipping hook setup"; return; }
