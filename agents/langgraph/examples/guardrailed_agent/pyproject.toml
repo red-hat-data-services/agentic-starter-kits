@@ -46,6 +46,13 @@ where = ["src"]
 [tool.uv.sources]
 agent-auth = { path = "../../../../components/auth" }
 
+[tool.pytest.ini_options]
+pythonpath = ["tests"]
+markers = [
+    "guardrails_integration: live NeMo Guardrails server + LLM required",
+    "integration: OpenShift cluster deployment test",
+]
+
 [build-system]
 requires = ["setuptools>=80.9.0"]
 build-backend = "setuptools.build_meta"

@@ -5,7 +5,7 @@ VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
 
-.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test dry-run help guardrails-server-local guardrails-server-nemoguard
+.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test test-guardrails-integration test-guardrails-integration-nemoguard test-integration dry-run help guardrails-server-local guardrails-server-nemoguard
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -207,5 +207,20 @@ dry-run: _check-env ## Render Helm templates without deploying
 undeploy: ## Remove deployment from cluster
 	helm uninstall $(AGENT_NAME)
 
-test: ## Run unit tests (includes guardrails extra, for the RailsConfig/LLMRails smoke tests)
-	uv run --extra dev --extra guardrails python -m pytest tests/ $(PYTEST_ARGS)
+test: ## Run unit tests (excludes guardrails-integration and cluster integration)
+	uv run --extra dev --extra guardrails python -m pytest tests/ \
+	  --ignore=tests/integration \
+	  -m "not guardrails_integration" $(PYTEST_ARGS)
+
+test-guardrails-integration: ## Run guardrails behavior tests (requires guardrails server + LLM)
+	GUARDRAILS_PROFILE=$${GUARDRAILS_PROFILE:-local} \
+	  uv run --extra dev --extra guardrails python -m pytest tests/test_guardrails.py \
+	  -m guardrails_integration -v --tb=short $(PYTEST_ARGS)
+
+test-guardrails-integration-nemoguard: ## Run guardrails tests against nemoguard profile server
+	GUARDRAILS_PROFILE=nemoguard $(MAKE) test-guardrails-integration
+
+test-integration: ## Run cluster deployment integration test
+	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \
+	  uv run --extra dev python -m pytest tests/integration/ \
+	  -m integration -v --tb=long $(PYTEST_ARGS)

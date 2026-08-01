@@ -75,3 +75,34 @@ def test_pyproject_constrains_protobuf_below_7() -> None:
 
 def test_pyproject_package_name() -> None:
     assert PYPROJECT["project"]["name"] == "guardrailed_agent"
+
+
+def test_makefile_default_test_excludes_integration() -> None:
+    assert re.search(r"(?m)^test:", MAKEFILE)
+    assert "--ignore=tests/integration" in MAKEFILE
+    assert '-m "not guardrails_integration"' in MAKEFILE
+
+
+def test_makefile_exposes_guardrails_integration_targets() -> None:
+    assert re.search(r"(?m)^test-guardrails-integration:", MAKEFILE)
+    assert re.search(r"(?m)^test-guardrails-integration-nemoguard:", MAKEFILE)
+    assert "tests/test_guardrails.py" in MAKEFILE
+    assert "-m guardrails_integration" in MAKEFILE
+    assert (
+        "GUARDRAILS_PROFILE=nemoguard $(MAKE) test-guardrails-integration" in MAKEFILE
+    )
+
+
+def test_makefile_exposes_cluster_integration_target() -> None:
+    assert re.search(r"(?m)^test-integration:", MAKEFILE)
+    assert "PYTHONPATH=$$(git rev-parse --show-toplevel)/tests" in MAKEFILE
+    assert "tests/integration/" in MAKEFILE
+    assert "-m integration" in MAKEFILE
+
+
+def test_pyproject_registers_pytest_markers() -> None:
+    markers = PYPROJECT["tool"]["pytest"]["ini_options"]["markers"]
+    assert (
+        "guardrails_integration: live NeMo Guardrails server + LLM required" in markers
+    )
+    assert "integration: OpenShift cluster deployment test" in markers
