@@ -12,11 +12,18 @@ GUARDRAILS_BASE_URL = os.environ.get("GUARDRAILS_BASE_URL", "http://localhost:80
 GUARDRAILS_PROFILE = os.environ.get("GUARDRAILS_PROFILE", "local")
 GUARDRAILS_MODEL_ID = os.environ.get("GUARDRAILS_MODEL_ID", "llama3.1:8b")
 
-GUARDRAILS_CHAT_TIMEOUT = 120.0
+GUARDRAILS_CHAT_TIMEOUT = float(os.environ.get("GUARDRAILS_CHAT_TIMEOUT", "60"))
 
-_REFUSAL_PATTERNS = re.compile(r"\b(sorry|can't|cannot)\b", re.IGNORECASE)
-_BANKING_HINTS = re.compile(
-    r"\b(balance|account|bank|acct|transaction|deposit|withdraw)\b", re.IGNORECASE
+# Rail-block signatures only — not every apology or soft refusal from the LLM.
+_RAIL_BLOCK_PATTERNS = re.compile(
+    r"|".join(
+        (
+            r"i['']m sorry,?\s+i can'?t respond to that\.?",
+            r"i can'?t respond to that\.?",
+            r"blocked by\b.*\brails\b",
+        )
+    ),
+    re.IGNORECASE,
 )
 
 
@@ -39,10 +46,7 @@ def is_blocked_response(data: dict, *, http_status: int | None = None) -> bool:
     if not content:
         return True
 
-    if len(content) > 50 and _BANKING_HINTS.search(content):
-        return False
-
-    return bool(_REFUSAL_PATTERNS.search(content))
+    return bool(_RAIL_BLOCK_PATTERNS.search(content))
 
 
 def is_allowed_response(data: dict, *, http_status: int | None = None) -> bool:
