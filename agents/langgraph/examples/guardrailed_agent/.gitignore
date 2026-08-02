@@ -4,3 +4,7 @@
 # NeMo Guardrails config is generated at startup by `make guardrails-server-{local,nemoguard}`
 # from .env values — may contain API_KEY, never commit.
 guardrails/config/*/config.yaml
+
+# Cluster deploy — generated / local secrets
+deploy/overlays/ci-testing/cluster.env
+deploy/manifests/02-guardrails-configmap.yaml

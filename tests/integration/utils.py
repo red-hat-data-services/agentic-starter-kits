@@ -200,6 +200,69 @@ def chat_completion_request(
         )
 
 
+def get_guardrails_service_url(
+    cr_name: str,
+    namespace: str,
+    *,
+    with_v1_suffix: bool = True,
+) -> str:
+    base = f"http://{cr_name}.{namespace}.svc.cluster.local"
+    return f"{base}/v1" if with_v1_suffix else base
+
+
+def get_guardrails_route(cr_name: str, namespace: str | None = None) -> str:
+    cmd = [
+        "oc",
+        "get",
+        "route",
+        cr_name,
+        "-o",
+        "jsonpath={.spec.host}",
+    ]
+    if namespace:
+        cmd.extend(["-n", namespace])
+
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    host = result.stdout.strip()
+
+    if result.returncode != 0 or not host:
+        raise RouteNotFoundError(cr_name, stderr=result.stderr.strip())
+
+    return f"https://{host}"
+
+
+def wait_for_guardrails_ready(
+    cr_name: str,
+    namespace: str,
+    *,
+    timeout_s: int = 300,
+) -> None:
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        result = subprocess.run(
+            [
+                "oc",
+                "get",
+                "pods",
+                "-n",
+                namespace,
+                "-l",
+                f"app.kubernetes.io/instance={cr_name}",
+                "-o",
+                "jsonpath={.items[0].status.conditions[?(@.type=='Ready')].status}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.stdout.strip() == "True":
+            return
+        time.sleep(5)
+    raise RuntimeError(
+        f"Guardrails pod for {namespace}/{cr_name} not ready after {timeout_s}s"
+    )
+
+
 def get_route(agent_name: str, namespace: str | None = None) -> str:
     cmd = [
         "oc",

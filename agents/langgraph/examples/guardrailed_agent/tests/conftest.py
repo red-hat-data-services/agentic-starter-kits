@@ -65,11 +65,12 @@ def guardrails_chat(
     *,
     profile: str | None = None,
     base_url: str | None = None,
+    model_id: str | None = None,
 ) -> tuple[int, dict]:
     """POST to the NeMo Guardrails proxy OpenAI-compatible chat endpoint."""
     base = (base_url or GUARDRAILS_BASE_URL).rstrip("/")
     body: dict = {
-        "model": GUARDRAILS_MODEL_ID,
+        "model": model_id or os.environ.get("GUARDRAILS_MODEL_ID", GUARDRAILS_MODEL_ID),
         "messages": messages,
         "stream": False,
     }
