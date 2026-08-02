@@ -218,9 +218,8 @@ On RHOAI, NeMo Guardrails runs as a separate pod managed by the `NemoGuardrails`
 bundle the **nemoguard** profile (`guardrails/config/nemoguard/`) into a monolithic
 ConfigMap.
 
-See [deploy/README.md](deploy/README.md) for the full RHOAI guide and
-[RHOAI_CLUSTER_GPU_ARCHITECTURE.md](../../../../RHOAI_CLUSTER_GPU_ARCHITECTURE.md)
-for LLM endpoint details on the demo cluster.
+See [deploy/README.md](deploy/README.md) for the full RHOAI guide (including the
+in-cluster vLLM endpoint used on the demo cluster).
 
 ### Configuration
 

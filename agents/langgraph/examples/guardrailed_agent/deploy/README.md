@@ -4,8 +4,6 @@ This directory deploys the **nemoguard** NeMo Guardrails profile to OpenShift vi
 `NemoGuardrails` CRD (TrustyAI operator), then wires the agent's `BASE_URL` to that
 in-cluster guardrails Service — not directly to vLLM.
 
-See also [RHOAI_CLUSTER_GPU_ARCHITECTURE.md](../../../../../RHOAI_CLUSTER_GPU_ARCHITECTURE.md)
-
 ## Architecture
 
 ```text
