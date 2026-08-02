@@ -6,12 +6,13 @@ proxy). When set, exercises a subset of rail outcomes against that endpoint.
 
 from __future__ import annotations
 
-import importlib.util
 import os
-from pathlib import Path
+from functools import partial
 
 import httpx
 import pytest
+from guardrails_client import guardrails_chat as _guardrails_chat
+from guardrails_client import is_allowed_response, is_blocked_response
 
 _integration_url = os.environ.get("GUARDRAILS_INTEGRATION_URL")
 if not _integration_url:
@@ -20,18 +21,7 @@ if not _integration_url:
         allow_module_level=True,
     )
 
-_parent_conftest_path = Path(__file__).resolve().parent.parent / "conftest.py"
-_spec = importlib.util.spec_from_file_location(
-    "guardrails_parent_conftest", _parent_conftest_path
-)
-_gr_conftest = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_gr_conftest)
-
-_gr_conftest.GUARDRAILS_BASE_URL = _integration_url
-
-guardrails_chat = _gr_conftest.guardrails_chat
-is_allowed_response = _gr_conftest.is_allowed_response
-is_blocked_response = _gr_conftest.is_blocked_response
+guardrails_chat = partial(_guardrails_chat, base_url=_integration_url)
 
 pytestmark = pytest.mark.integration
 

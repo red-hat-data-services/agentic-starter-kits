@@ -174,7 +174,15 @@ def generate_config(config_path: str) -> list[str]:
         summary.append(f"{role}={model_id}@{base_url} (engine={engine}{extra})")
 
     if use_custom_topic_flow:
-        input_flows = config["rails"]["input"]["flows"]
+        rails = config.get("rails")
+        if not isinstance(rails, dict):
+            raise ValueError(
+                f"Malformed {config_path}: missing top-level 'rails' mapping"
+            )
+        input_rails = rails.get("input")
+        if not isinstance(input_rails, dict) or "flows" not in input_rails:
+            raise ValueError(f"Malformed {config_path}: missing rails.input.flows list")
+        input_flows = input_rails["flows"]
         if _BUILTIN_TOPIC_FLOW not in input_flows:
             raise ValueError(
                 f"Malformed {config_path}: topic_control resolved to custom-policy "

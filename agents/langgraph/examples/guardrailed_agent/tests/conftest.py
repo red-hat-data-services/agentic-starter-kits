@@ -28,6 +28,7 @@ _RAIL_BLOCK_PATTERNS = re.compile(
 
 
 def _extract_content(data: dict) -> str:
+    """Return assistant message text from an OpenAI-style chat completion dict."""
     try:
         content = data["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError):
@@ -63,9 +64,10 @@ def guardrails_chat(
     messages: list[dict[str, str]],
     *,
     profile: str | None = None,
+    base_url: str | None = None,
 ) -> tuple[int, dict]:
     """POST to the NeMo Guardrails proxy OpenAI-compatible chat endpoint."""
-    base = GUARDRAILS_BASE_URL.rstrip("/")
+    base = (base_url or GUARDRAILS_BASE_URL).rstrip("/")
     body: dict = {
         "model": GUARDRAILS_MODEL_ID,
         "messages": messages,
@@ -99,4 +101,5 @@ def guardrails_server() -> str:
 
 @pytest.fixture(scope="session")
 def expected_config_id() -> str:
+    """Profile name expected in guardrails.config_id responses."""
     return GUARDRAILS_PROFILE

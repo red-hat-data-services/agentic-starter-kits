@@ -175,3 +175,78 @@ class TestGenerateConfigMain:
         output_flows = config["rails"]["output"]["flows"]
         assert "self check input" in input_flows
         assert "self check output" in output_flows
+
+
+class TestGenerateConfigValidation:
+    def test_missing_models_raises(self, tmp_path):
+        config_path = tmp_path / "bad.yaml"
+        config_path.write_text("passthrough: true\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="missing top-level 'models'"):
+            generate_config.generate_config(str(config_path))
+
+    def test_missing_model_type_raises(self, tmp_path):
+        config_path = tmp_path / "bad.yaml"
+        config_path.write_text(
+            "models:\n  - engine: openai\n    parameters: {}\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="missing 'type'"):
+            generate_config.generate_config(str(config_path))
+
+    def test_missing_parameters_raises(self, tmp_path):
+        config_path = tmp_path / "bad.yaml"
+        config_path.write_text(
+            "models:\n  - type: main\n    engine: openai\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="missing 'parameters'"):
+            generate_config.generate_config(str(config_path))
+
+    def test_missing_rails_input_flows_raises(self, tmp_path, monkeypatch):
+        config_path = tmp_path / "bad.yaml"
+        shutil.copy(CONFIG_DIR / "nemoguard" / "config.yaml.example", config_path)
+        cfg = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        del cfg["rails"]["input"]["flows"]
+        config_path.write_text(yaml.dump(cfg), encoding="utf-8")
+        monkeypatch.setenv(
+            "TOPIC_CONTROL_MODEL_ID", "nvidia/nemotron-3.5-content-safety"
+        )
+        with pytest.raises(ValueError, match="missing rails.input.flows"):
+            generate_config.generate_config(str(config_path))
+
+    def test_custom_topic_flow_without_builtin_raises(self, tmp_path, monkeypatch):
+        config_path = tmp_path / "bad.yaml"
+        shutil.copy(CONFIG_DIR / "nemoguard" / "config.yaml.example", config_path)
+        cfg = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        cfg["rails"]["input"]["flows"] = [
+            flow
+            for flow in cfg["rails"]["input"]["flows"]
+            if "topic safety check input" not in flow
+        ]
+        config_path.write_text(yaml.dump(cfg), encoding="utf-8")
+        monkeypatch.setenv(
+            "TOPIC_CONTROL_MODEL_ID", "nvidia/nemotron-3.5-content-safety"
+        )
+        with pytest.raises(ValueError, match="expected flow"):
+            generate_config.generate_config(str(config_path))
+
+
+def _load_actions_module():
+    actions_path = CONFIG_DIR / "nemoguard" / "actions.py"
+    spec = importlib.util.spec_from_file_location("nemoguard_actions", actions_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class TestTopicPolicyVerdictParsing:
+    def test_safe_with_caveats_is_not_treated_as_safe(self):
+        actions = _load_actions_module()
+        assert (
+            actions._parse_user_safety_verdict('{"User Safety": "safe_with_caveats"}')
+            is False
+        )
+
+    def test_explicit_safe_verdict_is_allowed(self):
+        actions = _load_actions_module()
+        assert actions._parse_user_safety_verdict("User Safety: safe") is True

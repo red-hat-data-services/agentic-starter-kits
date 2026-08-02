@@ -32,7 +32,9 @@ TOPIC_POLICY_MAX_TOKENS = 20
 
 # Tolerates both plain-text ("User Safety: unsafe") and JSON-ish
 # ('"User Safety": "unsafe"') verdict formats.
-_VERDICT_PATTERN = re.compile(r"user\s+safety\"?\s*:\s*\"?(safe|unsafe)", re.IGNORECASE)
+_VERDICT_PATTERN = re.compile(
+    r"user\s+safety\"?\s*:\s*\"?(safe|unsafe)\b", re.IGNORECASE
+)
 
 
 def _parse_user_safety_verdict(result: str) -> bool:
