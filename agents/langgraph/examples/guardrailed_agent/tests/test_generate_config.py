@@ -35,6 +35,7 @@ _ALL_OVERRIDE_ENV_VARS = [
     "MODEL_ID",
     "LLM_BASE_URL",
     "API_KEY",
+    "NVIDIA_API_KEY",
     "TOPIC_CONTROL_CUSTOM_POLICY",
 ] + [
     f"{prefix}_{suffix}"
@@ -141,6 +142,51 @@ class TestGenerateConfigMain:
         assert (
             topic_model["parameters"]["chat_template_kwargs"]["enable_thinking"]
             is False
+        )
+        assert "base_url" not in topic_model["parameters"]
+
+    def test_nim_roles_do_not_inherit_main_llm_base_url(self, generated_config):
+        config = generated_config(
+            "nemoguard",
+            {
+                "MODEL_ID": "qwen2-5-7b-instruct",
+                "LLM_BASE_URL": "http://vllm-svc.llama-serving.svc.cluster.local:8000/v1",
+                "API_KEY": "not-needed",
+                "CONTENT_SAFETY_MODEL_ID": "nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
+                "CONTENT_SAFETY_MODEL_ENGINE": "nim",
+                "TOPIC_CONTROL_MODEL_ID": "nvidia/nemotron-3.5-content-safety",
+                "TOPIC_CONTROL_MODEL_ENGINE": "nim",
+                "NVIDIA_API_KEY": "nvapi-test",
+            },
+        )
+        main = next(m for m in config["models"] if m["type"] == "main")
+        content = next(m for m in config["models"] if m["type"] == "content_safety")
+        topic = next(m for m in config["models"] if m["type"] == "topic_control")
+        assert (
+            main["parameters"]["base_url"]
+            == "http://vllm-svc.llama-serving.svc.cluster.local:8000/v1"
+        )
+        assert "base_url" not in content["parameters"]
+        assert "base_url" not in topic["parameters"]
+        assert content["parameters"]["api_key"] == "nvapi-test"
+        assert topic["parameters"]["api_key"] == "nvapi-test"
+
+    def test_nim_role_honors_explicit_base_url_override(self, generated_config):
+        config = generated_config(
+            "nemoguard",
+            {
+                "MODEL_ID": "qwen2-5-7b-instruct",
+                "LLM_BASE_URL": "http://vllm-svc.llama-serving.svc.cluster.local:8000/v1",
+                "API_KEY": "not-needed",
+                "CONTENT_SAFETY_MODEL_ID": "nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
+                "CONTENT_SAFETY_MODEL_ENGINE": "nim",
+                "CONTENT_SAFETY_LLM_BASE_URL": "https://integrate.api.nvidia.com/v1",
+                "NVIDIA_API_KEY": "nvapi-test",
+            },
+        )
+        content = next(m for m in config["models"] if m["type"] == "content_safety")
+        assert (
+            content["parameters"]["base_url"] == "https://integrate.api.nvidia.com/v1"
         )
 
     def test_other_roles_unaffected_by_topic_control_custom_policy(

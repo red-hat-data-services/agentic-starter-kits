@@ -17,7 +17,7 @@ pytestmark = pytest.mark.integration
 _CLUSTER_MODEL_ID = os.environ.get("GUARDRAILS_MODEL_ID", "qwen2-5-7b-instruct")
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def guardrails_cluster_server(guardrails_integration_url) -> str:
     """Ensure the cluster guardrails proxy is reachable."""
     base = guardrails_integration_url.rstrip("/")
@@ -56,7 +56,7 @@ def test_banking_question_allowed(
     guardrails_cluster_server, guardrails_integration_url
 ):
     status, data = guardrails_chat(
-        [{"role": "user", "content": "What is my balance for ACCT-12345?"}],
+        [{"role": "user", "content": "What is my account balance?"}],
         profile="nemoguard",
         base_url=guardrails_integration_url,
         model_id=_CLUSTER_MODEL_ID,

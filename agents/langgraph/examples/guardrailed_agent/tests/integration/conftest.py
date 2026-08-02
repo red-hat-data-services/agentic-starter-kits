@@ -41,7 +41,7 @@ repo_root = _mod.repo_root
 
 logger = logging.getLogger(__name__)
 GUARDRAILS_CR_NAME = "langgraph-guardrailed-agent-guardrails"
-_AGENT_DIR = Path(__file__).resolve().parents[1]
+_AGENT_DIR = Path(__file__).resolve().parents[2]
 
 
 def _ensure_cluster_env(agent_dir: Path) -> None:

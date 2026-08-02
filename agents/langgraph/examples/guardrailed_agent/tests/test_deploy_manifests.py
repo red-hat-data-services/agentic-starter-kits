@@ -88,3 +88,12 @@ def test_render_guardrails_configmap_produces_required_keys(tmp_path) -> None:
     topic = next(m for m in config["models"] if m["type"] == "topic_control")
     assert topic["engine"] == "nim"
     assert "nemotron-3.5-content-safety" in topic["model"]
+    assert "base_url" not in topic["parameters"]
+    content = next(m for m in config["models"] if m["type"] == "content_safety")
+    assert content["engine"] == "nim"
+    assert "base_url" not in content["parameters"]
+    main = next(m for m in config["models"] if m["type"] == "main")
+    assert (
+        "vllm-svc.llama-serving.svc.cluster.local:8000"
+        in main["parameters"]["base_url"]
+    )
