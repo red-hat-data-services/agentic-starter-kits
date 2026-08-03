@@ -54,7 +54,7 @@ jobs:
     needs: verify-cluster-connection
     if: github.repository == 'red-hat-data-services/agentic-starter-kits'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: ${{ fromJSON(matrix.timeout_minutes || '20') }}
     strategy:
       fail-fast: false
       matrix:
@@ -84,6 +84,7 @@ jobs:
           - agent: { name: langflow-simple-tool-calling-agent, dir: agents/langflow/templates/simple_tool_calling_agent }
             LANGFLOW_AGENT_URL: ${{ vars.LANGFLOW_AGENT_URL }}
           - agent: { name: langgraph-guardrailed-agent, dir: agents/langgraph/examples/guardrailed_agent }
+            timeout_minutes: '45'
             MODEL_ID: qwen2-5-7b-instruct
             GUARDRAILS_MODEL_ID: qwen2-5-7b-instruct
     env:
