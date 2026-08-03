@@ -39,6 +39,7 @@ make setup-gateway
 ```
 
 This single command auto-detects `APPS_DOMAIN` from the cluster and:
+
 1. Installs the openShell gateway via Helm (with wildcard SAN for service URLs)
 2. Waits for the gateway pod to be ready
 3. Disables mTLS client cert requirement (patches `gateway.toml` ConfigMap)
@@ -47,6 +48,7 @@ This single command auto-detects `APPS_DOMAIN` from the cluster and:
 6. Verifies the connection (should print `Connected`)
 
 **Verify the gateway:**
+
 ```bash
 > oc get pods -n openshell
 # NAME          READY   STATUS    RESTARTS   AGE
@@ -63,12 +65,14 @@ Creates an OpenShift BuildConfig and builds the image using
 `Containerfile.openshell` in-cluster. Takes ~2 minutes.
 
 The final output shows:
+
 ```bash
 # Image ready: image-registry.openshift-image-registry.svc:5000/example-namespace/openshell-agentic-rag:latest
 # Next: make deploy-openshell
 ```
 
 **Verify the build:**
+
 ```bash
 > oc get builds | grep openshell-agentic-rag
 # openshell-agentic-rag-1   Source   Docker   Complete   2m
@@ -97,6 +101,7 @@ Total time: ~3 minutes.
 **Verify the sandbox:**
 
 Check the route:
+
 ```bash
 > oc get route -n openshell openshell-rag-agent
 
