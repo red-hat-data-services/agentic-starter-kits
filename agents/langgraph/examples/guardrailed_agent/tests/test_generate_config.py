@@ -36,7 +36,6 @@ _ALL_OVERRIDE_ENV_VARS = [
     "LLM_BASE_URL",
     "API_KEY",
     "NVIDIA_API_KEY",
-    "GUARDRAILS_OMIT_NIM_API_KEYS",
     "TOPIC_CONTROL_CUSTOM_POLICY",
 ] + [
     f"{prefix}_{suffix}"
@@ -218,28 +217,6 @@ class TestGenerateConfigMain:
         topic = next(m for m in config["models"] if m["type"] == "topic_control")
         assert main["parameters"]["api_key"] == "not-needed"
         assert "api_key_env_var" not in main
-        assert "api_key" not in content["parameters"]
-        assert content["api_key_env_var"] == "NVIDIA_API_KEY"
-        assert "api_key" not in topic["parameters"]
-        assert topic["api_key_env_var"] == "NVIDIA_API_KEY"
-
-    def test_env_flag_omits_nim_api_keys(self, generated_config):
-        config = generated_config(
-            "nemoguard",
-            {
-                "MODEL_ID": "qwen2-5-7b-instruct",
-                "LLM_BASE_URL": "http://vllm-svc.llama-serving.svc.cluster.local:8000/v1",
-                "API_KEY": "not-needed",
-                "CONTENT_SAFETY_MODEL_ID": "nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
-                "CONTENT_SAFETY_MODEL_ENGINE": "nim",
-                "TOPIC_CONTROL_MODEL_ID": "nvidia/nemotron-3.5-content-safety",
-                "TOPIC_CONTROL_MODEL_ENGINE": "nim",
-                "NVIDIA_API_KEY": "nvapi-test",
-                "GUARDRAILS_OMIT_NIM_API_KEYS": "1",
-            },
-        )
-        content = next(m for m in config["models"] if m["type"] == "content_safety")
-        topic = next(m for m in config["models"] if m["type"] == "topic_control")
         assert "api_key" not in content["parameters"]
         assert content["api_key_env_var"] == "NVIDIA_API_KEY"
         assert "api_key" not in topic["parameters"]

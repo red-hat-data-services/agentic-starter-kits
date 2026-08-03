@@ -16,8 +16,8 @@ import pytest
 from integration.utils import (
     MakeTargetError,
     RouteNotFoundError,
-    get_guardrails_route,
     get_guardrails_service_url,
+    get_route,
     run_make,
 )
 
@@ -47,7 +47,6 @@ _AGENT_DIR = Path(__file__).resolve().parents[2]
 def deployed_guardrails(cluster_auth):
     """Deploy NemoGuardrails CR (nemoguard profile) before integration tests."""
     namespace = cluster_auth["namespace"]
-    agent_dir = _AGENT_DIR
     if not os.environ.get("NVIDIA_API_KEY"):
         if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") == "true":
             pytest.fail(
@@ -58,7 +57,7 @@ def deployed_guardrails(cluster_auth):
     deployed = False
     try:
         logger.info("Deploying NeMo Guardrails (nemoguard profile)...")
-        run_make("deploy-guardrails", cwd=agent_dir, timeout=600)
+        run_make("deploy-guardrails", cwd=_AGENT_DIR, timeout=600)
         deployed = True
         service_url = get_guardrails_service_url(GUARDRAILS_CR_NAME, namespace)
         logger.info("Guardrails service URL: %s", service_url)
@@ -69,7 +68,7 @@ def deployed_guardrails(cluster_auth):
         if deployed:
             logger.info("Tearing down guardrails...")
             try:
-                run_make("undeploy-guardrails", cwd=agent_dir, timeout=120)
+                run_make("undeploy-guardrails", cwd=_AGENT_DIR, timeout=120)
             except MakeTargetError:
                 logger.warning(
                     "Guardrails cleanup failed — manual undeploy may be needed",
@@ -88,7 +87,7 @@ def guardrails_integration_url(cluster_auth, deployed_guardrails):
     if url := os.environ.get("GUARDRAILS_INTEGRATION_URL"):
         return url.rstrip("/")
     try:
-        return get_guardrails_route(GUARDRAILS_CR_NAME, namespace=namespace).rstrip("/")
+        return get_route(GUARDRAILS_CR_NAME, namespace=namespace).rstrip("/")
     except RouteNotFoundError:
         if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") == "true":
             pytest.fail(

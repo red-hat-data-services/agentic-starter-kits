@@ -213,27 +213,6 @@ def get_guardrails_service_url(
     return f"{base}/v1" if with_v1_suffix else base
 
 
-def get_guardrails_route(cr_name: str, namespace: str | None = None) -> str:
-    cmd = [
-        "oc",
-        "get",
-        "route",
-        cr_name,
-        "-o",
-        "jsonpath={.spec.host}",
-    ]
-    if namespace:
-        cmd.extend(["-n", namespace])
-
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-    host = result.stdout.strip()
-
-    if result.returncode != 0 or not host:
-        raise RouteNotFoundError(cr_name, stderr=result.stderr.strip())
-
-    return f"https://{host}"
-
-
 def get_route(agent_name: str, namespace: str | None = None) -> str:
     cmd = [
         "oc",

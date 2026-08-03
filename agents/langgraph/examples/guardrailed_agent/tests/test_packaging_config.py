@@ -100,16 +100,6 @@ def test_makefile_exposes_cluster_integration_target() -> None:
     assert "-m integration" in MAKEFILE
 
 
-def test_makefile_exposes_rhoai_deploy_targets() -> None:
-    for target in (
-        "deploy-guardrails",
-        "undeploy-guardrails",
-        "deploy-rhoai",
-        "render-guardrails-configmap",
-    ):
-        assert re.search(rf"(?m)^{target}:", MAKEFILE)
-
-
 def test_pyproject_registers_pytest_markers() -> None:
     markers = PYPROJECT["tool"]["pytest"]["ini_options"]["markers"]
     assert (

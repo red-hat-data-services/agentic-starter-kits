@@ -75,7 +75,6 @@ def _apply_env(values: dict[str, str]) -> None:
         if key in skip_keys:
             continue
         os.environ[key] = value
-    os.environ["GUARDRAILS_OMIT_NIM_API_KEYS"] = "1"
 
 
 def _build_config_yaml(tmp_dir: Path) -> Path:

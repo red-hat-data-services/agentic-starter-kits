@@ -84,7 +84,7 @@ def guardrails_chat(
     base = (base_url or GUARDRAILS_BASE_URL).rstrip("/")
     tls_verify = verify if verify is not None else guardrails_tls_verify(base)
     body: dict = {
-        "model": model_id or os.environ.get("GUARDRAILS_MODEL_ID", GUARDRAILS_MODEL_ID),
+        "model": model_id or GUARDRAILS_MODEL_ID,
         "messages": messages,
         "stream": False,
     }
