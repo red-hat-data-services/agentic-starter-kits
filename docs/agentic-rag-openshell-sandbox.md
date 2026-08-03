@@ -9,7 +9,7 @@ All commands run from `agents/langgraph/templates/agentic_rag/`.
 ## Prerequisites
 
 - OpenShift cluster with admin access (`oc` logged in)
-- `openshell` CLI installed (`curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | sh`)
+- `openshell` CLI installed - see [OpenShell installation](https://github.com/NVIDIA/OpenShell?tab=readme-ov-file#installation)
 - `helm` v3 installed
 - OGX instance with API key, embedding model, and vector store configured
 - **Red Hat build of Agent Sandbox** operator installed (namespace `agent-sandbox-system`)
