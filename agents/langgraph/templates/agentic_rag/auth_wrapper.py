@@ -79,7 +79,9 @@ class _BearerAuthMiddleware:
 
         if not token:
             response = JSONResponse(
-                {"error": "Missing API key (use X-Api-Key or Authorization: Bearer header)"},
+                {
+                    "error": "Missing API key (use X-Api-Key or Authorization: Bearer header)"
+                },
                 status_code=401,
             )
             await response(scope, receive, send)
