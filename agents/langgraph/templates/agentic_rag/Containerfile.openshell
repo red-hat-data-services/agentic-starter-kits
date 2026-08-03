@@ -16,10 +16,10 @@ COPY --chown=sandbox:sandbox src/ ./src/
 RUN uv pip install --no-cache "ogx-client==1.1.0" && \
     uv pip install --no-cache --no-sources "."
 
-COPY --chown=sandbox:sandbox main.py ./
+COPY --chown=sandbox:sandbox main.py auth_wrapper.py ./
 COPY --chown=sandbox:sandbox playground/ ./playground/
 COPY --chown=sandbox:sandbox data/ ./data/
 
 ENV PORT=8080
 
-ENTRYPOINT ["uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8080"]
+ENTRYPOINT ["uvicorn", "auth_wrapper:app", "--host", "127.0.0.1", "--port", "8080"]
