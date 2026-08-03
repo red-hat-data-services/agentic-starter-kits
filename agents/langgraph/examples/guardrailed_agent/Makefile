@@ -243,9 +243,6 @@ deploy-guardrails: render-guardrails-configmap deploy-guardrails-secrets ## Appl
 	@oc apply -k "$(GUARDRAILS_KUSTOMIZE)" && \
 	  echo "" && echo "Waiting for NemoGuardrails pod..." && \
 	  for i in $$(seq 1 60); do \
-	    PHASE=$$(oc get nemoguardrails/$(GUARDRAILS_CR_NAME) \
-	      -n "$(GUARDRAILS_NAMESPACE)" \
-	      -o jsonpath='{.status.phase}' 2>/dev/null || true); \
 	    READY=$$(oc get pods -n "$(GUARDRAILS_NAMESPACE)" \
 	      -l app.kubernetes.io/instance=$(GUARDRAILS_CR_NAME) \
 	      -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true); \
@@ -301,4 +298,4 @@ test-guardrails-integration-nemoguard: ## Run guardrails tests against nemoguard
 test-integration: ## Run cluster deployment integration test
 	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \
 	  uv run --extra dev python -m pytest tests/integration/ \
-	  -m integration -v --tb=long $(PYTEST_ARGS)
+	  -m integration -v --tb=long --junitxml=results.xml $(PYTEST_ARGS)

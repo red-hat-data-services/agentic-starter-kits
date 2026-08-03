@@ -56,13 +56,22 @@ def test_makefile_exposes_rhoai_deploy_targets() -> None:
 
 
 def test_render_guardrails_configmap_produces_required_keys(tmp_path) -> None:
+    sentinel_key = "nvapi-test-sentinel"
+    cluster_env = tmp_path / "cluster.env"
+    cluster_env.write_text(
+        CLUSTER_ENV_EXAMPLE.read_text(encoding="utf-8").replace(
+            "NVIDIA_API_KEY=replace-me",
+            f"NVIDIA_API_KEY={sentinel_key}",
+        ),
+        encoding="utf-8",
+    )
     output = tmp_path / "configmap.yaml"
     result = subprocess.run(
         [
             "python3",
             str(RENDER_SCRIPT),
             "--cluster-env",
-            str(CLUSTER_ENV_EXAMPLE),
+            str(cluster_env),
             "--output",
             str(output),
         ],
@@ -72,6 +81,8 @@ def test_render_guardrails_configmap_produces_required_keys(tmp_path) -> None:
         check=False,
     )
     assert result.returncode == 0, result.stderr
+    manifest_text = output.read_text(encoding="utf-8")
+    assert sentinel_key not in manifest_text
     doc = yaml.safe_load(output.read_text(encoding="utf-8"))
     keys = set(doc["data"].keys())
     assert keys == {
@@ -88,9 +99,13 @@ def test_render_guardrails_configmap_produces_required_keys(tmp_path) -> None:
     topic = next(m for m in config["models"] if m["type"] == "topic_control")
     assert topic["engine"] == "nim"
     assert "nemotron-3.5-content-safety" in topic["model"]
+    assert "api_key" not in topic["parameters"]
+    assert topic["api_key_env_var"] == "NVIDIA_API_KEY"
     assert "base_url" not in topic["parameters"]
     content = next(m for m in config["models"] if m["type"] == "content_safety")
     assert content["engine"] == "nim"
+    assert "api_key" not in content["parameters"]
+    assert content["api_key_env_var"] == "NVIDIA_API_KEY"
     assert "base_url" not in content["parameters"]
     main = next(m for m in config["models"] if m["type"] == "main")
     assert (

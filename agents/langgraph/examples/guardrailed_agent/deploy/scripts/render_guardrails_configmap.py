@@ -68,21 +68,21 @@ def _load_cluster_env(path: Path) -> dict[str, str]:
 
 
 def _apply_env(values: dict[str, str]) -> None:
-    nvidia_api_key = values.get("NVIDIA_API_KEY", "")
+    # Never load API keys into the render environment — cluster ConfigMaps must
+    # not embed secrets. Runtime auth uses the NemoGuardrails CR Secret env.
+    skip_keys = {"NVIDIA_API_KEY", "CONTENT_SAFETY_API_KEY", "TOPIC_CONTROL_API_KEY"}
     for key, value in values.items():
+        if key in skip_keys:
+            continue
         os.environ[key] = value
-    if nvidia_api_key:
-        for role_prefix in ("CONTENT_SAFETY", "TOPIC_CONTROL"):
-            api_key_var = f"{role_prefix}_API_KEY"
-            if not os.environ.get(api_key_var):
-                os.environ[api_key_var] = nvidia_api_key
+    os.environ["GUARDRAILS_OMIT_NIM_API_KEYS"] = "1"
 
 
 def _build_config_yaml(tmp_dir: Path) -> Path:
     generate_config = _load_generate_config()
     config_path = tmp_dir / "config.yaml"
     shutil.copy(CONFIG_DIR / "config.yaml.example", config_path)
-    generate_config.generate_config(str(config_path))
+    generate_config.generate_config(str(config_path), omit_nim_api_keys=True)
     return config_path
 
 

@@ -54,7 +54,7 @@ jobs:
     needs: verify-cluster-connection
     if: github.repository == 'red-hat-data-services/agentic-starter-kits'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:

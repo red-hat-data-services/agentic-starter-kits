@@ -17,7 +17,7 @@ Two guardrails config profiles live side by side under `guardrails/config/`, mat
 | Profile | Rails | Models | Use case |
 |---------|-------|--------|----------|
 | `local` | `self check input`/`self check output` (NeMo Guardrails built-in) | Single model — the same one answering the user's question also classifies it | Zero-setup local demo of the proxy pattern (`make guardrails-server-local`) |
-| `nemoguard` | `content safety check`, `topic safety check`, regex | Purpose-built NemoGuard/Nemotron classifiers, one per rail layer | Dedicated safety models per layer (`make guardrails-server-nemoguard`); works against NVIDIA-hosted NIM today, or an in-cluster endpoint (e.g. RHOAI's `NemoGuardrails` CRD — not included in this repo, see [Deploying to OpenShift](#deploying-to-openshift)) |
+| `nemoguard` | `content safety check`, `topic safety check`, regex | Purpose-built NemoGuard/Nemotron classifiers, one per rail layer | Dedicated safety models per layer (`make guardrails-server-nemoguard` locally, `make deploy-guardrails` on RHOAI); works against NVIDIA-hosted NIM today, or an in-cluster endpoint via the bundled `NemoGuardrails` CRD manifests |
 
 ### Guardrails architecture
 

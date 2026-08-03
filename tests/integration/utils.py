@@ -34,9 +34,12 @@ def load_agent_name(agent_dir: str | Path) -> str:
 
 _REDACT_PATTERNS = [
     re.compile(r"(API_KEY=)\S+"),
+    re.compile(r"(NVIDIA_API_KEY=)\S+"),
     re.compile(r'(apiKey:\s*")[^"]*"'),
     re.compile(r'(--set\s+secrets\.apiKey=")[^"]*"'),
     re.compile(r"(--set\s+secrets\.apiKey=)\S+"),
+    re.compile(r"(--from-literal=api-key=)\S+"),
+    re.compile(r"(--from-literal=nvidia-api-key=)\S+"),
     re.compile(r"(VECTOR_STORE_ID=)\S+"),
     re.compile(r'(--set\s+env\.VECTOR_STORE_ID=")[^"]*"'),
     re.compile(r"(--set\s+env\.VECTOR_STORE_ID=)\S+"),
@@ -229,38 +232,6 @@ def get_guardrails_route(cr_name: str, namespace: str | None = None) -> str:
         raise RouteNotFoundError(cr_name, stderr=result.stderr.strip())
 
     return f"https://{host}"
-
-
-def wait_for_guardrails_ready(
-    cr_name: str,
-    namespace: str,
-    *,
-    timeout_s: int = 300,
-) -> None:
-    deadline = time.time() + timeout_s
-    while time.time() < deadline:
-        result = subprocess.run(
-            [
-                "oc",
-                "get",
-                "pods",
-                "-n",
-                namespace,
-                "-l",
-                f"app.kubernetes.io/instance={cr_name}",
-                "-o",
-                "jsonpath={.items[0].status.conditions[?(@.type=='Ready')].status}",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.stdout.strip() == "True":
-            return
-        time.sleep(5)
-    raise RuntimeError(
-        f"Guardrails pod for {namespace}/{cr_name} not ready after {timeout_s}s"
-    )
 
 
 def get_route(agent_name: str, namespace: str | None = None) -> str:

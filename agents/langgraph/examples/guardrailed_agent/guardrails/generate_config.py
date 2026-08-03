@@ -127,14 +127,32 @@ def _topic_control_custom_policy(model_id: str) -> str | None:
     return None
 
 
-def generate_config(config_path: str) -> list[str]:
+def _omit_nim_api_keys() -> bool:
+    """True when NIM role api_key values must not be written to config.yaml.
+
+    Used for cluster ConfigMap rendering: the pod receives NVIDIA_API_KEY from
+    a Kubernetes Secret via the NemoGuardrails CR env block.
+    """
+    flag = os.environ.get("GUARDRAILS_OMIT_NIM_API_KEYS", "")
+    return flag.lower() in ("1", "true", "yes")
+
+
+def generate_config(
+    config_path: str, *, omit_nim_api_keys: bool | None = None
+) -> list[str]:
     """Rewrite config_path in place with env-driven model overrides applied.
 
     config_path must already exist (i.e. config.yaml.example copied to
     config.yaml) and contain a `models` list with `type`/`engine`/`model`/
     `parameters` per NeMo Guardrails' config schema. Returns a human-readable
     summary of what was applied, one line per model role.
+
+    When omit_nim_api_keys is True (or GUARDRAILS_OMIT_NIM_API_KEYS is set),
+    api_key is omitted from NIM classifier roles so cluster ConfigMaps do not
+    embed secrets; runtime auth uses the NVIDIA_API_KEY pod env var instead.
     """
+    if omit_nim_api_keys is None:
+        omit_nim_api_keys = _omit_nim_api_keys()
     default_model = os.environ.get("MODEL_ID") or "llama3.1:8b"
     default_base_url = os.environ.get("LLM_BASE_URL") or "http://localhost:11434/v1"
     default_api_key = os.environ.get("API_KEY") or "not-needed"
@@ -180,7 +198,12 @@ def generate_config(config_path: str) -> list[str]:
 
         model["model"] = model_id
         model["engine"] = engine
-        model["parameters"]["api_key"] = api_key
+        if engine == "nim" and omit_nim_api_keys:
+            model["parameters"].pop("api_key", None)
+            model["api_key_env_var"] = "NVIDIA_API_KEY"
+        else:
+            model.pop("api_key_env_var", None)
+            model["parameters"]["api_key"] = api_key
         if base_url is not None:
             model["parameters"]["base_url"] = base_url
         else:

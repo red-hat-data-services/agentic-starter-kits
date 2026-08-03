@@ -10,7 +10,12 @@ import os
 
 import httpx
 import pytest
-from guardrails_client import guardrails_chat, is_allowed_response, is_blocked_response
+from guardrails_client import (
+    guardrails_chat,
+    guardrails_tls_verify,
+    is_allowed_response,
+    is_blocked_response,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -22,7 +27,10 @@ def guardrails_cluster_server(guardrails_integration_url) -> str:
     """Ensure the cluster guardrails proxy is reachable."""
     base = guardrails_integration_url.rstrip("/")
     try:
-        with httpx.Client(timeout=30.0, verify=False) as client:
+        with httpx.Client(
+            timeout=30.0,
+            verify=guardrails_tls_verify(base),
+        ) as client:
             response = client.get(f"{base}/v1/rails/configs")
             response.raise_for_status()
     except (httpx.HTTPError, httpx.TimeoutException) as exc:

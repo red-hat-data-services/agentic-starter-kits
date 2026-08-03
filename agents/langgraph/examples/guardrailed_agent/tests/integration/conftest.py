@@ -19,7 +19,6 @@ from integration.utils import (
     get_guardrails_route,
     get_guardrails_service_url,
     run_make,
-    wait_for_guardrails_ready,
 )
 
 _SHARED_INTEGRATION_CONFTEST = (
@@ -44,36 +43,23 @@ GUARDRAILS_CR_NAME = "langgraph-guardrailed-agent-guardrails"
 _AGENT_DIR = Path(__file__).resolve().parents[2]
 
 
-def _ensure_cluster_env(agent_dir: Path) -> None:
-    """Write cluster.env from example + NVIDIA_API_KEY when missing."""
-    env_dir = agent_dir / "deploy" / "overlays" / "ci-testing"
-    cluster_env = env_dir / "cluster.env"
-    if cluster_env.is_file():
-        return
-    example = env_dir / "cluster.env.example"
-    nvidia_api_key = os.environ.get("NVIDIA_API_KEY", "")
-    if not nvidia_api_key:
-        return
-    text = example.read_text(encoding="utf-8")
-    text = text.replace("NVIDIA_API_KEY=replace-me", f"NVIDIA_API_KEY={nvidia_api_key}")
-    cluster_env.write_text(text, encoding="utf-8")
-
-
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def deployed_guardrails(cluster_auth):
     """Deploy NemoGuardrails CR (nemoguard profile) before integration tests."""
     namespace = cluster_auth["namespace"]
     agent_dir = _AGENT_DIR
     if not os.environ.get("NVIDIA_API_KEY"):
+        if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") == "true":
+            pytest.fail(
+                "NVIDIA_API_KEY not set — QG4 guardrails deploy must fail fast in CI"
+            )
         pytest.skip("NVIDIA_API_KEY not set — required for nemoguard cluster deploy")
 
-    _ensure_cluster_env(agent_dir)
     deployed = False
     try:
         logger.info("Deploying NeMo Guardrails (nemoguard profile)...")
         run_make("deploy-guardrails", cwd=agent_dir, timeout=600)
         deployed = True
-        wait_for_guardrails_ready(GUARDRAILS_CR_NAME, namespace)
         service_url = get_guardrails_service_url(GUARDRAILS_CR_NAME, namespace)
         logger.info("Guardrails service URL: %s", service_url)
         yield service_url
@@ -91,15 +77,25 @@ def deployed_guardrails(cluster_auth):
                 )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def guardrails_integration_url(cluster_auth, deployed_guardrails):
-    """External or in-cluster URL for direct guardrails behavior tests."""
+    """External URL for direct guardrails behavior tests.
+
+    Outside-cluster runners need the OpenShift Route. The in-cluster Service
+    fallback only works when tests execute from within the cluster network.
+    """
     namespace = cluster_auth["namespace"]
     if url := os.environ.get("GUARDRAILS_INTEGRATION_URL"):
         return url.rstrip("/")
     try:
         return get_guardrails_route(GUARDRAILS_CR_NAME, namespace=namespace).rstrip("/")
     except RouteNotFoundError:
+        if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") == "true":
+            pytest.fail(
+                "Guardrails Route not found — external CI runners cannot reach the "
+                "in-cluster Service fallback. Set GUARDRAILS_INTEGRATION_URL or "
+                "ensure the NemoGuardrails Route exists."
+            )
         return deployed_guardrails.removesuffix("/v1")
 
 

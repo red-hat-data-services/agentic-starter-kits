@@ -36,8 +36,7 @@ cp .env.example .env
 # MODEL_ID=qwen2-5-7b-instruct
 # CONTAINER_IMAGE=image-registry.openshift-image-registry.svc:5000/ci-testing/langgraph-guardrailed-agent:latest
 
-# 3. Deploy guardrails + agent
-make deploy-guardrails
+# 3. Build + deploy guardrails + agent
 make build-openshift   # or set CONTAINER_IMAGE
 make deploy-rhoai
 ```
@@ -99,9 +98,10 @@ export API_KEY=not-needed
 make test-integration
 ```
 
-`tests/integration/test_guardrails_cluster.py` exercises rail behavior when
-`GUARDRAILS_INTEGRATION_URL` is set (guardrails Route URL, or in-cluster Service URL
-from a pod).
+`tests/integration/test_guardrails_cluster.py` exercises rail behavior against the
+guardrails Route when it exists. `GUARDRAILS_INTEGRATION_URL` is optional and only
+needed to override auto-discovery. The in-cluster Service fallback is only usable
+from a pod or another process already running inside the cluster network.
 
 ## Customization
 
