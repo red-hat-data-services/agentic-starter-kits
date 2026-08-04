@@ -6,7 +6,7 @@ CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/
 MODEL          ?= llama3.1:8b
 OLLAMA_EMBEDDING_MODEL ?= embeddinggemma:latest
 
-.PHONY: init re-init env ollama ogx-server run-app run-app-fresh run-cli load-docs build push build-openshift deploy undeploy test test-integration dry-run setup-gateway teardown-gateway build-openshell create-sandbox wait-sandbox setup-egress load-docs-sandbox start-agent deploy-openshell undeploy-openshell help
+.PHONY: init re-init env ollama ogx-server run-app run-app-fresh run-cli load-docs build push build-openshift deploy undeploy test test-integration dry-run setup-gateway teardown-gateway build-openshell create-sandbox wait-sandbox setup-egress load-docs-sandbox start-agent deploy-openshell undeploy-openshell playground-sandbox help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -416,6 +416,14 @@ undeploy-openshell: ## Remove openShell sandbox and route
 	  openshell sandbox delete $(OPENSHELL_SANDBOX) 2>/dev/null || true && \
 	  oc -n openshell delete route openshell-rag-agent 2>/dev/null || true && \
 	  echo "Sandbox $(OPENSHELL_SANDBOX) and route removed."
+
+playground-sandbox: ## Start sandbox playground web UI (auto-fetches agent URL and SA token)
+	@source .venv/bin/activate && \
+	  echo "Starting sandbox playground on http://localhost:5002" && \
+	  echo "Auto-fetching agent URL from OpenShift Route..." && \
+	  echo "Auto-fetching SA token from Secret agent-client-token..." && \
+	  echo "" && \
+	  python playground-sandbox/app.py
 
 test: ## Run unit tests
 	uv run --extra dev python -m pytest tests/ --ignore=tests/integration --ignore=tests/behavioral $(PYTEST_ARGS)

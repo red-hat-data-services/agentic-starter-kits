@@ -137,15 +137,45 @@ curl -sk "$AGENT_URL/chat/completions" -X POST \
 curl -sk "$AGENT_URL/chat/completions" -X POST \
   -H "Content-Type: application/json" \
   -H "X-Api-Key: $TOKEN" \
-  -d '{"messages":[{"role":"user","content":"What are appropriate chunk sizes during document preparation? Answer using one sentence max."}]}' \
+  -d '{"messages":[{"role":"user","content":"What are appropriate chunk sizes during document preparation? Answer using no more than one sentence."}]}' \
   | jq '.choices[0].message'
 ```
 
 **Expected output:**
 
-![RAG query with reasoning](../images/sandbox_chat_completions.png)
+```json
+{
+  "role": "assistant",
+  "content": "<think>\nOkay, let's see. The user is asking about appropriate chunk sizes during document preparation. I need to find the answer in the provided documents.\n\nLooking at Document 1, under Best Practices for RAG Systems, point 1. Document Preparation mentions \"Use appropriate chunk sizes (typically 500-1000 tokens)\". That seems to directly answer the question. \n\nI should check other documents to make sure there's no conflicting information. Document 3 talks about text splitters for chunking documents, but doesn't specify the size. Document 5 is about embeddings and doesn't mention chunk sizes. So the answer is from Document 1. The answer should be a single sentence starting with \"based on provided documents\".\n</think>\n\nbased on provided documents, appropriate chunk sizes during document preparation are typically 500-1000 tokens."
+}
+```
 
-The agent retrieves relevant chunks from the vector store and generates a response based on the provided documents. The response shows the agent's reasoning process and final answer: *"Appropriate chunk sizes during document preparation are typically 500-1000 tokens."*
+The response includes the agent's `<think>` reasoning process followed by the final answer grounded in retrieved documents.
+
+---
+
+## Step 6 — Interactive Playground (Optional)
+
+For a better experience, use the web-based playground UI instead of curl:
+
+```bash
+make playground-sandbox
+```
+
+This starts a Flask web UI on http://localhost:5002 that:
+- Auto-fetches the agent URL from the OpenShift Route
+- Auto-fetches the SA token from the `agent-client-token` Secret
+- Provides a chat interface with streaming responses
+- Maintains conversation history across messages
+- Collapses reasoning steps and retrieved context into expandable sections
+
+![Sandbox Playground](../images/sandbox_playground.png)
+
+**Requirements:**
+- `oc` CLI logged into OpenShift with access to `openshell` namespace
+- Flask (already in dependencies)
+
+To override auto-detection, set `AGENT_URL` and `AGENT_TOKEN` environment variables before running.
 
 ---
 
