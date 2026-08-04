@@ -17,7 +17,7 @@ Two guardrails config profiles live side by side under `guardrails/config/`, mat
 | Profile | Rails | Models | Use case |
 |---------|-------|--------|----------|
 | `local` | `self check input`/`self check output` (NeMo Guardrails built-in) | Single model — the same one answering the user's question also classifies it | Zero-setup local demo of the proxy pattern (`make guardrails-server-local`) |
-| `nemoguard` | `content safety check`, `topic safety check`, regex | Purpose-built NemoGuard/Nemotron classifiers, one per rail layer | Dedicated safety models per layer (`make guardrails-server-nemoguard` locally, `make deploy-guardrails` on RHOAI); works against NVIDIA-hosted NIM today, or an in-cluster endpoint via the bundled `NemoGuardrails` CRD manifests |
+| `nemoguard` | `content safety check`, `topic safety check`, regex | Purpose-built NemoGuard/Nemotron classifiers, one per rail layer | Dedicated safety models per layer (`make guardrails-server-nemoguard`); works against NVIDIA-hosted NIM today, or an in-cluster endpoint (e.g. RHOAI's `NemoGuardrails` CRD — not included in this repo, see [Deploying to OpenShift](#deploying-to-openshift)) |
 
 ### Guardrails architecture
 
@@ -204,87 +204,49 @@ curl -s http://localhost:8000/chat/completions \
   | python3 -m json.tool
 ```
 
-### Tracing and observability
+### Tracing (optional)
 
-**MLflow** — works the same as other agents. MLflow sees NeMo Guardrails as a regular ChatOpenAI endpoint — the agent's call and response are visible, but not which rail fired or why. See `.env.example` for MLflow configuration options.
+MLflow tracing works the same as other agents. Note that MLflow sees NeMo Guardrails as a regular ChatOpenAI endpoint — guardrails-internal traces (which rail fired, classification results) are not visible in MLflow. Use `nemoguardrails server --verbose` for rail-level debugging.
 
-**Per-rail tracing (OpenTelemetry)** — NeMo Guardrails natively supports OpenTelemetry tracing with per-rail spans showing which rail fired, classification results, and latency per layer. Add this to your profile's `config.yaml.example`:
-
-```yaml
-tracing:
-  enabled: true
-  span_format: opentelemetry
-  adapters:
-    - name: OpenTelemetry
-```
-
-Then set the OTel exporter env vars before starting the guardrails server:
-
-```bash
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
-export OTEL_SERVICE_NAME=nemo-guardrails
-export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
-```
-
-This produces per-rail spans (`guardrails.rail`, `guardrails.action`, LLM call spans) that can be viewed in Jaeger, Tempo, or any OTel-compatible backend. For a complete OTel + Tempo + Grafana setup on OpenShift, see [RedHatQuickCourses/rhoai_demos](https://github.com/RedHatQuickCourses/rhoai_demos/tree/nemo-guardrails/nemo_openshift/with_otel).
-
-**Quick debugging** — use `nemoguardrails server --verbose` for rail-level logging to stdout without OTel setup.
+See `.env.example` for MLflow configuration options.
 
 ## Deploying to OpenShift
 
-On RHOAI, NeMo Guardrails runs as a separate pod managed by the `NemoGuardrails` CRD
-(TrustyAI Operator). The agent's `BASE_URL` must point at that guardrails Service —
-**not** directly at vLLM. This example ships Kustomize manifests under `deploy/` that
-bundle the **nemoguard** profile (`guardrails/config/nemoguard/`) into a monolithic
-ConfigMap.
-
-See [deploy/README.md](deploy/README.md) for the full RHOAI guide (including the
-in-cluster vLLM endpoint used on the demo cluster).
-
 ### Configuration
 
-**1. Guardrails cluster env** (nemoguard profile — NIM API key + vLLM backend):
-
-```bash
-cp deploy/overlays/ci-testing/cluster.env.example deploy/overlays/ci-testing/cluster.env
-# Set NVIDIA_API_KEY in cluster.env
-```
-
-**2. Agent `.env`** — `BASE_URL` targets guardrails, not the LLM:
+Edit `.env` with your model endpoint and container image:
 
 ```ini
-API_KEY=not-needed
-BASE_URL=http://langgraph-guardrailed-agent-guardrails.ci-testing.svc.cluster.local/v1
-MODEL_ID=qwen2-5-7b-instruct
-CONTAINER_IMAGE=image-registry.openshift-image-registry.svc:5000/ci-testing/langgraph-guardrailed-agent:latest
+API_KEY=your-api-key-here
+BASE_URL=https://your-guardrails-endpoint/v1
+MODEL_ID=llama-3.1-8b-instruct
+CONTAINER_IMAGE=quay.io/your-username/langgraph-guardrailed-agent:latest
 ```
 
-Inject the NIM key Secret only:
-
-```bash
-make deploy-guardrails-secrets   # reads NVIDIA_API_KEY from cluster.env or env
-```
+> **Note:** In production on RHOAI, NeMo Guardrails runs as a separate pod managed by the `NemoGuardrails` CRD (TrustyAI Operator, Technology Preview). The agent's `BASE_URL` points to that guardrails service, not directly to the LLM. **This repo does not include that CRD/ConfigMap manifest** — `guardrails/config/nemoguard/` is only wired up for local testing via `make guardrails-server-nemoguard`; deploying the guardrails proxy itself onto RHOAI is a separate, not-yet-implemented step.
 
 ### Build and deploy
 
+#### Option A: Build locally and push
+
 ```bash
-make deploy-guardrails    # NemoGuardrails CR + ConfigMap (nemoguard profile)
-make build-openshift      # or make build && make push
-make deploy-rhoai         # guardrails + agent
+make build    # builds the container image
+make push     # pushes to the registry
+make deploy   # deploys via Helm
 ```
 
-Or step by step:
+#### Option B: Build in-cluster
 
 ```bash
-make deploy-guardrails
+make build-openshift   # builds via OpenShift BuildConfig
 make deploy
 ```
 
 ### Verify
 
 ```bash
-make deploy-rhoai-dry-run   # preview guardrails Kustomize output
-make undeploy-rhoai           # remove agent + guardrails
+make dry-run   # preview Helm manifests (secrets redacted)
+make undeploy  # remove deployment
 ```
 
 ## Tests
@@ -294,7 +256,7 @@ make undeploy-rhoai           # remove agent + guardrails
 | `make test` | Unit/structural tests + `test_guardrails_smoke.py` (no LLM calls) | None |
 | `make test-guardrails-integration` | `tests/test_guardrails.py` against **proxy** port 8090 | Ollama + `make guardrails-server-local` |
 | `make test-guardrails-integration-nemoguard` | Same tests, `GUARDRAILS_PROFILE=nemoguard` | Ollama + `make guardrails-server-nemoguard` |
-| `make test-integration` | Cluster deploy health + guardrails rails (`tests/integration/`) | `oc` in `ci-testing`; `NVIDIA_API_KEY` for nemoguard deploy |
+| `make test-integration` | Cluster deploy health (`tests/integration/`) | `oc` logged into `ci-testing`; `BASE_URL`, `MODEL_ID` set |
 
 `tests/test_guardrails.py` calls the NeMo Guardrails proxy directly (`http://localhost:8090/v1/chat/completions`), not the LangGraph agent. That is required to assert `guardrails.config_id` and rail outcomes without the agent stripping proxy metadata. The agent-level curls in [§6](#6-test-the-guardrails) are complementary end-to-end checks.
 
@@ -344,17 +306,13 @@ make test-guardrails-integration-nemoguard
 
 ### Cluster deployment
 
-`make test-integration` deploys the **nemoguard** guardrails proxy (`make deploy-guardrails`)
-then builds and deploys the agent, checking `/health` (`guardrails_reachable: true`) and
-running rail-behavior tests in `tests/integration/test_guardrails_cluster.py`.
+`make test-integration` builds and deploys the agent to the current OpenShift project, then checks `/health` (including `guardrails_reachable: true`). Requirements:
 
-Requirements:
+- Logged into OpenShift with project `ci-testing` (shared integration test convention)
+- `BASE_URL` and `MODEL_ID` exported — `BASE_URL` must point at a reachable guardrails proxy, not the LLM directly
+- `API_KEY` optional (defaults to `not-needed` in the test harness)
 
-- Logged into OpenShift with project `ci-testing`
-- `NVIDIA_API_KEY` exported (NVIDIA NIM classifiers for content/topic safety rails)
-- `MODEL_ID` / `GUARDRAILS_MODEL_ID` default to `qwen2-5-7b-instruct` on the demo cluster
-
-Optional: set `GUARDRAILS_INTEGRATION_URL` to override the auto-discovered guardrails Route.
+When an in-cluster guardrails proxy URL is available, set `GUARDRAILS_INTEGRATION_URL` to run rail-behavior tests in `tests/integration/test_guardrails_cluster.py` (subset of the local integration suite).
 
 ## API Endpoints
 
