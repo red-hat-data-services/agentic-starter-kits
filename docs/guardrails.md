@@ -1,14 +1,36 @@
-# NeMo Guardrails vs Guardrails Orchestrator
+# Guardrails for Agents
+
+This guide covers the guardrails options available on Red Hat OpenShift AI and how to add safety rails to your agents.
+
+## Guardrailed Agent Example
+
+A working example lives at [`agents/langgraph/examples/guardrailed_agent/`](../agents/langgraph/examples/guardrailed_agent/). It demonstrates:
+
+- **Proxy pattern** — NeMo Guardrails sits between the agent and the LLM, requiring zero agent code changes
+- **Content safety** — input + output classification against S1-S13 safety categories
+- **Topic boundaries** — restricts the agent to banking-related questions only
+- **Regex filtering** — instant pattern matching for jailbreak attempts
+- **Two profiles** — `local` (self-check, single model) and `nemoguard` (dedicated NemoGuard/Nemotron classifiers per layer)
+
+```text
+User → Agent (port 8000) → NeMo Guardrails (port 8090) → LLM (port 11434)
+```
+
+See the [example README](../agents/langgraph/examples/guardrailed_agent/README.md) for setup, configuration, and testing instructions.
+
+---
+
+## NeMo Guardrails vs Guardrails Orchestrator
 
 Two guardrails systems are available on Red Hat OpenShift AI. They are complementary, not competing — use one or both depending on your needs.
 
-## Recommendation
+### Recommendation
 
 **Start with NeMo Guardrails** if you're building a conversational agent and need content safety, topic boundaries, or dialogue flow control. It works as a transparent proxy — point your agent's `BASE_URL` at it and you're done, zero code changes.
 
 **Add the Guardrails Orchestrator** when you need infrastructure-level detection across multiple AI endpoints — PII scanning, toxicity classification via dedicated detector models, or standalone content checks independent of inference.
 
-## Comparison
+### Comparison
 
 | Dimension | NeMo Guardrails | Guardrails Orchestrator |
 |-----------|----------------|------------------------|
@@ -22,9 +44,9 @@ Two guardrails systems are available on Red Hat OpenShift AI. They are complemen
 | **Deployment on RHOAI** | `NemoGuardrails` CRD (TrustyAI Operator) — Technology Preview | `GuardrailsOrchestrator` CRD (TrustyAI Operator) — GA since RHOAI 2.19 |
 | **Origin** | NVIDIA (Apache 2.0) | IBM Research / Red Hat (Apache 2.0) |
 
-## When to use each
+### When to use each
 
-### NeMo Guardrails
+**NeMo Guardrails:**
 
 - You're building a conversational agent (chatbot, customer service, assistant)
 - You need topic boundaries ("only answer banking questions")
@@ -33,7 +55,7 @@ Two guardrails systems are available on Red Hat OpenShift AI. They are complemen
 - You need dialogue flow control (authentication steps, standard operating procedures)
 - You want to use NVIDIA's NemoGuard NIM models for classification
 
-### Guardrails Orchestrator
+**Guardrails Orchestrator:**
 
 - You need PII detection across multiple AI endpoints (SSN, credit card, email patterns)
 - You want to use Hugging Face detector models (Granite Guardian, DeBERTa prompt injection)
@@ -41,7 +63,7 @@ Two guardrails systems are available on Red Hat OpenShift AI. They are complemen
 - You're running multiple LLM endpoints and want a shared detection layer
 - You need a GA-supported solution on RHOAI today (NeMo Guardrails is Technology Preview)
 
-### Using both together
+**Using both together:**
 
 NeMo Guardrails handles conversational safety (topic boundaries, content classification, dialogue flows) at the agent level. The Guardrails Orchestrator handles infrastructure-level detection (PII, toxicity via dedicated detector models) across your model serving fleet. They operate at different layers and complement each other.
 
@@ -56,4 +78,4 @@ NeMo Guardrails handles conversational safety (topic boundaries, content classif
 - [RHOAI NeMo Guardrails Docs](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-nemo-guardrails_nemo-guardrails)
 - [RHOAI Guardrails Orchestrator Docs](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.5/html/enabling_ai_safety_with_guardrails/using-guardrails-for-ai-safety_safety)
 - [TrustyAI Guardrails Orchestrator — Red Hat Research](https://research.redhat.com/blog/article/guardrailing-large-language-models-with-trustyai-guardrails-orchestrator/)
-- [Guardrailed Agent Example](./README.md) — demonstrates NeMo Guardrails proxy pattern
+- [Guardrailed Agent Example](../agents/langgraph/examples/guardrailed_agent/) — working example with setup, config, and tests
