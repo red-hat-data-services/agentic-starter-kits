@@ -121,7 +121,7 @@ The banking domain is defined in four places. To adapt this example to healthcar
 
 Optionally, replace the `check_account_balance` tool in `src/guardrailed_agent/tools.py` with a domain-relevant tool. Content safety rails (S1-S13) and regex patterns are domain-agnostic and typically don't need changes.
 
-After editing, restart `make guardrails-server-local` (or `nemoguard`) and `make run-app`, then test with on-topic and off-topic requests to verify the new boundary.
+After editing, restart `make guardrails-server-local` or `make guardrails-server-nemoguard`, then restart `make run-app`. Test with on-topic and off-topic requests to verify the new boundary.
 
 ---
 
