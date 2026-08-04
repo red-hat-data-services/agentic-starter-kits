@@ -10,6 +10,7 @@ Usage:
 
 import logging
 from os import getenv
+from pathlib import Path
 
 import httpx
 from main import app  # noqa: F401 — re-exported for uvicorn
@@ -22,6 +23,9 @@ log = logging.getLogger("auth_wrapper")
 _K8S_API_URL = getenv("K8S_API_URL", "").strip().rstrip("/")
 _K8S_REVIEWER_TOKEN = getenv("K8S_REVIEWER_TOKEN", "").strip()
 _ALLOWED_SA_USERNAME = getenv("ALLOWED_SA_USERNAME", "").strip()
+_K8S_CA_PATH = getenv(
+    "K8S_CA_PATH", "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+)
 _PROTECTED_PATHS = frozenset({"/chat/completions", "/chat/completions/"})
 
 _AUTH_ENABLED = bool(_K8S_API_URL and _K8S_REVIEWER_TOKEN)
@@ -31,7 +35,8 @@ async def _validate_k8s_token(token: str) -> bool:
     if not (_K8S_API_URL and _K8S_REVIEWER_TOKEN):
         return False
     try:
-        async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
+        tls_verify: str | bool = _K8S_CA_PATH if Path(_K8S_CA_PATH).is_file() else True
+        async with httpx.AsyncClient(verify=tls_verify, timeout=10.0) as client:
             resp = await client.post(
                 f"{_K8S_API_URL}/apis/authentication.k8s.io/v1/tokenreviews",
                 json={

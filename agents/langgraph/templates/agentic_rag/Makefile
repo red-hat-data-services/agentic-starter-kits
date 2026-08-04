@@ -287,7 +287,8 @@ build-openshell: ## Build openShell sandbox image via OpenShift BuildConfig
 	  --name=$(OPENSHELL_IMAGE) --to=$(OPENSHELL_IMAGE):latest 2>/dev/null || true && \
 	  oc patch bc $(OPENSHELL_IMAGE) \
 	    -p '{"spec":{"strategy":{"dockerStrategy":{"dockerfilePath":"Containerfile.openshell"}}}}' && \
-	  oc start-build $(OPENSHELL_IMAGE) --from-dir=. --follow && \
+	  tar cf - --exclude='.env' --exclude='.env.bak' --exclude='.venv' . | \
+	  oc start-build $(OPENSHELL_IMAGE) --from-archive=- --follow && \
 	  NS=$$(oc project -q) && \
 	  echo "" && \
 	  echo "Image ready: image-registry.openshift-image-registry.svc:5000/$$NS/$(OPENSHELL_IMAGE):latest" && \
