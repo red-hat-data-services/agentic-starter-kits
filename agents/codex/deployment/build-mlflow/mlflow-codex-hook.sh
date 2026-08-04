@@ -4,7 +4,7 @@
 set -euo pipefail
 
 _sa_token="/var/run/secrets/kubernetes.io/serviceaccount/token"
-if [[ -f "${_sa_token}" ]] && [[ -z "${MLFLOW_TRACKING_TOKEN:-}" ]]; then
+if [[ -f "${_sa_token}" ]]; then
     export MLFLOW_TRACKING_TOKEN
     MLFLOW_TRACKING_TOKEN=$(cat "${_sa_token}")
 fi
