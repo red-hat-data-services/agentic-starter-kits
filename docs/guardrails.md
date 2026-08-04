@@ -66,23 +66,6 @@ Two guardrails systems are available on Red Hat OpenShift AI. They are complemen
 
 NeMo Guardrails handles conversational safety (topic boundaries, content classification, PII detection, dialogue flows) at the agent level. The Guardrails Orchestrator handles infrastructure-level detection (toxicity via dedicated detector models, custom classifiers) across your model serving fleet. They operate at different layers and complement each other.
 
-## Observability
-
-NeMo Guardrails supports native [OpenTelemetry tracing](https://docs.nvidia.com/nemo/microservices/latest/guardrails/observability.html) with per-rail spans — showing which rail fired, the classification result, and latency for each layer. This lets you assess guardrail performance and debug false positives/negatives.
-
-```yaml
-# Add to config.yaml to enable per-rail tracing
-tracing:
-  enabled: true
-  span_format: opentelemetry
-  adapters:
-    - name: OpenTelemetry
-```
-
-Traces can be viewed in Jaeger, Tempo, or any OTel-compatible backend. For a complete OTel + Tempo + Grafana setup on OpenShift, see the [rhoai_demos with_otel example](https://github.com/RedHatQuickCourses/rhoai_demos/tree/nemo-guardrails/nemo_openshift/with_otel).
-
-See the [guardrailed agent README](../agents/langgraph/examples/guardrailed_agent/README.md#tracing-and-observability) for setup instructions.
-
 ## Future capabilities
 
 - **Action rails** ([RHAIRFE-1629](https://redhat.atlassian.net/browse/RHAIRFE-1629)) — NeMo Guardrails will add validation of agent tool-call arguments against business policies (e.g., "transfer amount must be under $10,000")
