@@ -28,7 +28,7 @@ Two guardrails systems are available on Red Hat OpenShift AI. They are complemen
 
 **Start with NeMo Guardrails** if you're building a conversational agent and need content safety, topic boundaries, or dialogue flow control. It works as a transparent proxy — point your agent's `BASE_URL` at it and you're done, zero code changes.
 
-**Add the Guardrails Orchestrator** when you need infrastructure-level detection across multiple AI endpoints — PII scanning, toxicity classification via dedicated detector models, or standalone content checks independent of inference.
+**Add the Guardrails Orchestrator** when you need infrastructure-level detection across multiple AI endpoints — toxicity classification via dedicated detector models, or standalone content checks independent of inference.
 
 ### Comparison
 
@@ -39,7 +39,7 @@ Two guardrails systems are available on Red Hat OpenShift AI. They are complemen
 | **Configuration** | YAML (`config.yaml`) + Colang scripts (`.co`) + classification prompts (`prompts.yml`) | ConfigMap with detector/generator specs. Detectors deployed as separate services |
 | **Rail types** | Input, output, dialog, retrieval, execution — five rail types covering the full request lifecycle | Input and output detection. No dialogue flow management |
 | **Conversation control** | Yes — Colang language for defining dialogue flows, topic boundaries, multi-turn policies | No — detection only, no conversation steering |
-| **Detection approach** | In-process: LLM-based classification (self-check or dedicated models like NemoGuard-8B), regex, YARA injection | External detector servers: HF models (e.g., `granite-guardian-hap-38m`), vLLM models (e.g., `granite-guardian-3.1-2b`), built-in regex |
+| **Detection approach** | In-process: LLM-based classification (self-check or dedicated models like NemoGuard-8B), regex, YARA injection, Presidio PII detection | External detector servers: HF models (e.g., `granite-guardian-hap-38m`), vLLM models (e.g., `granite-guardian-3.1-2b`), built-in regex |
 | **Standalone detection** | Yes — `/v1/guardrail/checks` endpoint (used by Gen AI Studio for per-request inline moderation) | Yes — `/api/v2/text/detection/content` endpoint for detection without inference |
 | **Deployment on RHOAI** | `NemoGuardrails` CRD (TrustyAI Operator) — Technology Preview | `GuardrailsOrchestrator` CRD (TrustyAI Operator) — GA since RHOAI 2.19 |
 | **Origin** | NVIDIA (Apache 2.0) | IBM Research / Red Hat (Apache 2.0) |
@@ -57,7 +57,6 @@ Two guardrails systems are available on Red Hat OpenShift AI. They are complemen
 
 **Guardrails Orchestrator:**
 
-- You need PII detection across multiple AI endpoints (SSN, credit card, email patterns)
 - You want to use Hugging Face detector models (Granite Guardian, DeBERTa prompt injection)
 - You need standalone content checks independent of LLM inference
 - You're running multiple LLM endpoints and want a shared detection layer
@@ -65,7 +64,7 @@ Two guardrails systems are available on Red Hat OpenShift AI. They are complemen
 
 **Using both together:**
 
-NeMo Guardrails handles conversational safety (topic boundaries, content classification, dialogue flows) at the agent level. The Guardrails Orchestrator handles infrastructure-level detection (PII, toxicity via dedicated detector models) across your model serving fleet. They operate at different layers and complement each other.
+NeMo Guardrails handles conversational safety (topic boundaries, content classification, PII detection, dialogue flows) at the agent level. The Guardrails Orchestrator handles infrastructure-level detection (toxicity via dedicated detector models, custom classifiers) across your model serving fleet. They operate at different layers and complement each other.
 
 ## Observability
 
