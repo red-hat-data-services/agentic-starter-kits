@@ -204,11 +204,31 @@ curl -s http://localhost:8000/chat/completions \
   | python3 -m json.tool
 ```
 
-### Tracing (optional)
+### Tracing and observability
 
-MLflow tracing works the same as other agents. Note that MLflow sees NeMo Guardrails as a regular ChatOpenAI endpoint — guardrails-internal traces (which rail fired, classification results) are not visible in MLflow. Use `nemoguardrails server --verbose` for rail-level debugging.
+**MLflow** — works the same as other agents. MLflow sees NeMo Guardrails as a regular ChatOpenAI endpoint — the agent's call and response are visible, but not which rail fired or why. See `.env.example` for MLflow configuration options.
 
-See `.env.example` for MLflow configuration options.
+**Per-rail tracing (OpenTelemetry)** — NeMo Guardrails natively supports OpenTelemetry tracing with per-rail spans showing which rail fired, classification results, and latency per layer. Add this to your profile's `config.yaml.example`:
+
+```yaml
+tracing:
+  enabled: true
+  span_format: opentelemetry
+  adapters:
+    - name: OpenTelemetry
+```
+
+Then set the OTel exporter env vars before starting the guardrails server:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+export OTEL_SERVICE_NAME=nemo-guardrails
+export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+```
+
+This produces per-rail spans (`guardrails.rail`, `guardrails.action`, LLM call spans) that can be viewed in Jaeger, Tempo, or any OTel-compatible backend. For a complete OTel + Tempo + Grafana setup on OpenShift, see [RedHatQuickCourses/rhoai_demos](https://github.com/RedHatQuickCourses/rhoai_demos/tree/nemo-guardrails/nemo_openshift/with_otel).
+
+**Quick debugging** — use `nemoguardrails server --verbose` for rail-level logging to stdout without OTel setup.
 
 ## Deploying to OpenShift
 
