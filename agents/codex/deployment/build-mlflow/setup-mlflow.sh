@@ -70,10 +70,12 @@ TRACING_JSON
         log_info "mlflow-tracing.json written (experiment ${exp_id})"
 
         # Ensure notify hook is in user-level config.toml
+        # Uses mlflow-codex-hook.sh wrapper so the SA token is loaded even when
+        # codex is launched via oc exec (which bypasses .bashrc).
         if ! grep -q '^notify = ' "${CODEX_HOME}/config.toml" 2>/dev/null; then
             echo '' >> "${CODEX_HOME}/config.toml"
             echo '# MLflow tracing — forwards each Codex turn to MLflow' >> "${CODEX_HOME}/config.toml"
-            echo 'notify = ["mlflow-codex", "notify-hook"]' >> "${CODEX_HOME}/config.toml"
+            echo 'notify = ["mlflow-codex-hook.sh"]' >> "${CODEX_HOME}/config.toml"
             log_info "Notify hook added to user-level config.toml"
         else
             log_info "Notify hook already in config.toml"

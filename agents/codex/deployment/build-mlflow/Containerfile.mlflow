@@ -46,6 +46,7 @@ RUN git clone --depth 1 --branch v3.14.0 https://github.com/mlflow/mlflow.git /t
 RUN mlflow --version && mlflow-codex --help >/dev/null 2>&1
 
 COPY setup-mlflow.sh /usr/local/bin/setup-mlflow.sh
-RUN chmod +x /usr/local/bin/setup-mlflow.sh
+COPY mlflow-codex-hook.sh /usr/local/bin/mlflow-codex-hook.sh
+RUN chmod +x /usr/local/bin/setup-mlflow.sh /usr/local/bin/mlflow-codex-hook.sh
 
 USER 1001

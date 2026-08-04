@@ -24,6 +24,11 @@ Extends the Codex CLI deployment with MLflow experiment tracking via the `@mlflo
 │  codex (interactive) fires notify hook natively          │
 │       │                                                 │
 │       ▼                                                 │
+│  mlflow-codex-hook.sh                                   │
+│   └─ Loads SA token from disk (bypasses .bashrc)        │
+│   └─ exec mlflow-codex notify-hook                      │
+│       │                                                 │
+│       ▼                                                 │
 │  @mlflow/codex  ─────────────────────────────────────►  │
 └─────────────────────────────────────────────────────────┘
                                                     │
@@ -116,7 +121,7 @@ Follow the shared guide at [docs/mlflow-openshift-auth-and-tls.md](../../../../d
 
 ### Codex-Specific Notes
 
-Codex uses the `@mlflow/codex` TypeScript plugin, which does not read `MLFLOW_TRACKING_AUTH` natively. The `setup-mlflow.sh` entrypoint handles this by reading the SA token from disk and exporting `MLFLOW_TRACKING_TOKEN` before launching. See the [TypeScript SDK: What's Different](../../../../docs/mlflow-openshift-auth-and-tls.md#typescript-sdk-whats-different) section in the shared doc for details.
+Codex uses the `@mlflow/codex` TypeScript plugin, which does not read `MLFLOW_TRACKING_AUTH` natively. The `mlflow-codex-hook.sh` wrapper handles this by reading the SA token from `/var/run/secrets/kubernetes.io/serviceaccount/token` before each notify hook invocation. This ensures auth works even when codex is launched via `oc exec` (which bypasses `.bashrc`). See the [TypeScript SDK: What's Different](../../../../docs/mlflow-openshift-auth-and-tls.md#typescript-sdk-whats-different) section in the shared doc for details.
 
 ## Deployment Patch
 
@@ -151,7 +156,7 @@ The strategic patch sets `MLFLOW_WORKSPACE` to the pod's namespace via `fieldRef
 
 ## Usage
 
-Interactive Codex fires the notify hook natively after each turn, so traces are exported automatically:
+Interactive Codex fires the notify hook natively after each turn, so traces are exported automatically. The `mlflow-codex-hook.sh` wrapper ensures the SA token is loaded from disk before calling `@mlflow/codex`, so tracing works regardless of how the shell session was launched (e.g., `oc exec` bypasses `.bashrc`).
 
 ```bash
 oc exec -it deployment/codex -- codex \
@@ -160,23 +165,15 @@ oc exec -it deployment/codex -- codex \
   "explain what 2+2 equals"
 ```
 
+> **Note:** Only interactive Codex fires the notify hook. `codex exec` (non-interactive) does not trigger hooks, so no traces are exported. This matches the behavior of Claude Code and OpenCode on RHOAI.
+
 ### Querying Traces
 
 ```bash
-# Via MLflow REST API
-source "${CODEX_HOME:-/workspace/.codex}/.mlflow-env"
-curl -s --cacert /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt \
-  -H "Authorization: Bearer ${MLFLOW_TRACKING_TOKEN:?token required}" \
-  -H "X-MLFLOW-WORKSPACE: ${MLFLOW_WORKSPACE:?workspace required}" \
-  -H "Content-Type: application/json" \
-  -X POST \
-  -d '{"experiment_ids":["<id>"],"max_results":10}' \
-  "${MLFLOW_TRACKING_URI}/api/2.0/mlflow/traces/search"
-
-# Via Python SDK
-python3 -c "
-import mlflow
-mlflow.set_tracking_uri('...')
+# Via Python SDK (run inside the pod)
+oc exec deployment/codex -- python3 -c "
+import mlflow, os
+mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
 client = mlflow.MlflowClient()
 traces = client.search_traces(experiment_ids=['<id>'])
 for t in traces:
@@ -242,6 +239,10 @@ Child spans are created when the `@mlflow/codex` notify hook can read the sessio
 
 The `mlflow-codex setup --non-interactive` command writes to the project-level config (CWD) with incorrect defaults (`localhost:5000`, experiment ID `0`). The `setup-mlflow.sh` entrypoint writes the correct values to the user-level config after resolving the experiment ID dynamically.
 
+### Interactive Mode Only
+
+`codex exec` (non-interactive / scripted mode) does not fire the notify hook, so traces are not exported. Only interactive Codex (`oc exec -it ... codex "prompt"`) triggers the hook. This is a Codex CLI limitation, not specific to MLflow tracing — the same applies to Claude Code and OpenCode.
+
 ### Model Tool Call Support
 
 Qwen3-8B via vLLM did not reliably generate tool calls in `codex exec` mode, producing single-span traces. Qwen3.6-27B (served via `docker.io/vllm/vllm-openai:v0.25.1` with `--tool-call-parser qwen3_coder --tensor-parallel-size 2`) is the current recommended model for multi-span traces with tool call child spans.
@@ -256,6 +257,7 @@ OGX endpoints were not available in the test namespace. The vLLM-direct path was
 |------|-------------|
 | `Containerfile.mlflow` | Image layer with Python 3.12, Node.js 22, MLflow SDK, @mlflow/codex |
 | `setup-mlflow.sh` | Post-entrypoint setup: SA token, experiment, notify hook, config fixups |
+| `mlflow-codex-hook.sh` | Notify hook wrapper — loads SA token before calling @mlflow/codex |
 | `deployment-mlflow-patch.yaml` | Strategic merge patch for env vars and image |
 | `screenshots/` | MLflow trace screenshots |
 | `mlflow-tracing.md` | This document |
