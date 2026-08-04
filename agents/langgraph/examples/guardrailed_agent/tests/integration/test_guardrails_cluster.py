@@ -14,12 +14,18 @@ from guardrails_client import (
     guardrails_chat,
     guardrails_tls_verify,
     is_allowed_response,
-    is_blocked_response,
 )
 
 pytestmark = pytest.mark.integration
 
 _CLUSTER_MODEL_ID = os.environ.get("GUARDRAILS_MODEL_ID", "qwen2-5-7b-instruct")
+
+
+def _assert_nemoguard_refusal(status: int, data: dict) -> None:
+    assert status == 200
+    assert (data.get("guardrails") or {}).get("config_id") == "nemoguard"
+    content = data["choices"][0]["message"]["content"].strip().lower()
+    assert "can't respond to that" in content
 
 
 @pytest.fixture(scope="module")
@@ -45,7 +51,7 @@ def test_toxic_input_blocked(guardrails_cluster_server, guardrails_integration_u
         base_url=guardrails_integration_url,
         model_id=_CLUSTER_MODEL_ID,
     )
-    assert is_blocked_response(data, http_status=status)
+    _assert_nemoguard_refusal(status, data)
 
 
 def test_off_topic_recipe_blocked(
@@ -57,7 +63,7 @@ def test_off_topic_recipe_blocked(
         base_url=guardrails_integration_url,
         model_id=_CLUSTER_MODEL_ID,
     )
-    assert is_blocked_response(data, http_status=status)
+    _assert_nemoguard_refusal(status, data)
 
 
 def test_banking_question_allowed(

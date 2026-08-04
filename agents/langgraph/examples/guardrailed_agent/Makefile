@@ -265,7 +265,7 @@ deploy-guardrails: render-guardrails-configmap deploy-guardrails-secrets ## Appl
 	    echo "Route URL: https://$$ROUTE"; \
 	  fi
 
-undeploy-guardrails: ## Remove NemoGuardrails CR + ConfigMap from cluster
+undeploy-guardrails: render-guardrails-configmap ## Remove NemoGuardrails CR + ConfigMap from cluster
 	@oc delete -k "$(GUARDRAILS_KUSTOMIZE)" --ignore-not-found && \
 	  oc delete secret langgraph-guardrailed-agent-guardrails-secrets \
 	    -n "$(GUARDRAILS_NAMESPACE)" --ignore-not-found
