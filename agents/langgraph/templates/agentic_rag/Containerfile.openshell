@@ -5,7 +5,7 @@
 #   podman push quay.io/<org>/openshell-agentic-rag:latest
 #   openshell sandbox create --name rag-sandbox --from quay.io/<org>/openshell-agentic-rag:latest
 
-ARG BASE_IMAGE=ghcr.io/nvidia/openshell-community/sandboxes/base:latest
+ARG BASE_IMAGE=ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e
 FROM ${BASE_IMAGE}
 
 COPY --chown=sandbox:sandbox pyproject.toml ./

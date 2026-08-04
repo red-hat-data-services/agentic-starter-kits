@@ -129,7 +129,7 @@ curl -sk "$AGENT_URL/chat/completions" -X POST \
   -H "Content-Type: application/json" \
   -d '{"messages":[{"role":"user","content":"hello"}]}'
 # Output (error):
-# {"detail": "Missing API key (use X-Api-Key or Authorization: Bearer header)"}
+# {"error": "Missing API key (use X-Api-Key or Authorization: Bearer header)"}
 ```
 
 ```bash
@@ -137,11 +137,15 @@ curl -sk "$AGENT_URL/chat/completions" -X POST \
 curl -sk "$AGENT_URL/chat/completions" -X POST \
   -H "Content-Type: application/json" \
   -H "X-Api-Key: $TOKEN" \
-  -d '{"messages":[{"role":"user","content":"What are appropriate chunk sizes during Document Preparation?"}]}' \
-  | jq '.choices[0].message.content'
-# Output: 
-# based on provided documents, appropriate chunk sizes during Document Preparation are typically 500-1000 tokens.
+  -d '{"messages":[{"role":"user","content":"What are appropriate chunk sizes during document preparation? Answer using one sentence max."}]}' \
+  | jq '.choices[0].message'
 ```
+
+**Expected output:**
+
+![RAG query with reasoning](../images/sandbox_chat_completions.png)
+
+The agent retrieves relevant chunks from the vector store and generates a response based on the provided documents. The response shows the agent's reasoning process and final answer: *"Appropriate chunk sizes during document preparation are typically 500-1000 tokens."*
 
 ---
 

@@ -221,7 +221,7 @@ undeploy: ## Remove deployment from cluster
 	helm uninstall $(AGENT_NAME)
 
 ## ── openShell sandbox targets ─────────────────────────────────────────────────
-OPENSHELL_SANDBOX ?= $(shell source .env 2>/dev/null && echo $${OPENSHELL_SANDBOX_NAME:-rag-sandbox})
+OPENSHELL_SANDBOX ?= $(shell . ./.env 2>/dev/null && echo $${OPENSHELL_SANDBOX_NAME:-rag-sandbox})
 OPENSHELL_IMAGE   := openshell-agentic-rag
 OPENSHELL_VERSION ?= 0.0.80
 
@@ -277,6 +277,9 @@ teardown-gateway: ## Uninstall openShell gateway and clean up
 	  oc -n openshell delete pvc --all 2>/dev/null || true && \
 	  oc -n openshell delete secret openshell-server-tls openshell-client-tls openshell-jwt-keys 2>/dev/null || true && \
 	  oc -n openshell delete route --all 2>/dev/null || true && \
+	  oc delete clusterrolebinding openshell-tokenreview 2>/dev/null || true && \
+	  oc adm policy remove-scc-from-user privileged -z openshell-sandbox -n openshell 2>/dev/null || true && \
+	  oc adm policy remove-scc-from-user privileged -z openshell -n openshell 2>/dev/null || true && \
 	  echo "Gateway removed."
 
 build-openshell: ## Build openShell sandbox image via OpenShift BuildConfig
@@ -290,7 +293,7 @@ build-openshell: ## Build openShell sandbox image via OpenShift BuildConfig
 	  echo "Image ready: image-registry.openshift-image-registry.svc:5000/$$NS/$(OPENSHELL_IMAGE):latest" && \
 	  echo "Next: make deploy-openshell"
 
-_openshell-env = source .env && export OPENSHELL_GATEWAY_INSECURE=true && \
+_openshell-env = . ./.env && export OPENSHELL_GATEWAY_INSECURE=true && \
 	SANDBOX=$${OPENSHELL_SANDBOX_NAME:-rag-sandbox} && \
 	NS=$$(oc project -q) && \
 	IMAGE="image-registry.openshift-image-registry.svc:5000/$$NS/$(OPENSHELL_IMAGE):latest" && \
@@ -367,6 +370,7 @@ start-agent: ## Start uvicorn inside sandbox, expose service URL and create Rout
 	  echo "==> Generating sandbox reviewer token..." && \
 	  K8S_API_URL=$$(oc whoami --show-server) && \
 	  K8S_REVIEWER_TOKEN=$$(oc create token openshell-sandbox -n openshell --duration=168h) && \
+	  ALLOWED_SA_USERNAME="system:serviceaccount:$$NS:agent-client" && \
 	  echo "==> Starting agent (VECTOR_STORE_ID=$$VSID)..." && \
 	  (openshell sandbox exec -n "$$SANDBOX" \
 	    --env "BASE_URL=$$BASE_URL" \
@@ -376,9 +380,9 @@ start-agent: ## Start uvicorn inside sandbox, expose service URL and create Rout
 	    --env "VECTOR_STORE_ID=$$VSID" \
 	    --env "VECTOR_STORE_PROVIDER=$$VECTOR_STORE_PROVIDER" \
 	    --env "API_KEY=$$API_KEY" \
-	    --env "AGENT_API_KEY=$${AGENT_API_KEY}" \
 	    --env "K8S_API_URL=$$K8S_API_URL" \
 	    --env "K8S_REVIEWER_TOKEN=$$K8S_REVIEWER_TOKEN" \
+	    --env "ALLOWED_SA_USERNAME=$$ALLOWED_SA_USERNAME" \
 	    --env "PORT=8080" \
 	    --workdir /sandbox \
 	    -- uvicorn auth_wrapper:app --host 127.0.0.1 --port 8080 &>/dev/null &) && \
