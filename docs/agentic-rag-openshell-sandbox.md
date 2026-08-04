@@ -162,7 +162,8 @@ For a better experience, use the web-based playground UI instead of curl:
 make playground-sandbox
 ```
 
-This starts a Flask web UI on http://localhost:5002 that:
+This starts a Flask web UI on <http://localhost:5002> that:
+
 - Auto-fetches the agent URL from the OpenShift Route
 - Auto-fetches the SA token from the `agent-client-token` Secret
 - Provides a chat interface with streaming responses
@@ -172,6 +173,7 @@ This starts a Flask web UI on http://localhost:5002 that:
 ![Sandbox Playground](../images/sandbox_playground.png)
 
 **Requirements:**
+
 - `oc` CLI logged into OpenShift with access to `openshell` namespace
 - Flask (already in dependencies)
 
