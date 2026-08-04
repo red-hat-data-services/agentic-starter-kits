@@ -66,11 +66,6 @@ Two guardrails systems are available on Red Hat OpenShift AI. They are complemen
 
 NeMo Guardrails handles conversational safety (topic boundaries, content classification, PII detection, dialogue flows) at the agent level. The Guardrails Orchestrator handles infrastructure-level detection (toxicity via dedicated detector models, custom classifiers) across your model serving fleet. They operate at different layers and complement each other.
 
-## Future capabilities
-
-- **Action rails** ([RHAIRFE-1629](https://redhat.atlassian.net/browse/RHAIRFE-1629)) — NeMo Guardrails will add validation of agent tool-call arguments against business policies (e.g., "transfer amount must be under $10,000")
-- **Trajectory rails** ([RHAIRFE-1382](https://redhat.atlassian.net/browse/RHAIRFE-1382)) — detection of suspicious agent behavior patterns across multi-step tool use sequences
-
 ## References
 
 - [NeMo Guardrails Documentation](https://docs.nvidia.com/nemo/guardrails/)
