@@ -85,8 +85,8 @@ TRACING_JSON
         # Codex will never read it.
         if grep -q 'mlflow-codex-hook\.sh' "${CODEX_HOME}/config.toml" 2>/dev/null; then
             log_info "Notify hook already in config.toml"
-        elif grep -q '^notify = ' "${CODEX_HOME}/config.toml" 2>/dev/null; then
-            sed -i 's|^notify = .*|notify = ["mlflow-codex-hook.sh"]|' "${CODEX_HOME}/config.toml"
+        elif grep -q '^notify[ ]*=' "${CODEX_HOME}/config.toml" 2>/dev/null; then
+            sed -i 's|^notify[ ]*=.*|notify = ["mlflow-codex-hook.sh"]|' "${CODEX_HOME}/config.toml"
             log_info "Notify hook replaced in existing config"
         else
             # Insert before the first [section] header so it stays top-level
