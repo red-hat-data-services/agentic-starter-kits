@@ -221,9 +221,42 @@ curl -s http://localhost:8000/chat/completions \
 
 ### Tracing (optional)
 
-MLflow tracing works the same as other agents. Note that MLflow sees NeMo Guardrails as a regular ChatOpenAI endpoint — guardrails-internal traces (which rail fired, classification results) are not visible in MLflow. Use `nemoguardrails server --verbose` for rail-level debugging.
+NeMo Guardrails supports [OpenTelemetry tracing](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-nemo-guardrails_nemo-guardrails#configuring-observability-for-nemo-guardrails-with-opentelemetry_nemo-guardrails) (RHOAI 3.4+). When enabled, per-rail span data (request flow, LLM latency, rail execution times) is exported to a [Tempo](https://grafana.com/oss/tempo/) backend via gRPC.
 
-See `.env.example` for MLflow configuration options.
+#### Local Tempo
+
+Run a local Tempo instance (e.g. via `docker run -p 4317:4317 grafana/tempo:latest`) and add to `.env`:
+
+```ini
+GUARDRAILS_TRACING_ENABLED=true
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+OTEL_SERVICE_NAME=nemo-guardrails
+OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+OTEL_METRICS_EXPORTER=none
+```
+
+Then restart the guardrails server (`make guardrails-server-local` or `make guardrails-server-nemoguard`). The `start_server.py` wrapper configures an OTel `TracerProvider` before NeMo initializes, so spans are exported instead of going to the NoOp provider.
+
+#### RHOAI cluster (Tempo Operator)
+
+On OpenShift with RHOAI 3.4+:
+
+1. **Install the Tempo Operator** -- subscribe to `tempo-product` from OperatorHub.
+2. **Deploy a TempoStack CR** with MinIO or S3 storage in your namespace (e.g. `ci-testing`).
+3. **Set the distributor endpoint** -- follows the pattern `http://tempo-<stack>-distributor.<ns>.svc.cluster.local:4317`.
+4. **Configure `cluster.env`** with the OTel vars:
+
+```ini
+GUARDRAILS_TRACING_ENABLED=true
+OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-sample-distributor.ci-testing.svc.cluster.local:4317
+OTEL_SERVICE_NAME=nemo-guardrails
+OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+OTEL_METRICS_EXPORTER=none
+```
+
+5. **Access traces** via the Jaeger Query route (`oc get route -n <ns> | grep jaeger`) or port-forward (`oc port-forward svc/tempo-sample-query-frontend 16686:16686`).
+
+See `deploy/overlays/ci-testing/cluster.env.example` for the full set of cluster-side variables.
 
 ## Deploying to OpenShift
 

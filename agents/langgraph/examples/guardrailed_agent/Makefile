@@ -68,14 +68,14 @@ guardrails-server-local: ## Generate local (self-check, Ollama) config and start
 	  cp guardrails/config/local/config.yaml.example guardrails/config/local/config.yaml && \
 	  python3 guardrails/generate_config.py --profile local && \
 	  echo "Starting NeMo Guardrails server (local profile) on port $${GUARDRAILS_PORT:-8090}..." && \
-	  nemoguardrails server --config guardrails/config --default-config-id local --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui
+	  python3 guardrails/start_server.py --config guardrails/config --default-config-id local --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui
 
 guardrails-server-nemoguard: ## Generate layered NemoGuard-models config and start NeMo Guardrails proxy
 	@source .venv/bin/activate && set -a && source .env && set +a && \
 	  cp guardrails/config/nemoguard/config.yaml.example guardrails/config/nemoguard/config.yaml && \
 	  python3 guardrails/generate_config.py --profile nemoguard && \
 	  echo "Starting NeMo Guardrails server (nemoguard profile) on port $${GUARDRAILS_PORT:-8090}..." && \
-	  nemoguardrails server --config guardrails/config --default-config-id nemoguard --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui
+	  python3 guardrails/start_server.py --config guardrails/config --default-config-id nemoguard --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui
 
 run-app: ## Run agent locally with hot-reload
 	@source .venv/bin/activate && set -a && source .env && set +a && \
@@ -256,7 +256,9 @@ deploy-guardrails-secrets: ## Create/update guardrails Secret from cluster.env o
 	    --dry-run=client -o yaml | oc apply -f -
 
 deploy-guardrails: render-guardrails-configmap deploy-guardrails-secrets ## Apply NemoGuardrails CR + ConfigMap to cluster
-	@oc apply -k "$(GUARDRAILS_KUSTOMIZE)" && \
+	@set -a && [ -f "$(CLUSTER_ENV)" ] && source "$(CLUSTER_ENV)" || source "$(CLUSTER_ENV_EXAMPLE)"; set +a && \
+	  envsubst < deploy/manifests/03-nemoguardrails-cr.yaml | oc apply -f - && \
+	  oc apply -f deploy/manifests/02-guardrails-configmap.yaml && \
 	  echo "" && echo "Waiting for NemoGuardrails pod..." && \
 	  for i in $$(seq 1 60); do \
 	    READY=$$(oc get pods -n "$(GUARDRAILS_NAMESPACE)" \

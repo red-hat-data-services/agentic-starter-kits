@@ -235,6 +235,17 @@ def generate_config(config_path: str, *, omit_nim_api_keys: bool = False) -> lis
             "topic_control flow -> topic policy check input (custom policy mode)"
         )
 
+    if os.environ.get("GUARDRAILS_TRACING_ENABLED", "").lower() == "true":
+        config["tracing"] = {
+            "enabled": True,
+            "span_format": "opentelemetry",
+            "enable_content_capture": False,
+            "adapters": [{"name": "OpenTelemetry"}],
+        }
+        summary.append(
+            "tracing=opentelemetry (per-rail spans, content capture disabled)"
+        )
+
     with open(config_path, "w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 

@@ -65,7 +65,10 @@ def test_dockerfile_installs_auth_extra_from_staged_component() -> None:
 
 def test_pyproject_pins_nemoguardrails_version() -> None:
     guardrails_deps = PYPROJECT["project"]["optional-dependencies"]["guardrails"]
-    assert "nemoguardrails[server]==0.21.0" in guardrails_deps
+    assert any(
+        "nemoguardrails[server,tracing]" in d and ">=0.22.0" in d
+        for d in guardrails_deps
+    )
 
 
 def test_pyproject_constrains_protobuf_below_7() -> None:
