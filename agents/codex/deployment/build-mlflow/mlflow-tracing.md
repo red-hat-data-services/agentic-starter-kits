@@ -229,6 +229,10 @@ Child spans are created when the `@mlflow/codex` notify hook can read the sessio
 
 ## Known Issues
 
+### TOML Scoping for `notify`
+
+The `notify` key **must** be a top-level key in `config.toml` — placing it after any `[section]` header (e.g., `[mcp_servers.foo]`) causes TOML to nest it under that section, where Codex silently ignores it. `setup-mlflow.sh` handles this by inserting the key before the first `[section]` header rather than appending to the file.
+
 ### Project-Level Config Precedence
 
 `@mlflow/codex` resolves config in this order:
@@ -237,7 +241,7 @@ Child spans are created when the `@mlflow/codex` notify hook can read the sessio
 2. `$CWD/.codex/mlflow-tracing.json` (project-level)
 3. `~/.codex/mlflow-tracing.json` (user-level)
 
-The `mlflow-codex setup --non-interactive` command writes to the project-level config (CWD) with incorrect defaults (`localhost:5000`, experiment ID `0`). The `setup-mlflow.sh` entrypoint writes the correct values to the user-level config after resolving the experiment ID dynamically.
+The `mlflow-codex setup --non-interactive` command writes to the project-level config (CWD) with incorrect defaults (`localhost:5000`, experiment ID `0`). The `setup-mlflow.sh` entrypoint writes the correct values to the user-level config after resolving the experiment ID dynamically. Codex also warns about project-level `notify` keys: "Ignored unsupported project-local config keys … notify" — this is expected; the user-level config is authoritative.
 
 ### Interactive Mode Only
 

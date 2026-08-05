@@ -60,29 +60,50 @@ print(exp.experiment_id)
 " 2>/dev/null) || { log_warn "Could not resolve experiment ID for '${experiment_name}' — skipping hook setup"; return; }
         fi
 
-        # Write correct mlflow-tracing.json to CODEX_HOME (user-level)
+        export MLFLOW_EXPERIMENT_ID="${exp_id}"
+
+        # Write mlflow-tracing.json to CODEX_HOME
         cat > "${CODEX_HOME}/mlflow-tracing.json" <<TRACING_JSON
 {
   "trackingUri": "${MLFLOW_TRACKING_URI}",
   "experimentId": "${exp_id}"
 }
 TRACING_JSON
+
+        # Also write to $HOME/.codex/ — @mlflow/codex resolves user-level
+        # config from ~ (HOME), not CODEX_HOME. Skip if they resolve to
+        # the same directory (entrypoint.sh symlinks ~/.codex -> CODEX_HOME).
+        if [[ "$(realpath "${HOME}/.codex" 2>/dev/null)" != "$(realpath "${CODEX_HOME}" 2>/dev/null)" ]]; then
+            mkdir -p "${HOME}/.codex"
+            cp "${CODEX_HOME}/mlflow-tracing.json" "${HOME}/.codex/mlflow-tracing.json"
+        fi
         log_info "mlflow-tracing.json written (experiment ${exp_id})"
 
-        # Ensure notify hook is in user-level config.toml
-        # Uses mlflow-codex-hook.sh wrapper so the SA token is loaded even when
-        # codex is launched via oc exec (which bypasses .bashrc).
+        # Ensure notify hook is in user-level config.toml.
+        # IMPORTANT: notify must be a TOP-LEVEL key — placing it after any
+        # [section] header causes TOML to nest it under that section, where
+        # Codex will never read it.
         if grep -q 'mlflow-codex-hook\.sh' "${CODEX_HOME}/config.toml" 2>/dev/null; then
             log_info "Notify hook already in config.toml"
         elif grep -q '^notify = ' "${CODEX_HOME}/config.toml" 2>/dev/null; then
-            sed -i 's|^notify = \[|notify = ["mlflow-codex-hook.sh", |' "${CODEX_HOME}/config.toml"
-            log_info "Notify hook appended to existing notify config"
+            sed -i 's|^notify = .*|notify = ["mlflow-codex-hook.sh"]|' "${CODEX_HOME}/config.toml"
+            log_info "Notify hook replaced in existing config"
         else
-            {
-                echo ''
-                echo '# MLflow tracing — forwards each Codex turn to MLflow'
-                echo 'notify = ["mlflow-codex-hook.sh"]'
-            } >> "${CODEX_HOME}/config.toml"
+            # Insert before the first [section] header so it stays top-level
+            local first_section
+            first_section=$(grep -n '^\[' "${CODEX_HOME}/config.toml" 2>/dev/null | head -1 | cut -d: -f1)
+            if [[ -n "${first_section}" ]]; then
+                sed -i "${first_section}i\\
+\\
+# MLflow tracing — forwards each Codex turn to MLflow\\
+notify = [\"mlflow-codex-hook.sh\"]" "${CODEX_HOME}/config.toml"
+            else
+                {
+                    echo ''
+                    echo '# MLflow tracing — forwards each Codex turn to MLflow'
+                    echo 'notify = ["mlflow-codex-hook.sh"]'
+                } >> "${CODEX_HOME}/config.toml"
+            fi
             log_info "Notify hook added to user-level config.toml"
         fi
 
@@ -97,22 +118,23 @@ TRACING_JSON
 TRACING_JSON
             log_info "Project-level mlflow-tracing.json updated"
         fi
-    else
-        log_warn "mlflow-codex not found on PATH"
-    fi
 
-    # 4. Write .mlflow-env for interactive oc exec sessions
-    cat > "${CODEX_HOME}/.mlflow-env" <<'MLFLOW_ENV'
+        # 4. Write .mlflow-env for the notify hook and interactive oc exec sessions
+        cat > "${CODEX_HOME}/.mlflow-env" <<MLFLOW_ENV
 _sa_token="/var/run/secrets/kubernetes.io/serviceaccount/token"
-if [[ -f "${_sa_token}" ]]; then
-    export MLFLOW_TRACKING_TOKEN=$(cat "${_sa_token}")
+if [[ -f "\${_sa_token}" ]]; then
+    export MLFLOW_TRACKING_TOKEN=\$(cat "\${_sa_token}")
 fi
 unset _sa_token
+export MLFLOW_EXPERIMENT_ID="${exp_id}"
 MLFLOW_ENV
 
-    # 5. Source from .bashrc for oc exec sessions
-    if ! grep -q 'mlflow-env' "${HOME}/.bashrc" 2>/dev/null; then
-        echo 'source "${CODEX_HOME}/.mlflow-env" 2>/dev/null || true' >> "${HOME}/.bashrc"
+        # 5. Source from .bashrc for oc exec sessions
+        if ! grep -q 'mlflow-env' "${HOME}/.bashrc" 2>/dev/null; then
+            echo 'source "${CODEX_HOME}/.mlflow-env" 2>/dev/null || true' >> "${HOME}/.bashrc"
+        fi
+    else
+        log_warn "mlflow-codex not found on PATH"
     fi
 
     log_info "MLflow tracing setup complete"
