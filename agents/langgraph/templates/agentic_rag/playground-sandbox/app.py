@@ -150,9 +150,13 @@ if AGENT_CA_BUNDLE and Path(AGENT_CA_BUNDLE).is_file():
 else:
     VERIFY_TLS = False
     if AGENT_CA_BUNDLE:
-        logger.warning("AGENT_CA_BUNDLE=%s not found, TLS verification disabled", AGENT_CA_BUNDLE)
+        logger.warning(
+            "AGENT_CA_BUNDLE=%s not found, TLS verification disabled", AGENT_CA_BUNDLE
+        )
     else:
-        logger.warning("AGENT_CA_BUNDLE not set, TLS verification disabled (set to a CA path to enable)")
+        logger.warning(
+            "AGENT_CA_BUNDLE not set, TLS verification disabled (set to a CA path to enable)"
+        )
 
 logger.info(f"Current namespace: {CURRENT_NAMESPACE or 'UNKNOWN'}")
 logger.info(f"Agent URL: {AGENT_URL}")
