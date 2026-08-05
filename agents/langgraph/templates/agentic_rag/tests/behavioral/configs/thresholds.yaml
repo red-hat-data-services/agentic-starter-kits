@@ -1,0 +1,9 @@
+# Calibrated from 3 btest runs: 20260805_162719, 20260805_163610, 20260805_164857
+# Formula: tool_selection = min(observed) - 0.10 (floor 0.0)
+#          latency_p95 = max(observed) * 1.5 rounded to 0.5 (raise only)
+
+agentic_rag:
+  tool_selection_accuracy: 0.90
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 15.0
+  pass_at_k: 8
