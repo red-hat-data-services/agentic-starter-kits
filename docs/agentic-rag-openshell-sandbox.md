@@ -154,6 +154,21 @@ The response includes the agent's `<think>` reasoning process followed by the fi
 
 ---
 
+## API documentation (Swagger UI)
+
+The agent exposes interactive API docs via FastAPI's built-in Swagger UI at `/docs`:
+
+```text
+https://rag-sandbox--agent.openshell.<APPS_DOMAIN>/docs
+```
+
+![Swagger UI](../images/swagger_sandbox.png)
+
+The `/docs` and `/health` endpoints are unauthenticated — only
+`/chat/completions` requires an API key.
+
+---
+
 ## Step 6 — Interactive Playground (Optional)
 
 For a better experience, use the web-based playground UI instead of curl:
