@@ -12,6 +12,7 @@ Usage:
     # Or manually specify:
     AGENT_URL=https://rag-sandbox--agent.openshell.apps.example.com \
     AGENT_TOKEN=$(oc get secret agent-client-token -o jsonpath='{.data.token}' | base64 -d) \
+    AGENT_CA_BUNDLE=/path/to/ca.crt \  # optional: enable TLS verification
     flask --app playground-sandbox/app run --port 5002
 
 The app will:
@@ -40,7 +41,7 @@ from flask import (
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-IMAGES_DIR = Path(__file__).resolve().parents[4] / "images"
+IMAGES_DIR = Path(__file__).resolve().parents[5] / "images"
 
 app = Flask(__name__)
 
@@ -143,10 +144,20 @@ def get_agent_token():
 CURRENT_NAMESPACE = get_current_namespace()
 AGENT_URL = get_agent_url()
 AGENT_TOKEN = get_agent_token()
+AGENT_CA_BUNDLE = getenv("AGENT_CA_BUNDLE", "")
+if AGENT_CA_BUNDLE and Path(AGENT_CA_BUNDLE).is_file():
+    VERIFY_TLS = AGENT_CA_BUNDLE
+else:
+    VERIFY_TLS = False
+    if AGENT_CA_BUNDLE:
+        logger.warning("AGENT_CA_BUNDLE=%s not found, TLS verification disabled", AGENT_CA_BUNDLE)
+    else:
+        logger.warning("AGENT_CA_BUNDLE not set, TLS verification disabled (set to a CA path to enable)")
 
 logger.info(f"Current namespace: {CURRENT_NAMESPACE or 'UNKNOWN'}")
 logger.info(f"Agent URL: {AGENT_URL}")
 logger.info(f"Agent token: {'***' + AGENT_TOKEN[-8:] if AGENT_TOKEN else 'NOT SET'}")
+logger.info(f"TLS verify: {VERIFY_TLS}")
 
 
 @app.route("/images/<path:filename>")
@@ -164,7 +175,7 @@ def index():
 def health():
     """Check if the agent is reachable (health endpoint does not require auth)."""
     try:
-        resp = http_requests.get(f"{AGENT_URL}/health", timeout=10, verify=False)
+        resp = http_requests.get(f"{AGENT_URL}/health", timeout=10, verify=VERIFY_TLS)
         return jsonify(resp.json()), resp.status_code
     except Exception:
         logger.exception("Error checking agent health")
@@ -219,7 +230,7 @@ def chat():
                 headers=headers,
                 stream=True,
                 timeout=(10, 300),
-                verify=False,  # self-signed certs in sandbox
+                verify=VERIFY_TLS,
             ) as resp:
                 logger.info(f"Agent response status: {resp.status_code}")
 
@@ -283,4 +294,4 @@ if __name__ == "__main__":
         exit(1)
 
     debug_mode = getenv("FLASK_DEBUG", "false").lower() == "true"
-    app.run(debug=debug_mode, host="0.0.0.0", port=5002)
+    app.run(debug=debug_mode, host=getenv("FLASK_HOST", "127.0.0.1"), port=5002)

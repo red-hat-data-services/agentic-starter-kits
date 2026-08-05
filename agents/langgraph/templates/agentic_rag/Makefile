@@ -251,7 +251,8 @@ setup-gateway: ## Install openShell gateway, create Route, register CLI (one-tim
 	  oc -n openshell rollout status statefulset/openshell --timeout=120s && \
 	  echo "==> Disabling mTLS client cert requirement..." && \
 	  TOML=$$(oc -n openshell get configmap openshell-config -o jsonpath='{.data.gateway\.toml}' | sed '/^client_ca_path/d') && \
-	  oc -n openshell create configmap openshell-config --from-literal="gateway.toml=$$TOML" --dry-run=client -o yaml | oc apply -f - && \
+	  oc -n openshell patch configmap openshell-config --type merge \
+	    -p "$$(printf '{"data":{"gateway.toml":%s}}' "$$(printf '%s' "$$TOML" | jq -Rs .)")" && \
 	  oc -n openshell delete pod openshell-0 && \
 	  oc -n openshell rollout status statefulset/openshell --timeout=120s && \
 	  echo "==> Creating gateway Route..." && \
@@ -287,8 +288,7 @@ build-openshell: ## Build openShell sandbox image via OpenShift BuildConfig
 	  --name=$(OPENSHELL_IMAGE) --to=$(OPENSHELL_IMAGE):latest 2>/dev/null || true && \
 	  oc patch bc $(OPENSHELL_IMAGE) \
 	    -p '{"spec":{"strategy":{"dockerStrategy":{"dockerfilePath":"Containerfile.openshell"}}}}' && \
-	  tar cf - --exclude='.env' --exclude='.env.bak' --exclude='.venv' . | \
-	  oc start-build $(OPENSHELL_IMAGE) --from-archive=- --follow && \
+	  oc start-build $(OPENSHELL_IMAGE) --from-dir=. --follow && \
 	  NS=$$(oc project -q) && \
 	  echo "" && \
 	  echo "Image ready: image-registry.openshift-image-registry.svc:5000/$$NS/$(OPENSHELL_IMAGE):latest" && \
@@ -386,7 +386,7 @@ start-agent: ## Start uvicorn inside sandbox, expose service URL and create Rout
 	    --env "ALLOWED_SA_USERNAME=$$ALLOWED_SA_USERNAME" \
 	    --env "PORT=8080" \
 	    --workdir /sandbox \
-	    -- uvicorn auth_wrapper:app --host 127.0.0.1 --port 8080 &>/dev/null &) && \
+	    -- uvicorn auth_wrapper:app --host 127.0.0.1 --port 8080 >/dev/null 2>&1 &) && \
 	  echo "    Waiting 10s for agent startup..." && \
 	  sleep 10 && \
 	  HEALTH=$$(openshell sandbox exec -n "$$SANDBOX" -- curl -sf http://127.0.0.1:8080/health 2>/dev/null) && \
@@ -419,7 +419,7 @@ undeploy-openshell: ## Remove openShell sandbox and route
 	  echo "Sandbox $(OPENSHELL_SANDBOX) and route removed."
 
 playground-sandbox: ## Start sandbox playground web UI (auto-fetches agent URL and SA token)
-	@source .venv/bin/activate && \
+	@. .venv/bin/activate && \
 	  echo "Starting sandbox playground on http://localhost:5002" && \
 	  echo "Auto-fetching agent URL from OpenShift Route..." && \
 	  echo "Auto-fetching SA token from Secret agent-client-token..." && \
