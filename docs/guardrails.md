@@ -70,7 +70,6 @@ The Guardrails Orchestrator remains available for existing deployments that rely
 ## References
 
 - [NeMo Guardrails Documentation](https://docs.nvidia.com/nemo/guardrails/)
-- [RHOAI Guardrails Overview](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-guardrails_safety) — comparison table, legacy notice
 - [RHOAI NeMo Guardrails Docs](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-nemo-guardrails_nemo-guardrails) — deployment, OTel configuration
 - [RHOAI Guardrails Orchestrator Docs (legacy)](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest/html/enabling_ai_safety_with_guardrails/using-guardrails-for-ai-safety_safety) — detectors, orchestrator setup
 - [Guardrailed Agent Example](../agents/langgraph/examples/guardrailed_agent/) — working example with setup, config, and tests
