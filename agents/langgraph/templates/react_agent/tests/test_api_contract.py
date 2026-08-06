@@ -125,9 +125,7 @@ class TestInvokeWithRetry:
     def test_succeeds_after_transient_failure(self):
         expected = {"messages": [AIMessage(content="recovered")]}
         mock_graph = AsyncMock(
-            ainvoke=AsyncMock(
-                side_effect=[GraphRecursionError("loop"), expected]
-            )
+            ainvoke=AsyncMock(side_effect=[GraphRecursionError("loop"), expected])
         )
         with patch("main.agent_graph", mock_graph):
             result = asyncio.run(_invoke_with_retry({"messages": []}, config={}))
@@ -136,9 +134,7 @@ class TestInvokeWithRetry:
 
     def test_exhausts_retries_and_raises(self):
         mock_graph = AsyncMock(
-            ainvoke=AsyncMock(
-                side_effect=GraphRecursionError("loop")
-            )
+            ainvoke=AsyncMock(side_effect=GraphRecursionError("loop"))
         )
         with patch("main.agent_graph", mock_graph):
             with pytest.raises(GraphRecursionError):
@@ -182,7 +178,5 @@ class TestHandleChatGracefulError:
         )
         with patch("main.agent_graph", mock_graph):
             with pytest.raises(HTTPException) as exc_info:
-                asyncio.run(
-                    _handle_chat([HumanMessage(content="test")], "test-model")
-                )
+                asyncio.run(_handle_chat([HumanMessage(content="test")], "test-model"))
         assert exc_info.value.status_code == 500

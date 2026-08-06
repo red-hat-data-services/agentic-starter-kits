@@ -230,7 +230,7 @@ async def _invoke_with_retry(
     config: dict,
 ) -> dict:
     global agent_graph
-    last_exception: Exception | None = None
+    last_exception: Exception = RuntimeError("no invocation attempts were made")
 
     for attempt in range(1, _MAX_INVOKE_ATTEMPTS + 1):
         try:
