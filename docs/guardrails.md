@@ -6,7 +6,7 @@ This guide covers the guardrails options available on Red Hat OpenShift AI and h
 
 A working example lives at [`agents/langgraph/examples/guardrailed_agent/`](../agents/langgraph/examples/guardrailed_agent/). It demonstrates:
 
-- **Proxy pattern** — NeMo Guardrails sits between the agent and the LLM, requiring zero agent code changes
+- **Proxy pattern** — NeMo Guardrails sits between the agent and the LLM as a transparent proxy (only error handling for blocked requests is needed in the agent)
 - **Content safety** — input + output classification against S1-S13 safety categories
 - **Topic boundaries** — restricts the agent to domain related questions only
 - **Regex filtering** — instant pattern matching for jailbreak attempts
@@ -28,7 +28,7 @@ Two guardrails systems are available on Red Hat OpenShift AI. Both are managed b
 
 ### Recommendation
 
-**Use NeMo Guardrails** for new agent deployments. It works as a transparent proxy — point your agent's `BASE_URL` at it and you're done, zero code changes. Supports content safety, topic boundaries, dialogue flow control, PII detection, and per-rail OpenTelemetry tracing.
+**Use NeMo Guardrails** for new agent deployments. It works as a transparent proxy — point your agent's `BASE_URL` at it, add error handling for blocked requests, and you're done. Supports content safety, topic boundaries, dialogue flow control, PII detection, and per-rail OpenTelemetry tracing.
 
 The Guardrails Orchestrator remains available for existing deployments that rely on external Hugging Face detector models or standalone content checks, but new projects should use NeMo Guardrails.
 
@@ -56,7 +56,7 @@ The Guardrails Orchestrator remains available for existing deployments that rely
 - You're building a conversational agent (chatbot, customer service, assistant)
 - You need topic boundaries ("only answer banking questions")
 - You need content safety classification (S1-S13 Llama Guard taxonomy)
-- You want the proxy pattern — zero agent code changes
+- You want the proxy pattern — no changes to agent logic, only error handling for blocked requests
 - You need dialogue flow control (authentication steps, standard operating procedures)
 - You want to use NVIDIA's NemoGuard NIM models for classification
 - You need per-rail OpenTelemetry tracing for observability
