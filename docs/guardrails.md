@@ -8,7 +8,7 @@ A working example lives at [`agents/langgraph/examples/guardrailed_agent/`](../a
 
 - **Proxy pattern** — NeMo Guardrails sits between the agent and the LLM, requiring zero agent code changes
 - **Content safety** — input + output classification against S1-S13 safety categories
-- **Topic boundaries** — restricts the agent to banking-related questions only
+- **Topic boundaries** — restricts the agent to domain related questions only
 - **Regex filtering** — instant pattern matching for jailbreak attempts
 - **Two profiles** — `local` (self-check, single model) and `nemoguard` (dedicated NemoGuard/Nemotron classifiers per layer)
 
@@ -24,7 +24,7 @@ See the [example README](../agents/langgraph/examples/guardrailed_agent/README.m
 
 Two guardrails systems are available on Red Hat OpenShift AI. Both are managed by the TrustyAI Operator.
 
-> **Note:** The FMS Guardrails Orchestrator is **legacy** and will be deprecated in a future version of RHOAI. Use NeMo Guardrails for new deployments. See the [RHOAI 3.4 guardrails docs](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-guardrails_safety) for details.
+> **Note:** The FMS Guardrails Orchestrator is **legacy** and will be deprecated in a future version of RHOAI. Use NeMo Guardrails for new deployments. See the [RHOAI guardrails docs](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-guardrails_safety) for details.
 
 ### Recommendation
 
@@ -34,7 +34,7 @@ The Guardrails Orchestrator remains available for existing deployments that rely
 
 ### Comparison
 
-Based on the [RHOAI official comparison](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-guardrails_safety):
+Based on the [RHOAI official comparison](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-guardrails_safety):
 
 | Dimension | NeMo Guardrails | Guardrails Orchestrator (legacy) |
 |-----------|----------------|------------------------|
@@ -72,8 +72,8 @@ Based on the [RHOAI official comparison](https://docs.redhat.com/en/documentatio
 ## References
 
 - [NeMo Guardrails Documentation](https://docs.nvidia.com/nemo/guardrails/)
-- [RHOAI Guardrails Overview (3.4)](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-guardrails_safety) — comparison table, legacy notice
-- [RHOAI NeMo Guardrails Docs (3.4)](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-nemo-guardrails_nemo-guardrails) — deployment, OTel configuration
-- [RHOAI Guardrails Orchestrator Docs (3.4, legacy)](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/enabling_ai_safety_with_guardrails/using-guardrails-for-ai-safety_safety) — detectors, orchestrator setup
+- [RHOAI Guardrails Overview](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-guardrails_safety) — comparison table, legacy notice
+- [RHOAI NeMo Guardrails Docs](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-nemo-guardrails_nemo-guardrails) — deployment, OTel configuration
+- [RHOAI Guardrails Orchestrator Docs (legacy)](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest/html/enabling_ai_safety_with_guardrails/using-guardrails-for-ai-safety_safety) — detectors, orchestrator setup
 - [Guardrailed Agent Example](../agents/langgraph/examples/guardrailed_agent/) — working example with setup, config, and tests
 - [RHOAI NeMo Guardrails Demos](https://github.com/RedHatQuickCourses/rhoai_demos/tree/nemo-guardrails) — deployment patterns, PII detection, OTel + Tempo + Grafana, modular rail configs
