@@ -95,7 +95,10 @@ build: ## Build container image locally (podman/docker)
 	@[ -n "$(CONTAINER_CLI)" ] || { echo "ERROR: neither podman nor docker found in PATH"; exit 1; } && \
 	  source .env && \
 	  [ -n "$${CONTAINER_IMAGE}" ] || { echo "ERROR: CONTAINER_IMAGE is not set in .env"; exit 1; } && \
-	  rm -rf ./images && cp -r ../../../../images ./images && trap 'rm -rf ./images' EXIT && \
+	  rm -rf ./images ./components/auth && \
+	  trap 'rm -rf ./images ./components/auth; rmdir ./components 2>/dev/null || true' EXIT && \
+	  cp -r ../../../../images ./images && \
+	  mkdir -p ./components && cp -r ../../../../components/auth ./components/auth && \
 	  $(CONTAINER_CLI) build --platform linux/amd64 -t "$${CONTAINER_IMAGE}" -f Dockerfile .
 
 push: ## Push container image to registry
@@ -105,7 +108,10 @@ push: ## Push container image to registry
 	  $(CONTAINER_CLI) push "$${CONTAINER_IMAGE}"
 
 build-openshift: ## Build image in-cluster via OpenShift BuildConfig (no podman/docker needed)
-	@rm -rf ./images && cp -r ../../../../images ./images && trap 'rm -rf ./images' EXIT && \
+	@rm -rf ./images ./components/auth && \
+	  trap 'rm -rf ./images ./components/auth; rmdir ./components 2>/dev/null || true' EXIT && \
+	  cp -r ../../../../images ./images && \
+	  mkdir -p ./components && cp -r ../../../../components/auth ./components/auth && \
 	  oc new-build --strategy=docker --binary --name=$(AGENT_NAME) --to=$(AGENT_NAME):latest 2>/dev/null || true && \
 	  oc start-build $(AGENT_NAME) --from-dir=. --follow && \
 	  NS=$$(oc project -q) && \
@@ -124,6 +130,17 @@ _check-env:
 
 deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	@source .env && \
+	  AUTH_ALLOWLIST="$${AUTH_ALLOWED_SERVICEACCOUNTS:-$${AUTH_ALLOWED_SERVICEACCOUNT}}" && \
+	  AUTH_ALLOWLIST_ARGS="" && \
+	  if [ -n "$$AUTH_ALLOWLIST" ]; then \
+	    IFS=',' read -r -a AUTH_ALLOWLIST_ITEMS <<< "$$AUTH_ALLOWLIST"; \
+	    for idx in "$${!AUTH_ALLOWLIST_ITEMS[@]}"; do \
+	      account="$${AUTH_ALLOWLIST_ITEMS[$$idx]}"; \
+	      account="$$(echo -n "$$account" | tr -d '[:space:]')"; \
+	      [ -n "$$account" ] || continue; \
+	      AUTH_ALLOWLIST_ARGS="$$AUTH_ALLOWLIST_ARGS --set-string auth.allowedServiceAccounts[$$idx]=$$account"; \
+	    done; \
+	  fi && \
 	  [ -n "$${CONTAINER_IMAGE}" ] || { echo "ERROR: CONTAINER_IMAGE is not set in .env"; exit 1; } && \
 	  LAST_SEG="$${CONTAINER_IMAGE##*/}" && if [[ "$$LAST_SEG" == *:* ]]; then IMAGE_REPO="$${CONTAINER_IMAGE%:*}"; IMAGE_TAG="$${LAST_SEG##*:}"; else IMAGE_REPO="$${CONTAINER_IMAGE}"; IMAGE_TAG="latest"; fi && \
 	  trap 'rm -f .helm-secrets.yaml' EXIT && \
@@ -138,6 +155,11 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	    --set image.tag="$${IMAGE_TAG}" \
 	    --set env.BASE_URL="$${BASE_URL}" \
 	    --set env.MODEL_ID="$${MODEL_ID}" \
+	    $${AUTH_ENABLED:+--set "auth.enabled=$${AUTH_ENABLED}"} \
+	    $${AUTH_ENABLED:+--set "serviceAccount.create=$${AUTH_ENABLED}"} \
+	    $${AUTH_ENABLED:+--set "auth.createAuthDelegatorBinding=$${AUTH_ENABLED}"} \
+	    $${AUTH_AUDIENCE:+--set-string "auth.audience=$${AUTH_AUDIENCE}"} \
+	    $${AUTH_ALLOWLIST_ARGS} \
 	    $${EMBEDDING_MODEL:+--set env.EMBEDDING_MODEL="$${EMBEDDING_MODEL}"} \
 	    $${EMBEDDING_DIMENSION:+--set env.EMBEDDING_DIMENSION="$${EMBEDDING_DIMENSION}"} \
 	    $${VECTOR_STORE_ID:+--set env.VECTOR_STORE_ID="$${VECTOR_STORE_ID}"} \
@@ -160,6 +182,17 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 
 dry-run: _check-env ## Render Helm templates without deploying
 	@source .env && \
+	  AUTH_ALLOWLIST="$${AUTH_ALLOWED_SERVICEACCOUNTS:-$${AUTH_ALLOWED_SERVICEACCOUNT}}" && \
+	  AUTH_ALLOWLIST_ARGS="" && \
+	  if [ -n "$$AUTH_ALLOWLIST" ]; then \
+	    IFS=',' read -r -a AUTH_ALLOWLIST_ITEMS <<< "$$AUTH_ALLOWLIST"; \
+	    for idx in "$${!AUTH_ALLOWLIST_ITEMS[@]}"; do \
+	      account="$${AUTH_ALLOWLIST_ITEMS[$$idx]}"; \
+	      account="$$(echo -n "$$account" | tr -d '[:space:]')"; \
+	      [ -n "$$account" ] || continue; \
+	      AUTH_ALLOWLIST_ARGS="$$AUTH_ALLOWLIST_ARGS --set-string auth.allowedServiceAccounts[$$idx]=$$account"; \
+	    done; \
+	  fi && \
 	  [ -n "$${CONTAINER_IMAGE}" ] || { echo "ERROR: CONTAINER_IMAGE is not set in .env"; exit 1; } && \
 	  LAST_SEG="$${CONTAINER_IMAGE##*/}" && if [[ "$$LAST_SEG" == *:* ]]; then IMAGE_REPO="$${CONTAINER_IMAGE%:*}"; IMAGE_TAG="$${LAST_SEG##*:}"; else IMAGE_REPO="$${CONTAINER_IMAGE}"; IMAGE_TAG="latest"; fi && \
 	  helm template $(AGENT_NAME) $(CHART_DIR) \
@@ -169,6 +202,11 @@ dry-run: _check-env ## Render Helm templates without deploying
 	    --set image.tag="$${IMAGE_TAG}" \
 	    --set env.BASE_URL="$${BASE_URL}" \
 	    --set env.MODEL_ID="$${MODEL_ID}" \
+	    $${AUTH_ENABLED:+--set "auth.enabled=$${AUTH_ENABLED}"} \
+	    $${AUTH_ENABLED:+--set "serviceAccount.create=$${AUTH_ENABLED}"} \
+	    $${AUTH_ENABLED:+--set "auth.createAuthDelegatorBinding=$${AUTH_ENABLED}"} \
+	    $${AUTH_AUDIENCE:+--set-string "auth.audience=$${AUTH_AUDIENCE}"} \
+	    $${AUTH_ALLOWLIST_ARGS} \
 	    $${EMBEDDING_MODEL:+--set env.EMBEDDING_MODEL="$${EMBEDDING_MODEL}"} \
 	    $${EMBEDDING_DIMENSION:+--set env.EMBEDDING_DIMENSION="$${EMBEDDING_DIMENSION}"} \
 	    $${VECTOR_STORE_ID:+--set env.VECTOR_STORE_ID="$${VECTOR_STORE_ID}"} \

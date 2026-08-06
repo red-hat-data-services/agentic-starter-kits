@@ -29,40 +29,49 @@ def agent_name(agent_dir):
     return load_agent_name(agent_dir)
 
 
-def _write_env_file(agent_dir, container_image):
+def _write_env_file(agent_dir, container_image, base_url: str, model_id: str):
     """Write a .env file so Makefile targets can source it."""
-    missing = [v for v in ("BASE_URL", "MODEL_ID") if v not in os.environ]
-    if missing:
-        pytest.fail(
-            f"Missing required env vars: {', '.join(missing)}. "
-            "Set them in the CI workflow or export locally."
-        )
     env_path = agent_dir / ".env"
     orig_env = None
     if env_path.exists():
         orig_env = env_path.read_text(encoding="utf-8")
     env_path.write_text(
         f"API_KEY={os.environ.get('API_KEY', 'not-needed')}\n"
-        f"BASE_URL={os.environ['BASE_URL']}\n"
-        f"MODEL_ID={os.environ['MODEL_ID']}\n"
+        f"BASE_URL={base_url}\n"
+        f"MODEL_ID={model_id}\n"
         f"CONTAINER_IMAGE={container_image}\n",
         encoding="utf-8",
     )
     return env_path, orig_env
 
 
+def _restore_env_file(env_path, orig_env):
+    if orig_env is not None:
+        try:
+            env_path.write_text(orig_env, encoding="utf-8")
+        except Exception:
+            logger.exception("Failed to restore pre-existing .env at %s", env_path)
+    else:
+        env_path.unlink(missing_ok=True)
+
+
 @pytest.fixture(scope="module")
-def deployed_agent(cluster_auth, agent_dir, agent_name):
+def deployed_agent(cluster_auth, deployed_guardrails, agent_dir, agent_name):
     namespace = cluster_auth["namespace"]
     container_image = f"{INTERNAL_REGISTRY}/{namespace}/{agent_name}:latest"
-    env_path, orig_env = _write_env_file(agent_dir, container_image)
+    model_id = os.environ.get("MODEL_ID", "qwen2-5-7b-instruct")
+    base_url = deployed_guardrails
+
+    env_path, orig_env = _write_env_file(
+        agent_dir, container_image, base_url=base_url, model_id=model_id
+    )
 
     deployed = False
     try:
         logger.info("Building image on cluster via build-openshift...")
         run_make("build-openshift", cwd=agent_dir, timeout=600)
 
-        logger.info("Deploying to cluster...")
+        logger.info("Deploying agent to cluster...")
         run_make("deploy", cwd=agent_dir, timeout=300)
         deployed = True
 
@@ -76,20 +85,15 @@ def deployed_agent(cluster_auth, agent_dir, agent_name):
 
     finally:
         if deployed:
-            logger.info("Tearing down deployment...")
+            logger.info("Tearing down agent deployment...")
             try:
                 run_make("undeploy", cwd=agent_dir, timeout=120)
             except MakeTargetError:
                 logger.warning(
-                    "Cleanup failed — manual undeploy may be needed", exc_info=True
+                    "Agent cleanup failed — manual undeploy may be needed",
+                    exc_info=True,
                 )
-        if orig_env is not None:
-            try:
-                env_path.write_text(orig_env, encoding="utf-8")
-            except Exception:
-                logger.exception("Failed to restore pre-existing .env at %s", env_path)
-        else:
-            env_path.unlink(missing_ok=True)
+        _restore_env_file(env_path, orig_env)
 
 
 @pytest.mark.integration

@@ -102,6 +102,14 @@ def _role_override(role: str, suffix: str, default: str) -> str:
     return default
 
 
+def _role_override_optional(role: str, suffix: str) -> str | None:
+    """Return a ROLE_SUFFIX env var override, or None if unset."""
+    prefix = _ROLE_ENV_PREFIX.get(role)
+    if prefix:
+        return os.environ.get(f"{prefix}_{suffix}") or None
+    return None
+
+
 def _topic_control_custom_policy(model_id: str) -> str | None:
     """Return the custom policy text to use for topic_control, or None to
     keep the built-in on-topic/off-topic flow.
@@ -119,13 +127,17 @@ def _topic_control_custom_policy(model_id: str) -> str | None:
     return None
 
 
-def generate_config(config_path: str) -> list[str]:
+def generate_config(config_path: str, *, omit_nim_api_keys: bool = False) -> list[str]:
     """Rewrite config_path in place with env-driven model overrides applied.
 
     config_path must already exist (i.e. config.yaml.example copied to
     config.yaml) and contain a `models` list with `type`/`engine`/`model`/
     `parameters` per NeMo Guardrails' config schema. Returns a human-readable
     summary of what was applied, one line per model role.
+
+    When omit_nim_api_keys is True,
+    api_key is omitted from NIM classifier roles so cluster ConfigMaps do not
+    embed secrets; runtime auth uses the NVIDIA_API_KEY pod env var instead.
     """
     default_model = os.environ.get("MODEL_ID") or "llama3.1:8b"
     default_base_url = os.environ.get("LLM_BASE_URL") or "http://localhost:11434/v1"
@@ -152,13 +164,36 @@ def generate_config(config_path: str) -> list[str]:
             )
 
         model_id = _role_override(role, "MODEL_ID", default_model)
-        base_url = _role_override(role, "LLM_BASE_URL", default_base_url)
-        api_key = _role_override(role, "API_KEY", default_api_key)
         engine = _role_override(role, "MODEL_ENGINE", model.get("engine", "openai"))
+        explicit_base_url = _role_override_optional(role, "LLM_BASE_URL")
+
+        if engine == "nim":
+            # NIM classifiers use NVIDIA's hosted endpoint by default — do not
+            # inherit the main LLM's base_url (e.g. in-cluster vLLM).
+            base_url = explicit_base_url
+            api_key = (
+                _role_override_optional(role, "API_KEY")
+                or os.environ.get("NVIDIA_API_KEY")
+                or default_api_key
+            )
+        else:
+            base_url = (
+                explicit_base_url if explicit_base_url is not None else default_base_url
+            )
+            api_key = _role_override(role, "API_KEY", default_api_key)
 
         model["model"] = model_id
         model["engine"] = engine
-        model["parameters"].update(base_url=base_url, api_key=api_key)
+        if engine == "nim" and omit_nim_api_keys:
+            model["parameters"].pop("api_key", None)
+            model["api_key_env_var"] = "NVIDIA_API_KEY"
+        else:
+            model.pop("api_key_env_var", None)
+            model["parameters"]["api_key"] = api_key
+        if base_url is not None:
+            model["parameters"]["base_url"] = base_url
+        else:
+            model["parameters"].pop("base_url", None)
 
         extra = ""
         if role == "topic_control":
@@ -171,7 +206,8 @@ def generate_config(config_path: str) -> list[str]:
                 use_custom_topic_flow = True
                 extra = ", custom_policy"
 
-        summary.append(f"{role}={model_id}@{base_url} (engine={engine}{extra})")
+        endpoint = base_url if base_url is not None else "NIM default"
+        summary.append(f"{role}={model_id}@{endpoint} (engine={engine}{extra})")
 
     if use_custom_topic_flow:
         rails = config.get("rails")

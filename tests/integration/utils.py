@@ -34,9 +34,12 @@ def load_agent_name(agent_dir: str | Path) -> str:
 
 _REDACT_PATTERNS = [
     re.compile(r"(API_KEY=)\S+"),
+    re.compile(r"(NVIDIA_API_KEY=)\S+"),
     re.compile(r'(apiKey:\s*")[^"]*"'),
     re.compile(r'(--set\s+secrets\.apiKey=")[^"]*"'),
     re.compile(r"(--set\s+secrets\.apiKey=)\S+"),
+    re.compile(r"(--from-literal=api-key=)\S+"),
+    re.compile(r"(--from-literal=nvidia-api-key=)\S+"),
     re.compile(r"(VECTOR_STORE_ID=)\S+"),
     re.compile(r'(--set\s+env\.VECTOR_STORE_ID=")[^"]*"'),
     re.compile(r"(--set\s+env\.VECTOR_STORE_ID=)\S+"),
@@ -198,6 +201,16 @@ def chat_completion_request(
             json={"messages": messages},
             headers=headers,
         )
+
+
+def get_guardrails_service_url(
+    cr_name: str,
+    namespace: str,
+    *,
+    with_v1_suffix: bool = True,
+) -> str:
+    base = f"http://{cr_name}.{namespace}.svc.cluster.local"
+    return f"{base}/v1" if with_v1_suffix else base
 
 
 def get_route(agent_name: str, namespace: str | None = None) -> str:

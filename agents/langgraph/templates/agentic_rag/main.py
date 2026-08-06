@@ -156,6 +156,28 @@ app = FastAPI(
 )
 
 
+def _auth_enabled() -> bool:
+    return getenv("AUTH_ENABLED", "false").strip().lower() == "true"
+
+
+def _configure_auth_middleware() -> None:
+    if not _auth_enabled():
+        return
+
+    try:
+        from agent_auth.middleware import SATokenAuthMiddleware
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "AUTH_ENABLED=true, but auth middleware dependencies are not installed. "
+            "Run `uv sync --extra auth` to enable ServiceAccount token auth locally."
+        ) from exc
+
+    app.add_middleware(SATokenAuthMiddleware)
+
+
+_configure_auth_middleware()
+
+
 def _build_langchain_messages(messages: list[ChatMessage]) -> list[HumanMessage]:
     """Extract the last user message from the OpenAI-format messages list."""
     for msg in reversed(messages):
@@ -442,12 +464,16 @@ if not _IMAGES_DIR.is_dir():
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def playground():
     """Serve the playground chat UI."""
+    if _auth_enabled():
+        raise HTTPException(status_code=404, detail="Not found")
     return FileResponse(_PLAYGROUND_HTML)
 
 
 @app.get("/images/{filename:path}", include_in_schema=False)
 async def serve_image(filename: str):
     """Serve images from the project-level images directory."""
+    if _auth_enabled():
+        raise HTTPException(status_code=404, detail="Not found")
     base = _IMAGES_DIR.resolve()
     file_path = (base / filename).resolve()
     try:

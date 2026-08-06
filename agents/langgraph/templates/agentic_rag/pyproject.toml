@@ -26,6 +26,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+auth = [
+    "agent-auth",
+]
 dev = [
     "pytest>=9.0.2",
 ]
@@ -35,6 +38,9 @@ tracing = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+agent-auth = { path = "../../../../components/auth" }
 
 [build-system]
 requires = ["setuptools>=80.9.0"]

@@ -4,8 +4,13 @@ CHART_DIR      := ../../deployment
 VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
+GUARDRAILS_CR_NAME     := langgraph-guardrailed-agent-guardrails
+GUARDRAILS_NAMESPACE   ?= ci-testing
+CLUSTER_ENV            := deploy/overlays/ci-testing/cluster.env
+CLUSTER_ENV_EXAMPLE    := deploy/overlays/ci-testing/cluster.env.example
+GUARDRAILS_KUSTOMIZE   := deploy/overlays/ci-testing
 
-.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test test-guardrails-integration test-guardrails-integration-nemoguard test-integration dry-run help guardrails-server-local guardrails-server-nemoguard
+.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test test-guardrails-integration test-guardrails-integration-nemoguard test-integration dry-run help guardrails-server-local guardrails-server-nemoguard render-guardrails-configmap deploy-guardrails-secrets deploy-guardrails undeploy-guardrails deploy-rhoai undeploy-rhoai deploy-rhoai-dry-run
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -207,6 +212,76 @@ dry-run: _check-env ## Render Helm templates without deploying
 undeploy: ## Remove deployment from cluster
 	helm uninstall $(AGENT_NAME)
 
+render-guardrails-configmap: ## Render NeMo Guardrails ConfigMap manifest for cluster deploy
+	@CLUSTER_ENV_FILE="$(CLUSTER_ENV)"; \
+	  [ -f "$$CLUSTER_ENV_FILE" ] || CLUSTER_ENV_FILE="$(CLUSTER_ENV_EXAMPLE)"; \
+	  python3 deploy/scripts/render_guardrails_configmap.py \
+	    --cluster-env "$$CLUSTER_ENV_FILE" \
+	    --output deploy/manifests/02-guardrails-configmap.yaml
+
+deploy-guardrails-secrets: ## Create/update guardrails Secret from cluster.env or NVIDIA_API_KEY env
+	@KEY=""; \
+	  if [ -n "$${NVIDIA_API_KEY:-}" ]; then KEY="$${NVIDIA_API_KEY}"; \
+	  elif [ -f "$(CLUSTER_ENV)" ]; then \
+	    set -a && source "$(CLUSTER_ENV)" && set +a; KEY="$${NVIDIA_API_KEY}"; \
+	  fi; \
+	  [ -n "$$KEY" ] && [ "$$KEY" != "replace-me" ] || { \
+	    echo "ERROR: Set NVIDIA_API_KEY in env or $(CLUSTER_ENV)"; exit 1; \
+	  }; \
+	  API_KEY_VAL="$${API_KEY:-not-needed}"; \
+	  if [ -f "$(CLUSTER_ENV)" ]; then \
+	    set -a && source "$(CLUSTER_ENV)" && set +a; \
+	    API_KEY_VAL="$${API_KEY:-not-needed}"; \
+	  fi; \
+	  oc create secret generic langgraph-guardrailed-agent-guardrails-secrets \
+	    --namespace="$(GUARDRAILS_NAMESPACE)" \
+	    --from-literal=api-key="$$API_KEY_VAL" \
+	    --from-literal=nvidia-api-key="$$KEY" \
+	    --dry-run=client -o yaml | oc apply -f -
+
+deploy-guardrails: render-guardrails-configmap deploy-guardrails-secrets ## Apply NemoGuardrails CR + ConfigMap to cluster
+	@oc apply -k "$(GUARDRAILS_KUSTOMIZE)" && \
+	  echo "" && echo "Waiting for NemoGuardrails pod..." && \
+	  for i in $$(seq 1 60); do \
+	    READY=$$(oc get pods -n "$(GUARDRAILS_NAMESPACE)" \
+	      -l app.kubernetes.io/instance=$(GUARDRAILS_CR_NAME) \
+	      -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true); \
+	    if [ "$$READY" = "True" ]; then \
+	      echo "Guardrails pod ready."; \
+	      break; \
+	    fi; \
+	    if [ $$i -eq 60 ]; then \
+	      echo "WARNING: Guardrails pod not ready after 5 minutes. Check:"; \
+	      echo "  oc get nemoguardrails,pods -n $(GUARDRAILS_NAMESPACE) | grep guardrails"; \
+	      exit 1; \
+	    fi; \
+	    sleep 5; \
+	  done && \
+	  echo "" && \
+	  echo "In-cluster URL: http://$(GUARDRAILS_CR_NAME).$(GUARDRAILS_NAMESPACE).svc.cluster.local/v1" && \
+	  ROUTE=$$(oc get route $(GUARDRAILS_CR_NAME) -n "$(GUARDRAILS_NAMESPACE)" \
+	    -o jsonpath='{.spec.host}' 2>/dev/null || true); \
+	  if [ -n "$$ROUTE" ]; then \
+	    echo "Route URL: https://$$ROUTE"; \
+	  fi
+
+undeploy-guardrails: render-guardrails-configmap ## Remove NemoGuardrails CR + ConfigMap from cluster
+	@oc delete -k "$(GUARDRAILS_KUSTOMIZE)" --ignore-not-found && \
+	  oc delete secret langgraph-guardrailed-agent-guardrails-secrets \
+	    -n "$(GUARDRAILS_NAMESPACE)" --ignore-not-found
+
+deploy-rhoai-dry-run: render-guardrails-configmap ## Preview guardrails Kustomize output
+	@oc kustomize "$(GUARDRAILS_KUSTOMIZE)"
+
+deploy-rhoai: deploy-guardrails deploy ## Deploy guardrails proxy then agent (BASE_URL must target guardrails)
+	@source .env 2>/dev/null || true; \
+	  EXPECTED="http://$(GUARDRAILS_CR_NAME).$(GUARDRAILS_NAMESPACE).svc.cluster.local/v1"; \
+	  if [ "$${BASE_URL}" != "$$EXPECTED" ]; then \
+	    echo "WARNING: BASE_URL=$${BASE_URL:-<unset>} — expected $$EXPECTED for RHOAI"; \
+	  fi
+
+undeploy-rhoai: undeploy undeploy-guardrails ## Remove agent and guardrails from cluster
+
 test: ## Run unit tests (excludes guardrails-integration and cluster integration)
 	uv run --extra dev --extra guardrails python -m pytest tests/ \
 	  --ignore=tests/integration \
@@ -223,4 +298,4 @@ test-guardrails-integration-nemoguard: ## Run guardrails tests against nemoguard
 test-integration: ## Run cluster deployment integration test
 	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \
 	  uv run --extra dev python -m pytest tests/integration/ \
-	  -m integration -v --tb=long $(PYTEST_ARGS)
+	  -m integration -v --tb=long --junitxml=results.xml $(PYTEST_ARGS)

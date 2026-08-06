@@ -14,6 +14,18 @@ GUARDRAILS_MODEL_ID = os.environ.get("GUARDRAILS_MODEL_ID", "llama3.1:8b")
 
 GUARDRAILS_CHAT_TIMEOUT = float(os.environ.get("GUARDRAILS_CHAT_TIMEOUT", "60"))
 
+
+def guardrails_tls_verify(base_url: str) -> bool:
+    """Return whether httpx should verify TLS for a guardrails base URL."""
+    override = os.environ.get("GUARDRAILS_TLS_VERIFY", "")
+    if override.lower() in ("0", "false", "no"):
+        return False
+    if override.lower() in ("1", "true", "yes"):
+        return True
+    # OpenShift Routes use cluster-signed certs — skip verify by default for HTTPS.
+    return not base_url.startswith("https://")
+
+
 # Rail-block signatures only — not every apology or soft refusal from the LLM.
 _RAIL_BLOCK_PATTERNS = re.compile(
     r"|".join(
@@ -65,11 +77,14 @@ def guardrails_chat(
     *,
     profile: str | None = None,
     base_url: str | None = None,
+    model_id: str | None = None,
+    verify: bool | None = None,
 ) -> tuple[int, dict]:
     """POST to the NeMo Guardrails proxy OpenAI-compatible chat endpoint."""
     base = (base_url or GUARDRAILS_BASE_URL).rstrip("/")
+    tls_verify = verify if verify is not None else guardrails_tls_verify(base)
     body: dict = {
-        "model": GUARDRAILS_MODEL_ID,
+        "model": model_id or GUARDRAILS_MODEL_ID,
         "messages": messages,
         "stream": False,
     }
@@ -77,7 +92,7 @@ def guardrails_chat(
     if config_id:
         body["guardrails"] = {"config_id": config_id}
 
-    with httpx.Client(timeout=GUARDRAILS_CHAT_TIMEOUT) as client:
+    with httpx.Client(timeout=GUARDRAILS_CHAT_TIMEOUT, verify=tls_verify) as client:
         response = client.post(f"{base}/v1/chat/completions", json=body)
         try:
             data = response.json()
@@ -91,7 +106,7 @@ def guardrails_server() -> str:
     """Ensure the NeMo Guardrails proxy is reachable; skip otherwise."""
     base = GUARDRAILS_BASE_URL.rstrip("/")
     try:
-        with httpx.Client(timeout=10.0) as client:
+        with httpx.Client(timeout=10.0, verify=guardrails_tls_verify(base)) as client:
             response = client.get(f"{base}/v1/rails/configs")
             response.raise_for_status()
     except (httpx.HTTPError, httpx.TimeoutException) as exc:

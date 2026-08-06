@@ -1,0 +1,27 @@
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: NemoGuardrails
+metadata:
+  name: langgraph-guardrailed-agent-guardrails
+  labels:
+    app.kubernetes.io/name: langgraph-guardrailed-agent-guardrails
+    app.kubernetes.io/component: nemoguardrails
+  annotations:
+    security.opendatahub.io/enable-auth: "false"
+spec:
+  replicas: 1
+  nemoConfigs:
+    - name: nemoguard
+      configMaps:
+        - langgraph-guardrailed-agent-guardrails-config
+      default: true
+  env:
+    - name: OPENAI_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: langgraph-guardrailed-agent-guardrails-secrets
+          key: api-key
+    - name: NVIDIA_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: langgraph-guardrailed-agent-guardrails-secrets
+          key: nvidia-api-key

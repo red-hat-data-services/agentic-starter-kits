@@ -10,11 +10,11 @@ accept = ["200", "206", "301", "302", "308"]
 # Maximum number of concurrent network requests
 max_concurrency = 32
 
-# Timeout for each request (in seconds)
-timeout = 15
+# Timeout for each request (in seconds) — lychee default is 20
+timeout = 20
 
-# Number of retries for failed requests
-max_retries = 2
+# Number of retries for failed requests — lychee default is 3
+max_retries = 3
 
 # Retry wait time (in seconds)
 retry_wait_time = 2

@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - 02-guardrails-configmap.yaml
+  - 03-nemoguardrails-cr.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: langgraph-guardrailed-agent

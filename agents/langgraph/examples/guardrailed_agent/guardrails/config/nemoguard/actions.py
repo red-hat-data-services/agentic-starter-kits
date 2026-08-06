@@ -4,20 +4,20 @@ instead of the strict "on-topic"/"off-topic" convention that NeMo Guardrails'
 built-in `topic_safety_check_input` action expects from
 nvidia/llama-3.1-nemoguard-8b-topic-control.
 
-The topic policy itself isn't sent from here — it's baked into the
-topic_control model's `parameters.chat_template_kwargs.custom_policy` in
-config.yaml (see generate_config.py), which these NIM models apply
-server-side. This action just forwards the raw user message and parses the
-"User Safety: safe|unsafe" verdict out of the model's raw output, failing
-closed (blocking) if that field can't be found.
+The banking topic policy is passed on every NIM call via
+`chat_template_kwargs.custom_policy` (see generate_config.py). The same text is
+also baked into config.yaml for documentation, but we forward it explicitly here
+because some NIM client / NeMo Guardrails versions do not reliably apply model
+parameters from config at LLM init time.
 
 Auto-loaded by NeMo Guardrails from this config directory; invoked via the
 `topic policy check input $model` flow in topic_policy.co.
 """
 
 import logging
+import os
 import re
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from langchain_core.language_models import BaseLLM
 from nemoguardrails.actions.actions import action
@@ -29,6 +29,11 @@ log = logging.getLogger(__name__)
 
 TOPIC_POLICY_TEMPERATURE = 0.0
 TOPIC_POLICY_MAX_TOKENS = 20
+
+# Keep in sync with generate_config._DEFAULT_TOPIC_CONTROL_POLICY.
+_DEFAULT_TOPIC_POLICY = """The AI assistant is a customer service agent at a retail bank, helping customers with their banking needs only.
+Allowed: account balances, transactions, and account history; billing, payments, and due dates; bank products, services, interest rates, and fees; branch locations, hours, and contact information; online banking, mobile app, and password resets; small talk and greetings.
+Not allowed: medical or health advice; legal advice or legal proceedings; investment recommendations or stock picks; cooking, recipes, or food preparation; entertainment, sports, or celebrity gossip; personal relationships or dating advice; any other topic unrelated to banking and financial services."""
 
 # Tolerates both plain-text ("User Safety: unsafe") and JSON-ish
 # ('"User Safety": "unsafe"') verdict formats.
@@ -55,6 +60,19 @@ def _parse_user_safety_verdict(result: str) -> bool:
         )
         return False
     return match.group(1).lower() == "safe"
+
+
+def _resolve_chat_template_kwargs(llm: BaseLLM) -> dict[str, Any]:
+    """Return chat_template_kwargs for custom-policy topic classifiers."""
+    from_config = (getattr(llm, "model_kwargs", None) or {}).get("chat_template_kwargs")
+    if isinstance(from_config, dict) and from_config.get("custom_policy"):
+        return from_config
+
+    explicit = os.environ.get("TOPIC_CONTROL_CUSTOM_POLICY")
+    if explicit:
+        return {"custom_policy": explicit, "enable_thinking": False}
+
+    return {"custom_policy": _DEFAULT_TOPIC_POLICY, "enable_thinking": False}
 
 
 @action()
@@ -85,14 +103,17 @@ async def topic_policy_check_input(
         LLMCallInfo(task=f"topic_policy_check_input $model={model_name}")
     )
 
+    llm_params: dict = {
+        "temperature": TOPIC_POLICY_TEMPERATURE,
+        "max_tokens": TOPIC_POLICY_MAX_TOKENS,
+        "chat_template_kwargs": _resolve_chat_template_kwargs(llm),
+    }
+
     messages = [{"type": "user", "content": user_input}]
     result = await llm_call(
         llm,
         messages,
-        llm_params={
-            "temperature": TOPIC_POLICY_TEMPERATURE,
-            "max_tokens": TOPIC_POLICY_MAX_TOKENS,
-        },
+        llm_params=llm_params,
     )
 
     on_topic = _parse_user_safety_verdict(result)
