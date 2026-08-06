@@ -7,6 +7,7 @@ Covers:
 """
 
 import asyncio
+import logging
 import os
 import sys
 from unittest.mock import AsyncMock, patch
@@ -127,7 +128,10 @@ class TestInvokeWithRetry:
         mock_graph = AsyncMock(
             ainvoke=AsyncMock(side_effect=[GraphRecursionError("loop"), expected])
         )
-        with patch("main.agent_graph", mock_graph):
+        with (
+            patch("main.agent_graph", mock_graph),
+            patch("main.asyncio.sleep", new_callable=AsyncMock),
+        ):
             result = asyncio.run(_invoke_with_retry({"messages": []}, config={}))
         assert result == expected
         assert mock_graph.ainvoke.call_count == 2
@@ -136,7 +140,10 @@ class TestInvokeWithRetry:
         mock_graph = AsyncMock(
             ainvoke=AsyncMock(side_effect=GraphRecursionError("loop"))
         )
-        with patch("main.agent_graph", mock_graph):
+        with (
+            patch("main.agent_graph", mock_graph),
+            patch("main.asyncio.sleep", new_callable=AsyncMock),
+        ):
             with pytest.raises(GraphRecursionError):
                 asyncio.run(_invoke_with_retry({"messages": []}, config={}))
         assert mock_graph.ainvoke.call_count == _MAX_INVOKE_ATTEMPTS
@@ -150,6 +157,30 @@ class TestInvokeWithRetry:
                 asyncio.run(_invoke_with_retry({"messages": []}, config={}))
         assert mock_graph.ainvoke.call_count == 1
 
+    def test_malformed_tool_args_not_leaked_in_logs(self, caplog):
+        malformed_args = "%4W!O;VL"
+        exc = ValidationError.from_exception_data(
+            title="AIMessage",
+            line_errors=[
+                {
+                    "type": "dict_type",
+                    "loc": ("tool_calls", 0, "args"),
+                    "msg": "Input should be a valid dictionary",
+                    "input": malformed_args,
+                }
+            ],
+        )
+        mock_graph = AsyncMock(ainvoke=AsyncMock(side_effect=exc))
+        with (
+            patch("main.agent_graph", mock_graph),
+            patch("main.asyncio.sleep", new_callable=AsyncMock),
+            caplog.at_level(logging.WARNING, logger="main"),
+        ):
+            with pytest.raises(ValidationError):
+                asyncio.run(_invoke_with_retry({"messages": []}, config={}))
+        for record in caplog.records:
+            assert malformed_args not in record.getMessage()
+
 
 class TestHandleChatGracefulError:
     def test_returns_200_with_error_message_after_retries_exhausted(self):
@@ -160,7 +191,10 @@ class TestHandleChatGracefulError:
                 side_effect=GraphRecursionError("recursion limit reached")
             )
         )
-        with patch("main.agent_graph", mock_graph):
+        with (
+            patch("main.agent_graph", mock_graph),
+            patch("main.asyncio.sleep", new_callable=AsyncMock),
+        ):
             result = asyncio.run(
                 _handle_chat([HumanMessage(content="test")], "test-model")
             )

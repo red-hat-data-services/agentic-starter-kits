@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -244,6 +245,7 @@ async def _invoke_with_retry(
                     _MAX_INVOKE_ATTEMPTS,
                     type(exc).__name__,
                 )
+                await asyncio.sleep(0.5 * attempt)
             else:
                 logger.error(
                     "LLM/graph invocation failed after %d attempts: %s",
