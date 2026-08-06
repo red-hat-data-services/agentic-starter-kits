@@ -239,18 +239,16 @@ async def _invoke_with_retry(
             last_exception = exc
             if attempt < _MAX_INVOKE_ATTEMPTS:
                 logger.warning(
-                    "LLM/graph invocation failed (attempt %d/%d): %s: %s. Retrying.",
+                    "LLM/graph invocation failed (attempt %d/%d): %s. Retrying.",
                     attempt,
                     _MAX_INVOKE_ATTEMPTS,
                     type(exc).__name__,
-                    exc,
                 )
             else:
                 logger.error(
-                    "LLM/graph invocation failed after %d attempts: %s: %s",
+                    "LLM/graph invocation failed after %d attempts: %s",
                     _MAX_INVOKE_ATTEMPTS,
                     type(exc).__name__,
-                    exc,
                 )
 
     raise last_exception
