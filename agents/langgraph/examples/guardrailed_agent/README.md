@@ -254,7 +254,7 @@ OTEL_EXPORTER_OTLP_PROTOCOL=grpc
 OTEL_METRICS_EXPORTER=none
 ```
 
-5. **Access traces** via the Jaeger Query route (`oc get route -n <ns> | grep jaeger`) or port-forward (`oc port-forward svc/tempo-sample-query-frontend 16686:16686`).
+5. **Access traces** via the Jaeger Query route (`oc get route -n <ns> | grep jaeger`) or port-forward (`oc port-forward svc/tempo-sample-jaegerui 16686:16686`).
 
 See `deploy/overlays/ci-testing/cluster.env.example` for the full set of cluster-side variables.
 
