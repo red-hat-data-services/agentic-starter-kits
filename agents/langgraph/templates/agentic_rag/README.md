@@ -522,3 +522,4 @@ See `tests/behavioral/` at the repo root for the shared test harness and thresho
 - [LangChain Documentation](https://docs.langchain.com/oss/python/langchain/overview)
 - [OGX Documentation](https://ogx-ai.github.io/docs)
 - [Milvus Documentation](https://milvus.io/docs)
+- [Deploying in openShell sandbox](../../../../docs/agentic-rag-openshell-sandbox.md) — sandboxed deployment with egress control, auth, and interactive playground
