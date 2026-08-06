@@ -1,0 +1,25 @@
+# openShell sandbox flavor for agentic_rag
+#
+# Usage:
+#   podman build -f Containerfile.openshell -t quay.io/<org>/openshell-agentic-rag:latest .
+#   podman push quay.io/<org>/openshell-agentic-rag:latest
+#   openshell sandbox create --name rag-sandbox --from quay.io/<org>/openshell-agentic-rag:latest
+
+ARG BASE_IMAGE=ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e
+FROM ${BASE_IMAGE}
+
+COPY --chown=sandbox:sandbox pyproject.toml ./
+COPY --chown=sandbox:sandbox src/ ./src/
+
+# Pin ogx-client to match OGX server (1.1.x), then install the project.
+# --no-sources skips [tool.uv.sources] relative paths (local-dev only).
+RUN uv pip install --no-cache "ogx-client==1.1.0" && \
+    uv pip install --no-cache --no-sources "."
+
+COPY --chown=sandbox:sandbox main.py auth_wrapper.py ./
+COPY --chown=sandbox:sandbox playground/ ./playground/
+COPY --chown=sandbox:sandbox data/ ./data/
+
+ENV PORT=8080
+
+ENTRYPOINT ["uvicorn", "auth_wrapper:app", "--host", "127.0.0.1", "--port", "8080"]

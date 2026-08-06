@@ -34,9 +34,14 @@ permissions:
   id-token: write
   actions: read
 
+# Serialize Pages deployments: allow only one at a time, but never cancel an
+# in-progress deployment. Cancelling mid-deploy surfaces as "Deployment
+# cancelled." and fails the run when two eligible runs overlap (multiple CI
+# workflows finishing close together on main). See GitHub's recommended Pages
+# concurrency pattern.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
