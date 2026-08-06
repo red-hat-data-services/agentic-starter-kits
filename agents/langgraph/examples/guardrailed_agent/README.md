@@ -108,6 +108,21 @@ TOPIC_CONTROL_MODEL_ENGINE=nim
 
 Verified end-to-end on 2026-07-30: correctly passes banking questions and blocks off-topic ones (e.g. recipe requests) using the default policy text baked into `generate_config.py`. Override the policy text with `TOPIC_CONTROL_CUSTOM_POLICY` in `.env`.
 
+### Adapting to a different domain
+
+The banking domain is defined in four places. To adapt this example to healthcare, telecom, or any other domain:
+
+| File | What to change |
+|------|---------------|
+| `guardrails/config/nemoguard/prompts.yml` | Replace the banking guidelines in the `topic_safety_check_input` task with your domain's allowed/disallowed topics |
+| `guardrails/config/local/prompts.yml` | Update the `self_check_input` policy — change "banking and financial services" to your domain |
+| `guardrails/generate_config.py` | Update `_DEFAULT_TOPIC_CONTROL_POLICY` (used by NIM custom-policy models in the nemoguard profile) |
+| `src/guardrailed_agent/agent.py` | Change the system prompt from banking to your domain |
+
+Optionally, replace the `check_account_balance` tool in `src/guardrailed_agent/tools.py` with a domain-relevant tool. Content safety rails (S1-S13) and regex patterns are domain-agnostic and typically don't need changes.
+
+After editing, restart `make guardrails-server-local` or `make guardrails-server-nemoguard`, then restart `make run-app`. Test with on-topic and off-topic requests to verify the new boundary.
+
 ---
 
 ## Prerequisites
