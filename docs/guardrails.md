@@ -34,8 +34,6 @@ The Guardrails Orchestrator remains available for existing deployments that rely
 
 ### Comparison
 
-Based on the [RHOAI official comparison](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-guardrails_safety):
-
 | Dimension | NeMo Guardrails | Guardrails Orchestrator (legacy) |
 |-----------|----------------|------------------------|
 | **Central component** | NeMo Guardrails server | Guardrails Orchestrator |
