@@ -30,7 +30,7 @@ Edit `.env` and fill in:
 | `BASE_URL` | `https://server-ogx.<apps-domain>/v1` | OGX endpoint |
 | `MODEL_ID` | `maas-llm/qwen3-8b-fp8-dynamic` | LLM model |
 | `EMBEDDING_MODEL` | `maas-embedding/redhataibge-m3` | Embedding model (must be in OGX `allowed_models`) |
-| `VECTOR_STORE_PROVIDER` | `milvus-remote` | Vector store backend |
+| `VECTOR_STORE_PROVIDER` | `milvus` | Vector store backend (must match OGX provider config) |
 
 ## Step 2 — Install openShell gateway and connect CLI
 
@@ -106,13 +106,13 @@ Check the route:
 > oc get route -n openshell openshell-rag-agent
 
 # NAME                  HOST/PORT                                           PATH   SERVICES    PORT   TERMINATION   WILDCARD
-# openshell-rag-agent   rag-sandbox--agent.openshell.apps.rosa.example.com         openshell   8080   passthrough   None
+# openshell-rag-agent   default--rag-sandbox--agent.openshell.apps.rosa.example.com         openshell   8080   passthrough   None
 ```
 
 ## Step 5 — Test
 
 ```bash
-AGENT_URL="https://rag-sandbox--agent.openshell.$(oc get ingresses.config cluster -o jsonpath='{.spec.domain}')"
+AGENT_URL="https://default--rag-sandbox--agent.openshell.$(oc get ingresses.config cluster -o jsonpath='{.spec.domain}')"
 
 # Get the auto-generated token from the Secret
 TOKEN=$(oc get secret agent-client-token -o jsonpath='{.data.token}' | base64 -d)
@@ -159,7 +159,7 @@ The response includes the agent's `<think>` reasoning process followed by the fi
 The agent exposes interactive API docs via FastAPI's built-in Swagger UI at `/docs`:
 
 ```text
-https://rag-sandbox--agent.openshell.<APPS_DOMAIN>/docs
+https://default--rag-sandbox--agent.openshell.<APPS_DOMAIN>/docs
 ```
 
 ![Swagger UI](../images/swagger_sandbox.png)
@@ -209,6 +209,14 @@ are untouched).
   Kubernetes TokenReview API from inside the sandbox.
 - Tokens are sent via `X-Api-Key` header.
 - `Containerfile.openshell` uses `auth_wrapper:app` as the uvicorn entrypoint
+- The openShell gateway is deployed with `allowUnauthenticatedUsers=true` —
+  this is intentional. The gateway itself does not enforce authentication;
+  instead, `auth_wrapper.py` inside the sandbox validates K8s SA tokens
+  on a per-endpoint basis.
+- The agent process runs in the background without a supervisor (`&`).
+  If it crashes, re-run `make start-agent`. For production deployments,
+  consider adding a process supervisor or relying on Kubernetes restart
+  policies.
 
 ## Troubleshooting
 

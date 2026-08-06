@@ -157,6 +157,12 @@ else:
         logger.warning(
             "AGENT_CA_BUNDLE not set, TLS verification disabled (set to a CA path to enable)"
         )
+    logger.warning(
+        "╔════════════════════════════════════════════════════════════╗\n"
+        "║  TLS VERIFICATION IS DISABLED — do not use in production.  ║\n"
+        "║  Set AGENT_CA_BUNDLE to a CA cert path to enable TLS.      ║\n"
+        "╚════════════════════════════════════════════════════════════╝"
+    )
 
 logger.info(f"Current namespace: {CURRENT_NAMESPACE or 'UNKNOWN'}")
 logger.info(f"Agent URL: {AGENT_URL}")

@@ -223,7 +223,7 @@ undeploy: ## Remove deployment from cluster
 ## ── openShell sandbox targets ─────────────────────────────────────────────────
 OPENSHELL_SANDBOX ?= $(shell . ./.env 2>/dev/null && echo $${OPENSHELL_SANDBOX_NAME:-rag-sandbox})
 OPENSHELL_IMAGE   := openshell-agentic-rag
-OPENSHELL_VERSION ?= 0.0.80
+OPENSHELL_VERSION ?= 0.0.99
 
 setup-gateway: ## Install openShell gateway, create Route, register CLI (one-time)
 	@set -e && \
@@ -238,7 +238,7 @@ setup-gateway: ## Install openShell gateway, create Route, register CLI (one-tim
 	    --clusterrole=system:auth-delegator \
 	    --serviceaccount=openshell:openshell-sandbox 2>/dev/null || true && \
 	  echo "==> Installing openShell gateway $(OPENSHELL_VERSION)..." && \
-	  helm install openshell oci://ghcr.io/nvidia/openshell/helm-chart \
+	  helm upgrade --install openshell oci://ghcr.io/nvidia/openshell/helm-chart \
 	    --version $(OPENSHELL_VERSION) \
 	    --namespace openshell \
 	    --set securityContext.runAsUser=null \
@@ -312,7 +312,14 @@ create-sandbox: ## Delete existing sandbox and create a new one (with 120s timeo
 	@$(_openshell-env) && \
 	  echo "==> Creating sandbox $$SANDBOX from $$IMAGE..." && \
 	  echo "    (timeout 120s — this may take a minute while the image is pulled)..." && \
-	  openshell sandbox create --name "$$SANDBOX" --from "$$IMAGE" </dev/null & \
+	  openshell sandbox create --name "$$SANDBOX" --from "$$IMAGE" \
+	    --env "BASE_URL=$$BASE_URL" \
+	    --env "MODEL_ID=$$MODEL_ID" \
+	    --env "EMBEDDING_MODEL=$$EMBEDDING_MODEL" \
+	    --env "EMBEDDING_DIMENSION=$${EMBEDDING_DIMENSION:-1024}" \
+	    --env "VECTOR_STORE_PROVIDER=$$VECTOR_STORE_PROVIDER" \
+	    --env "API_KEY=$$API_KEY" \
+	    --env "PORT=8080" </dev/null & \
 	  CPID=$$!; ( sleep 120 && kill $$CPID 2>/dev/null ) & TPID=$$!; \
 	  wait $$CPID 2>/dev/null; RC=$$?; kill $$TPID 2>/dev/null; wait $$TPID 2>/dev/null; \
 	  if [ $$RC -ne 0 ]; then echo "    sandbox create exited with $$RC (may still be starting — wait-sandbox will poll)"; fi; true
@@ -374,17 +381,10 @@ start-agent: ## Start uvicorn inside sandbox, expose service URL and create Rout
 	  ALLOWED_SA_USERNAME="system:serviceaccount:$$NS:agent-client" && \
 	  echo "==> Starting agent (VECTOR_STORE_ID=$$VSID)..." && \
 	  (openshell sandbox exec -n "$$SANDBOX" \
-	    --env "BASE_URL=$$BASE_URL" \
-	    --env "MODEL_ID=$$MODEL_ID" \
-	    --env "EMBEDDING_MODEL=$$EMBEDDING_MODEL" \
-	    --env "EMBEDDING_DIMENSION=$${EMBEDDING_DIMENSION:-1024}" \
 	    --env "VECTOR_STORE_ID=$$VSID" \
-	    --env "VECTOR_STORE_PROVIDER=$$VECTOR_STORE_PROVIDER" \
-	    --env "API_KEY=$$API_KEY" \
 	    --env "K8S_API_URL=$$K8S_API_URL" \
 	    --env "K8S_REVIEWER_TOKEN=$$K8S_REVIEWER_TOKEN" \
 	    --env "ALLOWED_SA_USERNAME=$$ALLOWED_SA_USERNAME" \
-	    --env "PORT=8080" \
 	    --workdir /sandbox \
 	    -- uvicorn auth_wrapper:app --host 127.0.0.1 --port 8080 >/dev/null 2>&1 &) && \
 	  echo "    Waiting 10s for agent startup..." && \
@@ -394,7 +394,7 @@ start-agent: ## Start uvicorn inside sandbox, expose service URL and create Rout
 	  echo "    $$HEALTH" && \
 	  echo "==> Exposing service URL..." && \
 	  openshell service expose "$$SANDBOX" 8080 agent && \
-	  SVC_HOST="$$SANDBOX--agent.openshell.$$APPS_DOMAIN" && \
+	  SVC_HOST="default--$$SANDBOX--agent.openshell.$$APPS_DOMAIN" && \
 	  printf 'apiVersion: route.openshift.io/v1\nkind: Route\nmetadata:\n  name: openshell-rag-agent\n  namespace: openshell\nspec:\n  host: "%s"\n  to:\n    kind: Service\n    name: openshell\n  port:\n    targetPort: 8080\n  tls:\n    termination: passthrough\n' "$$SVC_HOST" | oc apply -f - && \
 	  echo "" && \
 	  echo "════════════════════════════════════════════════════════════════" && \
