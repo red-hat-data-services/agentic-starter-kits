@@ -346,12 +346,18 @@ run_tests() {
 
     log "Launching: ${BOLD}${path}${RESET} -> ${logfile}"
 
+    # Detect per-agent experiment name from its deployment
+    local agent_experiment
+    agent_experiment=$(timeout 30 oc get deployment "${deploy}" -n "${NAMESPACE}" \
+      -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="MLFLOW_EXPERIMENT_NAME")].value}' 2>/dev/null || true)
+    agent_experiment="${agent_experiment:-${MLFLOW_EXPERIMENT_NAME:-}}"
+
     (
       set -euo pipefail
       cd "${REPO_ROOT}"
       export "${env_var}=${agent_url}"
       export MLFLOW_TRACKING_URI="${MLFLOW_TRACKING_URI:-}"
-      export MLFLOW_EXPERIMENT_NAME="${MLFLOW_EXPERIMENT_NAME:-}"
+      export MLFLOW_EXPERIMENT_NAME="${agent_experiment}"
       export MLFLOW_TRACKING_TOKEN="${MLFLOW_TRACKING_TOKEN:-}"
       export MLFLOW_WORKSPACE="${MLFLOW_WORKSPACE:-}"
       export MLFLOW_TRACKING_INSECURE_TLS="true"

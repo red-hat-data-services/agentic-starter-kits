@@ -21,6 +21,7 @@ Agents are organized by framework. Pick one and follow its README:
 | **LangGraph** | [ReAct + DB Memory](./agents/langgraph/templates/react_with_database_memory/) | ReAct agent with PostgreSQL-backed conversation memory. Full chat history is persisted in the database while a FIFO sliding window keeps only the last N messages in the LLM context. |
 | **LangGraph** | [CI Failure Summarizer](./agents/langgraph/templates/ci_failure_summarizer/) | Spike agent that ingests QG4 GitHub Actions failures, groups incidents in PostgreSQL, composes triage summaries, and posts to Slack via manual `POST /summarize` trigger. |
 | **LangGraph** | [Human-in-the-Loop](./agents/langgraph/templates/human_in_the_loop/) | ReAct agent with a human approval step. The agent pauses before executing tool calls and waits for user confirmation, enabling oversight of critical actions. |
+| **LangGraph** | [Guardrailed Agent](./agents/langgraph/examples/guardrailed_agent/) | Banking agent with NeMo Guardrails safety layer. Content safety, topic boundaries, and regex filtering via the proxy pattern. Two profiles: `local` (self-check) and `nemoguard` (supports dedicated NIM classifiers per layer). |
 | **LlamaIndex** | [WebSearch Agent](./agents/llamaindex/templates/websearch_agent/) | Agent built on LlamaIndex that uses a web search tool to query the internet and use the results in its answers. |
 | **CrewAI** | [WebSearch Agent](./agents/crewai/templates/websearch_agent/) | CrewAI-based agent with a web search tool to query the internet and answer user questions. |
 | **Vanilla Python** | [OpenAI Responses Agent](./agents/vanilla_python/templates/openai_responses_agent/) | Minimal agent with no framework: only the OpenAI Python client and an Action/Observation loop with tools. Use with OpenAI or any compatible API. |
@@ -128,6 +129,7 @@ See `tests/behavioral/` for full details.
 - [Adding a New Agent](./docs/adding-a-new-agent.md) — How to contribute a new agent template
 - [Adding Behavioral Tests](./docs/adding-behavioral-tests.md) — How to add test coverage for an agent
 - [Adding an EvalHub Agent Integration](./docs/adding-evalhub-agent-integration.md) — How to integrate a new agent into the EvalHub evaluation pipeline
+- [Guardrails](./docs/guardrails.md) — Adding safety rails to agents (NeMo Guardrails vs Guardrails Orchestrator)
 - [llm-d Deployment](./docs/llm-d-deployment.md) — Deploy llm-d for intelligent LLM inference routing on OpenShift AI
 
 ## Claude Code Skills
