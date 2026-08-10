@@ -38,7 +38,7 @@ RESET='\033[0m'
 # ---------------------------------------------------------------------------
 # Agent configuration
 # ---------------------------------------------------------------------------
-# Each entry: "agent_id|url_env_var|deployment_name"
+# Each entry: "agent_id|url_env_var|deployment_name[|namespace_override]"
 AGENTS=(
   "crewai/templates/websearch_agent|CREWAI_WEBSEARCH_AGENT_URL|crewai-websearch-agent"
   "langgraph/templates/react_agent|REACT_AGENT_URL|langgraph-react-agent"
@@ -49,7 +49,7 @@ AGENTS=(
   "vanilla_python/templates/openai_responses_agent|VANILLA_PYTHON_AGENT_URL|openai-responses-agent"
   "langgraph/templates/human_in_the_loop|HITL_AGENT_URL|langgraph-hitl-agent"
   "google/templates/adk|GOOGLE_ADK_AGENT_URL|google-adk-agent"
-  "langflow/templates/simple_tool_calling_agent|LANGFLOW_TOOL_CALLING_AGENT_URL|langflow-tool-calling-agent"
+  "langflow/templates/simple_tool_calling_agent|LANGFLOW_TOOL_CALLING_AGENT_URL|langflow|langflow-agent"
   "a2a/templates/langgraph_crewai_agent|A2A_LANGGRAPH_CREWAI_AGENT_URL|a2a-langgraph-agent"
 )
 ALL_AGENT_CONFIG=("${AGENTS[@]}")
@@ -81,9 +81,11 @@ separator() {
 }
 
 # Parse IFS-separated agent tuple
+# Format: "agent_id|url_env_var|deployment_name[|namespace_override]"
 agent_path()      { echo "$1" | cut -d'|' -f1; }
 agent_env_var()   { echo "$1" | cut -d'|' -f2; }
 agent_deploy()    { echo "$1" | cut -d'|' -f3; }
+agent_ns()        { local ns; ns=$(echo "$1" | cut -d'|' -f4); echo "${ns:-${NAMESPACE}}"; }
 
 validate_agent_url_map_sync() {
   local agent_tuples=("$@")
@@ -209,20 +211,21 @@ preflight() {
   log "Checking agent deployments..."
   local all_healthy=true
   for agent_tuple in "${AGENTS[@]}"; do
-    local deploy
+    local deploy ns
     deploy=$(agent_deploy "$agent_tuple")
+    ns=$(agent_ns "$agent_tuple")
     local path
     path=$(agent_path "$agent_tuple")
 
-    if ! timeout 30 oc get deployment "${deploy}" -n "${NAMESPACE}" >/dev/null 2>&1; then
-      fail "Deployment '${deploy}' not found for agent '${path}'"
+    if ! timeout 30 oc get deployment "${deploy}" -n "${ns}" >/dev/null 2>&1; then
+      fail "Deployment '${deploy}' not found for agent '${path}' (namespace: ${ns})"
       all_healthy=false
       continue
     fi
 
     # Check ready replicas
     local ready
-    ready=$(timeout 30 oc get deployment "${deploy}" -n "${NAMESPACE}" \
+    ready=$(timeout 30 oc get deployment "${deploy}" -n "${ns}" \
       -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
     if [[ "${ready:-0}" -lt 1 ]]; then
       warn "Deployment '${deploy}' has 0 ready replicas"
@@ -251,9 +254,10 @@ detect_mlflow_config() {
   # Use the first available agent deployment to extract MLflow env vars
   local deploy_json=""
   for agent_tuple in "${AGENTS[@]}"; do
-    local deploy
+    local deploy ns
     deploy=$(agent_deploy "$agent_tuple")
-    deploy_json=$(timeout 30 oc get deployment "${deploy}" -n "${NAMESPACE}" -o json 2>/dev/null || true)
+    ns=$(agent_ns "$agent_tuple")
+    deploy_json=$(timeout 30 oc get deployment "${deploy}" -n "${ns}" -o json 2>/dev/null || true)
     if [[ -n "$deploy_json" ]]; then
       log "Using deployment '${deploy}' for MLflow config detection"
       break
@@ -314,13 +318,14 @@ run_tests() {
   local pid_to_agent=()
 
   for agent_tuple in "${AGENTS[@]}"; do
-    local path env_var deploy
+    local path env_var deploy ns
     path=$(agent_path "$agent_tuple")
     env_var=$(agent_env_var "$agent_tuple")
     deploy=$(agent_deploy "$agent_tuple")
+    ns=$(agent_ns "$agent_tuple")
 
     local route_host
-    route_host=$(timeout 30 oc get route "${deploy}" -n "${NAMESPACE}" \
+    route_host=$(timeout 30 oc get route "${deploy}" -n "${ns}" \
       -o jsonpath='{.spec.host}' 2>/dev/null || true)
 
     if [[ -z "$route_host" ]]; then
@@ -348,9 +353,22 @@ run_tests() {
 
     # Detect per-agent experiment name from its deployment
     local agent_experiment
-    agent_experiment=$(timeout 30 oc get deployment "${deploy}" -n "${NAMESPACE}" \
+    agent_experiment=$(timeout 30 oc get deployment "${deploy}" -n "${ns}" \
       -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="MLFLOW_EXPERIMENT_NAME")].value}' 2>/dev/null || true)
     agent_experiment="${agent_experiment:-${MLFLOW_EXPERIMENT_NAME:-}}"
+
+    # Langflow needs the flow ID discovered from its API
+    local langflow_flow_id=""
+    if [[ "$path" == *"langflow"* ]]; then
+      langflow_flow_id=$(curl -sk --compressed -H "Accept: application/json" \
+        "${agent_url}/api/v1/flows/" 2>/dev/null \
+        | python3 -c "import sys,json; flows=json.load(sys.stdin); print(flows[0]['id'] if flows else '')" 2>/dev/null || true)
+      if [[ -n "$langflow_flow_id" ]]; then
+        log "  Discovered LANGFLOW_FLOW_ID=${langflow_flow_id}"
+      else
+        warn "  Could not discover LANGFLOW_FLOW_ID — langflow tests will skip"
+      fi
+    fi
 
     (
       set -euo pipefail
@@ -361,6 +379,7 @@ run_tests() {
       export MLFLOW_TRACKING_TOKEN="${MLFLOW_TRACKING_TOKEN:-}"
       export MLFLOW_WORKSPACE="${MLFLOW_WORKSPACE:-}"
       export MLFLOW_TRACKING_INSECURE_TLS="true"
+      [[ -n "${langflow_flow_id}" ]] && export LANGFLOW_FLOW_ID="${langflow_flow_id}"
 
       local reporter_flags=()
       if uv run --extra test python -c "import harness.reporters" 2>/dev/null; then
