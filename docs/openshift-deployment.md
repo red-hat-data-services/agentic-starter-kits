@@ -126,7 +126,7 @@ Shared namespace resources (e.g. `postgres` in `ci-testing`) are not touched.
 
 For one-time cleanup of accumulated build artifacts in the shared `ci-testing`
 namespace, see
-[ci-testing build cleanup runbook](../superpowers/runbooks/ci-testing-build-cleanup.md).
+[ci-testing build cleanup runbook](superpowers/runbooks/ci-testing-build-cleanup.md).
 
 ## Customizing Deployment
 
