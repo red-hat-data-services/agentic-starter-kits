@@ -41,7 +41,7 @@ async def test_pass_at_k_tool_usage(
     """
     k = a2a_langgraph_crewai_thresholds.get("pass_at_k", 8)
     query = "Ask the specialist about the best cluster hosting service"
-    expected_tools = ["web_search"]
+    expected_tools = ["ask_crew_specialist"]
     threshold = a2a_langgraph_crewai_thresholds.get("tool_selection_accuracy", 0.85)
 
     results = []
