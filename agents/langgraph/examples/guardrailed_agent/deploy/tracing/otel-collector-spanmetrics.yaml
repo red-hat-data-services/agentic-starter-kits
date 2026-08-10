@@ -1,0 +1,77 @@
+# Optional: per-rail METRICS on cluster via the Red Hat build of OpenTelemetry.
+#
+# The demo/production Tempo paths ship TRACES only. To also get the RED metrics
+# (rate, errors, duration per rail) that the local stack derives with Prometheus,
+# run an OpenTelemetryCollector in front of Tempo: the guardrails proxy exports
+# OTLP to this Collector, which forwards traces to Tempo AND runs the spanmetrics
+# connector, exposing metrics for OpenShift user workload monitoring (UWM) to scrape.
+#
+# Prerequisites:
+#   1. "Red Hat build of OpenTelemetry" operator installed (OperatorHub).
+#   2. UWM enabled cluster-wide (openshift-user-workload-monitoring has pods) —
+#      see https://docs.openshift.com/container-platform/latest/observability/monitoring/enabling-monitoring-for-user-defined-projects.html
+#   3. A Tempo backend already running (tempo-monolithic-demo.yaml or
+#      tempo-stack-production.yaml). Set the `otlp` exporter endpoint below to
+#      that backend's OTLP service.
+#
+# Apply:
+#   oc apply -n ci-testing -f deploy/tracing/otel-collector-spanmetrics.yaml
+#
+# Then point cluster.env at THIS Collector instead of Tempo directly:
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://guardrails-spanmetrics-collector.ci-testing.svc.cluster.local:4317
+#   OTEL_METRICS_EXPORTER=none   # the Collector derives metrics; the proxy still exports traces only
+#
+# The `observability.metrics.enableMetrics: true` below makes the operator create
+# a ServiceMonitor so UWM scrapes the Collector's :8889 Prometheus endpoint.
+# Query the same metrics in the OpenShift console (Observe -> Metrics), e.g.
+#   sum by (rail_name, rail_type) (traces_span_metrics_calls_total{span_name="guardrails.rail"})
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: guardrails-spanmetrics
+  namespace: ci-testing
+spec:
+  mode: deployment
+  observability:
+    metrics:
+      enableMetrics: true   # operator creates a ServiceMonitor for UWM to scrape :8889
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+          http:
+            endpoint: "0.0.0.0:4318"
+    connectors:
+      spanmetrics:
+        histogram:
+          explicit:
+            buckets: [10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s]
+        dimensions:
+          - name: rail.name   # promoted to metric label rail_name
+          - name: rail.type   # promoted to metric label rail_type
+        metrics_flush_interval: 15s
+    processors:
+      batch:
+        timeout: 5s
+    exporters:
+      # Forward traces to the Tempo backend. For the demo TempoMonolithic use
+      # tempo-guardrails-tracing:4317; for TempoStack use the distributor:
+      #   tempo-guardrails-tracing-distributor.ci-testing.svc.cluster.local:4317
+      otlp:
+        endpoint: "tempo-guardrails-tracing.ci-testing.svc.cluster.local:4317"
+        tls:
+          insecure: true
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp, spanmetrics]
+        metrics:
+          receivers: [spanmetrics]
+          processors: [batch]
+          exporters: [prometheus]

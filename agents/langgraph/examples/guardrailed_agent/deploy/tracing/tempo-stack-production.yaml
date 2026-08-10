@@ -1,0 +1,43 @@
+# Production Tempo backend for guardrails tracing (RHOAI 3.4+).
+#
+# Unlike the demo TempoMonolithic (deploy/tracing/tempo-monolithic-demo.yaml),
+# a TempoStack persists traces to object storage and is the supported,
+# multi-tenant-capable backend for OpenShift. Use this for anything beyond a
+# short-lived tutorial. See the README "Production" section for the full walkthrough.
+#
+# Prerequisites (in order):
+#   1. Tempo Operator installed (subscribe to `tempo-product` on OperatorHub).
+#   2. Object storage + credentials Secret applied first:
+#        oc apply -n ci-testing -f object-storage-secret.yaml   # your filled-in copy
+#   3. Then this CR:
+#        oc apply -n ci-testing -f deploy/tracing/tempo-stack-production.yaml
+#
+# It creates (among others):
+#   - Service "tempo-guardrails-tracing-distributor"    (OTLP gRPC :4317, HTTP :4318) — the ingest endpoint
+#   - Service "tempo-guardrails-tracing-query-frontend" (query API :3200)
+#   - Route   "tempo-guardrails-tracing-query-frontend" (Jaeger UI, when jaegerQuery.ingress is enabled)
+#
+# Two ways to wire the guardrails proxy to it:
+#   A. Traces only — point cluster.env directly at the distributor:
+#        OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-guardrails-tracing-distributor.ci-testing.svc.cluster.local:4317
+#   B. Traces + per-rail metrics — point cluster.env at the spanmetrics
+#      Collector instead (deploy/tracing/otel-collector-spanmetrics.yaml), which
+#      forwards traces here AND exposes RED metrics for user workload monitoring.
+apiVersion: tempo.grafana.com/v1alpha1
+kind: TempoStack
+metadata:
+  name: guardrails-tracing
+  namespace: ci-testing
+spec:
+  storage:
+    secret:
+      name: tempo-object-storage   # must match the Secret from object-storage-secret.yaml
+      type: s3
+  storageSize: 10Gi
+  template:
+    queryFrontend:
+      jaegerQuery:
+        enabled: true
+        ingress:
+          # `route` on OpenShift; use `ingress` on vanilla Kubernetes.
+          type: route
