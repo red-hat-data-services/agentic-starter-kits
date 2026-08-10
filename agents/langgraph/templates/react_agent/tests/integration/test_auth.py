@@ -85,15 +85,13 @@ def deployed_auth_agent(cluster_auth, agent_dir, agent_name, auth_callers):
     )
 
     build_attempted = False
-    deployed = False
     try:
         logger.info("Building image on cluster via build-openshift...")
-        run_make("build-openshift", cwd=agent_dir, timeout=1200)
         build_attempted = True
+        run_make("build-openshift", cwd=agent_dir, timeout=1200)
 
         logger.info("Deploying auth-enabled agent to cluster...")
         run_make("deploy", cwd=agent_dir, timeout=300)
-        deployed = True
 
         route_url = get_route(agent_name, namespace=namespace)
         logger.info("Auth-enabled agent deployed at %s", route_url)

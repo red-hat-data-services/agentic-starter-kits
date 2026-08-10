@@ -50,6 +50,19 @@ def test_cleanup_rejects_denylisted_names(denylisted: str):
     assert denylisted in result.stderr
 
 
+def test_cleanup_skips_when_oc_missing():
+    result = subprocess.run(
+        [str(SCRIPT), "cleanup", "langgraph-react-agent"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={"PATH": "/usr/bin:/bin"},
+    )
+    assert result.returncode == 0
+    assert "skipping" in result.stderr.lower()
+
+
 def test_patch_history_payload_is_valid_json():
     """Dry-run: script should emit merge patch with 2/1 limits (no oc required)."""
     text = SCRIPT.read_text(encoding="utf-8")

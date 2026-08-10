@@ -96,16 +96,14 @@ def deployed_agent(cluster_auth, agent_dir, agent_name):  # noqa: F811
     env_path = _write_env_file(agent_dir, container_image)
 
     build_attempted = False
-    deployed = False
     try:
         try:
             logger.info("Building image on cluster via build-openshift...")
-            run_make("build-openshift", cwd=agent_dir, timeout=600)
             build_attempted = True
+            run_make("build-openshift", cwd=agent_dir, timeout=600)
 
             logger.info("Deploying to cluster...")
             run_make("deploy", cwd=agent_dir, timeout=300)
-            deployed = True
 
             route_url = get_route(agent_name, namespace=namespace)
             logger.info("Agent deployed at %s", route_url)

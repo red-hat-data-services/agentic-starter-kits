@@ -32,6 +32,13 @@ require_oc() {
   }
 }
 
+skip_cleanup_without_oc() {
+  if ! command -v oc >/dev/null 2>&1; then
+    echo "WARNING: oc not found in PATH; skipping BC/IS cleanup" >&2
+    exit 0
+  fi
+}
+
 is_cleanup_denylisted() {
   local agent="$1"
   local denied
@@ -78,7 +85,7 @@ main() {
         echo "ERROR: refusing to delete denylisted shared resource: ${agent}" >&2
         exit 1
       fi
-      require_oc
+      skip_cleanup_without_oc
       cleanup "$agent"
       ;;
     *)

@@ -61,8 +61,8 @@ def deployed_agent(cluster_auth, agent_dir, agent_name):  # noqa: F811
     try:
         try:
             logger.info("Building image on cluster via build-openshift...")
-            run_make("build-openshift", cwd=agent_dir, timeout=600)
             build_attempted = True
+            run_make("build-openshift", cwd=agent_dir, timeout=600)
 
             logger.info("Deploying to cluster...")
             run_make("deploy", cwd=agent_dir, timeout=300)
