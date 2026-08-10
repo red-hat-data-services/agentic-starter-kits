@@ -71,10 +71,7 @@ google_adk:
   pass_at_k: 8
 
 a2a_langgraph_crewai:
-  # tool_selection 0.0 both runs: agent uses ask_crew_specialist, tests expect
-  # web_search — this is a golden-query mismatch, not a model reliability issue.
-  # Lowered to 0.0 so threshold failures reflect real regressions, not config bugs.
-  tool_selection_accuracy: 0.0
+  tool_selection_accuracy: 0.85
   response_coherence_accuracy: 0.75
   max_latency_p95: 20.0
   pass_at_k: 8
