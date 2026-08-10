@@ -118,6 +118,16 @@ The route URL is your agent's public endpoint.
 make undeploy
 ```
 
+`make undeploy` removes the Helm release **and** deletes the agent's OpenShift
+`BuildConfig` and `ImageStream`. Build history is capped at **2 successful /
+1 failed** build per agent whenever `make build-openshift` runs.
+
+Shared namespace resources (e.g. `postgres` in `ci-testing`) are not touched.
+
+For one-time cleanup of accumulated build artifacts in the shared `ci-testing`
+namespace, see
+[ci-testing build cleanup runbook](../superpowers/runbooks/ci-testing-build-cleanup.md).
+
 ## Customizing Deployment
 
 Each agent has a `values.yaml` that overrides the framework chart defaults at `agents/<framework>/deployment/values.yaml`. You can:
