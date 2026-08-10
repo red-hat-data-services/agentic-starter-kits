@@ -299,7 +299,7 @@ In-cluster, the guardrails proxy exports over gRPC to a [Tempo](https://grafana.
    oc apply -n ci-testing -f deploy/tracing/tempo-monolithic-demo.yaml
    ```
 
-   It creates Service `tempo-guardrails-tracing` (OTLP gRPC :4317, HTTP :4318) and route `tempo-guardrails-tracing-jaegerui`. In-memory storage is ephemeral — fine for a tutorial, but traces are lost on pod restart. For a durable, production backend, deploy a `TempoStack` with S3/MinIO object storage and an `OpenTelemetryCollector` instead, per the [RHOAI observability docs](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-nemo-guardrails_nemo-guardrails#configuring-observability-for-nemo-guardrails-with-opentelemetry_nemo-guardrails); its OTLP endpoint is the distributor service, `tempo-<stack>-distributor.<ns>.svc.cluster.local:4317`.
+   It creates Service `tempo-guardrails-tracing` (OTLP gRPC :4317, HTTP :4318) and route `tempo-guardrails-tracing-jaegerui`. The operator will warn that a non-multitenant `TempoMonolithic` is *not supported on OpenShift* and its in-memory storage is ephemeral (traces are lost on pod restart) — both expected for a short-lived tutorial. For a durable, supported backend, deploy a `TempoStack` with S3/MinIO object storage and an `OpenTelemetryCollector` instead, per the [RHOAI observability docs](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-nemo-guardrails_nemo-guardrails#configuring-observability-for-nemo-guardrails-with-opentelemetry_nemo-guardrails); its OTLP endpoint is the distributor service, `tempo-<stack>-distributor.<ns>.svc.cluster.local:4317`.
 
 3. **Point `cluster.env` at that instance's OTLP service.** The demo `TempoMonolithic` exposes `tempo-guardrails-tracing`:
 
@@ -313,6 +313,8 @@ In-cluster, the guardrails proxy exports over gRPC to a [Tempo](https://grafana.
 
 4. **Deploy** (`make deploy-guardrails`) — the tracing block is rendered into the ConfigMap and the `OTEL_*` vars onto the `NemoGuardrails` CR automatically.
 5. **Access traces** via the Jaeger UI route (`oc get route -n <ns> | grep jaegerui`) or port-forward (`oc port-forward svc/tempo-guardrails-tracing-jaegerui 16686:16686`), then pick service `nemo-guardrails`. The same per-rail spans described above appear — with the nemoguard profile that includes `content_safety_check_*` and `topic_safety_check_input` rails.
+
+> **Metrics vs traces on cluster:** `OTEL_METRICS_EXPORTER=none`, so this path ships **traces only** (Tempo → Jaeger UI). The Prometheus RED metrics from the local stack are not part of it. On OpenShift, per-rail metrics come from an `OpenTelemetryCollector` (Red Hat build of OpenTelemetry) whose [spanmetrics connector](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector) exposes them for scraping by [user workload monitoring](https://docs.openshift.com/container-platform/latest/observability/monitoring/enabling-monitoring-for-user-defined-projects.html) — the same Collector the production `TempoStack` path uses. The stock OpenShift Prometheus (`openshift-monitoring`) collects platform metrics only and won't scrape app spans on its own.
 
 See `deploy/overlays/ci-testing/cluster.env.example` for the full set of cluster-side variables.
 

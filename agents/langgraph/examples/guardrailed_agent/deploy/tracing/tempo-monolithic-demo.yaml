@@ -16,9 +16,13 @@
 # Point cluster.env at the OTLP service:
 #   OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-guardrails-tracing.ci-testing.svc.cluster.local:4317
 #
-# NOTE: in-memory storage is ephemeral — traces are lost on pod restart. For a
-# durable, production backend use a TempoStack with object storage instead; see
-# the RHOAI docs linked from the README's "Tracing" section.
+# NOTE: this is a demo backend, not a supported production one. The Tempo
+# Operator will warn that a TempoMonolithic without multi-tenancy provides no
+# authN/authZ on ingest/query and "is not supported on OpenShift" — expected
+# and fine for a short-lived tutorial. In-memory storage is also ephemeral
+# (traces are lost on pod restart). For a durable, supported backend use a
+# TempoStack with object storage; see the RHOAI docs linked from the README's
+# "Tracing" section.
 apiVersion: tempo.grafana.com/v1alpha1
 kind: TempoMonolithic
 metadata:
