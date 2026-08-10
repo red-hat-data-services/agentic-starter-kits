@@ -231,7 +231,7 @@ NeMo's `OpenTelemetryAdapter` uses only the OTel *API* — it never configures a
 
 A ready-made compose stack lives in `guardrails/tracing/`:
 
-```
+```text
 agent → guardrails proxy (opentelemetry-instrument) → OTel Collector
           ├─ Jaeger      (per-rail traces, UI :16686)
           └─ Prometheus  (spanmetrics RED metrics, UI :9090)
@@ -303,13 +303,13 @@ In-cluster, the guardrails proxy exports over gRPC to a [Tempo](https://grafana.
 
 3. **Point `cluster.env` at that instance's OTLP service.** The demo `TempoMonolithic` exposes `tempo-guardrails-tracing`:
 
-```ini
-GUARDRAILS_TRACING_ENABLED=true
-OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-guardrails-tracing.ci-testing.svc.cluster.local:4317
-OTEL_SERVICE_NAME=nemo-guardrails
-OTEL_EXPORTER_OTLP_PROTOCOL=grpc
-OTEL_METRICS_EXPORTER=none
-```
+   ```ini
+   GUARDRAILS_TRACING_ENABLED=true
+   OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-guardrails-tracing.ci-testing.svc.cluster.local:4317
+   OTEL_SERVICE_NAME=nemo-guardrails
+   OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+   OTEL_METRICS_EXPORTER=none
+   ```
 
 4. **Deploy** (`make deploy-guardrails`) — the tracing block is rendered into the ConfigMap and the `OTEL_*` vars onto the `NemoGuardrails` CR automatically.
 5. **Access traces** via the Jaeger UI route (`oc get route -n <ns> | grep jaegerui`) or port-forward (`oc port-forward svc/tempo-guardrails-tracing-jaegerui 16686:16686`), then pick service `nemo-guardrails`. The same per-rail spans described above appear — with the nemoguard profile that includes `content_safety_check_*` and `topic_safety_check_input` rails.
