@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# OpenShift BuildConfig helpers for agent integration tests and local undeploy.
 set -euo pipefail
 
 readonly SUCCESSFUL_LIMIT=2
 readonly FAILED_LIMIT=1
 
-# Shared cluster resources that must never be deleted by cleanup.
 readonly CLEANUP_DENYLIST=(
   postgres
   minio

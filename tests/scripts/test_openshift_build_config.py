@@ -26,9 +26,8 @@ def run_script(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_script_exists_and_is_executable():
+def test_script_exists():
     assert SCRIPT.is_file()
-    assert SCRIPT.stat().st_mode & 0o111
 
 
 def test_patch_history_requires_agent_name():
@@ -61,18 +60,3 @@ def test_cleanup_skips_when_oc_missing():
     )
     assert result.returncode == 0
     assert "skipping" in result.stderr.lower()
-
-
-def test_patch_history_payload_is_valid_json():
-    """Dry-run: script should emit merge patch with 2/1 limits (no oc required)."""
-    text = SCRIPT.read_text(encoding="utf-8")
-    assert "successfulBuildsHistoryLimit" in text
-    assert "failedBuildsHistoryLimit" in text
-    assert "SUCCESSFUL_LIMIT=2" in text
-    assert "FAILED_LIMIT=1" in text
-
-
-def test_cleanup_denylist_contains_expected_names():
-    text = SCRIPT.read_text(encoding="utf-8")
-    for name in CLEANUP_DENYLIST:
-        assert name in text

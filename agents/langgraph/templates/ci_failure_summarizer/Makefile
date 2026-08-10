@@ -168,7 +168,7 @@ dry-run: _check-env ## Render Helm templates without deploying
 	    $${GITHUB_TOKEN:+--set extraSecrets.GITHUB_TOKEN="REDACTED"} \
 	    $${SLACK_WEBHOOK_URL:+--set extraSecrets.SLACK_WEBHOOK_URL="REDACTED"} \
 
-undeploy: ## Remove deployment and OpenShift build artifacts from cluster
+undeploy: ## Remove deployment from cluster
 	helm uninstall $(AGENT_NAME) --ignore-not-found
 	@$(REPO_ROOT)/scripts/openshift-build-config.sh cleanup $(AGENT_NAME)
 

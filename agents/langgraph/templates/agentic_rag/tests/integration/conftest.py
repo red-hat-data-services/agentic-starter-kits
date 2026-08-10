@@ -88,7 +88,7 @@ def deployed_agent(cluster_auth, agent_dir, agent_name):
 
     finally:
         if build_attempted:
-            logger.info("Tearing down deployment and build artifacts...")
+            logger.info("Tearing down deployment...")
             try:
                 run_make("undeploy", cwd=agent_dir, timeout=120)
             except MakeTargetError:

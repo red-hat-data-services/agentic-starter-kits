@@ -100,7 +100,7 @@ def deployed_auth_agent(cluster_auth, agent_dir, agent_name, auth_callers):
         pytest.fail(f"Auth deployment failed: {exc}")
     finally:
         if build_attempted:
-            logger.info("Tearing down auth deployment and build artifacts...")
+            logger.info("Tearing down auth deployment...")
             try:
                 run_make("undeploy", cwd=agent_dir, timeout=120)
             except MakeTargetError:

@@ -198,7 +198,7 @@ deploy: _check-env ## Two-phase Helm deploy (Routes first, then Deployments with
 	oc rollout status deployment/a2a-langgraph-agent --timeout=300s && \
 	echo "=== Done ===" && oc get route a2a-crew-agent a2a-langgraph-agent
 
-undeploy: ## Remove deployment and OpenShift build artifacts from cluster
+undeploy: ## Remove deployment from cluster
 	helm uninstall $(AGENT_NAME) --ignore-not-found
 	@$(REPO_ROOT)/scripts/openshift-build-config.sh cleanup $(AGENT_NAME)
 
