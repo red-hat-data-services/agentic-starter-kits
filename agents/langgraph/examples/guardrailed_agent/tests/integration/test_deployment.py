@@ -66,10 +66,12 @@ def deployed_agent(cluster_auth, deployed_guardrails, agent_dir, agent_name):
         agent_dir, container_image, base_url=base_url, model_id=model_id
     )
 
+    build_attempted = False
     deployed = False
     try:
         logger.info("Building image on cluster via build-openshift...")
         run_make("build-openshift", cwd=agent_dir, timeout=600)
+        build_attempted = True
 
         logger.info("Deploying agent to cluster...")
         run_make("deploy", cwd=agent_dir, timeout=300)
@@ -84,8 +86,8 @@ def deployed_agent(cluster_auth, deployed_guardrails, agent_dir, agent_name):
         pytest.fail(f"Deployment failed: {exc}")
 
     finally:
-        if deployed:
-            logger.info("Tearing down agent deployment...")
+        if build_attempted:
+            logger.info("Tearing down agent deployment and build artifacts...")
             try:
                 run_make("undeploy", cwd=agent_dir, timeout=120)
             except MakeTargetError:

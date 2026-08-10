@@ -84,10 +84,12 @@ def deployed_auth_agent(cluster_auth, agent_dir, agent_name, auth_callers):
         allowed_caller_sa=auth_callers["allowed"],
     )
 
+    build_attempted = False
     deployed = False
     try:
         logger.info("Building image on cluster via build-openshift...")
         run_make("build-openshift", cwd=agent_dir, timeout=1200)
+        build_attempted = True
 
         logger.info("Deploying auth-enabled agent to cluster...")
         run_make("deploy", cwd=agent_dir, timeout=300)
@@ -99,8 +101,8 @@ def deployed_auth_agent(cluster_auth, agent_dir, agent_name, auth_callers):
     except (MakeTargetError, RouteNotFoundError) as exc:
         pytest.fail(f"Auth deployment failed: {exc}")
     finally:
-        if deployed:
-            logger.info("Tearing down auth deployment...")
+        if build_attempted:
+            logger.info("Tearing down auth deployment and build artifacts...")
             try:
                 run_make("undeploy", cwd=agent_dir, timeout=120)
             except MakeTargetError:

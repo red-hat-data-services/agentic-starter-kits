@@ -57,14 +57,14 @@ def deployed_agent(cluster_auth, agent_dir, agent_name):  # noqa: F811
     container_image = f"{INTERNAL_REGISTRY}/{namespace}/{agent_name}:latest"
     env_path = _write_env_file(agent_dir, container_image)
 
-    deploy_attempted = False
+    build_attempted = False
     try:
         try:
             logger.info("Building image on cluster via build-openshift...")
             run_make("build-openshift", cwd=agent_dir, timeout=600)
+            build_attempted = True
 
             logger.info("Deploying to cluster...")
-            deploy_attempted = True
             run_make("deploy", cwd=agent_dir, timeout=300)
 
             route_url = get_route(agent_name, namespace=namespace)
@@ -77,8 +77,8 @@ def deployed_agent(cluster_auth, agent_dir, agent_name):  # noqa: F811
         yield route_url
 
     finally:
-        if deploy_attempted:
-            logger.info("Tearing down deployment...")
+        if build_attempted:
+            logger.info("Tearing down deployment and build artifacts...")
             try:
                 run_make("undeploy", cwd=agent_dir, timeout=120)
             except MakeTargetError:
