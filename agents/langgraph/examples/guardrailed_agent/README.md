@@ -221,40 +221,98 @@ curl -s http://localhost:8000/chat/completions \
 
 ### Tracing (optional)
 
-NeMo Guardrails supports [OpenTelemetry tracing](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-nemo-guardrails_nemo-guardrails#configuring-observability-for-nemo-guardrails-with-opentelemetry_nemo-guardrails) (RHOAI 3.4+). When enabled, per-rail span data (request flow, LLM latency, rail execution times) is exported to a [Tempo](https://grafana.com/oss/tempo/) backend via gRPC.
+NeMo Guardrails supports [OpenTelemetry tracing](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-nemo-guardrails_nemo-guardrails#configuring-observability-for-nemo-guardrails-with-opentelemetry_nemo-guardrails) (RHOAI 3.4+). When enabled, the proxy emits per-rail span data — request flow, LLM latency, and each rail's execution time — as OpenTelemetry traces.
 
-#### Local Tempo
+Tracing is **opt-in**: it is off by default and adds zero overhead when unset. The `tracing:` block in `config.yaml.example` ships with `enabled: false`; `generate_config.py` flips it to `true` only when `GUARDRAILS_TRACING_ENABLED=true`, so the server command is byte-identical when tracing is off. Content capture stays `false` in every mode, so blocked prompts and outputs are never echoed into span attributes.
 
-Run a local Tempo instance (e.g. via `docker run -p 4317:4317 grafana/tempo:latest`) and add to `.env`:
+NeMo's `OpenTelemetryAdapter` uses only the OTel *API* — it never configures an SDK. The Makefile therefore launches the server under [`opentelemetry-instrument`](https://opentelemetry.io/docs/zero-code/python/) (from `opentelemetry-distro`), which reads the standard `OTEL_*` env vars and wires up the `TracerProvider`/exporter before NeMo initializes. Without it, spans would go to the no-op provider.
 
-```ini
-GUARDRAILS_TRACING_ENABLED=true
-OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
-OTEL_SERVICE_NAME=nemo-guardrails
-OTEL_EXPORTER_OTLP_PROTOCOL=grpc
-OTEL_METRICS_EXPORTER=none
+#### Local: OTel Collector + Jaeger + Prometheus
+
+A ready-made compose stack lives in `guardrails/tracing/`:
+
+```
+agent → guardrails proxy (opentelemetry-instrument) → OTel Collector
+          ├─ Jaeger      (per-rail traces, UI :16686)
+          └─ Prometheus  (spanmetrics RED metrics, UI :9090)
 ```
 
-Then restart the guardrails server (`make guardrails-server-local` or `make guardrails-server-nemoguard`). The `start_server.py` wrapper configures an OTel `TracerProvider` before NeMo initializes, so spans are exported instead of going to the NoOp provider.
+1. **Start the stack** (needs `podman-compose` or Docker's compose plugin):
+
+   ```bash
+   make guardrails-tracing-up
+   ```
+
+   This brings up the Collector (OTLP on `:4317`/`:4318`), Jaeger (`http://localhost:16686`), and Prometheus (`http://localhost:9090`).
+
+2. **Start the proxy with tracing on** — set these in `.env` (or export them inline), then run the server:
+
+   ```ini
+   GUARDRAILS_TRACING_ENABLED=true
+   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+   OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+   OTEL_SERVICE_NAME=nemo-guardrails
+   ```
+
+   ```bash
+   make guardrails-server-local      # or guardrails-server-nemoguard
+   ```
+
+3. **Send traffic** (`make run-app` then chat with the agent, or hit the proxy directly), then open the UIs.
+
+4. **Tear down** when finished:
+
+   ```bash
+   make guardrails-tracing-down
+   ```
+
+#### Reading a trace
+
+In **Jaeger** (`http://localhost:16686`), pick service `nemo-guardrails` and search. Each request is one trace:
+
+- The **root span** covers the whole guardrails request.
+- **Rail spans** are the children. NeMo emits *every* rail under the same span name (`guardrails.rail`); the specific rail is identified by the `rail.name` (e.g. `self_check_input`, `topic_safety_check_input`) and `rail.type` (`input` / `output` / `dialog`) attributes.
+- **`gen_ai.*` spans** capture the underlying LLM calls and their latency.
+
+Because content capture is disabled, spans carry timing and rail metadata only — not the user's text or model output.
+
+In **Prometheus** (`http://localhost:9090`), the Collector's [spanmetrics connector](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector) derives RED metrics (rate, errors, duration) from those spans. It promotes the `rail.name` / `rail.type` attributes to metric labels (`rail_name` / `rail_type` — dots become underscores in Prometheus; see `guardrails/tracing/otel-collector-config.yaml`), so per-rail latency and call counts are queryable even though every rail shares one span name. Useful queries:
+
+```promql
+# Calls per rail
+sum by (rail_name, rail_type) (traces_span_metrics_calls_total{span_name="guardrails.rail"})
+
+# p95 latency per rail
+histogram_quantile(0.95, sum by (le, rail_name) (rate(traces_span_metrics_duration_milliseconds_bucket{span_name="guardrails.rail"}[5m])))
+```
+
+> This local stack is for development only — no auth, no TLS. For production, forward to your platform's tracing backend as below.
 
 #### RHOAI cluster (Tempo Operator)
 
-On OpenShift with RHOAI 3.4+:
+In-cluster, the guardrails proxy exports over gRPC to a [Tempo](https://grafana.com/oss/tempo/) backend instead of the local Collector — the RHOAI NeMo Guardrails container configures the OpenTelemetry SDK itself from the `OTEL_*` env vars (no `opentelemetry-instrument` wrapper needed). On OpenShift with RHOAI 3.4+:
 
-1. **Install the Tempo Operator** -- subscribe to `tempo-product` from OperatorHub.
-2. **Deploy a TempoStack CR** with MinIO or S3 storage in your namespace (e.g. `ci-testing`).
-3. **Set the distributor endpoint** -- follows the pattern `http://tempo-<stack>-distributor.<ns>.svc.cluster.local:4317`.
-4. **Configure `cluster.env`** with the OTel vars:
+1. **Install the Tempo Operator** -- subscribe to `tempo-product` from OperatorHub. The operator is only the controller; you still deploy a Tempo instance (step 2).
+2. **Deploy a Tempo instance** in your namespace (e.g. `ci-testing`). This repo ships a ready-to-apply demo — a `TempoMonolithic` with in-memory storage and the Jaeger UI enabled (no object storage required):
+
+   ```bash
+   oc apply -n ci-testing -f deploy/tracing/tempo-monolithic-demo.yaml
+   ```
+
+   It creates Service `tempo-guardrails-tracing` (OTLP gRPC :4317, HTTP :4318) and route `tempo-guardrails-tracing-jaegerui`. In-memory storage is ephemeral — fine for a tutorial, but traces are lost on pod restart. For a durable, production backend, deploy a `TempoStack` with S3/MinIO object storage and an `OpenTelemetryCollector` instead, per the [RHOAI observability docs](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-nemo-guardrails_nemo-guardrails#configuring-observability-for-nemo-guardrails-with-opentelemetry_nemo-guardrails); its OTLP endpoint is the distributor service, `tempo-<stack>-distributor.<ns>.svc.cluster.local:4317`.
+
+3. **Point `cluster.env` at that instance's OTLP service.** The demo `TempoMonolithic` exposes `tempo-guardrails-tracing`:
 
 ```ini
 GUARDRAILS_TRACING_ENABLED=true
-OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-sample-distributor.ci-testing.svc.cluster.local:4317
+OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-guardrails-tracing.ci-testing.svc.cluster.local:4317
 OTEL_SERVICE_NAME=nemo-guardrails
 OTEL_EXPORTER_OTLP_PROTOCOL=grpc
 OTEL_METRICS_EXPORTER=none
 ```
 
-5. **Access traces** via the Jaeger Query route (`oc get route -n <ns> | grep jaeger`) or port-forward (`oc port-forward svc/tempo-sample-jaegerui 16686:16686`).
+4. **Deploy** (`make deploy-guardrails`) — the tracing block is rendered into the ConfigMap and the `OTEL_*` vars onto the `NemoGuardrails` CR automatically.
+5. **Access traces** via the Jaeger UI route (`oc get route -n <ns> | grep jaegerui`) or port-forward (`oc port-forward svc/tempo-guardrails-tracing-jaegerui 16686:16686`), then pick service `nemo-guardrails`. The same per-rail spans described above appear — with the nemoguard profile that includes `content_safety_check_*` and `topic_safety_check_input` rails.
 
 See `deploy/overlays/ci-testing/cluster.env.example` for the full set of cluster-side variables.
 

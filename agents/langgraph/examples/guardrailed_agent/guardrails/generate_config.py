@@ -127,6 +127,27 @@ def _topic_control_custom_policy(model_id: str) -> str | None:
     return None
 
 
+def _apply_tracing_override(config: dict) -> bool:
+    """Flip config['tracing']['enabled'] on when GUARDRAILS_TRACING_ENABLED is
+    truthy. Off by default.
+
+    config.yaml.example already ships the full tracing block (adapters,
+    span_format, enable_content_capture), so this is a pure boolean flip — no
+    schema surprises. Returns the resolved enabled state. If the config has no
+    tracing block at all (older template), this is a no-op returning False.
+    """
+    tracing = config.get("tracing")
+    if not isinstance(tracing, dict):
+        return False
+    enabled = os.environ.get("GUARDRAILS_TRACING_ENABLED", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    tracing["enabled"] = enabled
+    return enabled
+
+
 def generate_config(config_path: str, *, omit_nim_api_keys: bool = False) -> list[str]:
     """Rewrite config_path in place with env-driven model overrides applied.
 
@@ -235,16 +256,12 @@ def generate_config(config_path: str, *, omit_nim_api_keys: bool = False) -> lis
             "topic_control flow -> topic policy check input (custom policy mode)"
         )
 
-    if os.environ.get("GUARDRAILS_TRACING_ENABLED", "").lower() == "true":
-        config["tracing"] = {
-            "enabled": True,
-            "span_format": "opentelemetry",
-            "enable_content_capture": False,
-            "adapters": [{"name": "OpenTelemetry"}],
-        }
-        summary.append(
-            "tracing=opentelemetry (per-rail spans, content capture disabled)"
-        )
+    tracing_enabled = _apply_tracing_override(config)
+    summary.append(
+        "tracing=opentelemetry (per-rail spans, content capture disabled)"
+        if tracing_enabled
+        else "tracing=disabled (default)"
+    )
 
     with open(config_path, "w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)

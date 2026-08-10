@@ -37,6 +37,7 @@ _ALL_OVERRIDE_ENV_VARS = [
     "API_KEY",
     "NVIDIA_API_KEY",
     "TOPIC_CONTROL_CUSTOM_POLICY",
+    "GUARDRAILS_TRACING_ENABLED",
 ] + [
     f"{prefix}_{suffix}"
     for prefix in generate_config._ROLE_ENV_PREFIX.values()
@@ -88,6 +89,46 @@ class TestTopicControlCustomPolicy:
             "nvidia/nemotron-3.5-content-safety"
         )
         assert policy == "Custom text."
+
+
+class TestTracingOverride:
+    def test_disabled_by_default(self, monkeypatch):
+        monkeypatch.delenv("GUARDRAILS_TRACING_ENABLED", raising=False)
+        config = {"tracing": {"enabled": True, "adapters": [{"name": "OpenTelemetry"}]}}
+        assert generate_config._apply_tracing_override(config) is False
+        assert config["tracing"]["enabled"] is False
+
+    @pytest.mark.parametrize("value", ["true", "TRUE", "1", "yes", " Yes "])
+    def test_enabled_for_truthy_values(self, monkeypatch, value):
+        monkeypatch.setenv("GUARDRAILS_TRACING_ENABLED", value)
+        config = {
+            "tracing": {"enabled": False, "adapters": [{"name": "OpenTelemetry"}]}
+        }
+        assert generate_config._apply_tracing_override(config) is True
+        assert config["tracing"]["enabled"] is True
+
+    @pytest.mark.parametrize("value", ["false", "0", "no", ""])
+    def test_disabled_for_falsy_values(self, monkeypatch, value):
+        monkeypatch.setenv("GUARDRAILS_TRACING_ENABLED", value)
+        config = {"tracing": {"enabled": True, "adapters": [{"name": "OpenTelemetry"}]}}
+        assert generate_config._apply_tracing_override(config) is False
+        assert config["tracing"]["enabled"] is False
+
+    def test_noop_when_no_tracing_block(self, monkeypatch):
+        monkeypatch.setenv("GUARDRAILS_TRACING_ENABLED", "true")
+        config = {"models": []}
+        assert generate_config._apply_tracing_override(config) is False
+        assert "tracing" not in config
+
+    def test_both_profile_templates_ship_disabled_tracing_block(self):
+        for profile in ("local", "nemoguard"):
+            example = CONFIG_DIR / profile / "config.yaml.example"
+            cfg = yaml.safe_load(example.read_text(encoding="utf-8"))
+            tracing = cfg["tracing"]
+            assert tracing["enabled"] is False
+            assert tracing["enable_content_capture"] is False
+            assert tracing["span_format"] == "opentelemetry"
+            assert any(a["name"] == "OpenTelemetry" for a in tracing["adapters"])
 
 
 @pytest.fixture()

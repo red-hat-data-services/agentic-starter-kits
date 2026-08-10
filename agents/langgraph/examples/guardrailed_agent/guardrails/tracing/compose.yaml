@@ -1,0 +1,32 @@
+# Local NeMo Guardrails tracing stack: OTel Collector + Jaeger + Prometheus.
+# Local development only — no auth, no TLS. Start with `make guardrails-tracing-up`.
+#
+#   agent -> guardrails proxy (opentelemetry-instrument) -> otel-collector
+#            -> jaeger      (per-rail traces, UI :16686)
+#            -> prometheus  (spanmetrics RED metrics, UI :9090)
+services:
+  otel-collector:
+    image: docker.io/otel/opentelemetry-collector-contrib:0.116.1
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # spanmetrics -> Prometheus scrape target
+    depends_on: [jaeger]
+
+  jaeger:
+    image: docker.io/jaegertracing/all-in-one:1.62.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"  # Jaeger UI
+
+  prometheus:
+    image: docker.io/prom/prometheus:v2.55.1
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on: [otel-collector]

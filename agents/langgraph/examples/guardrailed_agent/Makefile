@@ -10,8 +10,9 @@ GUARDRAILS_NAMESPACE   ?= ci-testing
 CLUSTER_ENV            := deploy/overlays/ci-testing/cluster.env
 CLUSTER_ENV_EXAMPLE    := deploy/overlays/ci-testing/cluster.env.example
 GUARDRAILS_KUSTOMIZE   := deploy/overlays/ci-testing
+TRACING_COMPOSE        := guardrails/tracing/compose.yaml
 
-.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test test-guardrails-integration test-guardrails-integration-nemoguard test-integration dry-run help guardrails-server-local guardrails-server-nemoguard render-guardrails-configmap deploy-guardrails-secrets deploy-guardrails undeploy-guardrails deploy-rhoai undeploy-rhoai deploy-rhoai-dry-run
+.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test test-guardrails-integration test-guardrails-integration-nemoguard test-integration dry-run help guardrails-server-local guardrails-server-nemoguard guardrails-tracing-up guardrails-tracing-down render-guardrails-configmap deploy-guardrails-secrets deploy-guardrails undeploy-guardrails deploy-rhoai undeploy-rhoai deploy-rhoai-dry-run
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
@@ -68,14 +69,52 @@ guardrails-server-local: ## Generate local (self-check, Ollama) config and start
 	  cp guardrails/config/local/config.yaml.example guardrails/config/local/config.yaml && \
 	  python3 guardrails/generate_config.py --profile local && \
 	  echo "Starting NeMo Guardrails server (local profile) on port $${GUARDRAILS_PORT:-8090}..." && \
-	  python3 guardrails/start_server.py --config guardrails/config --default-config-id local --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui
+	  if [ "$${GUARDRAILS_TRACING_ENABLED:-}" = "true" ]; then \
+	    echo "OpenTelemetry tracing ENABLED -> $${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}" && \
+	    OTEL_SERVICE_NAME="$${OTEL_SERVICE_NAME:-nemo-guardrails}" \
+	    OTEL_TRACES_EXPORTER="$${OTEL_TRACES_EXPORTER:-otlp}" \
+	    OTEL_METRICS_EXPORTER="$${OTEL_METRICS_EXPORTER:-none}" \
+	    OTEL_LOGS_EXPORTER="$${OTEL_LOGS_EXPORTER:-none}" \
+	    OTEL_EXPORTER_OTLP_PROTOCOL="$${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}" \
+	    OTEL_EXPORTER_OTLP_ENDPOINT="$${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}" \
+	    opentelemetry-instrument nemoguardrails server --config guardrails/config --default-config-id local --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui; \
+	  else \
+	    nemoguardrails server --config guardrails/config --default-config-id local --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui; \
+	  fi
 
 guardrails-server-nemoguard: ## Generate layered NemoGuard-models config and start NeMo Guardrails proxy
 	@source .venv/bin/activate && set -a && source .env && set +a && \
 	  cp guardrails/config/nemoguard/config.yaml.example guardrails/config/nemoguard/config.yaml && \
 	  python3 guardrails/generate_config.py --profile nemoguard && \
 	  echo "Starting NeMo Guardrails server (nemoguard profile) on port $${GUARDRAILS_PORT:-8090}..." && \
-	  python3 guardrails/start_server.py --config guardrails/config --default-config-id nemoguard --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui
+	  if [ "$${GUARDRAILS_TRACING_ENABLED:-}" = "true" ]; then \
+	    echo "OpenTelemetry tracing ENABLED -> $${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}" && \
+	    OTEL_SERVICE_NAME="$${OTEL_SERVICE_NAME:-nemo-guardrails}" \
+	    OTEL_TRACES_EXPORTER="$${OTEL_TRACES_EXPORTER:-otlp}" \
+	    OTEL_METRICS_EXPORTER="$${OTEL_METRICS_EXPORTER:-none}" \
+	    OTEL_LOGS_EXPORTER="$${OTEL_LOGS_EXPORTER:-none}" \
+	    OTEL_EXPORTER_OTLP_PROTOCOL="$${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}" \
+	    OTEL_EXPORTER_OTLP_ENDPOINT="$${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}" \
+	    opentelemetry-instrument nemoguardrails server --config guardrails/config --default-config-id nemoguard --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui; \
+	  else \
+	    nemoguardrails server --config guardrails/config --default-config-id nemoguard --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui; \
+	  fi
+
+guardrails-tracing-up: ## Start local OTel Collector + Jaeger + Prometheus (needs podman-compose or docker compose)
+	@if command -v podman-compose >/dev/null 2>&1; then COMPOSE="podman-compose"; \
+	elif docker compose version >/dev/null 2>&1; then COMPOSE="docker compose"; \
+	else echo "ERROR: install podman-compose (pip install podman-compose) or Docker's compose plugin"; exit 1; fi; \
+	$$COMPOSE -f $(TRACING_COMPOSE) up -d && \
+	echo "" && \
+	echo "Jaeger UI:     http://localhost:16686" && \
+	echo "Prometheus UI: http://localhost:9090" && \
+	echo "" && \
+	echo "Now run: GUARDRAILS_TRACING_ENABLED=true make guardrails-server-local (or -nemoguard)"
+
+guardrails-tracing-down: ## Stop and remove the local tracing stack
+	@if command -v podman-compose >/dev/null 2>&1; then podman-compose -f $(TRACING_COMPOSE) down; \
+	elif docker compose version >/dev/null 2>&1; then docker compose -f $(TRACING_COMPOSE) down; \
+	else echo "ERROR: neither podman-compose nor docker compose found"; exit 1; fi
 
 run-app: ## Run agent locally with hot-reload
 	@source .venv/bin/activate && set -a && source .env && set +a && \

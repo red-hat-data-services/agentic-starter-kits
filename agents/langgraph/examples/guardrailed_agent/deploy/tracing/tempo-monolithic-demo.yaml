@@ -1,0 +1,34 @@
+# Optional demo Tempo backend for guardrails tracing (RHOAI 3.4+).
+#
+# This is the *quick path* for a tutorial cluster: a single TempoMonolithic
+# with in-memory storage and the Jaeger UI enabled — no object storage, no
+# separate Collector CR. The Tempo Operator (subscribe to `tempo-product` on
+# OperatorHub) must already be installed; it is the controller, this CR is the
+# actual Tempo instance.
+#
+# Apply into the same namespace as the guardrails deployment:
+#   oc apply -n ci-testing -f deploy/tracing/tempo-monolithic-demo.yaml
+#
+# It creates:
+#   - Service "tempo-guardrails-tracing"          (OTLP gRPC :4317, HTTP :4318)
+#   - Route   "tempo-guardrails-tracing-jaegerui" (trace UI)
+#
+# Point cluster.env at the OTLP service:
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-guardrails-tracing.ci-testing.svc.cluster.local:4317
+#
+# NOTE: in-memory storage is ephemeral — traces are lost on pod restart. For a
+# durable, production backend use a TempoStack with object storage instead; see
+# the RHOAI docs linked from the README's "Tracing" section.
+apiVersion: tempo.grafana.com/v1alpha1
+kind: TempoMonolithic
+metadata:
+  name: guardrails-tracing
+  namespace: ci-testing
+spec:
+  storage:
+    traces:
+      backend: memory
+  jaegerui:
+    enabled: true
+    route:
+      enabled: true

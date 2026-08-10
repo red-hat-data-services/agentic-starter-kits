@@ -15,6 +15,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+import yaml
 
 nemoguardrails = pytest.importorskip("nemoguardrails")
 from nemoguardrails import LLMRails, RailsConfig  # noqa: E402
@@ -49,6 +50,7 @@ def _clean_guardrails_env(monkeypatch):
         "LLM_BASE_URL",
         "API_KEY",
         "TOPIC_CONTROL_CUSTOM_POLICY",
+        "GUARDRAILS_TRACING_ENABLED",
     ]:
         monkeypatch.delenv(var, raising=False)
 
@@ -93,3 +95,29 @@ def test_profile_instantiates_llm_rails(built_profile_dir, profile):
     config = RailsConfig.from_path(str(profile_dir))
     rails = LLMRails(config=config, verbose=False)
     assert rails is not None
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+@pytest.mark.parametrize(
+    ("tracing_env", "expected"),
+    [(None, False), ("true", True)],
+)
+def test_tracing_flag_flips_generated_config(
+    built_profile_dir, monkeypatch, profile, tracing_env, expected
+):
+    """generate_config flips tracing.enabled from GUARDRAILS_TRACING_ENABLED,
+    and NeMo Guardrails accepts the resulting config either way. Content capture
+    stays off in both modes so no prompts/outputs land in span attributes."""
+    if tracing_env is not None:
+        monkeypatch.setenv("GUARDRAILS_TRACING_ENABLED", tracing_env)
+    profile_dir = built_profile_dir(profile)
+
+    generated = yaml.safe_load(
+        (profile_dir / "config.yaml").read_text(encoding="utf-8")
+    )
+    assert generated["tracing"]["enabled"] is expected
+    assert generated["tracing"]["enable_content_capture"] is False
+
+    # NeMo's own loader must accept the config regardless of tracing state.
+    config = RailsConfig.from_path(str(profile_dir))
+    assert config.tracing.enabled is expected

@@ -32,6 +32,21 @@ def test_makefile_has_guardrails_server_targets() -> None:
     assert re.search(r"(?m)^guardrails-server-nemoguard:", MAKEFILE)
 
 
+def test_makefile_has_tracing_stack_targets() -> None:
+    assert re.search(r"(?m)^guardrails-tracing-up:", MAKEFILE)
+    assert re.search(r"(?m)^guardrails-tracing-down:", MAKEFILE)
+
+
+def test_makefile_server_targets_wrap_with_opentelemetry_instrument() -> None:
+    # Tracing is opt-in: opentelemetry-instrument only wraps the server when
+    # GUARDRAILS_TRACING_ENABLED=true, so the command is byte-identical when off.
+    assert 'if [ "$${GUARDRAILS_TRACING_ENABLED:-}" = "true" ]' in MAKEFILE
+    assert (
+        len(re.findall(r"opentelemetry-instrument nemoguardrails server", MAKEFILE))
+        == 2
+    )
+
+
 def test_makefile_env_installs_guardrails_extra() -> None:
     assert "--extra guardrails" in MAKEFILE
 
@@ -64,11 +79,21 @@ def test_dockerfile_installs_auth_extra_from_staged_component() -> None:
 
 
 def test_pyproject_pins_nemoguardrails_version() -> None:
+    # Pinned to match the nemoguardrails version shipped in the RHOAI container,
+    # so local behavior mirrors the cluster. 0.21.0 already supports the full
+    # tracing config block (span_format, enable_content_capture).
     guardrails_deps = PYPROJECT["project"]["optional-dependencies"]["guardrails"]
     assert any(
-        "nemoguardrails[server,tracing]" in d and ">=0.22.0" in d
-        for d in guardrails_deps
+        "nemoguardrails[server]" in d and "==0.21.0" in d for d in guardrails_deps
     )
+
+
+def test_pyproject_includes_otel_tracing_deps() -> None:
+    # opentelemetry-instrument (from opentelemetry-distro) configures the OTel SDK
+    # from OTEL_* env vars; the OTLP/HTTP exporter ships spans to the Collector.
+    guardrails_deps = PYPROJECT["project"]["optional-dependencies"]["guardrails"]
+    assert any("opentelemetry-distro" in d for d in guardrails_deps)
+    assert any("opentelemetry-exporter-otlp-proto-http" in d for d in guardrails_deps)
 
 
 def test_pyproject_constrains_protobuf_below_7() -> None:
