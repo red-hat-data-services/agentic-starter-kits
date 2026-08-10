@@ -1,5 +1,6 @@
 SHELL          := bash
 AGENT_NAME     := $(shell python3 -c "import re; print(re.search(r'^name:\s*(.+)', open('agent.yaml').read(), re.M).group(1).strip())")
+REPO_ROOT      := $(shell git rev-parse --show-toplevel)
 CHART_DIR      := ../../deployment
 VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
@@ -111,6 +112,7 @@ build-openshift: ## Build image in-cluster via OpenShift BuildConfig (no podman/
 	  mkdir -p ./components && cp -r ../../../../components/auth ./components/auth && \
 	  trap 'rm -rf ./images ./components/auth; rmdir ./components 2>/dev/null || true' EXIT && \
 	  oc new-build --strategy=docker --binary --name=$(AGENT_NAME) --to=$(AGENT_NAME):latest 2>/dev/null || true && \
+	  $(REPO_ROOT)/scripts/openshift-build-config.sh patch-history $(AGENT_NAME) && \
 	  oc start-build $(AGENT_NAME) --from-dir=. --follow && \
 	  NS=$$(oc project -q) && \
 	  echo "" && \
@@ -209,8 +211,9 @@ dry-run: _check-env ## Render Helm templates without deploying
 	    $${MLFLOW_TRACKING_SERVER_CERT_PATH:+--set env.MLFLOW_TRACKING_SERVER_CERT_PATH="$${MLFLOW_TRACKING_SERVER_CERT_PATH}"} \
 	    $${MLFLOW_WORKSPACE:+--set env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"}
 
-undeploy: ## Remove deployment from cluster
-	helm uninstall $(AGENT_NAME)
+undeploy: ## Remove deployment and OpenShift build artifacts from cluster
+	helm uninstall $(AGENT_NAME) --ignore-not-found
+	@$(REPO_ROOT)/scripts/openshift-build-config.sh cleanup $(AGENT_NAME)
 
 render-guardrails-configmap: ## Render NeMo Guardrails ConfigMap manifest for cluster deploy
 	@CLUSTER_ENV_FILE="$(CLUSTER_ENV)"; \

@@ -1,5 +1,6 @@
 SHELL          := bash
 AGENT_NAME     := $(shell python3 -c "import re; print(re.search(r'^name:\s*(.+)', open('agent.yaml').read(), re.M).group(1).strip())")
+REPO_ROOT      := $(shell git rev-parse --show-toplevel)
 CHART_DIR      := ../../deployment
 VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
@@ -115,6 +116,7 @@ push: ## Push container image to registry
 build-openshift: ## Build image in-cluster via OpenShift BuildConfig (no podman/docker needed)
 	@$(STAGE_BUILD_CONTEXT) && \
 	  oc new-build --strategy=docker --binary --name=$(AGENT_NAME) --to=$(AGENT_NAME):latest 2>/dev/null || true && \
+	  $(REPO_ROOT)/scripts/openshift-build-config.sh patch-history $(AGENT_NAME) && \
 	  oc start-build $(AGENT_NAME) --from-dir="$$BUILD_CONTEXT" --follow && \
 	  NS=$$(oc project -q) && \
 	  echo "" && \
@@ -219,7 +221,8 @@ dry-run: _check-env ## Render Helm templates without deploying
 	    $${MLFLOW_WORKSPACE:+--set-string env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"}
 
 undeploy: ## Remove agent deployment from cluster (does NOT remove MCP server)
-	helm uninstall $(AGENT_NAME)
+	helm uninstall $(AGENT_NAME) --ignore-not-found
+	@$(REPO_ROOT)/scripts/openshift-build-config.sh cleanup $(AGENT_NAME)
 
 test: ## Run unit tests
 	uv run --extra dev python -m pytest tests/ --ignore=tests/integration --ignore=tests/behavioral $(PYTEST_ARGS)
