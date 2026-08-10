@@ -221,6 +221,17 @@ curl -s http://localhost:8000/chat/completions \
 
 ### Tracing (optional)
 
+This agent has two complementary, independent tracing layers — enable either, both, or neither:
+
+- **Agent-level (MLflow)** — the repo-standard tracing shared by every langgraph agent. Captures the LangGraph request and its LLM calls. MLflow sees NeMo Guardrails as a regular ChatOpenAI endpoint, so guardrails internals (which rail fired, classification results) are **not** visible here.
+- **Rail-level (OpenTelemetry)** — new in this agent. The guardrails proxy emits per-rail span data — request flow, LLM latency, and each rail's execution time — which is exactly what MLflow cannot see.
+
+#### Agent-level tracing (MLflow)
+
+MLflow tracing works the same as the other langgraph agents: it is opt-in and disabled unless `MLFLOW_TRACKING_URI` is set. See [`.env.example`](.env.example) for the configuration options. For rail-level detail that MLflow can't surface, use the OpenTelemetry path below (or `nemoguardrails server --verbose` for quick local debugging).
+
+#### Rail-level tracing (OpenTelemetry)
+
 NeMo Guardrails supports [OpenTelemetry tracing](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-nemo-guardrails_nemo-guardrails#configuring-observability-for-nemo-guardrails-with-opentelemetry_nemo-guardrails) (RHOAI 3.4+). When enabled, the proxy emits per-rail span data — request flow, LLM latency, and each rail's execution time — as OpenTelemetry traces.
 
 Tracing is **opt-in**: off by default, zero overhead when unset, and content capture stays disabled in every mode (blocked prompts and outputs are never echoed into span attributes). Three collection paths are available:
