@@ -7,25 +7,19 @@ Covers:
 - HITL turn scoping: resumed-thread responses include only current-turn messages
 """
 
-import asyncio
-import logging
 import os
 import sys
-from unittest.mock import AsyncMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from langgraph.errors import GraphRecursionError
 from pydantic import ValidationError
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from main import (
-    _MAX_INVOKE_ATTEMPTS,
     ChatCompletionRequest,
     _extract_usage,
     _format_context_messages,
-    _invoke_with_retry,
 )
 
 
@@ -184,62 +178,3 @@ class TestHitlTurnScoping:
             "completion_tokens": 60,
             "total_tokens": 180,
         }
-
-
-class TestInvokeWithRetry:
-    def test_succeeds_on_first_attempt(self):
-        expected = {"messages": [AIMessage(content="hello")]}
-        mock_agent = AsyncMock(ainvoke=AsyncMock(return_value=expected))
-        result = asyncio.run(_invoke_with_retry(mock_agent, {"messages": []}))
-        assert result == expected
-        assert mock_agent.ainvoke.call_count == 1
-
-    def test_succeeds_after_transient_failure(self):
-        expected = {"messages": [AIMessage(content="recovered")]}
-        mock_agent = AsyncMock(
-            ainvoke=AsyncMock(side_effect=[GraphRecursionError("loop"), expected])
-        )
-        with patch("main.asyncio.sleep", new_callable=AsyncMock):
-            result = asyncio.run(_invoke_with_retry(mock_agent, {"messages": []}))
-        assert result == expected
-        assert mock_agent.ainvoke.call_count == 2
-
-    def test_exhausts_retries_and_raises(self):
-        mock_agent = AsyncMock(
-            ainvoke=AsyncMock(side_effect=GraphRecursionError("loop"))
-        )
-        with patch("main.asyncio.sleep", new_callable=AsyncMock):
-            with pytest.raises(GraphRecursionError):
-                asyncio.run(_invoke_with_retry(mock_agent, {"messages": []}))
-        assert mock_agent.ainvoke.call_count == _MAX_INVOKE_ATTEMPTS
-
-    def test_non_retryable_error_propagates_immediately(self):
-        mock_agent = AsyncMock(
-            ainvoke=AsyncMock(side_effect=RuntimeError("unexpected"))
-        )
-        with pytest.raises(RuntimeError, match="unexpected"):
-            asyncio.run(_invoke_with_retry(mock_agent, {"messages": []}))
-        assert mock_agent.ainvoke.call_count == 1
-
-    def test_malformed_tool_args_not_leaked_in_logs(self, caplog):
-        malformed_args = "%4W!O;VL"
-        exc = ValidationError.from_exception_data(
-            title="AIMessage",
-            line_errors=[
-                {
-                    "type": "dict_type",
-                    "loc": ("tool_calls", 0, "args"),
-                    "msg": "Input should be a valid dictionary",
-                    "input": malformed_args,
-                }
-            ],
-        )
-        mock_agent = AsyncMock(ainvoke=AsyncMock(side_effect=exc))
-        with (
-            patch("main.asyncio.sleep", new_callable=AsyncMock),
-            caplog.at_level(logging.WARNING, logger="main"),
-        ):
-            with pytest.raises(ValidationError):
-                asyncio.run(_invoke_with_retry(mock_agent, {"messages": []}))
-        for record in caplog.records:
-            assert malformed_args not in record.getMessage()

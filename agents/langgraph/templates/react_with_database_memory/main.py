@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 import time
@@ -37,18 +36,18 @@ from react_with_database_memory.utils import (
 
 logger = logging.getLogger(__name__)
 
-_MAX_INVOKE_ATTEMPTS = 3
 _GRACEFUL_ERROR_MESSAGE = (
     "I was unable to process this request due to repeated internal errors."
 )
 _RETRYABLE_EXCEPTIONS = (
-    GraphRecursionError,
     ValidationError,
     OutputParserException,
     openai.InternalServerError,
     openai.APITimeoutError,
     openai.APIConnectionError,
+    openai.RateLimitError,
 )
+_GRACEFUL_EXCEPTIONS = _RETRYABLE_EXCEPTIONS + (GraphRecursionError,)
 
 
 # OpenAI-compatible request/response models
@@ -234,36 +233,6 @@ def _make_completion_id() -> str:
     return f"chatcmpl-{uuid.uuid4().hex[:12]}"
 
 
-async def _invoke_with_retry(
-    agent,
-    input_data,
-    **kwargs,
-) -> dict:
-    last_exception: Exception = RuntimeError("no invocation attempts were made")
-
-    for attempt in range(1, _MAX_INVOKE_ATTEMPTS + 1):
-        try:
-            return await agent.ainvoke(input_data, **kwargs)
-        except _RETRYABLE_EXCEPTIONS as exc:
-            last_exception = exc
-            if attempt < _MAX_INVOKE_ATTEMPTS:
-                logger.warning(
-                    "LLM/graph invocation failed (attempt %d/%d): %s. Retrying.",
-                    attempt,
-                    _MAX_INVOKE_ATTEMPTS,
-                    type(exc).__name__,
-                )
-                await asyncio.sleep(0.5 * attempt)
-            else:
-                logger.error(
-                    "LLM/graph invocation failed after %d attempts: %s",
-                    _MAX_INVOKE_ATTEMPTS,
-                    type(exc).__name__,
-                )
-
-    raise last_exception
-
-
 def _format_context_messages(messages: list[BaseMessage]) -> list[dict]:
     """Convert LangChain messages to OpenAI-compatible context dicts."""
     context = []
@@ -362,12 +331,10 @@ async def _handle_chat(
                                 "messages", []
                             )
                         )
-                    result = await _invoke_with_retry(
-                        agent, {"messages": messages}, config=config
-                    )
+                    result = await agent.ainvoke({"messages": messages}, config=config)
                 else:
-                    result = await _invoke_with_retry(agent, {"messages": messages})
-            except _RETRYABLE_EXCEPTIONS:
+                    result = await agent.ainvoke({"messages": messages})
+            except _GRACEFUL_EXCEPTIONS:
                 return {
                     "id": _make_completion_id(),
                     "object": "chat.completion",
@@ -383,6 +350,7 @@ async def _handle_chat(
                             "finish_reason": "stop",
                         }
                     ],
+                    "context": [],
                     "usage": None,
                 }
 

@@ -31,13 +31,14 @@ _GRACEFUL_ERROR_MESSAGE = (
     "I was unable to process this request due to repeated internal errors."
 )
 _RETRYABLE_EXCEPTIONS = (
-    GraphRecursionError,
     ValidationError,
     OutputParserException,
     openai.InternalServerError,
     openai.APITimeoutError,
     openai.APIConnectionError,
+    openai.RateLimitError,
 )
+_GRACEFUL_EXCEPTIONS = _RETRYABLE_EXCEPTIONS + (GraphRecursionError,)
 
 
 # OpenAI-compatible request/response models
@@ -290,7 +291,7 @@ async def _handle_chat(messages: list[HumanMessage], model_id: str) -> dict[str,
             result = await _invoke_with_retry(
                 {"messages": messages}, config={"recursion_limit": 15}
             )
-        except _RETRYABLE_EXCEPTIONS:
+        except _GRACEFUL_EXCEPTIONS:
             return {
                 "id": _make_completion_id(),
                 "object": "chat.completion",
@@ -306,6 +307,7 @@ async def _handle_chat(messages: list[HumanMessage], model_id: str) -> dict[str,
                         "finish_reason": "stop",
                     }
                 ],
+                "context": [],
                 "usage": None,
             }
 

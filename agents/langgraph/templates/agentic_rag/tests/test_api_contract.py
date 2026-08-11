@@ -125,9 +125,18 @@ class TestInvokeWithRetry:
 
     def test_succeeds_after_transient_failure(self):
         expected = {"messages": [AIMessage(content="recovered")]}
-        mock_graph = AsyncMock(
-            ainvoke=AsyncMock(side_effect=[GraphRecursionError("loop"), expected])
+        exc = ValidationError.from_exception_data(
+            title="test",
+            line_errors=[
+                {
+                    "type": "dict_type",
+                    "loc": ("x",),
+                    "msg": "bad",
+                    "input": "y",
+                }
+            ],
         )
+        mock_graph = AsyncMock(ainvoke=AsyncMock(side_effect=[exc, expected]))
         with (
             patch("main.agent_graph", mock_graph),
             patch("main.asyncio.sleep", new_callable=AsyncMock),
@@ -137,14 +146,23 @@ class TestInvokeWithRetry:
         assert mock_graph.ainvoke.call_count == 2
 
     def test_exhausts_retries_and_raises(self):
-        mock_graph = AsyncMock(
-            ainvoke=AsyncMock(side_effect=GraphRecursionError("loop"))
+        exc = ValidationError.from_exception_data(
+            title="test",
+            line_errors=[
+                {
+                    "type": "dict_type",
+                    "loc": ("x",),
+                    "msg": "bad",
+                    "input": "y",
+                }
+            ],
         )
+        mock_graph = AsyncMock(ainvoke=AsyncMock(side_effect=exc))
         with (
             patch("main.agent_graph", mock_graph),
             patch("main.asyncio.sleep", new_callable=AsyncMock),
         ):
-            with pytest.raises(GraphRecursionError):
+            with pytest.raises(ValidationError):
                 asyncio.run(_invoke_with_retry({"messages": []}, config={}))
         assert mock_graph.ainvoke.call_count == _MAX_INVOKE_ATTEMPTS
 
@@ -178,6 +196,7 @@ class TestInvokeWithRetry:
         ):
             with pytest.raises(ValidationError):
                 asyncio.run(_invoke_with_retry({"messages": []}, config={}))
+        assert caplog.records
         for record in caplog.records:
             assert malformed_args not in record.getMessage()
 
