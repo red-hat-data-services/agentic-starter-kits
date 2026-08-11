@@ -366,9 +366,7 @@ async def _handle_chat(
                         agent, {"messages": messages}, config=config
                     )
                 else:
-                    result = await _invoke_with_retry(
-                        agent, {"messages": messages}
-                    )
+                    result = await _invoke_with_retry(agent, {"messages": messages})
             except _RETRYABLE_EXCEPTIONS:
                 return {
                     "id": _make_completion_id(),

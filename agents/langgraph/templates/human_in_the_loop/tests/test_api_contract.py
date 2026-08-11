@@ -21,7 +21,6 @@ from pydantic import ValidationError
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from main import (
-    _GRACEFUL_ERROR_MESSAGE,
     _MAX_INVOKE_ATTEMPTS,
     ChatCompletionRequest,
     _extract_usage,

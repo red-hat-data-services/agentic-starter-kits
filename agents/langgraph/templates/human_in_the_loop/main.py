@@ -341,7 +341,10 @@ async def _handle_chat(
                 else:
                     resume_value = {
                         "decisions": [
-                            {"type": "reject", "message": "User rejected the tool call."}
+                            {
+                                "type": "reject",
+                                "message": "User rejected the tool call.",
+                            }
                         ]
                     }
                 result = await _invoke_with_retry(
