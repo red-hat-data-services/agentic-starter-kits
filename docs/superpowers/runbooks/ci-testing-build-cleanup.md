@@ -8,10 +8,14 @@ agent `make undeploy` (Helm release + BC/IS deletion) and `make build-openshift`
 ## Patch existing BuildConfigs to 2/1 (triggers controller prune)
 
 ```bash
-oc project ci-testing
-for bc in $(oc get bc -o name); do
-  oc patch "$bc" --type=merge \
-    -p '{"spec":{"successfulBuildsHistoryLimit":2,"failedBuildsHistoryLimit":1}}'
+set -euo pipefail
+oc project ci-testing >/dev/null
+for bc in $(oc get bc -n ci-testing -o name); do
+  name="${bc#buildconfig.build.openshift.io/}"
+  case "$name" in
+    postgres|minio|mcp-automl|langflow-simple-tool-calling-agent) continue ;;
+  esac
+  scripts/openshift-build-config.sh patch-history "$name" -n ci-testing
 done
 ```
 
@@ -27,14 +31,14 @@ After patching, the build controller prunes excess Build and ConfigMap objects
 over several minutes. Re-check until counts stabilize:
 
 ```bash
-oc get builds --no-headers | wc -l
-oc get cm --no-headers | wc -l
+oc get builds -n ci-testing --no-headers | wc -l
+oc get cm -n ci-testing --no-headers | wc -l
 ```
 
 Optional spot-check that limits applied:
 
 ```bash
-oc get bc -o custom-columns=NAME:.metadata.name,SUCCESS:.spec.successfulBuildsHistoryLimit,FAILED:.spec.failedBuildsHistoryLimit
+oc get bc -n ci-testing -o custom-columns=NAME:.metadata.name,SUCCESS:.spec.successfulBuildsHistoryLimit,FAILED:.spec.failedBuildsHistoryLimit
 ```
 
 ## Remove stale Helm releases (example)

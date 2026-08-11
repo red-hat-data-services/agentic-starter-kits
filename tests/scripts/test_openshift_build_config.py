@@ -60,3 +60,27 @@ def test_cleanup_skips_when_oc_missing():
     )
     assert result.returncode == 0
     assert "skipping" in result.stderr.lower()
+
+
+def test_patch_history_fails_when_oc_patch_fails(tmp_path: Path):
+    fake_oc = tmp_path / "oc"
+    fake_oc.write_text(
+        "#!/usr/bin/env bash\n"
+        'if [[ "$1" == patch ]]; then\n'
+        '  echo "patch failed" >&2\n'
+        "  exit 1\n"
+        "fi\n"
+        "exit 0\n"
+    )
+    fake_oc.chmod(0o755)
+
+    result = subprocess.run(
+        [str(SCRIPT), "patch-history", "langgraph-react-agent", "-n", "ci-testing"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={"PATH": f"{tmp_path}:/usr/bin:/bin"},
+    )
+    assert result.returncode != 0
+    assert "patch failed" in result.stderr

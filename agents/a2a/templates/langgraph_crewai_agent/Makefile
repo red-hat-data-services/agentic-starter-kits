@@ -199,8 +199,11 @@ deploy: _check-env ## Two-phase Helm deploy (Routes first, then Deployments with
 	echo "=== Done ===" && oc get route a2a-crew-agent a2a-langgraph-agent
 
 undeploy: ## Remove deployment from cluster
-	helm uninstall $(AGENT_NAME) --ignore-not-found
-	@$(REPO_ROOT)/scripts/openshift-build-config.sh cleanup $(AGENT_NAME)
+	@helm_status=0; cleanup_status=0; \
+	helm uninstall $(AGENT_NAME) --ignore-not-found || helm_status=$$?; \
+	$(REPO_ROOT)/scripts/openshift-build-config.sh cleanup $(AGENT_NAME) || cleanup_status=$$?; \
+	if [ $$helm_status -ne 0 ]; then exit $$helm_status; fi; \
+	exit $$cleanup_status
 
 test-integration: ## Run integration deployment test
 	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \

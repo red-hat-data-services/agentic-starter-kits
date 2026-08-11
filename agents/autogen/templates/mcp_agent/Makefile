@@ -221,8 +221,11 @@ dry-run: _check-env ## Render Helm templates without deploying
 	    $${MLFLOW_WORKSPACE:+--set-string env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"}
 
 undeploy: ## Remove agent deployment from cluster (does NOT remove MCP server)
-	helm uninstall $(AGENT_NAME) --ignore-not-found
-	@$(REPO_ROOT)/scripts/openshift-build-config.sh cleanup $(AGENT_NAME)
+	@helm_status=0; cleanup_status=0; \
+	helm uninstall $(AGENT_NAME) --ignore-not-found || helm_status=$$?; \
+	$(REPO_ROOT)/scripts/openshift-build-config.sh cleanup $(AGENT_NAME) || cleanup_status=$$?; \
+	if [ $$helm_status -ne 0 ]; then exit $$helm_status; fi; \
+	exit $$cleanup_status
 
 test: ## Run unit tests
 	uv run --extra dev python -m pytest tests/ --ignore=tests/integration --ignore=tests/behavioral $(PYTEST_ARGS)

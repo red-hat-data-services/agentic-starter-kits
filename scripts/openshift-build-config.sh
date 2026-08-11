@@ -52,8 +52,7 @@ patch_history() {
   local agent="$1"
   local ns_flag=("${NAMESPACE_ARGS[@]}")
   oc patch "bc/${agent}" "${ns_flag[@]}" --type=merge \
-    -p "{\"spec\":{\"successfulBuildsHistoryLimit\":${SUCCESSFUL_LIMIT},\"failedBuildsHistoryLimit\":${FAILED_LIMIT}}}" \
-    2>/dev/null || true
+    -p "{\"spec\":{\"successfulBuildsHistoryLimit\":${SUCCESSFUL_LIMIT},\"failedBuildsHistoryLimit\":${FAILED_LIMIT}}}"
 }
 
 cleanup() {
