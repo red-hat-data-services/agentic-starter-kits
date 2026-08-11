@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -49,14 +50,19 @@ def test_cleanup_rejects_denylisted_names(denylisted: str):
     assert denylisted in result.stderr
 
 
-def test_cleanup_skips_when_oc_missing():
+def test_cleanup_skips_when_oc_missing(tmp_path: Path):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    bash_path = shutil.which("bash")
+    assert bash_path is not None
+    fake_bin.joinpath("bash").symlink_to(Path(bash_path).resolve())
     result = subprocess.run(
         [str(SCRIPT), "cleanup", "langgraph-react-agent"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         check=False,
-        env={"PATH": "/usr/bin:/bin"},
+        env={"PATH": str(fake_bin)},
     )
     assert result.returncode == 0
     assert "skipping" in result.stderr.lower()
