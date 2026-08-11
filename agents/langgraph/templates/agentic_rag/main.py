@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -8,6 +9,7 @@ from os import getenv
 from pathlib import Path
 from typing import Any
 
+import openai
 from agentic_rag.agent import get_graph_closure
 from agentic_rag.tracing import enable_tracing
 from fastapi import FastAPI, HTTPException
@@ -17,10 +19,25 @@ from fastapi.responses import (
     JSONResponse,
     StreamingResponse,
 )
+from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from pydantic import BaseModel, Field
+from langgraph.errors import GraphRecursionError
+from pydantic import BaseModel, Field, ValidationError
 
 logger = logging.getLogger(__name__)
+
+_MAX_INVOKE_ATTEMPTS = 3
+_GRACEFUL_ERROR_MESSAGE = (
+    "I was unable to process this request due to repeated internal errors."
+)
+_RETRYABLE_EXCEPTIONS = (
+    GraphRecursionError,
+    ValidationError,
+    OutputParserException,
+    openai.InternalServerError,
+    openai.APITimeoutError,
+    openai.APIConnectionError,
+)
 
 
 # OpenAI-compatible request/response models
@@ -212,6 +229,36 @@ def _make_completion_id() -> str:
     return f"chatcmpl-{uuid.uuid4().hex[:12]}"
 
 
+async def _invoke_with_retry(
+    input_data: dict,
+    config: dict,
+) -> dict:
+    global agent_graph
+    last_exception: Exception = RuntimeError("no invocation attempts were made")
+
+    for attempt in range(1, _MAX_INVOKE_ATTEMPTS + 1):
+        try:
+            return await agent_graph.ainvoke(input_data, config=config)
+        except _RETRYABLE_EXCEPTIONS as exc:
+            last_exception = exc
+            if attempt < _MAX_INVOKE_ATTEMPTS:
+                logger.warning(
+                    "LLM/graph invocation failed (attempt %d/%d): %s. Retrying.",
+                    attempt,
+                    _MAX_INVOKE_ATTEMPTS,
+                    type(exc).__name__,
+                )
+                await asyncio.sleep(0.5 * attempt)
+            else:
+                logger.error(
+                    "LLM/graph invocation failed after %d attempts: %s",
+                    _MAX_INVOKE_ATTEMPTS,
+                    type(exc).__name__,
+                )
+
+    raise last_exception
+
+
 @app.post(
     "/chat/completions",
     response_model=ChatCompletionResponse,
@@ -239,9 +286,28 @@ async def _handle_chat(messages: list[HumanMessage], model_id: str) -> dict[str,
     global agent_graph
 
     try:
-        result = await agent_graph.ainvoke(
-            {"messages": messages}, config={"recursion_limit": 15}
-        )
+        try:
+            result = await _invoke_with_retry(
+                {"messages": messages}, config={"recursion_limit": 15}
+            )
+        except _RETRYABLE_EXCEPTIONS:
+            return {
+                "id": _make_completion_id(),
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": model_id,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": _GRACEFUL_ERROR_MESSAGE,
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": None,
+            }
 
         # Extract the final assistant message content
         assistant_content = ""
