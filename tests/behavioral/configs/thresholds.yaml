@@ -38,7 +38,7 @@ agentic_rag:
   pass_at_k: 8
 
 langgraph_db_memory:
-  # latency observed 11.7s / 14.4s; p5 ~14.4, threshold = 18.0
+  # latency observed 11.7s / 14.4s; p95 ~14.4, threshold = 18.0
   tool_selection_accuracy: 0.85
   response_coherence_accuracy: 0.75
   max_latency_p95: 18.0

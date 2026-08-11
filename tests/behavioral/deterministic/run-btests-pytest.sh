@@ -360,13 +360,23 @@ run_tests() {
     # Langflow needs the flow ID discovered from its API
     local langflow_flow_id=""
     if [[ "$path" == *"langflow"* ]]; then
-      langflow_flow_id=$(curl -sk --compressed -H "Accept: application/json" \
-        "${agent_url}/api/v1/flows/" 2>/dev/null \
-        | python3 -c "import sys,json; flows=json.load(sys.stdin); print(flows[0]['id'] if flows else '')" 2>/dev/null || true)
-      if [[ -n "$langflow_flow_id" ]]; then
-        log "  Discovered LANGFLOW_FLOW_ID=${langflow_flow_id}"
+      if [[ -n "${LANGFLOW_FLOW_ID:-}" ]]; then
+        langflow_flow_id="${LANGFLOW_FLOW_ID}"
+        log "  Using pre-set LANGFLOW_FLOW_ID=${langflow_flow_id}"
       else
-        warn "  Could not discover LANGFLOW_FLOW_ID — langflow tests will skip"
+        langflow_flow_id=$(curl -sk --compressed -H "Accept: application/json" \
+          "${agent_url}/api/v1/flows/" 2>/dev/null \
+          | python3 -c "
+import sys, json
+flows = json.load(sys.stdin)
+match = [f['id'] for f in flows if f.get('name') == 'Outdoor Activity Agent']
+print(match[0] if len(match) == 1 else '')
+" 2>/dev/null || true)
+        if [[ -n "$langflow_flow_id" ]]; then
+          log "  Discovered LANGFLOW_FLOW_ID=${langflow_flow_id}"
+        else
+          warn "  Could not discover LANGFLOW_FLOW_ID — langflow tests will skip"
+        fi
       fi
     fi
 
