@@ -34,9 +34,9 @@ pytestmark = pytest.mark.vanilla_python
 def _single_tool_queries() -> list[dict[str, Any]]:
     """Return golden queries that should trigger exactly one tool call."""
     return [
-        q for q in load_golden()
-        if len(q.get("expected_tools", [])) == 1
-        and q.get("category") != "adversarial"
+        q
+        for q in load_golden()
+        if len(q.get("expected_tools", [])) == 1 and q.get("category") != "adversarial"
     ]
 
 
@@ -90,7 +90,9 @@ async def test_single_tool_selection(
         )
 
 
-@pytest.mark.xfail(reason="model inconsistently calls search_reviews — tool selection scorer fails on partial recall")
+@pytest.mark.xfail(
+    reason="model inconsistently calls search_reviews — tool selection scorer fails on partial recall"
+)
 @pytest.mark.parametrize(
     "golden",
     _multi_tool_queries(),
