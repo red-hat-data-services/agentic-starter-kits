@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -8,6 +9,7 @@ from os import getenv
 from pathlib import Path
 from typing import Any
 
+import openai
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import (
     FileResponse,
@@ -17,12 +19,28 @@ from fastapi.responses import (
 )
 from human_in_the_loop.agent import get_graph_closure
 from human_in_the_loop.tracing import enable_tracing
+from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 logger = logging.getLogger(__name__)
+
+_MAX_INVOKE_ATTEMPTS = 3
+_GRACEFUL_ERROR_MESSAGE = (
+    "I was unable to process this request due to repeated internal errors."
+)
+_RETRYABLE_EXCEPTIONS = (
+    ValidationError,
+    OutputParserException,
+    openai.InternalServerError,
+    openai.APITimeoutError,
+    openai.APIConnectionError,
+    openai.RateLimitError,
+)
+_GRACEFUL_EXCEPTIONS = _RETRYABLE_EXCEPTIONS + (GraphRecursionError,)
 
 
 # OpenAI-compatible request/response models
@@ -204,6 +222,36 @@ def _make_completion_id() -> str:
     return f"chatcmpl-{uuid.uuid4().hex[:12]}"
 
 
+async def _invoke_with_retry(
+    agent,
+    input_data,
+    **kwargs,
+) -> dict:
+    last_exception: Exception = RuntimeError("no invocation attempts were made")
+
+    for attempt in range(1, _MAX_INVOKE_ATTEMPTS + 1):
+        try:
+            return await agent.ainvoke(input_data, **kwargs)
+        except _RETRYABLE_EXCEPTIONS as exc:
+            last_exception = exc
+            if attempt < _MAX_INVOKE_ATTEMPTS:
+                logger.warning(
+                    "LLM/graph invocation failed (attempt %d/%d): %s. Retrying.",
+                    attempt,
+                    _MAX_INVOKE_ATTEMPTS,
+                    type(exc).__name__,
+                )
+                await asyncio.sleep(0.5 * attempt)
+            else:
+                logger.error(
+                    "LLM/graph invocation failed after %d attempts: %s",
+                    _MAX_INVOKE_ATTEMPTS,
+                    type(exc).__name__,
+                )
+
+    raise last_exception
+
+
 def _format_context_messages(messages) -> list[dict]:
     """Convert LangChain messages to OpenAI-compatible context dicts."""
     context = []
@@ -286,29 +334,59 @@ async def _handle_chat(
                 prior.checkpoint.get("channel_values", {}).get("messages", [])
             )
 
-        if request.approval:
-            # Resume from interrupt with human decision
-            if request.approval.lower() in ("yes", "y", "approve"):
-                resume_value = {"decisions": [{"type": "approve"}]}
+        try:
+            if request.approval:
+                # Resume from interrupt with human decision — no retry
+                # (consumed interrupts cannot be resumed again)
+                if request.approval.lower() in ("yes", "y", "approve"):
+                    resume_value = {"decisions": [{"type": "approve"}]}
+                else:
+                    resume_value = {
+                        "decisions": [
+                            {
+                                "type": "reject",
+                                "message": "User rejected the tool call.",
+                            }
+                        ]
+                    }
+                result = await agent.ainvoke(
+                    Command(resume=resume_value),
+                    config=config,
+                    version="v2",
+                )
             else:
-                resume_value = {
-                    "decisions": [
-                        {"type": "reject", "message": "User rejected the tool call."}
-                    ]
-                }
-            result = await agent.ainvoke(
-                Command(resume=resume_value),
-                config=config,
-                version="v2",
+                # New conversation turn — retry transient failures
+                langchain_messages = _build_langchain_messages(request.messages)
+                result = await _invoke_with_retry(
+                    agent,
+                    {"messages": langchain_messages},
+                    config=config,
+                    version="v2",
+                )
+        except _GRACEFUL_EXCEPTIONS:
+            logger.warning(
+                "Returning graceful error after invocation failure: %s",
+                "retries_exhausted",
             )
-        else:
-            # New conversation turn
-            langchain_messages = _build_langchain_messages(request.messages)
-            result = await agent.ainvoke(
-                {"messages": langchain_messages},
-                config=config,
-                version="v2",
-            )
+            return {
+                "id": _make_completion_id(),
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": model_id,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": _GRACEFUL_ERROR_MESSAGE,
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "context": [],
+                "thread_id": thread_id,
+                "usage": None,
+            }
 
         # Check if the graph was interrupted (pending human approval)
         if result.interrupts:
@@ -366,7 +444,7 @@ async def _handle_chat(
         }
 
     except Exception:
-        logger.exception("Error processing chat completion request")
+        logger.error("Unhandled error in chat completion request")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

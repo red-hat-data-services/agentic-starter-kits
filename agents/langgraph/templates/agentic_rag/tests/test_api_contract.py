@@ -6,16 +6,26 @@ Covers:
 - _extract_usage returns None when no metadata is available
 """
 
+import asyncio
+import logging
 import os
 import sys
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.errors import GraphRecursionError
 from pydantic import ValidationError
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from main import ChatCompletionRequest, _extract_usage
+from main import (
+    _GRACEFUL_ERROR_MESSAGE,
+    _MAX_INVOKE_ATTEMPTS,
+    ChatCompletionRequest,
+    _extract_usage,
+    _invoke_with_retry,
+)
 
 
 class TestEmptyMessagesValidation:
@@ -102,3 +112,124 @@ class TestExtractUsage:
 
     def test_returns_none_for_empty_list(self):
         assert _extract_usage([]) is None
+
+
+class TestInvokeWithRetry:
+    def test_succeeds_on_first_attempt(self):
+        expected = {"messages": [AIMessage(content="hello")]}
+        mock_graph = AsyncMock(ainvoke=AsyncMock(return_value=expected))
+        with patch("main.agent_graph", mock_graph):
+            result = asyncio.run(_invoke_with_retry({"messages": []}, config={}))
+        assert result == expected
+        assert mock_graph.ainvoke.call_count == 1
+
+    def test_succeeds_after_transient_failure(self):
+        expected = {"messages": [AIMessage(content="recovered")]}
+        exc = ValidationError.from_exception_data(
+            title="test",
+            line_errors=[
+                {
+                    "type": "dict_type",
+                    "loc": ("x",),
+                    "msg": "bad",
+                    "input": "y",
+                }
+            ],
+        )
+        mock_graph = AsyncMock(ainvoke=AsyncMock(side_effect=[exc, expected]))
+        with (
+            patch("main.agent_graph", mock_graph),
+            patch("main.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            result = asyncio.run(_invoke_with_retry({"messages": []}, config={}))
+        assert result == expected
+        assert mock_graph.ainvoke.call_count == 2
+
+    def test_exhausts_retries_and_raises(self):
+        exc = ValidationError.from_exception_data(
+            title="test",
+            line_errors=[
+                {
+                    "type": "dict_type",
+                    "loc": ("x",),
+                    "msg": "bad",
+                    "input": "y",
+                }
+            ],
+        )
+        mock_graph = AsyncMock(ainvoke=AsyncMock(side_effect=exc))
+        with (
+            patch("main.agent_graph", mock_graph),
+            patch("main.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            with pytest.raises(ValidationError):
+                asyncio.run(_invoke_with_retry({"messages": []}, config={}))
+        assert mock_graph.ainvoke.call_count == _MAX_INVOKE_ATTEMPTS
+
+    def test_non_retryable_error_propagates_immediately(self):
+        mock_graph = AsyncMock(
+            ainvoke=AsyncMock(side_effect=RuntimeError("unexpected"))
+        )
+        with patch("main.agent_graph", mock_graph):
+            with pytest.raises(RuntimeError, match="unexpected"):
+                asyncio.run(_invoke_with_retry({"messages": []}, config={}))
+        assert mock_graph.ainvoke.call_count == 1
+
+    def test_malformed_tool_args_not_leaked_in_logs(self, caplog):
+        malformed_args = "%4W!O;VL"
+        exc = ValidationError.from_exception_data(
+            title="AIMessage",
+            line_errors=[
+                {
+                    "type": "dict_type",
+                    "loc": ("tool_calls", 0, "args"),
+                    "msg": "Input should be a valid dictionary",
+                    "input": malformed_args,
+                }
+            ],
+        )
+        mock_graph = AsyncMock(ainvoke=AsyncMock(side_effect=exc))
+        with (
+            patch("main.agent_graph", mock_graph),
+            patch("main.asyncio.sleep", new_callable=AsyncMock),
+            caplog.at_level(logging.WARNING, logger="main"),
+        ):
+            with pytest.raises(ValidationError):
+                asyncio.run(_invoke_with_retry({"messages": []}, config={}))
+        assert caplog.records
+        for record in caplog.records:
+            assert malformed_args not in record.getMessage()
+
+
+class TestHandleChatGracefulError:
+    def test_returns_200_with_error_message_after_retries_exhausted(self):
+        from main import _handle_chat
+
+        mock_graph = AsyncMock(
+            ainvoke=AsyncMock(
+                side_effect=GraphRecursionError("recursion limit reached")
+            )
+        )
+        with (
+            patch("main.agent_graph", mock_graph),
+            patch("main.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            result = asyncio.run(
+                _handle_chat([HumanMessage(content="test")], "test-model")
+            )
+        assert result["choices"][0]["message"]["content"] == _GRACEFUL_ERROR_MESSAGE
+        assert result["choices"][0]["finish_reason"] == "stop"
+        assert result["object"] == "chat.completion"
+        assert result["usage"] is None
+
+    def test_still_returns_500_for_non_retryable_errors(self):
+        from fastapi import HTTPException
+        from main import _handle_chat
+
+        mock_graph = AsyncMock(
+            ainvoke=AsyncMock(side_effect=RuntimeError("server broke"))
+        )
+        with patch("main.agent_graph", mock_graph):
+            with pytest.raises(HTTPException) as exc_info:
+                asyncio.run(_handle_chat([HumanMessage(content="test")], "test-model"))
+        assert exc_info.value.status_code == 500
