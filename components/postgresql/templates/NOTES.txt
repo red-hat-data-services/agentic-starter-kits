@@ -1,0 +1,17 @@
+PostgreSQL has been deployed.
+
+  Service:  {{ include "postgresql.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+  Database: {{ .Values.auth.database }}
+  Username: {{ .Values.auth.username }}
+
+To connect from an agent, set these env vars in your .env:
+
+  POSTGRES_HOST={{ include "postgresql.fullname" . }}
+  POSTGRES_PORT={{ .Values.service.port }}
+  POSTGRES_DB={{ .Values.auth.database }}
+  POSTGRES_USER={{ .Values.auth.username }}
+  POSTGRES_PASSWORD=<the password you set during install>
+
+To verify the deployment:
+
+  helm test {{ .Release.Name }}

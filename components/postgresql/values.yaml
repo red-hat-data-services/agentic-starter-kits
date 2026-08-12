@@ -1,0 +1,32 @@
+# PostgreSQL configuration for agentic-starter-kits
+# Override these values per environment via --set or a custom values file
+
+image:
+  repository: registry.redhat.io/rhel9/postgresql-16
+  tag: "1-1786484397"
+  pullPolicy: IfNotPresent
+
+auth:
+  username: agent
+  password: ""  # Required — set via --set auth.password=<value>
+  database: agent_memory
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  port: 5432
+
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClass: ""  # Empty = cluster default StorageClass
+  accessMode: ReadWriteOnce
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"

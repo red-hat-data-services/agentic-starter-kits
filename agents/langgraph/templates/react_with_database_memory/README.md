@@ -237,6 +237,53 @@ POSTGRES_PASSWORD = your_db_password
 - `POSTGRES_HOST` - PostgreSQL database hostname (must be accessible from the cluster)
 - `POSTGRES_PASSWORD` - stored as a Kubernetes secret (never in plain-text manifests)
 
+### PostgreSQL on OpenShift
+
+The agent needs a PostgreSQL database accessible from the cluster. Choose one of the options below.
+
+#### Option A: Deploy PostgreSQL using the provided Helm chart
+
+A reusable PostgreSQL chart is available at [`components/postgresql/`](../../../../components/postgresql/).
+
+```bash
+# From the repository root
+helm install postgresql components/postgresql/ \
+  --set auth.password=<your-password>
+```
+
+This creates a PostgreSQL service at `postgresql:5432` in the current namespace. Set the agent's
+`.env` accordingly:
+
+```ini
+POSTGRES_HOST=postgresql
+POSTGRES_PORT=5432
+POSTGRES_DB=agent_memory
+POSTGRES_USER=agent
+POSTGRES_PASSWORD=<your-password>
+```
+
+See the [component README](../../../../components/postgresql/README.md) for full configuration
+options (storage size, custom StorageClass, resource limits, etc.).
+
+#### Option B: Use an existing PostgreSQL instance
+
+If PostgreSQL is already running in your cluster or available externally, point the agent's env
+vars at it directly:
+
+```ini
+POSTGRES_HOST=my-existing-postgres.other-namespace.svc.cluster.local
+POSTGRES_PORT=5432
+POSTGRES_DB=agent_memory
+POSTGRES_USER=myuser
+POSTGRES_PASSWORD=mypassword
+```
+
+For cross-namespace access, use the fully qualified service DNS:
+`<service-name>.<namespace>.svc.cluster.local`.
+
+> **Note:** The agent auto-creates its checkpoint tables on first run via LangGraph's
+> `PostgresSaver` — no manual schema setup is needed regardless of which option you choose.
+
 ### Building the Container Image
 
 Login to OC

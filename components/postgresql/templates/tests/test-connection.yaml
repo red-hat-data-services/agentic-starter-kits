@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "postgresql.fullname" . }}-test
+  labels:
+    {{- include "postgresql.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+spec:
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: pg-test
+      image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+      command:
+        - /bin/sh
+        - -c
+        - pg_isready -h {{ include "postgresql.fullname" . }} -p {{ .Values.service.port }} -U {{ .Values.auth.username }} -d {{ .Values.auth.database }}
+  restartPolicy: Never
