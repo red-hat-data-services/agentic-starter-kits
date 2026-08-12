@@ -7,7 +7,7 @@ Collection of production-ready LLM agent templates for Red Hat OpenShift (LangGr
 - `agents/<framework>/templates/<agent_name>/` - self-contained agent templates (Makefile, Dockerfile, pyproject.toml, src/, tests/)
 - `agents/<framework>/examples/<agent_name>/` - business use-case demos built on templates
 - `agents/<framework>/deployment/` - per-framework Helm charts for deployment
-- `components/<component_name>/` - shared reusable Python packages (for cross-agent concerns like auth/tracing)
+- `components/<component_name>/` - shared reusable components (Python packages for cross-agent concerns like auth/tracing, or Helm charts for shared infrastructure like databases)
 - `docs/` - guides for local dev, deployment, and adding new agents
 
 ## Commands
