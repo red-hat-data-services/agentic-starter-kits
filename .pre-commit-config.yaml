@@ -53,8 +53,9 @@ repos:
 
   # Markdownlint — Markdown linting
   # Rules are defined in .markdownlint.jsonc at the repo root
+  # v0.23.2 breaks pre-commit install on Node 25 (hosted-git-info@10.x engine range) — keep at v0.23.1 until upstream fixes
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.23.2
+    rev: v0.23.1
     hooks:
       - id: markdownlint-cli2
         args: [--fix]
