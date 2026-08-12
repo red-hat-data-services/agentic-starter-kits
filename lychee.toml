@@ -4,8 +4,11 @@
 # Root directory for resolving root-relative links (e.g. /images/logo.svg)
 root_dir = "."
 
-# Accept these HTTP status codes as valid (no global 403 — new broken links are still caught)
-accept = ["200", "206", "301", "302", "308"]
+# Accept these HTTP status codes as valid (no global 403 — new broken links are still caught).
+# 429 = rate limited, not broken: sites like docs.vllm.ai (Read the Docs/Cloudflare)
+# throttle shared IPs (GitHub Actions runners, and sometimes local pre-commit runs),
+# returning 429 for links that are actually live. Accepting it can't hide a real 404.
+accept = ["200", "206", "301", "302", "308", "429"]
 
 # Maximum number of concurrent network requests
 max_concurrency = 32
