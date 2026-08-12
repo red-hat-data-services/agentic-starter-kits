@@ -352,24 +352,43 @@ class AIAgent:
                 ]
 
                 if actions:
-                    action, args_str = actions[0].groups()
-                    action_inputs = self._parse_arguments(args_str)
+                    observations = []
+                    for match in actions:
+                        action, args_str = match.groups()
 
-                    if on_event:
-                        on_event("tool_call", {"name": action, "args": action_inputs})
+                        if action.lower() == "none":
+                            continue
 
-                    tool = self.tools.get(action)
-                    if not tool:
-                        raise ValueError(f"Unknown action: {action}")
+                        action_inputs = self._parse_arguments(args_str)
 
-                    observation = tool(*action_inputs)
+                        if on_event:
+                            on_event(
+                                "tool_call", {"name": action, "args": action_inputs}
+                            )
 
-                    if on_event:
-                        on_event(
-                            "tool_result", {"name": action, "output": str(observation)}
-                        )
+                        tool = self.tools.get(action)
+                        if not tool:
+                            obs = (
+                                f"Unknown tool '{action}'. "
+                                f"Available tools: {list(self.tools.keys())}"
+                            )
+                            observations.append(obs)
+                            continue
 
-                    next_prompt = f"Observation: {observation}"
+                        observation = tool(*action_inputs)
+
+                        if on_event:
+                            on_event(
+                                "tool_result",
+                                {"name": action, "output": str(observation)},
+                            )
+
+                        observations.append(str(observation))
+
+                    if not observations:
+                        return result.strip() if result else None
+
+                    next_prompt = "Observation: " + " | ".join(observations)
                 else:
                     # No Action: line – treat the whole response as the final answer
                     return result.strip() if result else None

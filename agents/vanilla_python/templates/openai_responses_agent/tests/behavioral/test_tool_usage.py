@@ -90,9 +90,6 @@ async def test_single_tool_selection(
         )
 
 
-@pytest.mark.xfail(
-    reason="model inconsistently calls search_reviews — tool selection scorer fails on partial recall"
-)
 @pytest.mark.parametrize(
     "golden",
     _multi_tool_queries(),
