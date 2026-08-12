@@ -1,5 +1,6 @@
 SHELL          := bash
 AGENT_NAME     := $(shell python3 -c "import re; print(re.search(r'^name:\s*(.+)', open('agent.yaml').read(), re.M).group(1).strip())")
+REPO_ROOT      := $(shell git rev-parse --show-toplevel 2>/dev/null || echo ../../../..)
 CHART_DIR      := ../../deployment
 VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
@@ -127,6 +128,7 @@ push: _check-env ## Push both image tags to the registry
 
 build-openshift: ## Build image in-cluster via OpenShift BuildConfig (no podman/docker needed)
 	@oc new-build --strategy=docker --binary --name=$(AGENT_NAME) --to=$(AGENT_NAME):latest 2>/dev/null || true && \
+	  $(REPO_ROOT)/scripts/openshift-build-config.sh patch-history $(AGENT_NAME) && \
 	  oc start-build $(AGENT_NAME) --from-dir=. --follow && \
 	  oc tag $(AGENT_NAME):latest $(AGENT_NAME):crew && \
 	  oc tag $(AGENT_NAME):latest $(AGENT_NAME):langgraph && \
@@ -196,8 +198,22 @@ deploy: _check-env ## Two-phase Helm deploy (Routes first, then Deployments with
 	oc rollout status deployment/a2a-langgraph-agent --timeout=300s && \
 	echo "=== Done ===" && oc get route a2a-crew-agent a2a-langgraph-agent
 
-undeploy: ## Remove Helm release (all resources)
-	helm uninstall $(AGENT_NAME) --ignore-not-found
+undeploy: ## Remove deployment from cluster
+	@helm_status=0; cleanup_status=0; cleanup_script="$(REPO_ROOT)/scripts/openshift-build-config.sh"; \
+	helm_output=$$(helm uninstall $(AGENT_NAME) 2>&1); helm_status=$$?; \
+	if [ -n "$$helm_output" ]; then \
+	  if [ $$helm_status -eq 0 ]; then printf '%s\n' "$$helm_output"; else printf '%s\n' "$$helm_output" >&2; fi; \
+	fi; \
+	if [ $$helm_status -ne 0 ]; then \
+	  case "$$helm_output" in *"Release not loaded"*|*"release: not found"*) helm_status=0 ;; esac; \
+	fi; \
+	if [ -f "$$cleanup_script" ]; then \
+	  bash "$$cleanup_script" cleanup $(AGENT_NAME) || cleanup_status=$$?; \
+	else \
+	  echo "WARNING: cleanup script not found: $$cleanup_script" >&2; \
+	fi; \
+	if [ $$helm_status -ne 0 ]; then exit $$helm_status; fi; \
+	exit $$cleanup_status
 
 test-integration: ## Run integration deployment test
 	PYTHONPATH=$$(git rev-parse --show-toplevel)/tests \

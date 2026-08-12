@@ -1,5 +1,6 @@
 SHELL          := bash
 AGENT_NAME     := $(shell python3 -c "import re; print(re.search(r'^name:\s*(.+)', open('agent.yaml').read(), re.M).group(1).strip())")
+REPO_ROOT      := $(shell git rev-parse --show-toplevel 2>/dev/null || echo ../../../..)
 CHART_DIR      := ../../deployment
 VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
@@ -113,6 +114,7 @@ build-openshift: ## Build image in-cluster via OpenShift BuildConfig (no podman/
 	  cp -r ../../../../images ./images && \
 	  mkdir -p ./components && cp -r ../../../../components/auth ./components/auth && \
 	  oc new-build --strategy=docker --binary --name=$(AGENT_NAME) --to=$(AGENT_NAME):latest 2>/dev/null || true && \
+	  $(REPO_ROOT)/scripts/openshift-build-config.sh patch-history $(AGENT_NAME) && \
 	  oc start-build $(AGENT_NAME) --from-dir=. --follow && \
 	  NS=$$(oc project -q) && \
 	  echo "" && \
@@ -218,7 +220,21 @@ dry-run: _check-env ## Render Helm templates without deploying
 	    $${MLFLOW_WORKSPACE:+--set env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"}
 
 undeploy: ## Remove deployment from cluster
-	helm uninstall $(AGENT_NAME)
+	@helm_status=0; cleanup_status=0; cleanup_script="$(REPO_ROOT)/scripts/openshift-build-config.sh"; \
+	helm_output=$$(helm uninstall $(AGENT_NAME) 2>&1); helm_status=$$?; \
+	if [ -n "$$helm_output" ]; then \
+	  if [ $$helm_status -eq 0 ]; then printf '%s\n' "$$helm_output"; else printf '%s\n' "$$helm_output" >&2; fi; \
+	fi; \
+	if [ $$helm_status -ne 0 ]; then \
+	  case "$$helm_output" in *"Release not loaded"*|*"release: not found"*) helm_status=0 ;; esac; \
+	fi; \
+	if [ -f "$$cleanup_script" ]; then \
+	  bash "$$cleanup_script" cleanup $(AGENT_NAME) || cleanup_status=$$?; \
+	else \
+	  echo "WARNING: cleanup script not found: $$cleanup_script" >&2; \
+	fi; \
+	if [ $$helm_status -ne 0 ]; then exit $$helm_status; fi; \
+	exit $$cleanup_status
 
 ## ── openShell sandbox targets ─────────────────────────────────────────────────
 OPENSHELL_SANDBOX ?= $(shell . ./.env 2>/dev/null && echo $${OPENSHELL_SANDBOX_NAME:-rag-sandbox})

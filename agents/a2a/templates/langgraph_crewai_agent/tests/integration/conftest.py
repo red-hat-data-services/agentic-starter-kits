@@ -71,10 +71,12 @@ def deployed_agent(cluster_auth, agent_dir, agent_name):  # noqa: F811
     namespace = cluster_auth["namespace"]
     container_image = f"{INTERNAL_REGISTRY}/{namespace}/{agent_name}:latest"
     env_path, orig_env = _write_env_file(agent_dir, container_image)
+    build_attempted = False
 
     try:
         try:
             logger.info("Building image on cluster via build-openshift...")
+            build_attempted = True
             run_make("build-openshift", cwd=agent_dir, timeout=600)
 
             logger.info("Deploying to cluster (two-phase Helm)...")
@@ -99,14 +101,20 @@ def deployed_agent(cluster_auth, agent_dir, agent_name):  # noqa: F811
         yield primary
 
     finally:
-        logger.info("Tearing down deployment...")
-        try:
-            run_make("undeploy", cwd=agent_dir, timeout=120)
-        except MakeTargetError:
-            logger.warning(
-                "Cleanup failed — manual undeploy may be needed",
-                exc_info=True,
-            )
+        if build_attempted:
+            logger.info("Tearing down deployment...")
+            try:
+                run_make("undeploy", cwd=agent_dir, timeout=120)
+            except MakeTargetError:
+                logger.warning(
+                    "Cleanup failed — manual undeploy may be needed",
+                    exc_info=True,
+                )
+            except Exception:
+                logger.warning(
+                    "Cleanup could not be launched — manual undeploy may be needed",
+                    exc_info=True,
+                )
         if orig_env is not None:
             try:
                 env_path.write_text(orig_env, encoding="utf-8")
