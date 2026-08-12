@@ -39,9 +39,15 @@ skip_cleanup_without_oc() {
 
 is_cleanup_denylisted() {
   local agent="$1"
+  local normalized_agent
   local denied
+  normalized_agent="$(printf '%s' "$agent" | tr '[:upper:]' '[:lower:]')"
+  normalized_agent="${normalized_agent#"${normalized_agent%%[![:space:]]*}"}"
+  normalized_agent="${normalized_agent%"${normalized_agent##*[![:space:]]}"}"
+  normalized_agent="${normalized_agent#./}"
+  normalized_agent="${normalized_agent##*/}"
   for denied in "${CLEANUP_DENYLIST[@]}"; do
-    if [[ "$agent" == "$denied" ]]; then
+    if [[ "$normalized_agent" == "$denied" ]]; then
       return 0
     fi
   done
@@ -50,14 +56,14 @@ is_cleanup_denylisted() {
 
 patch_history() {
   local agent="$1"
-  local ns_flag=("${NAMESPACE_ARGS[@]}")
+  local ns_flag=("${NAMESPACE_ARGS[@]+"${NAMESPACE_ARGS[@]}"}")
   oc patch "bc/${agent}" "${ns_flag[@]}" --type=merge \
     -p "{\"spec\":{\"successfulBuildsHistoryLimit\":${SUCCESSFUL_LIMIT},\"failedBuildsHistoryLimit\":${FAILED_LIMIT}}}"
 }
 
 cleanup() {
   local agent="$1"
-  local ns_flag=("${NAMESPACE_ARGS[@]}")
+  local ns_flag=("${NAMESPACE_ARGS[@]+"${NAMESPACE_ARGS[@]}"}")
   oc delete "buildconfig/${agent}" "imagestream/${agent}" \
     "${ns_flag[@]}" --ignore-not-found=true
 }
