@@ -232,7 +232,7 @@ MLflow tracing works the same as the other langgraph agents: it is opt-in and di
 
 #### Rail-level tracing (OpenTelemetry)
 
-NeMo Guardrails supports [OpenTelemetry tracing](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-nemo-guardrails_nemo-guardrails#configuring-observability-for-nemo-guardrails-with-opentelemetry_nemo-guardrails) (RHOAI 3.4+). When enabled, the proxy emits per-rail span data — request flow, LLM latency, and each rail's execution time — as OpenTelemetry traces.
+NeMo Guardrails supports [OpenTelemetry tracing](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest/html/enabling_ai_safety_with_guardrails/enabling-ai-safety-with-nemo-guardrails_nemo-guardrails#configuring-observability-for-nemo-guardrails-with-opentelemetry_nemo-guardrails) (RHOAI 3.4+). When enabled, the proxy emits per-rail span data — request flow, LLM latency, and each rail's execution time — as OpenTelemetry traces.
 
 Tracing is **opt-in**: off by default, zero overhead when unset, and content capture stays disabled in every mode (blocked prompts and outputs are never echoed into span attributes). Three collection paths are available:
 
