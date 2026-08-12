@@ -110,6 +110,11 @@ def deployed_agent(cluster_auth, agent_dir, agent_name):  # noqa: F811
                     "Cleanup failed — manual undeploy may be needed",
                     exc_info=True,
                 )
+            except Exception:
+                logger.warning(
+                    "Cleanup could not be launched — manual undeploy may be needed",
+                    exc_info=True,
+                )
         if orig_env is not None:
             try:
                 env_path.write_text(orig_env, encoding="utf-8")

@@ -138,9 +138,7 @@ def test_cleanup_deletes_buildconfig_and_imagestream(tmp_path: Path):
     fake_oc = tmp_path / "oc"
     log_path = tmp_path / "oc.log"
     fake_oc.write_text(
-        "#!/usr/bin/env bash\n"
-        f'printf \'%s\\n\' \"$*\" >> "{log_path}"\n'
-        "exit 0\n"
+        f'#!/usr/bin/env bash\nprintf \'%s\\n\' "$*" >> "{log_path}"\nexit 0\n'
     )
     fake_oc.chmod(0o755)
 
