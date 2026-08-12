@@ -8,10 +8,10 @@ langgraph_react:
   pass_at_k: 8
 
 vanilla_python:
-  # tool_selection observed 0.58/0.52/0.52 across 3 runs; p5 ~0.50, threshold = 0.45
-  # multi_tool pass@k = 0/8 all runs (model inconsistently calls search_reviews)
-  tool_selection_accuracy: 0.45
-  multi_tool_accuracy: 0.0
+  # tool_selection observed 0.85 after multi-action loop fix; conservative threshold
+  tool_selection_accuracy: 0.60
+  # multi_tool pass@k now works after agent loop fix (iterates all actions per turn)
+  multi_tool_accuracy: 0.25
   response_coherence_accuracy: 0.75
   max_latency_p95: 15.0
   pass_at_k: 8
