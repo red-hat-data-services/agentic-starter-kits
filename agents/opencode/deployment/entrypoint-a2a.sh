@@ -5,7 +5,7 @@
 # 1. opencode serve (background) - OpenCode HTTP API on port 4096
 # 2. opencode-a2a (foreground) - A2A agent card server on port 8000
 #
-# Environment variables (Kagenti standard names):
+# Environment variables:
 #   LLM_API_BASE  - LLM API endpoint (e.g., https://api.openai.com/v1)
 #   LLM_API_KEY   - API key for the LLM provider (optional)
 #   LLM_MODEL     - Model identifier (e.g., gpt-4o)
@@ -14,11 +14,11 @@ set -e
 
 echo "Starting OpenCode A2A container..."
 
-# Translate Kagenti-standard LLM_* env vars to OpenCode configuration
-# Kagenti standard: LLM_API_BASE, LLM_API_KEY, LLM_MODEL
-# OpenCode needs: Full provider configuration in opencode.json
+# Translate LLM_* env vars to OpenCode configuration
+# Input: LLM_API_BASE, LLM_API_KEY, LLM_MODEL
+# Output: Full provider configuration in opencode.json
 if [[ -n "${LLM_API_BASE}" || -n "${LLM_MODEL}" ]]; then
-    echo "Configuring OpenCode from Kagenti LLM_* environment variables..."
+    echo "Configuring OpenCode from LLM_* environment variables..."
 
     CONFIG_DIR="${HOME}/.config/opencode"
     mkdir -p "${CONFIG_DIR}"

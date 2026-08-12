@@ -1,13 +1,13 @@
 # OpenCode A2A Agent Deployment
 
-This directory contains a reference implementation for deploying [OpenCode](https://opencode.ai) as a Kagenti-discoverable agent using the Agent-to-Agent (A2A) protocol.
+This directory contains a reference implementation for deploying [OpenCode](https://opencode.ai) as an A2A agent using the Agent-to-Agent (A2A) protocol.
 
 ## Overview
 
 OpenCode is an AI-powered coding assistant. This implementation wraps OpenCode with an A2A agent card server to enable:
 
-- **Service discovery** via Kagenti agent catalog
-- **Standardized configuration** using Kagenti-standard environment variables
+- **Service discovery** via A2A agent card endpoint
+- **Standardized configuration** using LLM_* environment variables
 - **Multi-provider support** (direct vLLM, OGX, OpenAI, etc.)
 
 ## Architecture
@@ -41,21 +41,20 @@ OpenCode is an AI-powered coding assistant. This implementation wraps OpenCode w
 
 2. **opencode-a2a Server** (`Containerfile.a2a`)
    - Installed from `agent-servers` repo (opencode subdirectory)
-   - Serves A2A agent card for Kagenti discovery
+   - Serves A2A agent card for discovery
    - Proxies health checks from OpenCode
 
 3. **Entrypoint Script** (`entrypoint-a2a.sh`)
-   - Translates Kagenti-standard env vars to OpenCode config
+   - Translates LLM_* env vars to OpenCode config
    - Starts both `opencode serve` and `opencode-a2a` processes
 
-4. **Kubernetes Template** (`kagenti-agent.yaml`)
+4. **Kubernetes Template** (`opencode-a2a-template.yaml`)
    - OpenShift Template for deployment
-   - Configures Kagenti discovery labels
-   - Supports multiple deployment variants (direct vLLM, OGX, etc.)
+   - Supports multiple deployment variants (direct vLLM, OGX, OpenAI, etc.)
 
 ## Environment Variables
 
-The deployment follows [Kagenti standard naming conventions](https://github.com/rossoctl/rossoctl):
+The deployment uses the following LLM configuration variables:
 
 | Variable           | Description                                              | Required | Default    |
 |--------------------|----------------------------------------------------------|----------|------------|
@@ -77,7 +76,6 @@ The deployment follows [Kagenti standard naming conventions](https://github.com/
 ### Prerequisites
 
 - OpenShift/Kubernetes cluster
-- Kagenti installed and configured (for agent discovery)
 - LLM endpoint accessible from the cluster
 - Secret containing LLM API key (if required)
 
@@ -147,7 +145,7 @@ oc create secret generic opencode-model-credentials \
   -n your-namespace
 
 # Deploy using template
-oc process -f kagenti-agent.yaml \
+oc process -f opencode-a2a-template.yaml \
   -p NAMESPACE=your-namespace \
   -p IMAGE=image-registry.openshift-image-registry.svc:5000/your-namespace/opencode-a2a:latest \
   -p LLM_PROVIDER=vllm \
@@ -159,7 +157,7 @@ oc process -f kagenti-agent.yaml \
 #### Option 2: Through OGX
 
 ```bash
-oc process -f kagenti-agent.yaml \
+oc process -f opencode-a2a-template.yaml \
   -p NAMESPACE=your-namespace \
   -p IMAGE=image-registry.openshift-image-registry.svc:5000/your-namespace/opencode-a2a:latest \
   -p LLM_PROVIDER=ogx \
@@ -173,7 +171,7 @@ Note: OGX namespaces models by provider, so use `provider/model` format.
 #### Option 3: OpenAI API
 
 ```bash
-oc process -f kagenti-agent.yaml \
+oc process -f opencode-a2a-template.yaml \
   -p NAMESPACE=your-namespace \
   -p IMAGE=image-registry.openshift-image-registry.svc:5000/your-namespace/opencode-a2a:latest \
   -p LLM_PROVIDER=openai \
@@ -183,64 +181,16 @@ oc process -f kagenti-agent.yaml \
   | oc apply -f -
 ```
 
-### Enable Kagenti Discovery
-
-Add your namespace to Kagenti's monitored namespaces:
-
-```bash
-# Add Helm labels and annotations to namespace
-oc label namespace your-namespace \
-  app.kubernetes.io/managed-by=Helm \
-  app.kubernetes.io/instance=kagenti \
-  app.kubernetes.io/name=kagenti \
-  kagenti.io/enabled=true
-
-oc annotate namespace your-namespace \
-  meta.helm.sh/release-name=kagenti \
-  meta.helm.sh/release-namespace=kagenti-system
-
-# Update Kagenti Helm values
-helm get values kagenti -n kagenti-system -o yaml > /tmp/kagenti-values.yaml
-
-# Edit /tmp/kagenti-values.yaml and add your namespace to agentNamespaces list:
-# agentNamespaces:
-#   - team1
-#   - team2
-#   - your-namespace  # <-- Add this
-
-# Upgrade Kagenti
-helm upgrade kagenti /path/to/kagenti/chart \
-  -n kagenti-system \
-  -f /tmp/kagenti-values.yaml
-```
-
 ## Verification
 
-### Check AgentRuntime and AgentCard Creation
+### Check Deployment Status
 
 ```bash
-# Check AgentRuntime was created
-oc get agentruntime -n your-namespace
+# Check deployment is running
+oc get deployment opencode-a2a -n your-namespace
 
-# List AgentCards in your namespace
-oc get agentcard -n your-namespace
-
-# View AgentCard details
-oc get agentcard opencode-a2a-deployment-card -n your-namespace -o yaml
-```
-
-Expected AgentRuntime output shows `Phase=Active`:
-
-```text
-NAME                       TYPE    TARGET          PHASE
-opencode-a2a-runtime       agent   opencode-a2a    Active
-```
-
-Expected AgentCard output shows `Synced=True`:
-
-```text
-NAME                          PROTOCOL   KIND         TARGET        AGENT      VERIFIED   BOUND   SYNCED   LASTSYNC
-opencode-a2a-deployment-card  a2a        Deployment   opencode-a2a  OpenCode              false   True     30s
+# Check pod status
+oc get pods -n your-namespace -l app.kubernetes.io/name=opencode-a2a
 ```
 
 ### Test Agent Card Endpoint
@@ -300,13 +250,6 @@ opencode attach http://localhost:4096
 # Try sending a message to verify LLM connectivity
 ```
 
-### Check Kagenti UI
-
-1. Access Kagenti UI: `https://kagenti-ui-kagenti-system.apps.YOUR_CLUSTER/`
-2. Navigate to agent catalog
-3. Your namespace should appear with OpenCode agents listed
-4. Agent card shows name, description, skills, and provider info
-
 ### Verify LLM Traffic
 
 Monitor logs to confirm requests reach the LLM:
@@ -329,7 +272,7 @@ oc logs -n ogx-namespace deployment/ogx --tail=50
 The `entrypoint-a2a.sh` script performs the following translation:
 
 ```bash
-# Input (Kagenti standard):
+# Input:
 LLM_PROVIDER=vllm
 LLM_API_BASE=http://vllm:8000/v1
 LLM_MODEL=gpt-oss-120b
@@ -360,7 +303,7 @@ LLM_API_KEY=secret-key
 
 This approach allows:
 
-- **Standardization**: Use Kagenti conventions across all agents
+- **Standardization**: Use consistent naming across all agents
 - **Flexibility**: Support any OpenAI-compatible provider
 - **Runtime configuration**: No image rebuilds for different providers
 
@@ -371,24 +314,23 @@ This approach allows:
 **Current state (RHAIENG-5825 ✅):**
 
 - Agent card server is implemented and running
-- Agent discovery works in Kagenti UI
+- Agent card is accessible at `/.well-known/agent-card.json`
 - Health checks are proxied
 - Configuration is correctly generated
 
 **Not yet implemented (RHAIENG-5826 ⏳):**
 
 - A2A task execution endpoint (`POST /v1/agent/tasks`)
-- Request proxying from Kagenti to OpenCode
+- Request proxying from A2A client to OpenCode
 - Streaming response support
 - State management
 
 **Current behavior:**
 
-- Agent appears in Kagenti catalog ✅
-- Clicking "Try it" returns 404 error ⚠️
+- Agent card endpoint is accessible ✅
 - Direct OpenCode TUI access works ✅
 
-The full A2A protocol implementation is tracked in **RHAIENG-5826** and will enable end-to-end agent execution through Kagenti.
+The full A2A protocol implementation is tracked in **RHAIENG-5826** and will enable end-to-end agent execution.
 
 ### OpenCode TUI Access
 
@@ -404,7 +346,7 @@ oc exec -it -n your-namespace deployment/opencode-a2a -- opencode attach http://
 |-----------------------|---------------------------------------------------------------|
 | `Containerfile.a2a`   | Extends base OpenCode image with opencode-a2a server          |
 | `entrypoint-a2a.sh`   | Entrypoint that configures OpenCode and runs both servers     |
-| `kagenti-agent.yaml`  | OpenShift Template for Kagenti-compatible deployment          |
+| `opencode-a2a-template.yaml` | OpenShift Template for A2A deployment                   |
 | `README-a2a.md`       | This file - deployment and usage guide                        |
 
 ## Related Work
@@ -412,35 +354,11 @@ oc exec -it -n your-namespace deployment/opencode-a2a -- opencode attach http://
 - **agent-servers repo**: Source for opencode-a2a Python package
   - Installation: `pip install 'opencode-a2a @ git+https://github.com/red-hat-data-services/agent-servers.git#subdirectory=opencode'`
 
-- **Kagenti**: Agent orchestration platform
-  - Uses A2A protocol for agent discovery and execution
-  - Monitors namespaces with `kagenti.io/enabled=true` label
-
 - **OpenCode**: AI coding assistant
   - Project: <https://opencode.ai>
   - Supports multiple LLM providers via Vercel AI SDK
 
 ## Troubleshooting
-
-### Agent not appearing in Kagenti UI
-
-Check namespace is in Kagenti's `agentNamespaces` list:
-
-```bash
-helm get values kagenti -n kagenti-system | grep -A 5 agentNamespaces
-```
-
-Verify AgentCard is created and synced:
-
-```bash
-oc get agentcard -n your-namespace
-```
-
-Check Kagenti backend logs:
-
-```bash
-oc logs -n kagenti-system deployment/kagenti-backend --tail=50
-```
 
 ### OpenCode can't reach LLM
 

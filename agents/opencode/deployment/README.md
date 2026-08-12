@@ -15,9 +15,9 @@ For the full deployment guide, see the [OpenCode on RHOAI README](../README.md).
 | `Containerfile.openshell` | OpenShell sandbox image variant |
 | `Containerfile.openshell-mlflow` | OpenShell sandbox + MLflow tracing variant |
 | `Containerfile.mlflow` | MLflow tracing image variant (kustomize deployment) |
-| `Containerfile.a2a` | A2A / Kagenti agent discovery variant |
+| `Containerfile.a2a` | A2A agent card discovery variant |
 | `entrypoint-a2a.sh` | Entrypoint for A2A variant (runs opencode serve + opencode-a2a) |
-| `kagenti-agent.yaml` | OpenShift Template for Kagenti-compatible deployment |
+| `opencode-a2a-template.yaml` | OpenShift Template for A2A deployment |
 | `DEPLOYMENT.md` | Legacy deployment guide (content moved to `../README.md`) |
-| `README-a2a.md` | A2A / Kagenti deployment guide |
+| `README-a2a.md` | A2A deployment guide |
 | `docs/` | MLflow tracing schema, benchmarks, and screenshots |

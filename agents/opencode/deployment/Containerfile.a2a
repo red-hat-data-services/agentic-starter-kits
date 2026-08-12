@@ -1,7 +1,7 @@
 # OpenCode with A2A agent card support
 #
 # Extends the pre-built OpenCode image with:
-# - opencode-a2a server for Kagenti discovery (A2A protocol)
+# - opencode-a2a server for A2A agent card discovery
 # - Custom entrypoint running both opencode serve and opencode-a2a
 #
 # Build:
