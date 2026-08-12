@@ -7,19 +7,26 @@ Covers:
 - HITL turn scoping: resumed-thread responses include only current-turn messages
 """
 
+import asyncio
+import logging
 import os
 import sys
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.errors import GraphRecursionError
 from pydantic import ValidationError
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from main import (
+    _GRACEFUL_ERROR_MESSAGE,
+    _MAX_INVOKE_ATTEMPTS,
     ChatCompletionRequest,
     _extract_usage,
     _format_context_messages,
+    _invoke_with_retry,
 )
 
 
@@ -178,3 +185,167 @@ class TestHitlTurnScoping:
             "completion_tokens": 60,
             "total_tokens": 180,
         }
+
+
+class TestInvokeWithRetry:
+    def test_succeeds_on_first_attempt(self):
+        expected = {"messages": [AIMessage(content="hello")]}
+        mock_agent = AsyncMock(ainvoke=AsyncMock(return_value=expected))
+        result = asyncio.run(
+            _invoke_with_retry(mock_agent, {"messages": []}, config={})
+        )
+        assert result == expected
+        assert mock_agent.ainvoke.call_count == 1
+
+    def test_succeeds_after_transient_failure(self):
+        expected = {"messages": [AIMessage(content="recovered")]}
+        exc = ValidationError.from_exception_data(
+            title="test",
+            line_errors=[
+                {
+                    "type": "dict_type",
+                    "loc": ("x",),
+                    "msg": "bad",
+                    "input": "y",
+                }
+            ],
+        )
+        mock_agent = AsyncMock(ainvoke=AsyncMock(side_effect=[exc, expected]))
+        with patch("main.asyncio.sleep", new_callable=AsyncMock):
+            result = asyncio.run(
+                _invoke_with_retry(mock_agent, {"messages": []}, config={})
+            )
+        assert result == expected
+        assert mock_agent.ainvoke.call_count == 2
+
+    def test_exhausts_retries_and_raises(self):
+        exc = ValidationError.from_exception_data(
+            title="test",
+            line_errors=[
+                {
+                    "type": "dict_type",
+                    "loc": ("x",),
+                    "msg": "bad",
+                    "input": "y",
+                }
+            ],
+        )
+        mock_agent = AsyncMock(ainvoke=AsyncMock(side_effect=exc))
+        with patch("main.asyncio.sleep", new_callable=AsyncMock):
+            with pytest.raises(ValidationError):
+                asyncio.run(_invoke_with_retry(mock_agent, {"messages": []}, config={}))
+        assert mock_agent.ainvoke.call_count == _MAX_INVOKE_ATTEMPTS
+
+    def test_non_retryable_error_propagates_immediately(self):
+        mock_agent = AsyncMock(
+            ainvoke=AsyncMock(side_effect=RuntimeError("unexpected"))
+        )
+        with pytest.raises(RuntimeError, match="unexpected"):
+            asyncio.run(_invoke_with_retry(mock_agent, {"messages": []}, config={}))
+        assert mock_agent.ainvoke.call_count == 1
+
+    def test_malformed_tool_args_not_leaked_in_logs(self, caplog):
+        malformed_args = "%4W!O;VL"
+        exc = ValidationError.from_exception_data(
+            title="AIMessage",
+            line_errors=[
+                {
+                    "type": "dict_type",
+                    "loc": ("tool_calls", 0, "args"),
+                    "msg": "Input should be a valid dictionary",
+                    "input": malformed_args,
+                }
+            ],
+        )
+        mock_agent = AsyncMock(ainvoke=AsyncMock(side_effect=exc))
+        with (
+            patch("main.asyncio.sleep", new_callable=AsyncMock),
+            caplog.at_level(logging.WARNING, logger="main"),
+        ):
+            with pytest.raises(ValidationError):
+                asyncio.run(_invoke_with_retry(mock_agent, {"messages": []}, config={}))
+        assert caplog.records
+        for record in caplog.records:
+            assert malformed_args not in record.getMessage()
+
+
+class TestHandleChatGracefulError:
+    def test_returns_200_with_error_message_on_graceful_exception(self):
+        from main import _handle_chat
+
+        mock_agent = AsyncMock(
+            ainvoke=AsyncMock(
+                side_effect=GraphRecursionError("recursion limit reached")
+            )
+        )
+
+        def mock_closure(cp):
+            return mock_agent
+
+        mock_checkpointer = type(
+            "FakeCheckpointer",
+            (),
+            {"get_tuple": lambda self, cfg: None},
+        )()
+        with (
+            patch("main.agent_graph_closure", mock_closure),
+            patch("main.checkpointer", mock_checkpointer),
+            patch("main.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            from main import ChatCompletionRequest
+
+            request = ChatCompletionRequest(
+                messages=[{"role": "user", "content": "test"}],
+                thread_id="test-thread",
+            )
+            result = asyncio.run(
+                _handle_chat(
+                    request,
+                    "test-model",
+                    "test-thread",
+                    {"configurable": {"thread_id": "test-thread"}},
+                )
+            )
+        assert result["choices"][0]["message"]["content"] == _GRACEFUL_ERROR_MESSAGE
+        assert result["choices"][0]["finish_reason"] == "stop"
+        assert result["object"] == "chat.completion"
+        assert result["thread_id"] == "test-thread"
+        assert result["context"] == []
+        assert result["usage"] is None
+
+    def test_still_returns_500_for_non_retryable_errors(self):
+        from fastapi import HTTPException
+        from main import _handle_chat
+
+        mock_agent = AsyncMock(
+            ainvoke=AsyncMock(side_effect=RuntimeError("server broke"))
+        )
+
+        def mock_closure(cp):
+            return mock_agent
+
+        mock_checkpointer = type(
+            "FakeCheckpointer",
+            (),
+            {"get_tuple": lambda self, cfg: None},
+        )()
+        with (
+            patch("main.agent_graph_closure", mock_closure),
+            patch("main.checkpointer", mock_checkpointer),
+        ):
+            from main import ChatCompletionRequest
+
+            request = ChatCompletionRequest(
+                messages=[{"role": "user", "content": "test"}],
+                thread_id="test-thread",
+            )
+            with pytest.raises(HTTPException) as exc_info:
+                asyncio.run(
+                    _handle_chat(
+                        request,
+                        "test-model",
+                        "test-thread",
+                        {"configurable": {"thread_id": "test-thread"}},
+                    )
+                )
+        assert exc_info.value.status_code == 500
