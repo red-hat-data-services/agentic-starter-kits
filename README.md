@@ -112,6 +112,7 @@ Tests require a running agent. Set the target URL via environment variables:
 | `LANGFLOW_TOOL_CALLING_AGENT_URL` | Langflow Simple Tool Calling agent tests |
 | `LANGFLOW_FLOW_ID` | Langflow flow ID (changes on re-import) |
 | `HITL_AGENT_URL` | LangGraph Human-in-the-Loop agent tests |
+| `GUARDRAILED_AGENT_URL` | LangGraph Guardrailed agent tests |
 | `GOOGLE_ADK_AGENT_URL` | Google ADK agent tests |
 | `A2A_LANGGRAPH_CREWAI_AGENT_URL` | A2A LangGraph-CrewAI agent tests |
 
