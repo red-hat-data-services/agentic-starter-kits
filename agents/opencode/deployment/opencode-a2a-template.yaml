@@ -1,21 +1,21 @@
-# OpenCode A2A Agent - Kagenti-compatible OpenShift Template
+# OpenCode A2A Agent - OpenShift Template
 #
 # Deploy with:
-#   oc process -f kagenti-agent.yaml \
+#   oc process -f opencode-a2a-template.yaml \
 #     -p NAMESPACE=my-namespace \
 #     -p LLM_API_BASE=https://api.openai.com/v1 \
 #     -p LLM_MODEL=gpt-4o | oc apply -f -
 #
 # Or create a parameters file and use:
-#   oc process -f kagenti-agent.yaml --param-file=params.env | oc apply -f -
+#   oc process -f opencode-a2a-template.yaml --param-file=params.env | oc apply -f -
 #
 apiVersion: template.openshift.io/v1
 kind: Template
 metadata:
   name: opencode-a2a-agent
   annotations:
-    description: "OpenCode A2A Agent for Kagenti discovery"
-    tags: "agent,a2a,opencode,kagenti"
+    description: "OpenCode A2A Agent with agent card server"
+    tags: "agent,a2a,opencode"
 parameters:
   - name: NAMESPACE
     description: "Target namespace for deployment"
@@ -28,10 +28,10 @@ parameters:
     description: "Provider name (vllm, ogx, openai, etc.) - defaults to vllm"
     value: "vllm"
   - name: LLM_API_BASE
-    description: "LLM API endpoint (e.g., https://api.openai.com/v1) - Kagenti standard"
+    description: "LLM API endpoint (e.g., https://api.openai.com/v1)"
     value: ""
   - name: LLM_MODEL
-    description: "Model identifier (e.g., gpt-4o) - Kagenti standard"
+    description: "Model identifier (e.g., gpt-4o)"
     value: ""
   - name: LLM_API_KEY_SECRET
     description: "Secret name containing LLM API key (key: api-key)"
@@ -45,20 +45,6 @@ objects:
     metadata:
       name: opencode-a2a
       namespace: ${NAMESPACE}
-  - apiVersion: agent.kagenti.dev/v1alpha1
-    kind: AgentRuntime
-    metadata:
-      name: opencode-a2a-runtime
-      namespace: ${NAMESPACE}
-      labels:
-        app.kubernetes.io/name: opencode-a2a
-    spec:
-      type: agent
-      protocol: a2a
-      targetRef:
-        apiVersion: apps/v1
-        kind: Deployment
-        name: opencode-a2a
   - apiVersion: v1
     kind: Service
     metadata:
@@ -66,7 +52,6 @@ objects:
       namespace: ${NAMESPACE}
       labels:
         app.kubernetes.io/name: opencode-a2a
-        protocol.kagenti.io/a2a: "true"
     spec:
       type: ClusterIP
       selector:
@@ -83,7 +68,6 @@ objects:
       namespace: ${NAMESPACE}
       labels:
         app.kubernetes.io/name: opencode-a2a
-        protocol.kagenti.io/a2a: "true"
     spec:
       replicas: 1
       selector:
@@ -93,7 +77,6 @@ objects:
         metadata:
           labels:
             app.kubernetes.io/name: opencode-a2a
-            protocol.kagenti.io/a2a: "true"
           annotations:
             sidecar.istio.io/inject: "false"
         spec:

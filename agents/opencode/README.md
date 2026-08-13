@@ -23,7 +23,7 @@ Deploy [OpenCode](https://opencode.ai), an open-source terminal-based coding age
   - [View Traces](#view-traces)
   - [Key Notes](#key-notes)
   - [OpenShell + MLflow Tracing](#openshell--mlflow-tracing)
-- [A2A / Kagenti Discovery](#a2a--kagenti-discovery)
+- [A2A Discovery](#a2a-discovery)
 - [Security](#security)
 - [Architecture](#architecture)
 - [Image Reference](#image-reference)
@@ -65,7 +65,7 @@ The quick start uses a **pre-built image** — no Containerfile or image build i
 |---------|----------------------|----------|-----------------|
 | **Base (quick start)** | `quay.io/opendatahub/odh-opencode-rhel9:20260619-194847e` | Standard web or CLI deployment | No — pre-built |
 | **MLflow tracing** | [`Containerfile.mlflow`](deployment/Containerfile.mlflow) | You need agent execution traces exported to MLflow | Yes |
-| **A2A / Kagenti** | [`Containerfile.a2a`](deployment/Containerfile.a2a) | You want Kagenti agent discovery via the A2A protocol (agent card and discovery available; task execution pending RHAIENG-5826) | Yes |
+| **A2A** | [`Containerfile.a2a`](deployment/Containerfile.a2a) | You want A2A agent card discovery (agent card available; task execution pending RHAIENG-5826) | Yes |
 | **OpenShell sandbox** | [`Containerfile.openshell`](deployment/Containerfile.openshell) | Sandboxed experimentation inside an OpenShell gateway | Yes |
 | **OpenShell + MLflow** | [`Containerfile.openshell-mlflow`](deployment/Containerfile.openshell-mlflow) | OpenShell sandbox with MLflow tracing support | Yes |
 
@@ -79,7 +79,7 @@ cd agents/opencode/deployment
 # MLflow tracing
 podman build --platform linux/amd64 -t opencode-mlflow:latest -f Containerfile.mlflow .
 
-# A2A / Kagenti
+# A2A
 podman build --platform linux/amd64 -t opencode-a2a:latest -f Containerfile.a2a .
 
 # OpenShell sandbox
@@ -819,14 +819,14 @@ Open the URL, select your workspace (the namespace name), and navigate to the ex
 
 ---
 
-## A2A / Kagenti Discovery
+## A2A Discovery
 
-OpenCode can be deployed as a Kagenti-discoverable agent using the Agent-to-Agent (A2A) protocol. This enables service discovery via the Kagenti agent catalog.
+OpenCode can be deployed as an A2A agent using the Agent-to-Agent (A2A) protocol, serving an agent card that enables service discovery.
 
 **Current state:**
 
 - Agent card server is implemented and running
-- Agent discovery works in Kagenti UI
+- Agent card is accessible at `/.well-known/agent-card.json`
 - Health checks are proxied
 - A2A task execution is not yet implemented (tracked in RHAIENG-5826)
 
@@ -941,10 +941,10 @@ agents/opencode/
     ├── Containerfile.openshell       # OpenShell sandbox variant
     ├── Containerfile.openshell-mlflow  # OpenShell sandbox + MLflow tracing variant
     ├── Containerfile.mlflow          # MLflow tracing image variant
-    ├── Containerfile.a2a             # A2A / Kagenti agent discovery variant
+    ├── Containerfile.a2a             # A2A agent card discovery variant
     ├── entrypoint-a2a.sh             # Entrypoint for A2A variant
-    ├── kagenti-agent.yaml            # OpenShift Template for Kagenti deployment
-    ├── README-a2a.md                 # A2A / Kagenti deployment guide
+    ├── opencode-a2a-template.yaml    # OpenShift Template for A2A deployment
+    ├── README-a2a.md                 # A2A deployment guide
     └── docs/                         # MLflow tracing schema and benchmarks
 ```
 
@@ -952,7 +952,7 @@ agents/opencode/
 
 ## Related Resources
 
-- [deployment/README-a2a.md](deployment/README-a2a.md) — A2A / Kagenti agent discovery deployment
+- [deployment/README-a2a.md](deployment/README-a2a.md) — A2A agent discovery deployment
 - [deployment/docs/mlflow-tracing.md](deployment/docs/mlflow-tracing.md) — tracing schema, backend comparisons, latency benchmarks
 - [opendatahub-io/opencode](https://github.com/opendatahub-io/opencode) — container image source and CI
 - [OpenCode upstream](https://github.com/anomalyco/opencode) — upstream project
