@@ -9,7 +9,6 @@ GUARDRAILS_CR_NAME     := langgraph-guardrailed-agent-guardrails
 GUARDRAILS_NAMESPACE   ?= $(shell oc project -q 2>/dev/null)
 CLUSTER_ENV            := deploy/overlays/ci-testing/cluster.env
 CLUSTER_ENV_EXAMPLE    := deploy/overlays/ci-testing/cluster.env.example
-GUARDRAILS_KUSTOMIZE   := deploy/overlays/ci-testing
 TRACING_COMPOSE        := guardrails/tracing/compose.yaml
 
 .PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test test-guardrails-integration test-guardrails-integration-nemoguard test-integration dry-run help guardrails-server-local guardrails-server-nemoguard guardrails-tracing-up guardrails-tracing-down render-guardrails-configmap deploy-guardrails-secrets deploy-guardrails undeploy-guardrails deploy-rhoai undeploy-rhoai deploy-rhoai-dry-run _check-guardrails-ns
@@ -302,6 +301,9 @@ deploy-guardrails: _check-guardrails-ns render-guardrails-configmap deploy-guard
 	@set -a && [ -f "$(CLUSTER_ENV)" ] && source "$(CLUSTER_ENV)" || source "$(CLUSTER_ENV_EXAMPLE)"; set +a && \
 	  CR_TMP=$$(mktemp) && \
 	  trap 'rm -f "$$CR_TMP"' EXIT && \
+	  OTEL_SERVICE_NAME="$${OTEL_SERVICE_NAME:-nemo-guardrails}" \
+	  OTEL_EXPORTER_OTLP_PROTOCOL="$${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}" \
+	  OTEL_METRICS_EXPORTER="$${OTEL_METRICS_EXPORTER:-none}" \
 	  envsubst '$$OTEL_EXPORTER_OTLP_ENDPOINT $$OTEL_SERVICE_NAME $$OTEL_EXPORTER_OTLP_PROTOCOL $$OTEL_METRICS_EXPORTER' \
 	    < deploy/manifests/03-nemoguardrails-cr.yaml > "$$CR_TMP" && \
 	  python3 deploy/scripts/finalize_nemoguardrails_cr.py "$$CR_TMP" && \
@@ -344,6 +346,9 @@ deploy-rhoai-dry-run: _check-guardrails-ns render-guardrails-configmap ## Previe
 	@set -a && [ -f "$(CLUSTER_ENV)" ] && source "$(CLUSTER_ENV)" || source "$(CLUSTER_ENV_EXAMPLE)"; set +a && \
 	  CR_TMP=$$(mktemp) && \
 	  trap 'rm -f "$$CR_TMP"' EXIT && \
+	  OTEL_SERVICE_NAME="$${OTEL_SERVICE_NAME:-nemo-guardrails}" \
+	  OTEL_EXPORTER_OTLP_PROTOCOL="$${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}" \
+	  OTEL_METRICS_EXPORTER="$${OTEL_METRICS_EXPORTER:-none}" \
 	  envsubst '$$OTEL_EXPORTER_OTLP_ENDPOINT $$OTEL_SERVICE_NAME $$OTEL_EXPORTER_OTLP_PROTOCOL $$OTEL_METRICS_EXPORTER' \
 	    < deploy/manifests/03-nemoguardrails-cr.yaml > "$$CR_TMP" && \
 	  python3 deploy/scripts/finalize_nemoguardrails_cr.py "$$CR_TMP" && \
@@ -351,12 +356,14 @@ deploy-rhoai-dry-run: _check-guardrails-ns render-guardrails-configmap ## Previe
 	  oc apply -n "$(GUARDRAILS_NAMESPACE)" --dry-run=client -o yaml -f "$$CR_TMP" && \
 	  oc apply -n "$(GUARDRAILS_NAMESPACE)" --dry-run=client -o yaml -f deploy/manifests/02-guardrails-configmap.yaml
 
-deploy-rhoai: deploy-guardrails deploy ## Deploy guardrails proxy then agent (BASE_URL must target guardrails)
+deploy-rhoai: deploy-guardrails ## Deploy guardrails proxy then agent (BASE_URL must target guardrails)
 	@source .env 2>/dev/null || true; \
 	  EXPECTED="http://$(GUARDRAILS_CR_NAME).$(GUARDRAILS_NAMESPACE).svc.cluster.local/v1"; \
 	  if [ "$${BASE_URL}" != "$$EXPECTED" ]; then \
-	    echo "WARNING: BASE_URL=$${BASE_URL:-<unset>} — expected $$EXPECTED for RHOAI"; \
+	    echo "ERROR: BASE_URL=$${BASE_URL:-<unset>} — set it to $$EXPECTED in .env (current oc project)."; \
+	    exit 1; \
 	  fi
+	@$(MAKE) deploy
 
 undeploy-rhoai: undeploy undeploy-guardrails ## Remove agent and guardrails from cluster
 

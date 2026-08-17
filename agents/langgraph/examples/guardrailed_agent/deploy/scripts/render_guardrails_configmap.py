@@ -2,7 +2,8 @@
 """Render the monolithic NeMo Guardrails ConfigMap for cluster deploy.
 
 Generates guardrails/config/nemoguard/config.yaml via generate_config.py using
-values from deploy/overlays/ci-testing/cluster.env, then emits a Kubernetes
+values from deploy/overlays/ci-testing/cluster.env (QG4 overlay name; not the
+deploy namespace), then emits a Kubernetes
 ConfigMap manifest with every file the nemoguard profile needs:
 
   config.yaml, prompts.yml, rails.co, actions.py, topic_policy.co

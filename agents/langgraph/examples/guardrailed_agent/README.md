@@ -246,9 +246,11 @@ Full setup for all three — manifests, `OTEL_*` env vars, reading traces, and P
 
 On RHOAI, NeMo Guardrails runs as a separate pod managed by the `NemoGuardrails` CRD
 (TrustyAI Operator). The agent's `BASE_URL` must point at that guardrails Service —
-**not** directly at vLLM. This example ships Kustomize manifests under `deploy/` that
-bundle the **nemoguard** profile (`guardrails/config/nemoguard/`) into a monolithic
-ConfigMap.
+**not** directly at vLLM. `make deploy-guardrails` applies the CR and ConfigMap into
+the current `oc` project (`GUARDRAILS_NAMESPACE`; override if needed). Cluster values
+come from `deploy/overlays/ci-testing/cluster.env` — the overlay name is historical
+and is not the deploy target. Do not `oc apply -k` these manifests; the CR contains
+`${OTEL_*}` placeholders that only `make deploy-guardrails` substitutes.
 
 See [deploy/README.md](deploy/README.md) for the full RHOAI guide (including the
 in-cluster vLLM endpoint used on the demo cluster).
@@ -266,10 +268,12 @@ cp deploy/overlays/ci-testing/cluster.env.example deploy/overlays/ci-testing/clu
 
 ```ini
 API_KEY=not-needed
-BASE_URL=http://langgraph-guardrailed-agent-guardrails.ci-testing.svc.cluster.local/v1
+BASE_URL=http://langgraph-guardrailed-agent-guardrails.<ns>.svc.cluster.local/v1
 MODEL_ID=qwen2-5-7b-instruct
-CONTAINER_IMAGE=image-registry.openshift-image-registry.svc:5000/ci-testing/langgraph-guardrailed-agent:latest
+CONTAINER_IMAGE=image-registry.openshift-image-registry.svc:5000/<ns>/langgraph-guardrailed-agent:latest
 ```
+
+Replace `<ns>` with `oc project -q`. `make deploy-rhoai` fails if `BASE_URL` does not match that Service.
 
 Inject the NIM key Secret only:
 
@@ -295,7 +299,7 @@ make deploy
 ### Verify
 
 ```bash
-make deploy-rhoai-dry-run   # preview guardrails Kustomize output
+make deploy-rhoai-dry-run   # preview substituted CR + ConfigMap
 make undeploy-rhoai           # remove agent + guardrails
 ```
 
@@ -306,7 +310,7 @@ make undeploy-rhoai           # remove agent + guardrails
 | `make test` | Unit/structural tests + `test_guardrails_smoke.py` (no LLM calls) | None |
 | `make test-guardrails-integration` | `tests/test_guardrails.py` against **proxy** port 8090 | Ollama + `make guardrails-server-local` |
 | `make test-guardrails-integration-nemoguard` | Same tests, `GUARDRAILS_PROFILE=nemoguard` | Ollama + `make guardrails-server-nemoguard` |
-| `make test-integration` | Cluster deploy health + guardrails rails (`tests/integration/`) | `oc` in `ci-testing`; `NVIDIA_API_KEY` for nemoguard deploy |
+| `make test-integration` | Cluster deploy health + guardrails rails (`tests/integration/`) | `oc` logged in (QG4 uses `ci-testing`); `NVIDIA_API_KEY` for nemoguard deploy |
 
 `tests/test_guardrails.py` calls the NeMo Guardrails proxy directly (`http://localhost:8090/v1/chat/completions`), not the LangGraph agent. That is required to assert `guardrails.config_id` and rail outcomes without the agent stripping proxy metadata. The agent-level curls in [§6](#6-test-the-guardrails) are complementary end-to-end checks.
 
@@ -362,7 +366,7 @@ running rail-behavior tests in `tests/integration/test_guardrails_cluster.py`.
 
 Requirements:
 
-- Logged into OpenShift with project `ci-testing`
+- Logged into OpenShift (QG4 uses project `ci-testing`; deploy uses the current `oc` project)
 - `NVIDIA_API_KEY` exported (NVIDIA NIM classifiers for content/topic safety rails)
 - `MODEL_ID` / `GUARDRAILS_MODEL_ID` default to `qwen2-5-7b-instruct` on the demo cluster
 

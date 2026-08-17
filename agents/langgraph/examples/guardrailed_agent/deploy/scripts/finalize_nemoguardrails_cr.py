@@ -3,7 +3,9 @@
 
 Reads a YAML CR from PATH (after envsubst) and strips OTEL_* env vars unless
 GUARDRAILS_TRACING_ENABLED is exactly ``true``. When tracing is on, requires a
-non-empty OTEL_EXPORTER_OTLP_ENDPOINT. Writes the result back to PATH.
+non-empty OTEL_EXPORTER_OTLP_ENDPOINT and fills empty OTEL_SERVICE_NAME /
+OTEL_EXPORTER_OTLP_PROTOCOL / OTEL_METRICS_EXPORTER with cluster defaults.
+Writes the result back to PATH.
 """
 
 from __future__ import annotations
@@ -21,28 +23,51 @@ _OTEL_ENV_NAMES = {
     "OTEL_EXPORTER_OTLP_PROTOCOL",
     "OTEL_METRICS_EXPORTER",
 }
-_DROP_ALWAYS = {"GUARDRAILS_TRACING_ENABLED"}
+_OTEL_DEFAULTS = {
+    "OTEL_SERVICE_NAME": "nemo-guardrails",
+    "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+    "OTEL_METRICS_EXPORTER": "none",
+}
 
 
 def _tracing_enabled() -> bool:
     return os.environ.get("GUARDRAILS_TRACING_ENABLED", "") == "true"
 
 
+def _is_empty(value: str) -> bool:
+    stripped = (value or "").strip()
+    return not stripped or "${" in stripped
+
+
+def _env_value(entry: dict) -> str:
+    value = entry.get("value")
+    if value is None:
+        return ""
+    return str(value)
+
+
 def finalize(path: Path) -> None:
     doc = yaml.safe_load(path.read_text(encoding="utf-8"))
     env = list(doc.get("spec", {}).get("env") or [])
-    env = [entry for entry in env if entry.get("name") not in _DROP_ALWAYS]
     enabled = _tracing_enabled()
     if enabled:
+        filled: list[dict] = []
+        for entry in env:
+            name = entry.get("name")
+            value = _env_value(entry)
+            if name in _OTEL_DEFAULTS and _is_empty(value):
+                entry = {**entry, "value": _OTEL_DEFAULTS[name]}
+            filled.append(entry)
+        env = filled
         endpoint = next(
             (
-                str(entry.get("value") or "")
+                _env_value(entry)
                 for entry in env
                 if entry.get("name") == "OTEL_EXPORTER_OTLP_ENDPOINT"
             ),
             "",
         )
-        if not endpoint.strip() or "${" in endpoint:
+        if _is_empty(endpoint):
             raise SystemExit(
                 "ERROR: GUARDRAILS_TRACING_ENABLED is on but "
                 "OTEL_EXPORTER_OTLP_ENDPOINT is empty or unsubstituted. "

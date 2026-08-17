@@ -16,7 +16,7 @@
 #        oc apply -n <ns> -f object-storage-secret.yaml
 #      or point the Secret at AWS S3 / ODF / an existing MinIO.
 #   3. Then this CR:
-#        oc apply -n <ns> -f deploy/tracing/tempo-stack-production.yaml
+#        oc apply -n <ns> -f deploy/tracing/tempo-stack-durable.yaml
 #
 # It creates (among others):
 #   - Service "tempo-guardrails-tracing-distributor"    (OTLP gRPC :4317) — ingest

@@ -37,7 +37,7 @@ oc apply -n <ns> -f deploy/tracing/<file>.yaml
 Manifests:
 
 - [`tempo-monolithic-demo.yaml`](tempo-monolithic-demo.yaml) — demo cluster backend.
-- [`tempo-stack-production.yaml`](tempo-stack-production.yaml) — durable TempoStack.
+- [`tempo-stack-durable.yaml`](tempo-stack-durable.yaml) — durable TempoStack (not a supported production topology).
 - [`minio-demo.yaml`](minio-demo.yaml) — optional in-cluster MinIO + bucket Job.
 - [`object-storage-secret.example.yaml`](object-storage-secret.example.yaml) — TempoStack credentials template.
 - [`otel-collector-spanmetrics-stack.yaml`](otel-collector-spanmetrics-stack.yaml) — metrics in front of TempoStack.
@@ -133,7 +133,8 @@ In-cluster, the guardrails proxy exports over gRPC to Tempo (no
    `make deploy-guardrails` applies the CR and ConfigMap into
    `GUARDRAILS_NAMESPACE`, which defaults to the current `oc` project
    (`oc project -q`), matching Helm `make deploy`. Override with
-   `GUARDRAILS_NAMESPACE=<ns>` if needed.
+   `GUARDRAILS_NAMESPACE=<ns>` if needed. Requires `envsubst` (GNU gettext;
+   on macOS `brew install gettext` and add it to `PATH`).
 
 4. **Access traces** via the Jaeger UI route
    (`oc get route -n <ns> tempo-guardrails-tracing-jaegerui`). On OpenShift the
@@ -182,7 +183,7 @@ across restarts; a production Tempo (tenants + gateway) is a separate setup.
 4. **Deploy the TempoStack:**
 
    ```bash
-   oc apply -n <ns> -f deploy/tracing/tempo-stack-production.yaml
+   oc apply -n <ns> -f deploy/tracing/tempo-stack-durable.yaml
    ```
 
    The ingest endpoint is the **distributor** service, not a monolithic one:
