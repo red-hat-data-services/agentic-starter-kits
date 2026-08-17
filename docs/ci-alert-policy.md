@@ -18,6 +18,7 @@ repository:
 - `Code Quality`
 - `Agent Tests`
 - `Inner Loop Gating`
+- `QG1: Cluster Readiness`
 - `QG4: Agent Deployment Integration Tests`
 
 The current implementation sends alerts only for shared-branch failures:
@@ -72,8 +73,8 @@ flowchart TD
   QG9 -->|"retry from QG4"| QG4
 ```
 
-Only `QG4` and `QG7` emit alerts today. The remaining fingerprints are defined
-here for future use as more of the QG ladder becomes alert-backed.
+Only `QG1`, `QG4`, and `QG7` emit alerts today. The remaining fingerprints are
+defined here for future use as more of the QG ladder becomes alert-backed.
 
 ### Canonical ladder
 
@@ -100,10 +101,13 @@ marks the remaining signals as non-canonical supporting alerts.
 | `Code Quality` | `code-quality.yml` | Non-canonical supporting signal | None yet | `push` on `main`, `workflow_dispatch` on `main` | Shared CI route / `@aaet-tooling-experience` |
 | `Agent Tests` | `agent-tests.yml` | Non-canonical supporting signal | None yet | `push` on `main`, `workflow_dispatch` on `main` | Shared CI route / `@aaet-tooling-experience` |
 | `Inner Loop Gating` | `eval-gating.yml` | Canonical | `QG7` | `push` on `main` when matching behavioral/eval paths change, `workflow_dispatch` on `main` | Shared CI route / `@aaet-tooling-experience` |
+| `QG1: Cluster Readiness` | `qg1-cluster-readiness.yml` | Canonical | `QG1` | `schedule`, `workflow_dispatch` on `main` | Shared CI route / `@aaet-tooling-experience` |
 | `QG4: Agent Deployment Integration Tests` | `agent-deployment-test.yaml` | Canonical | `QG4` | `schedule`, `workflow_dispatch` on `main` | Shared CI route / `@aaet-tooling-experience` |
 
 ### Interpretation rules
 
+- `QG1` alerts outrank `QG4` and `QG7` alerts because lower-numbered QGs carry
+  higher priority.
 - `QG4` alerts outrank `QG7` alerts because lower-numbered QGs carry higher
   priority.
 - `Code Quality` and `Agent Tests` are still operationally important, but they

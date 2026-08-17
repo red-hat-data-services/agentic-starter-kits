@@ -1,0 +1,64 @@
+name: "Run QG1 Cluster Readiness"
+description: "Run cluster-readiness assertions after cluster setup/login."
+
+inputs:
+  cluster-profile:
+    description: "Logical cluster profile name for reporting and future matrixing"
+    required: true
+  require-gpu:
+    description: "Whether GPU nodes are required for this cluster profile"
+    required: false
+    default: "true"
+  required-namespaces:
+    description: "Comma- or newline-separated namespaces that must exist"
+    required: false
+    default: "ci-testing"
+  summary-json-path:
+    description: "Path for machine-readable summary output"
+    required: false
+    default: "qg1-results/summary.json"
+  summary-md-path:
+    description: "Path for markdown summary output"
+    required: false
+    default: "qg1-results/summary.md"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Ensure result directories exist
+      shell: bash
+      env:
+        SUMMARY_JSON_PATH: ${{ inputs.summary-json-path }}
+        SUMMARY_MD_PATH: ${{ inputs.summary-md-path }}
+      run: |
+        set -euo pipefail
+        mkdir -p "$(dirname "${SUMMARY_JSON_PATH}")"
+        mkdir -p "$(dirname "${SUMMARY_MD_PATH}")"
+
+    - name: Execute QG1 checker
+      shell: bash
+      env:
+        CLUSTER_PROFILE: ${{ inputs.cluster-profile }}
+        REQUIRE_GPU: ${{ inputs.require-gpu }}
+        REQUIRED_NAMESPACES: ${{ inputs.required-namespaces }}
+        SUMMARY_JSON_PATH: ${{ inputs.summary-json-path }}
+        SUMMARY_MD_PATH: ${{ inputs.summary-md-path }}
+      run: |
+        set -euo pipefail
+        python .github/scripts/qg1_cluster_readiness.py \
+          --cluster-profile "${CLUSTER_PROFILE}" \
+          --require-gpu "${REQUIRE_GPU}" \
+          --required-namespaces "${REQUIRED_NAMESPACES}" \
+          --summary-json "${SUMMARY_JSON_PATH}" \
+          --summary-md "${SUMMARY_MD_PATH}"
+
+    - name: Publish markdown summary
+      if: always()
+      shell: bash
+      env:
+        SUMMARY_MD_PATH: ${{ inputs.summary-md-path }}
+      run: |
+        set -euo pipefail
+        if [[ -f "${SUMMARY_MD_PATH}" ]]; then
+          cat "${SUMMARY_MD_PATH}" >> "${GITHUB_STEP_SUMMARY}"
+        fi

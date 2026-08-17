@@ -13,6 +13,7 @@ on:
       - Code Quality
       - Agent Tests
       - Inner Loop Gating
+      - "QG1: Cluster Readiness"
       - "QG4: Agent Deployment Integration Tests"
     types: [completed]
   workflow_dispatch:

@@ -43,6 +43,11 @@ WORKFLOWS = (
         "description": "Behavioral pytest and EvalHub gating on selected paths.",
     },
     {
+        "file": "qg1-cluster-readiness.yml",
+        "name": "QG1: Cluster Readiness",
+        "description": "Cluster API, GPU, and namespace readiness checks before downstream gates.",
+    },
+    {
         "file": "agent-deployment-test.yaml",
         "name": "QG4: Agent Deployment Integration Tests",
         "description": "Nightly OpenShift deploy, /health checks, and teardown.",
