@@ -88,9 +88,9 @@ class MLflowTraceClient:
             if "401" in msg or "403" in msg or "Authorization" in msg:
                 logger.error(
                     "MLflow auth failed (%s). Ensure MLFLOW_TRACKING_TOKEN is "
-                    "set in the adapter pod environment. EvalHub does not "
-                    "support secretKeyRef — pass the token as a literal value "
-                    "in the provider runtime Env.",
+                    "set in the environment. Pass the token as a literal "
+                    "value or refresh via: "
+                    "export MLFLOW_TRACKING_TOKEN=$(oc whoami -t)",
                     msg,
                 )
             elif "Expecting value" in msg or "JSONDecodeError" in msg:
