@@ -1,0 +1,116 @@
+name: "QG1: Cluster Readiness"
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs:
+      cluster_profile:
+        description: "Logical cluster profile name"
+        type: string
+        default: "rhoai2"
+      require_gpu:
+        description: "Whether GPU nodes are required"
+        type: boolean
+        default: true
+      required_namespaces:
+        description: "Comma-separated namespaces that must exist"
+        type: string
+        default: "ci-testing"
+
+permissions:
+  contents: read
+
+jobs:
+  qg1:
+    name: "QG1 Cluster Readiness"
+    if: github.repository == 'red-hat-data-services/agentic-starter-kits'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup cluster tools
+        uses: ./.github/actions/setup-cluster
+        with:
+          oc-token: ${{ secrets.OC_TOKEN }}
+          cluster-api-url: ${{ secrets.CLUSTER_API_URL }}
+
+      - name: Resolve QG1 inputs
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_REQUIRE_GPU: ${{ inputs.require_gpu }}
+          VARS_REQUIRE_GPU: ${{ vars.QG1_REQUIRE_GPU }}
+        run: |
+          set -euo pipefail
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            require_gpu="${DISPATCH_REQUIRE_GPU}"
+          else
+            require_gpu="${VARS_REQUIRE_GPU:-true}"
+          fi
+          echo "require-gpu=${require_gpu}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run QG1
+        uses: ./.github/actions/run-qg1
+        with:
+          cluster-profile: ${{ inputs.cluster_profile || vars.QG1_CLUSTER_PROFILE || 'rhoai2' }}
+          require-gpu: ${{ steps.resolve.outputs.require-gpu }}
+          required-namespaces: ${{ inputs.required_namespaces || vars.QG1_REQUIRED_NAMESPACES || 'ci-testing' }}
+          summary-json-path: qg1-results/summary.json
+          summary-md-path: qg1-results/summary.md
+
+      - name: Upload QG1 results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: qg1-results
+          path: qg1-results/**
+          if-no-files-found: warn
+
+      - name: Logout
+        if: always()
+        run: oc logout || true
+
+  notify-slack:
+    name: Notify Slack
+    if: >-
+      !cancelled() &&
+      github.repository == 'red-hat-data-services/agentic-starter-kits' &&
+      (github.event_name != 'workflow_dispatch' || github.ref_name == 'main')
+    needs: [qg1]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Decide notification status
+        id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          bash .github/actions/notify-slack/should_notify.sh >> "${GITHUB_OUTPUT}"
+
+      - name: Send Slack notification
+        if: steps.gate.outputs.should_notify == 'true'
+        uses: ./.github/actions/notify-slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          github_token: ${{ github.token }}
+          workflow_name: ${{ github.workflow }}
+          event_name: ${{ github.event_name }}
+          ref_name: ${{ github.ref_name }}
+          run_id: ${{ github.run_id }}
+          repository: ${{ github.repository }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          dashboard_url: https://red-hat-data-services.github.io/agentic-starter-kits/
+          status: ${{ steps.gate.outputs.status }}

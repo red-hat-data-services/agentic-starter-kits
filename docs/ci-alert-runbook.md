@@ -10,6 +10,7 @@ This runbook covers the shared-branch CI Slack alerts for
 | `Code Quality` | Non-canonical supporting signal | None yet | `push` on `main`, `workflow_dispatch` on `main` |
 | `Agent Tests` | Non-canonical supporting signal | None yet | `push` on `main`, `workflow_dispatch` on `main` |
 | `Inner Loop Gating` | Canonical | `QG7` | `push` on `main` when matching eval/behavioral paths change, `workflow_dispatch` on `main` |
+| `QG1: Cluster Readiness` | Canonical | `QG1` | `schedule`, `workflow_dispatch` on `main` |
 | `QG4: Agent Deployment Integration Tests` | Canonical | `QG4` | `schedule`, `workflow_dispatch` on `main` |
 
 ## Routing and Ownership
@@ -27,8 +28,10 @@ This runbook covers the shared-branch CI Slack alerts for
 
 ## Severity Interpretation
 
-- `QG4` is the highest current action priority because lower-numbered canonical
+- `QG1` is the highest current action priority because lower-numbered canonical
   QGs outrank higher-numbered ones.
+- `QG4` is the next current canonical priority and should be triaged after
+  `QG1` but ahead of `QG7` and supporting signals.
 - `QG7` is the next current canonical priority and should be triaged after
   `QG4` but ahead of supporting signals.
 - `Code Quality` and `Agent Tests` are supporting signals without canonical
@@ -73,7 +76,8 @@ should inspect the GitHub Actions run directly.
 
 | Severity bucket | Current signal mapping | Proposed acknowledgement window | Proposed triage target |
 | --- | --- | --- | --- |
-| Highest current priority | `QG4` | Within 1 business hour | Same business day |
+| Highest current priority | `QG1` | Within 1 business hour | Same business day |
+| Next current priority | `QG4` | Within 1 business hour | Same business day |
 | Next current priority | `QG7` | Within 4 business hours | Next business half-day |
 | Supporting signals | `Code Quality`, `Agent Tests` | By next business day | Next business day or convert to backlog follow-up if duplicate |
 
