@@ -10,8 +10,8 @@ import qg1_cluster_readiness as mod  # noqa: E402
 
 
 def test_parse_required_namespaces_accepts_csv_and_newlines():
-    parsed = mod.parse_required_namespaces("ci-testing,llama-serving\nkagenti-system")
-    assert parsed == ["ci-testing", "llama-serving", "kagenti-system"]
+    parsed = mod.parse_required_namespaces("ci-testing\nllama-serving")
+    assert parsed == ["ci-testing", "llama-serving"]
 
 
 def test_evaluate_cluster_state_flags_missing_namespace():
@@ -19,15 +19,15 @@ def test_evaluate_cluster_state_flags_missing_namespace():
         api_health="ok",
         cluster_version="4.16.12",
         gpu_nodes=["worker-gpu-0"],
-        namespaces=["ci-testing", "llama-serving"],
-        required_namespaces=["ci-testing", "kagenti-system"],
+        namespaces=["ci-testing"],
+        required_namespaces=["ci-testing", "llama-serving"],
         require_gpu=True,
     )
     namespace_check = next(
         item for item in checks if item["name"] == "required_namespaces"
     )
     assert namespace_check["passed"] is False
-    assert namespace_check["details"] == "Missing namespaces: kagenti-system"
+    assert namespace_check["details"] == "Missing namespaces: llama-serving"
 
 
 def test_evaluate_cluster_state_flags_degraded_api():
@@ -92,7 +92,7 @@ def test_build_summary_reports_overall_failure():
         {
             "name": "required_namespaces",
             "passed": False,
-            "details": "Missing namespaces: kagenti-system",
+            "details": "Missing namespaces: llama-serving",
         },
     ]
     summary = mod.build_summary("rhoai2", checks)
