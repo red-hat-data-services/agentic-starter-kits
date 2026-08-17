@@ -8,16 +8,22 @@ This directory documents every way to collect those spans:
 
 | Path | Backend | Storage | Metrics | Use for |
 |------|---------|---------|---------|---------|
-| [Local](#local-otel-collector--jaeger--prometheus) | OTel Collector + Jaeger + Prometheus (compose) | in-memory | ✅ RED metrics | development on your laptop |
-| [Cluster — demo](#cluster-demo-tempomonolithic) | `TempoMonolithic` | in-memory (ephemeral) | ❌ traces only | a 5-minute tutorial on a cluster |
-| [Cluster — production](#cluster-production-tempostack) | `TempoStack` (+ optional Collector) | object storage (S3/MinIO/ODF) | optional (Collector) | anything durable/supported |
+| [Local](#local-otel-collector--jaeger--prometheus) | OTel Collector + Jaeger + Prometheus (compose) | in-memory | RED metrics | development on your laptop |
+| [Cluster — demo](#cluster-demo-tempomonolithic) | `TempoMonolithic` | in-memory (ephemeral) | traces only | a 5-minute tutorial on a cluster |
+| [Cluster — durable](#cluster-durable-tempostack) | `TempoStack` (+ optional Collector) | object storage (S3/MinIO/ODF) | optional (Collector) | keeping traces across pod restarts |
 
 **Tracing is opt-in.** It is off by default and adds zero overhead when unset.
 The `tracing:` block in `config.yaml.example` ships with `enabled: false`;
-`generate_config.py` flips it to `true` only when `GUARDRAILS_TRACING_ENABLED=true`,
-so the server command is byte-identical when tracing is off. Content capture stays
-`false` in every mode, so blocked prompts and outputs are never echoed into span
-attributes.
+`generate_config.py` flips it to `true` only when `GUARDRAILS_TRACING_ENABLED`
+is exactly `true`. Content capture stays `false` in every
+mode, so blocked prompts and outputs are never echoed into span attributes.
+
+Manifests in this directory have **no `metadata.namespace`**. Always pass
+`-n <ns>` (the same namespace as the guardrails proxy):
+
+```bash
+oc apply -n <ns> -f deploy/tracing/<file>.yaml
+```
 
 > **Why a wrapper is needed locally but not on cluster:** NeMo's
 > `OpenTelemetryAdapter` uses only the OTel *API* — it never configures an SDK.
@@ -28,12 +34,14 @@ attributes.
 > operator's guardrails container configures the SDK itself from the `OTEL_*`
 > env vars, so no wrapper is involved.
 
-Manifests in this directory:
+Manifests:
 
-- [`tempo-monolithic-demo.yaml`](tempo-monolithic-demo.yaml) — the demo cluster backend.
-- [`tempo-stack-production.yaml`](tempo-stack-production.yaml) — the production cluster backend.
-- [`object-storage-secret.example.yaml`](object-storage-secret.example.yaml) — credentials template for the production backend.
-- [`otel-collector-spanmetrics.yaml`](otel-collector-spanmetrics.yaml) — optional per-rail metrics on cluster.
+- [`tempo-monolithic-demo.yaml`](tempo-monolithic-demo.yaml) — demo cluster backend.
+- [`tempo-stack-production.yaml`](tempo-stack-production.yaml) — durable TempoStack.
+- [`minio-demo.yaml`](minio-demo.yaml) — optional in-cluster MinIO + bucket Job.
+- [`object-storage-secret.example.yaml`](object-storage-secret.example.yaml) — TempoStack credentials template.
+- [`otel-collector-spanmetrics-stack.yaml`](otel-collector-spanmetrics-stack.yaml) — metrics in front of TempoStack.
+- [`otel-collector-spanmetrics-monolithic.yaml`](otel-collector-spanmetrics-monolithic.yaml) — metrics in front of TempoMonolithic.
 
 ---
 
@@ -57,7 +65,8 @@ agent → guardrails proxy (opentelemetry-instrument) → OTel Collector
    (`http://localhost:16686`), and Prometheus (`http://localhost:9090`).
 
 2. **Start the proxy with tracing on** — set these in `.env` (or export them
-   inline), then run the server:
+   inline), then run the server. Local uses OTLP/HTTP on `:4318`; cluster uses
+   gRPC on `:4317` — do not copy cluster `OTEL_*` values into `.env`.
 
    ```ini
    GUARDRAILS_TRACING_ENABLED=true
@@ -95,49 +104,67 @@ In-cluster, the guardrails proxy exports over gRPC to Tempo (no
    OperatorHub. The operator is only the controller; you still deploy a Tempo
    instance (step 2).
 
-2. **Deploy the demo Tempo instance** in your namespace (e.g. `ci-testing`):
+2. **Deploy the demo Tempo instance** in the guardrails namespace:
 
    ```bash
-   oc apply -n ci-testing -f deploy/tracing/tempo-monolithic-demo.yaml
+   oc apply -n <ns> -f deploy/tracing/tempo-monolithic-demo.yaml
    ```
 
    It creates Service `tempo-guardrails-tracing` (OTLP gRPC :4317, HTTP :4318)
    and route `tempo-guardrails-tracing-jaegerui`. The operator will warn that a
    non-multitenant `TempoMonolithic` is *not supported on OpenShift* and its
    in-memory storage is ephemeral (traces are lost on pod restart) — both
-   expected for a short-lived tutorial. For durability, use the production path.
+   expected for a short-lived tutorial.
 
-3. **Point `cluster.env` at that instance's OTLP service:**
+3. **Point `cluster.env` at that instance's OTLP service**, then deploy:
 
    ```ini
    GUARDRAILS_TRACING_ENABLED=true
-   OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-guardrails-tracing.ci-testing.svc.cluster.local:4317
+   OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-guardrails-tracing.<ns>.svc.cluster.local:4317
    OTEL_SERVICE_NAME=nemo-guardrails
    OTEL_EXPORTER_OTLP_PROTOCOL=grpc
    OTEL_METRICS_EXPORTER=none
    ```
 
-4. **Deploy** (`make deploy-guardrails`) — the tracing block is rendered into the
-   ConfigMap and the `OTEL_*` vars onto the `NemoGuardrails` CR automatically.
+   ```bash
+   make deploy-guardrails GUARDRAILS_NAMESPACE=<ns>
+   ```
 
-5. **Access traces** via the Jaeger UI route
-   (`oc get route -n <ns> | grep jaegerui`) or port-forward
-   (`oc port-forward svc/tempo-guardrails-tracing-jaegerui 16686:16686`), then
-   pick service `nemo-guardrails`. See [Reading a trace](#reading-a-trace).
+   `make deploy-guardrails` applies the CR and ConfigMap into
+   `GUARDRAILS_NAMESPACE`, which defaults to the current `oc` project
+   (`oc project -q`), matching Helm `make deploy`. Override with
+   `GUARDRAILS_NAMESPACE=<ns>` if needed.
+
+4. **Access traces** via the Jaeger UI route
+   (`oc get route -n <ns> tempo-guardrails-tracing-jaegerui`). On OpenShift the
+   route is typically behind oauth-proxy — log in with cluster credentials.
+   Port-forward fallback:
+
+   ```bash
+   oc port-forward -n <ns> svc/tempo-guardrails-tracing-jaegerui 16686:16686
+   ```
+
+   Then pick service `nemo-guardrails`. See [Reading a trace](#reading-a-trace).
 
 ---
 
-## Cluster: production (`TempoStack`)
+## Cluster: durable (`TempoStack`)
 
-`TempoStack` persists traces to object storage and is the supported,
-multi-tenant-capable backend for OpenShift. Use it for anything beyond a
-tutorial. It cannot be a pure copy-paste apply: you must provide an object
-storage bucket (AWS S3, MinIO, or ODF) and its credentials.
+`TempoStack` persists traces to object storage. This example does **not** enable
+OpenShift multi-tenancy / gateway, so the operator warns that ingest and query
+are unauthenticated and "not supported on OpenShift". Use it to keep traces
+across restarts; a production Tempo (tenants + gateway) is a separate setup.
 
 1. **Install the Tempo Operator** — subscribe to `tempo-product` from OperatorHub
    (same as the demo path).
 
-2. **Provision object storage** — an S3/MinIO/ODF bucket the cluster can reach.
+2. **Provision object storage.** Either apply the bundled MinIO demo or use
+   AWS S3 / ODF / an existing MinIO:
+
+   ```bash
+   oc apply -n <ns> -f deploy/tracing/minio-demo.yaml
+   oc wait -n <ns> --for=condition=complete job/minio-create-bucket --timeout=180s
+   ```
 
 3. **Create the credentials Secret** from the template, then apply it *before*
    the TempoStack CR:
@@ -145,8 +172,9 @@ storage bucket (AWS S3, MinIO, or ODF) and its credentials.
    ```bash
    cp deploy/tracing/object-storage-secret.example.yaml \
       deploy/tracing/object-storage-secret.yaml
-   # edit object-storage-secret.yaml: endpoint, bucket, region, access keys
-   oc apply -n ci-testing -f deploy/tracing/object-storage-secret.yaml
+   # For minio-demo.yaml, endpoint is http://minio.<ns>.svc.cluster.local:9000
+   # and keys match Secret minio-root (tempo / temposupersecret).
+   oc apply -n <ns> -f deploy/tracing/object-storage-secret.yaml
    ```
 
    Never commit the filled-in copy — `object-storage-secret.yaml` is gitignored.
@@ -154,30 +182,35 @@ storage bucket (AWS S3, MinIO, or ODF) and its credentials.
 4. **Deploy the TempoStack:**
 
    ```bash
-   oc apply -n ci-testing -f deploy/tracing/tempo-stack-production.yaml
+   oc apply -n <ns> -f deploy/tracing/tempo-stack-production.yaml
    ```
 
-   The ingest endpoint is now the **distributor** service, not a monolithic one:
-   `tempo-guardrails-tracing-distributor.ci-testing.svc.cluster.local:4317`. The
-   Jaeger UI is exposed via the `tempo-guardrails-tracing-query-frontend` route.
+   The ingest endpoint is the **distributor** service, not a monolithic one:
+   `tempo-guardrails-tracing-distributor.<ns>.svc.cluster.local:4317`. The
+   Jaeger UI is route `tempo-guardrails-tracing-query-frontend` (oauth-proxy).
 
-5. **Choose traces-only or traces+metrics**, then set `cluster.env`:
+   Port-forward fallback (this is *not* the TempoMonolithic jaegerui service):
+
+   ```bash
+   oc port-forward -n <ns> svc/tempo-guardrails-tracing-query-frontend 16686:16686
+   ```
+
+5. **Choose traces-only or traces+metrics**, then set `cluster.env` and
+   `make deploy-guardrails GUARDRAILS_NAMESPACE=<ns>`.
 
    - **Traces only** — point straight at the distributor:
 
      ```ini
      GUARDRAILS_TRACING_ENABLED=true
-     OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-guardrails-tracing-distributor.ci-testing.svc.cluster.local:4317
+     OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-guardrails-tracing-distributor.<ns>.svc.cluster.local:4317
      OTEL_SERVICE_NAME=nemo-guardrails
      OTEL_EXPORTER_OTLP_PROTOCOL=grpc
      OTEL_METRICS_EXPORTER=none
      ```
 
-   - **Traces + per-rail metrics** — deploy the spanmetrics Collector and point
-     at it instead (see [Metrics on cluster](#metrics-on-cluster) below).
-
-6. **Deploy** (`make deploy-guardrails`), send traffic, and read traces exactly
-   as in the demo path.
+   - **Traces + per-rail metrics** — apply
+     [`otel-collector-spanmetrics-stack.yaml`](otel-collector-spanmetrics-stack.yaml)
+     and point `cluster.env` at the Collector (see [Metrics on cluster](#metrics-on-cluster)).
 
 ---
 
@@ -185,16 +218,19 @@ storage bucket (AWS S3, MinIO, or ODF) and its credentials.
 
 In **Jaeger**, pick service `nemo-guardrails` and search. Each request is one trace:
 
-- The **root span** covers the whole guardrails request.
-- **Rail spans** are the children. NeMo emits *every* rail under the same span
-  name (`guardrails.rail`); the specific rail is identified by the `rail.name`
-  (e.g. `self_check_input`, `topic_safety_check_input`) and `rail.type`
-  (`input` / `output` / `dialog` / `generation`) attributes.
-- **`gen_ai.*` spans** capture the underlying LLM calls and their latency.
+- The **root span** (`guardrails.request`) covers the whole guardrails request.
+- **Rail spans** are children named `guardrails.rail`. Distinguish them by
+  attributes:
+  - `rail.name` — e.g. `regex check input`, `content safety check input`,
+    `topic policy check input`
+  - `rail.type` — `input` / `output` / `dialog` / `generation`
+  - `rail.stop` — `true` when that rail blocked the request
+  - `rail.decisions` — actions the rail ran (look for `stop` / `refuse to respond`)
+- **`gen_ai.*` / model spans** capture the underlying LLM calls and their latency.
 
 Because content capture is disabled, spans carry timing and rail metadata only —
 not the user's text or model output. With the nemoguard profile you'll also see
-`content_safety_check_input`/`output` and `topic_safety_check_input` rails.
+`content_safety_check_input`/`output` and `topic_policy_check_input` rails.
 
 ---
 
@@ -206,30 +242,31 @@ metrics come from an `OpenTelemetryCollector` (Red Hat build of OpenTelemetry)
 whose [spanmetrics connector](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector)
 derives them and exposes them for scraping by
 [user workload monitoring](https://docs.openshift.com/container-platform/latest/observability/monitoring/enabling-monitoring-for-user-defined-projects.html)
-(UWM). The stock OpenShift Prometheus (`openshift-monitoring`) collects platform
-metrics only and won't scrape app spans on its own.
+(UWM).
 
 To enable the metrics path:
 
 1. Install the **Red Hat build of OpenTelemetry** operator and ensure **UWM is
-   enabled** (the `openshift-user-workload-monitoring` namespace has running pods).
+   enabled**.
 
-2. Apply the Collector, which forwards traces to Tempo *and* exposes spanmetrics:
+2. Apply the Collector that matches your Tempo flavor:
 
    ```bash
-   oc apply -n ci-testing -f deploy/tracing/otel-collector-spanmetrics.yaml
+   # TempoStack (forwards to the distributor)
+   oc apply -n <ns> -f deploy/tracing/otel-collector-spanmetrics-stack.yaml
+
+   # TempoMonolithic (forwards to tempo-guardrails-tracing)
+   oc apply -n <ns> -f deploy/tracing/otel-collector-spanmetrics-monolithic.yaml
    ```
 
 3. Point `cluster.env` at the Collector instead of Tempo directly:
 
    ```ini
-   OTEL_EXPORTER_OTLP_ENDPOINT=http://guardrails-spanmetrics-collector.ci-testing.svc.cluster.local:4317
+   OTEL_EXPORTER_OTLP_ENDPOINT=http://guardrails-spanmetrics-collector.<ns>.svc.cluster.local:4317
    OTEL_METRICS_EXPORTER=none
    ```
 
-4. Query in the OpenShift console (**Observe → Metrics**) — the metric labels
-   `rail_name` / `rail_type` come from the span attributes (dots become
-   underscores):
+4. Query in the OpenShift console (**Observe → Metrics**):
 
    ```promql
    # Calls per rail
@@ -239,11 +276,10 @@ To enable the metrics path:
    histogram_quantile(0.95, sum by (le, rail_name) (rate(traces_span_metrics_duration_milliseconds_bucket{span_name="guardrails.rail"}[5m])))
    ```
 
-The same PromQL works against the local Prometheus (`http://localhost:9090`),
-which the compose stack's Collector feeds directly; see
-[`../../guardrails/tracing/otel-collector-config.yaml`](../../guardrails/tracing/otel-collector-config.yaml).
+The same PromQL works against the local Prometheus (`http://localhost:9090`).
 
 ---
 
 See [`../overlays/ci-testing/cluster.env.example`](../overlays/ci-testing/cluster.env.example)
-for the full set of cluster-side variables.
+for the full set of cluster-side variables. Tracing stays commented / off there
+until you opt in.

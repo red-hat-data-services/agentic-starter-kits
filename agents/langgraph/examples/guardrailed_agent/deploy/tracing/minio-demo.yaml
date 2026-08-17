@@ -1,0 +1,128 @@
+# Optional in-cluster MinIO for the durable TempoStack path.
+#
+# TempoStack needs an S3-compatible bucket. Use this only when you do not
+# already have AWS S3, ODF, or another MinIO. Demo-grade: no TLS, emptyDir
+# (traces in MinIO are lost if the pod is deleted).
+#
+# Apply into the SAME namespace as TempoStack (no namespace in this file):
+#   oc apply -n <ns> -f deploy/tracing/minio-demo.yaml
+#   oc wait -n <ns> --for=condition=complete job/minio-create-bucket --timeout=180s
+#
+# Then create the Tempo object-storage Secret (see object-storage-secret.example.yaml)
+# with:
+#   endpoint: http://minio.<ns>.svc.cluster.local:9000
+#   bucket: guardrails-tempo-traces
+#   access_key_id / access_key_secret: matching minio-root below
+#
+# OpenShift runs containers as a random UID — the bucket Job sets HOME=/tmp so
+# `mc` can write its config (the image default /.mc is not writable).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-root
+  labels:
+    app: minio
+type: Opaque
+stringData:
+  MINIO_ROOT_USER: tempo
+  MINIO_ROOT_PASSWORD: temposupersecret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  labels:
+    app: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+          args: ["server", "/data", "--console-address", ":9001"]
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-root
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-root
+                  key: MINIO_ROOT_PASSWORD
+          ports:
+            - name: api
+              containerPort: 9000
+            - name: console
+              containerPort: 9001
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: 9000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  labels:
+    app: minio
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-create-bucket
+  labels:
+    app: minio
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+          env:
+            - name: HOME
+              value: /tmp
+            - name: MC_CONFIG_DIR
+              value: /tmp/.mc
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-root
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-root
+                  key: MINIO_ROOT_PASSWORD
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              mc alias set local http://minio:9000 "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}"
+              mc mb --ignore-existing local/guardrails-tempo-traces
+              mc ls local

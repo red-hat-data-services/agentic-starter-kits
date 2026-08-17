@@ -98,17 +98,16 @@ class TestTracingOverride:
         assert generate_config._apply_tracing_override(config) is False
         assert config["tracing"]["enabled"] is False
 
-    @pytest.mark.parametrize("value", ["true", "TRUE", "1", "yes", " Yes "])
-    def test_enabled_for_truthy_values(self, monkeypatch, value):
-        monkeypatch.setenv("GUARDRAILS_TRACING_ENABLED", value)
+    def test_enabled_only_for_exact_true(self, monkeypatch):
+        monkeypatch.setenv("GUARDRAILS_TRACING_ENABLED", "true")
         config = {
             "tracing": {"enabled": False, "adapters": [{"name": "OpenTelemetry"}]}
         }
         assert generate_config._apply_tracing_override(config) is True
         assert config["tracing"]["enabled"] is True
 
-    @pytest.mark.parametrize("value", ["false", "0", "no", ""])
-    def test_disabled_for_falsy_values(self, monkeypatch, value):
+    @pytest.mark.parametrize("value", ["false", "0", "no", "", "TRUE", "1", "yes"])
+    def test_disabled_for_non_true_values(self, monkeypatch, value):
         monkeypatch.setenv("GUARDRAILS_TRACING_ENABLED", value)
         config = {"tracing": {"enabled": True, "adapters": [{"name": "OpenTelemetry"}]}}
         assert generate_config._apply_tracing_override(config) is False
@@ -119,6 +118,20 @@ class TestTracingOverride:
         config = {"models": []}
         assert generate_config._apply_tracing_override(config) is False
         assert "tracing" not in config
+
+    def test_forces_content_capture_off_even_when_template_enables_it(
+        self, monkeypatch
+    ):
+        monkeypatch.setenv("GUARDRAILS_TRACING_ENABLED", "true")
+        config = {
+            "tracing": {
+                "enabled": False,
+                "enable_content_capture": True,
+                "adapters": [{"name": "OpenTelemetry"}],
+            }
+        }
+        assert generate_config._apply_tracing_override(config) is True
+        assert config["tracing"]["enable_content_capture"] is False
 
     def test_both_profile_templates_ship_disabled_tracing_block(self):
         for profile in ("local", "nemoguard"):
@@ -238,7 +251,7 @@ class TestGenerateConfigMain:
             content["parameters"]["base_url"] == "https://integrate.api.nvidia.com/v1"
         )
 
-    def test_omit_nim_api_keys_strips_only_nim_roles(self, generated_config):
+    def test_omit_nim_api_keys_strips_all_roles(self, generated_config):
         config = generated_config(
             "nemoguard",
             {
@@ -256,8 +269,8 @@ class TestGenerateConfigMain:
         main = next(m for m in config["models"] if m["type"] == "main")
         content = next(m for m in config["models"] if m["type"] == "content_safety")
         topic = next(m for m in config["models"] if m["type"] == "topic_control")
-        assert main["parameters"]["api_key"] == "not-needed"
-        assert "api_key_env_var" not in main
+        assert "api_key" not in main["parameters"]
+        assert main["api_key_env_var"] == "OPENAI_API_KEY"
         assert "api_key" not in content["parameters"]
         assert content["api_key_env_var"] == "NVIDIA_API_KEY"
         assert "api_key" not in topic["parameters"]

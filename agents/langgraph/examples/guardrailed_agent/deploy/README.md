@@ -16,7 +16,7 @@ prompts.yml, rails.co, actions.py, topic_policy.co) sourced from
 
 ## Prerequisites
 
-- `oc` logged into the target cluster; namespace `ci-testing` for integration tests
+- `oc` logged into the target cluster (current project is the deploy target; `ci-testing` is the QG4 overlay name)
 - TrustyAI operator with `NemoGuardrails` CRD installed
 - In-cluster LLM at `vllm-svc.llama-serving.svc.cluster.local:8000` (default)
 - **NVIDIA NIM API key** for nemoguard safety classifiers
@@ -37,8 +37,10 @@ cp .env.example .env
 # CONTAINER_IMAGE=image-registry.openshift-image-registry.svc:5000/ci-testing/langgraph-guardrailed-agent:latest
 
 # 3. Build + deploy guardrails + agent
+# Optional tracing: see deploy/tracing/README.md, then set
+# GUARDRAILS_TRACING_ENABLED=true and OTEL_* in cluster.env
 make build-openshift   # or set CONTAINER_IMAGE
-make deploy-rhoai
+make deploy-rhoai      # guardrails + Helm agent both use the current oc project
 ```
 
 ## Inject NIM API key (Secret only)
@@ -81,11 +83,11 @@ curl -s "https://${ROUTE}/health" | jq .
 |--------|-------------|
 | `make render-guardrails-configmap` | Generate `deploy/manifests/02-guardrails-configmap.yaml` |
 | `make deploy-guardrails-secrets` | Apply Secret from `cluster.env` |
-| `make deploy-guardrails` | Render ConfigMap + apply Kustomize overlay |
-| `make undeploy-guardrails` | Delete CR, ConfigMap, Secret |
+| `make deploy-guardrails` | Render ConfigMap + apply CR/ConfigMap/Secret into `GUARDRAILS_NAMESPACE` |
+| `make undeploy-guardrails` | Delete CR, ConfigMap, Secret from `GUARDRAILS_NAMESPACE` |
 | `make deploy-rhoai` | `deploy-guardrails` then `make deploy` |
 | `make undeploy-rhoai` | `undeploy` + `undeploy-guardrails` |
-| `make deploy-rhoai-dry-run` | `oc kustomize` preview |
+| `make deploy-rhoai-dry-run` | Preview substituted CR + ConfigMap for `GUARDRAILS_NAMESPACE` |
 
 ## Integration tests
 

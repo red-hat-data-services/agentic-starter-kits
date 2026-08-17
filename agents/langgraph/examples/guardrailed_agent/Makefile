@@ -6,16 +6,16 @@ VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
 GUARDRAILS_CR_NAME     := langgraph-guardrailed-agent-guardrails
-GUARDRAILS_NAMESPACE   ?= ci-testing
+GUARDRAILS_NAMESPACE   ?= $(shell oc project -q 2>/dev/null)
 CLUSTER_ENV            := deploy/overlays/ci-testing/cluster.env
 CLUSTER_ENV_EXAMPLE    := deploy/overlays/ci-testing/cluster.env.example
 GUARDRAILS_KUSTOMIZE   := deploy/overlays/ci-testing
 TRACING_COMPOSE        := guardrails/tracing/compose.yaml
 
-.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test test-guardrails-integration test-guardrails-integration-nemoguard test-integration dry-run help guardrails-server-local guardrails-server-nemoguard guardrails-tracing-up guardrails-tracing-down render-guardrails-configmap deploy-guardrails-secrets deploy-guardrails undeploy-guardrails deploy-rhoai undeploy-rhoai deploy-rhoai-dry-run
+.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test test-guardrails-integration test-guardrails-integration-nemoguard test-integration dry-run help guardrails-server-local guardrails-server-nemoguard guardrails-tracing-up guardrails-tracing-down render-guardrails-configmap deploy-guardrails-secrets deploy-guardrails undeploy-guardrails deploy-rhoai undeploy-rhoai deploy-rhoai-dry-run _check-guardrails-ns
 
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-32s %s\n", $$1, $$2}'
 
 re-init: ## Activate venv and reload .env variables
 	@source .venv/bin/activate && set -a && source .env && set +a && \
@@ -274,7 +274,10 @@ render-guardrails-configmap: ## Render NeMo Guardrails ConfigMap manifest for cl
 	    --cluster-env "$$CLUSTER_ENV_FILE" \
 	    --output deploy/manifests/02-guardrails-configmap.yaml
 
-deploy-guardrails-secrets: ## Create/update guardrails Secret from cluster.env or NVIDIA_API_KEY env
+_check-guardrails-ns:
+	@[ -n "$(GUARDRAILS_NAMESPACE)" ] || { echo "ERROR: GUARDRAILS_NAMESPACE is empty. Log in with oc or pass GUARDRAILS_NAMESPACE=<ns>."; exit 1; }
+
+deploy-guardrails-secrets: _check-guardrails-ns ## Create/update guardrails Secret from cluster.env or NVIDIA_API_KEY env
 	@KEY=""; \
 	  if [ -n "$${NVIDIA_API_KEY:-}" ]; then KEY="$${NVIDIA_API_KEY}"; \
 	  elif [ -f "$(CLUSTER_ENV)" ]; then \
@@ -294,11 +297,17 @@ deploy-guardrails-secrets: ## Create/update guardrails Secret from cluster.env o
 	    --from-literal=nvidia-api-key="$$KEY" \
 	    --dry-run=client -o yaml | oc apply -f -
 
-deploy-guardrails: render-guardrails-configmap deploy-guardrails-secrets ## Apply NemoGuardrails CR + ConfigMap to cluster
+deploy-guardrails: _check-guardrails-ns render-guardrails-configmap deploy-guardrails-secrets ## Apply NemoGuardrails CR + ConfigMap to GUARDRAILS_NAMESPACE
+	@command -v envsubst >/dev/null 2>&1 || { echo "ERROR: envsubst (gettext) is required"; exit 1; }
 	@set -a && [ -f "$(CLUSTER_ENV)" ] && source "$(CLUSTER_ENV)" || source "$(CLUSTER_ENV_EXAMPLE)"; set +a && \
-	  envsubst < deploy/manifests/03-nemoguardrails-cr.yaml | oc apply -f - && \
-	  oc apply -f deploy/manifests/02-guardrails-configmap.yaml && \
-	  echo "" && echo "Waiting for NemoGuardrails pod..." && \
+	  CR_TMP=$$(mktemp) && \
+	  trap 'rm -f "$$CR_TMP"' EXIT && \
+	  envsubst '$$OTEL_EXPORTER_OTLP_ENDPOINT $$OTEL_SERVICE_NAME $$OTEL_EXPORTER_OTLP_PROTOCOL $$OTEL_METRICS_EXPORTER' \
+	    < deploy/manifests/03-nemoguardrails-cr.yaml > "$$CR_TMP" && \
+	  python3 deploy/scripts/finalize_nemoguardrails_cr.py "$$CR_TMP" && \
+	  oc apply -n "$(GUARDRAILS_NAMESPACE)" -f "$$CR_TMP" && \
+	  oc apply -n "$(GUARDRAILS_NAMESPACE)" -f deploy/manifests/02-guardrails-configmap.yaml && \
+	  echo "" && echo "Waiting for NemoGuardrails pod in $(GUARDRAILS_NAMESPACE)..." && \
 	  for i in $$(seq 1 60); do \
 	    READY=$$(oc get pods -n "$(GUARDRAILS_NAMESPACE)" \
 	      -l app.kubernetes.io/instance=$(GUARDRAILS_CR_NAME) \
@@ -322,13 +331,25 @@ deploy-guardrails: render-guardrails-configmap deploy-guardrails-secrets ## Appl
 	    echo "Route URL: https://$$ROUTE"; \
 	  fi
 
-undeploy-guardrails: render-guardrails-configmap ## Remove NemoGuardrails CR + ConfigMap from cluster
-	@oc delete -k "$(GUARDRAILS_KUSTOMIZE)" --ignore-not-found && \
+undeploy-guardrails: _check-guardrails-ns ## Remove NemoGuardrails CR + ConfigMap + Secret from GUARDRAILS_NAMESPACE
+	@oc delete nemoguardrails $(GUARDRAILS_CR_NAME) \
+	    -n "$(GUARDRAILS_NAMESPACE)" --ignore-not-found && \
+	  oc delete configmap langgraph-guardrailed-agent-guardrails-config \
+	    -n "$(GUARDRAILS_NAMESPACE)" --ignore-not-found && \
 	  oc delete secret langgraph-guardrailed-agent-guardrails-secrets \
 	    -n "$(GUARDRAILS_NAMESPACE)" --ignore-not-found
 
-deploy-rhoai-dry-run: render-guardrails-configmap ## Preview guardrails Kustomize output
-	@oc kustomize "$(GUARDRAILS_KUSTOMIZE)"
+deploy-rhoai-dry-run: _check-guardrails-ns render-guardrails-configmap ## Preview namespaced CR + ConfigMap (no apply)
+	@command -v envsubst >/dev/null 2>&1 || { echo "ERROR: envsubst (gettext) is required"; exit 1; }
+	@set -a && [ -f "$(CLUSTER_ENV)" ] && source "$(CLUSTER_ENV)" || source "$(CLUSTER_ENV_EXAMPLE)"; set +a && \
+	  CR_TMP=$$(mktemp) && \
+	  trap 'rm -f "$$CR_TMP"' EXIT && \
+	  envsubst '$$OTEL_EXPORTER_OTLP_ENDPOINT $$OTEL_SERVICE_NAME $$OTEL_EXPORTER_OTLP_PROTOCOL $$OTEL_METRICS_EXPORTER' \
+	    < deploy/manifests/03-nemoguardrails-cr.yaml > "$$CR_TMP" && \
+	  python3 deploy/scripts/finalize_nemoguardrails_cr.py "$$CR_TMP" && \
+	  echo "--- namespace: $(GUARDRAILS_NAMESPACE) ---" && \
+	  oc apply -n "$(GUARDRAILS_NAMESPACE)" --dry-run=client -o yaml -f "$$CR_TMP" && \
+	  oc apply -n "$(GUARDRAILS_NAMESPACE)" --dry-run=client -o yaml -f deploy/manifests/02-guardrails-configmap.yaml
 
 deploy-rhoai: deploy-guardrails deploy ## Deploy guardrails proxy then agent (BASE_URL must target guardrails)
 	@source .env 2>/dev/null || true; \

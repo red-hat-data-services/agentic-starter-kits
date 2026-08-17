@@ -70,7 +70,15 @@ def _load_cluster_env(path: Path) -> dict[str, str]:
 def _apply_env(values: dict[str, str]) -> None:
     # Never load API keys into the render environment — cluster ConfigMaps must
     # not embed secrets. Runtime auth uses the NemoGuardrails CR Secret env.
-    skip_keys = {"NVIDIA_API_KEY", "CONTENT_SAFETY_API_KEY", "TOPIC_CONTROL_API_KEY"}
+    skip_keys = {
+        "API_KEY",
+        "MAIN_API_KEY",
+        "NVIDIA_API_KEY",
+        "CONTENT_SAFETY_API_KEY",
+        "TOPIC_CONTROL_API_KEY",
+    }
+    for key in skip_keys:
+        os.environ.pop(key, None)
     for key, value in values.items():
         if key in skip_keys:
             continue

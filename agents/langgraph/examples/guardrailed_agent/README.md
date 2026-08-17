@@ -238,7 +238,7 @@ Tracing is **opt-in**: off by default, zero overhead when unset, and content cap
 
 - **Local** — an OTel Collector + Jaeger + Prometheus compose stack (`make guardrails-tracing-up`) for laptop development, including per-rail RED metrics.
 - **Cluster demo** — a `TempoMonolithic` (`deploy/tracing/tempo-monolithic-demo.yaml`), a 5-minute in-memory backend for a tutorial cluster.
-- **Cluster production** — a `TempoStack` on object storage, with an optional `OpenTelemetryCollector` for per-rail metrics via user workload monitoring.
+- **Cluster durable** — a `TempoStack` on object storage (optional in-cluster MinIO via `deploy/tracing/minio-demo.yaml`), with an optional `OpenTelemetryCollector` for per-rail metrics via user workload monitoring.
 
 Full setup for all three — manifests, `OTEL_*` env vars, reading traces, and PromQL queries — lives in **[deploy/tracing/README.md](deploy/tracing/README.md)**.
 

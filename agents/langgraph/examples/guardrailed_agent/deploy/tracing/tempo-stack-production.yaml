@@ -1,33 +1,37 @@
-# Production Tempo backend for guardrails tracing (RHOAI 3.4+).
+# Durable Tempo backend for guardrails tracing (RHOAI 3.4+).
 #
-# Unlike the demo TempoMonolithic (deploy/tracing/tempo-monolithic-demo.yaml),
-# a TempoStack persists traces to object storage and is the supported,
-# multi-tenant-capable backend for OpenShift. Use this for anything beyond a
-# short-lived tutorial. See the README "Production" section for the full walkthrough.
+# Unlike the demo TempoMonolithic (tempo-monolithic-demo.yaml), a TempoStack
+# persists traces to object storage. This manifest has no OpenShift multi-tenant
+# gateway (`spec.tenants.mode: openshift`) — the operator will warn that ingest
+# and query are unauthenticated and "not supported on OpenShift". Treat it as a
+# durable demo, not a production Tempo. A supported production shape is a
+# follow-on (tenants + gateway).
 #
-# Prerequisites (in order):
+# Prerequisites (in order), all in the SAME namespace (`oc apply -n <ns>`):
 #   1. Tempo Operator installed (subscribe to `tempo-product` on OperatorHub).
-#   2. Object storage + credentials Secret applied first:
-#        oc apply -n ci-testing -f object-storage-secret.yaml   # your filled-in copy
+#   2. Object storage + credentials Secret applied first. Either:
+#        oc apply -n <ns> -f deploy/tracing/minio-demo.yaml
+#        oc wait -n <ns> --for=condition=complete job/minio-create-bucket --timeout=180s
+#        # then fill object-storage-secret.yaml from the example (MinIO endpoint)
+#        oc apply -n <ns> -f object-storage-secret.yaml
+#      or point the Secret at AWS S3 / ODF / an existing MinIO.
 #   3. Then this CR:
-#        oc apply -n ci-testing -f deploy/tracing/tempo-stack-production.yaml
+#        oc apply -n <ns> -f deploy/tracing/tempo-stack-production.yaml
 #
 # It creates (among others):
-#   - Service "tempo-guardrails-tracing-distributor"    (OTLP gRPC :4317, HTTP :4318) — the ingest endpoint
-#   - Service "tempo-guardrails-tracing-query-frontend" (query API :3200)
-#   - Route   "tempo-guardrails-tracing-query-frontend" (Jaeger UI, when jaegerQuery.ingress is enabled)
+#   - Service "tempo-guardrails-tracing-distributor"    (OTLP gRPC :4317) — ingest
+#   - Service "tempo-guardrails-tracing-query-frontend" (Jaeger :16686, Tempo :3200)
+#   - Route   "tempo-guardrails-tracing-query-frontend" (Jaeger UI via oauth-proxy)
 #
-# Two ways to wire the guardrails proxy to it:
-#   A. Traces only — point cluster.env directly at the distributor:
-#        OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-guardrails-tracing-distributor.ci-testing.svc.cluster.local:4317
-#   B. Traces + per-rail metrics — point cluster.env at the spanmetrics
-#      Collector instead (deploy/tracing/otel-collector-spanmetrics.yaml), which
-#      forwards traces here AND exposes RED metrics for user workload monitoring.
+# Wire the guardrails proxy:
+#   A. Traces only — cluster.env at the distributor:
+#        OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-guardrails-tracing-distributor.<ns>.svc.cluster.local:4317
+#   B. Traces + per-rail metrics — point cluster.env at the spanmetrics Collector
+#      (otel-collector-spanmetrics-stack.yaml), which forwards to the distributor.
 apiVersion: tempo.grafana.com/v1alpha1
 kind: TempoStack
 metadata:
   name: guardrails-tracing
-  namespace: ci-testing
 spec:
   storage:
     secret:
