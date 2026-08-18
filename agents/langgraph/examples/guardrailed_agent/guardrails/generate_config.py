@@ -127,6 +127,34 @@ def _topic_control_custom_policy(model_id: str) -> str | None:
     return None
 
 
+def _tracing_enabled() -> bool:
+    """Return True only when GUARDRAILS_TRACING_ENABLED is exactly ``true``.
+
+    Matches the Makefile server targets (``= "true"``). ``1`` / ``yes`` / ``TRUE``
+    do not enable tracing.
+    """
+    return os.environ.get("GUARDRAILS_TRACING_ENABLED", "") == "true"
+
+
+def _apply_tracing_override(config: dict) -> bool:
+    """Flip config['tracing']['enabled'] on when GUARDRAILS_TRACING_ENABLED is
+    exactly ``true``. Off by default. Always forces enable_content_capture off.
+
+    config.yaml.example already ships the full tracing block (adapters,
+    span_format, enable_content_capture), so this is a boolean flip plus a
+    safety pin — no schema surprises. Returns the resolved enabled state. If
+    the config has no tracing block at all (older template), this is a no-op
+    returning False.
+    """
+    tracing = config.get("tracing")
+    if not isinstance(tracing, dict):
+        return False
+    enabled = _tracing_enabled()
+    tracing["enabled"] = enabled
+    tracing["enable_content_capture"] = False
+    return enabled
+
+
 def generate_config(config_path: str, *, omit_nim_api_keys: bool = False) -> list[str]:
     """Rewrite config_path in place with env-driven model overrides applied.
 
@@ -135,9 +163,9 @@ def generate_config(config_path: str, *, omit_nim_api_keys: bool = False) -> lis
     `parameters` per NeMo Guardrails' config schema. Returns a human-readable
     summary of what was applied, one line per model role.
 
-    When omit_nim_api_keys is True,
-    api_key is omitted from NIM classifier roles so cluster ConfigMaps do not
-    embed secrets; runtime auth uses the NVIDIA_API_KEY pod env var instead.
+    When omit_nim_api_keys is True, api_key is omitted from every model role so
+    cluster ConfigMaps do not embed secrets; runtime auth uses the
+    NemoGuardrails CR env (OPENAI_API_KEY / NVIDIA_API_KEY) instead.
     """
     default_model = os.environ.get("MODEL_ID") or "llama3.1:8b"
     default_base_url = os.environ.get("LLM_BASE_URL") or "http://localhost:11434/v1"
@@ -184,9 +212,13 @@ def generate_config(config_path: str, *, omit_nim_api_keys: bool = False) -> lis
 
         model["model"] = model_id
         model["engine"] = engine
-        if engine == "nim" and omit_nim_api_keys:
+        if omit_nim_api_keys:
+            # Cluster ConfigMaps must not embed secrets. Runtime auth uses the
+            # NemoGuardrails CR env (OPENAI_API_KEY / NVIDIA_API_KEY).
             model["parameters"].pop("api_key", None)
-            model["api_key_env_var"] = "NVIDIA_API_KEY"
+            model["api_key_env_var"] = (
+                "NVIDIA_API_KEY" if engine == "nim" else "OPENAI_API_KEY"
+            )
         else:
             model.pop("api_key_env_var", None)
             model["parameters"]["api_key"] = api_key
@@ -234,6 +266,13 @@ def generate_config(config_path: str, *, omit_nim_api_keys: bool = False) -> lis
         summary.append(
             "topic_control flow -> topic policy check input (custom policy mode)"
         )
+
+    tracing_enabled = _apply_tracing_override(config)
+    summary.append(
+        "tracing=opentelemetry (per-rail spans, content capture disabled)"
+        if tracing_enabled
+        else "tracing=disabled (default)"
+    )
 
     with open(config_path, "w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)

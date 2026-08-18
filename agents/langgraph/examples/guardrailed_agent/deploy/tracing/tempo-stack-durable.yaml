@@ -1,0 +1,47 @@
+# Durable Tempo backend for guardrails tracing (RHOAI 3.4+).
+#
+# Unlike the demo TempoMonolithic (tempo-monolithic-demo.yaml), a TempoStack
+# persists traces to object storage. This manifest has no OpenShift multi-tenant
+# gateway (`spec.tenants.mode: openshift`) — the operator will warn that ingest
+# and query are unauthenticated and "not supported on OpenShift". Treat it as a
+# durable demo, not a production Tempo. A supported production shape is a
+# follow-on (tenants + gateway).
+#
+# Prerequisites (in order), all in the SAME namespace (`oc apply -n <ns>`):
+#   1. Tempo Operator installed (subscribe to `tempo-product` on OperatorHub).
+#   2. Object storage + credentials Secret applied first. Either:
+#        oc apply -n <ns> -f deploy/tracing/minio-demo.yaml
+#        oc wait -n <ns> --for=condition=complete job/minio-create-bucket --timeout=180s
+#        # then fill object-storage-secret.yaml from the example (MinIO endpoint)
+#        oc apply -n <ns> -f object-storage-secret.yaml
+#      or point the Secret at AWS S3 / ODF / an existing MinIO.
+#   3. Then this CR:
+#        oc apply -n <ns> -f deploy/tracing/tempo-stack-durable.yaml
+#
+# It creates (among others):
+#   - Service "tempo-guardrails-tracing-distributor"    (OTLP gRPC :4317) — ingest
+#   - Service "tempo-guardrails-tracing-query-frontend" (Jaeger :16686, Tempo :3200)
+#   - Route   "tempo-guardrails-tracing-query-frontend" (Jaeger UI via oauth-proxy)
+#
+# Wire the guardrails proxy:
+#   A. Traces only — cluster.env at the distributor:
+#        OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-guardrails-tracing-distributor.<ns>.svc.cluster.local:4317
+#   B. Traces + per-rail metrics — point cluster.env at the spanmetrics Collector
+#      (otel-collector-spanmetrics-stack.yaml), which forwards to the distributor.
+apiVersion: tempo.grafana.com/v1alpha1
+kind: TempoStack
+metadata:
+  name: guardrails-tracing
+spec:
+  storage:
+    secret:
+      name: tempo-object-storage   # must match the Secret from object-storage-secret.yaml
+      type: s3
+  storageSize: 10Gi
+  template:
+    queryFrontend:
+      jaegerQuery:
+        enabled: true
+        ingress:
+          # `route` on OpenShift; use `ingress` on vanilla Kubernetes.
+          type: route

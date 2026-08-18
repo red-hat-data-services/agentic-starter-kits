@@ -1,0 +1,62 @@
+# Optional: per-rail METRICS in front of TempoStack (distributor ingest).
+#
+# Apply into the same namespace as the TempoStack (`oc apply -n <ns>` — no
+# namespace field in this file):
+#   oc apply -n <ns> -f deploy/tracing/otel-collector-spanmetrics-stack.yaml
+#
+# Then point cluster.env at THIS Collector:
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://guardrails-spanmetrics-collector.<ns>.svc.cluster.local:4317
+#   OTEL_METRICS_EXPORTER=none
+#
+# For TempoMonolithic use otel-collector-spanmetrics-monolithic.yaml instead.
+#
+# Prerequisites: Red Hat build of OpenTelemetry operator + user workload
+# monitoring. See deploy/tracing/README.md.
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: guardrails-spanmetrics
+spec:
+  mode: deployment
+  observability:
+    metrics:
+      enableMetrics: true
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+          http:
+            endpoint: "0.0.0.0:4318"
+    connectors:
+      spanmetrics:
+        histogram:
+          explicit:
+            buckets: [10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s]
+        dimensions:
+          - name: rail.name
+          - name: rail.type
+        metrics_flush_interval: 15s
+    processors:
+      batch:
+        timeout: 5s
+    exporters:
+      otlp:
+        # Same-namespace TempoStack distributor. Edit <ns> if you need FQDN:
+        #   tempo-guardrails-tracing-distributor.<ns>.svc.cluster.local:4317
+        endpoint: "tempo-guardrails-tracing-distributor:4317"
+        tls:
+          insecure: true
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp, spanmetrics]
+        metrics:
+          receivers: [spanmetrics]
+          processors: [batch]
+          exporters: [prometheus]
