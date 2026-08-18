@@ -310,8 +310,11 @@ uv run --extra test --extra test-mlflow \
   pytest agents/langgraph/examples/guardrailed_agent/tests/behavioral/ -v
 ```
 
-EvalHub fixture: `evalhub/tool_use.yaml` (copied to `fixtures/langgraph_guardrailed`
-in the adapter image). Example job: `evals/evalhub_adapter/eval-guardrailed-agent.yaml.example`.
+On-topic and tool-calling tests through the NeMo Guardrails proxy currently fail
+when the RHOAI NeMo image uses `openai==2.21.0` with `langchain-openai==0.3.35`
+(`AttributeError: 'coroutine' object has no attribute 'model_dump'`). Refusal
+tests still work because they short-circuit before the main LLM. Point the
+agent at vLLM directly to exercise greeting/knowledge tests without the proxy.
 
 `tests/test_guardrails.py` calls the NeMo Guardrails proxy directly (`http://localhost:8090/v1/chat/completions`), not the LangGraph agent. That is required to assert `guardrails.config_id` and rail outcomes without the agent stripping proxy metadata. The agent-level curls in [§6](#6-test-the-guardrails) are complementary end-to-end checks.
 

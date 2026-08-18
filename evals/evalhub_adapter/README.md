@@ -242,7 +242,6 @@ There are two different YAMLs in this flow:
   - `agents/llamaindex/templates/websearch_agent/evalhub/tool_use.yaml`
   - `agents/langflow/templates/simple_tool_calling_agent/evalhub/tool_use.yaml`
   - `agents/langgraph/templates/human_in_the_loop/evalhub/tool_use.yaml`
-  - `agents/langgraph/examples/guardrailed_agent/evalhub/tool_use.yaml`
   - `agents/google/templates/adk/evalhub/tool_use.yaml`
   - `agents/a2a/templates/langgraph_crewai_agent/evalhub/tool_use.yaml`
   - These contain golden queries (`queries`, `expected_tools`,
@@ -257,7 +256,6 @@ There are two different YAMLs in this flow:
     - `agents/llamaindex/templates/websearch_agent/evalhub/*` -> `fixtures/llamaindex_websearch/`
     - `agents/langflow/templates/simple_tool_calling_agent/evalhub/*` -> `fixtures/langflow_tool_calling/`
     - `agents/langgraph/templates/human_in_the_loop/evalhub/*` -> `fixtures/langgraph_hitl/`
-    - `agents/langgraph/examples/guardrailed_agent/evalhub/*` -> `fixtures/langgraph_guardrailed/`
     - `agents/google/templates/adk/evalhub/*` -> `fixtures/google_adk/`
     - `agents/a2a/templates/langgraph_crewai_agent/evalhub/*` -> `fixtures/a2a_langgraph_crewai/`
   - You select which fixture set to use via `parameters.fixtures_path`
@@ -319,7 +317,6 @@ Notes:
   - `llamaindex_websearch` -> `fixtures/llamaindex_websearch`
   - `langflow_tool_calling` -> `fixtures/langflow_tool_calling`
   - `langgraph_hitl` -> `fixtures/langgraph_hitl`
-  - `langgraph_guardrailed` -> `fixtures/langgraph_guardrailed`
   - `google_adk` -> `fixtures/google_adk`
   - `a2a_langgraph_crewai` -> `fixtures/a2a_langgraph_crewai`
   - These are relative to the container WORKDIR (`/opt/app-root/src`)
@@ -493,7 +490,6 @@ sets this automatically from the namespace.
 - Agent-specific query files (LangGraph `search` tool, vanilla Python
   `search_price` + `search_reviews` tools, CrewAI `Web Search` tool,
   LlamaIndex `dummy_web_search` tool, LangGraph HITL `create_file` tool,
-  LangGraph Guardrailed `check_balance` tool,
   Langflow `get_forecast` + `search_parks` + `park_alerts` tools,
   Google ADK `dummy_web_search` tool,
   A2A LangGraph-CrewAI `ask_crew_specialist` tool)

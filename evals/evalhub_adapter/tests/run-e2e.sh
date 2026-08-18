@@ -246,18 +246,6 @@ else
   preflight_ok "HITL agent route (override): ${HITL_AGENT_ROUTE}"
 fi
 
-if [[ -z "${GUARDRAILED_AGENT_ROUTE:-}" ]]; then
-  GUARDRAILED_AGENT_ROUTE=$(get_route "langgraph-guardrailed-agent" || true)
-  [[ -z "${GUARDRAILED_AGENT_ROUTE}" ]] && GUARDRAILED_AGENT_ROUTE=$(get_route_contains "guardrailed")
-  if [[ -n "${GUARDRAILED_AGENT_ROUTE}" ]]; then
-    preflight_ok "Guardrailed agent route: ${GUARDRAILED_AGENT_ROUTE}"
-  else
-    preflight_fail "Could not discover guardrailed_agent route. Set GUARDRAILED_AGENT_ROUTE manually."
-  fi
-else
-  preflight_ok "Guardrailed agent route (override): ${GUARDRAILED_AGENT_ROUTE}"
-fi
-
 if [[ -z "${GOOGLE_ADK_AGENT_ROUTE:-}" ]]; then
   GOOGLE_ADK_AGENT_ROUTE=$(get_route "google-adk-agent" || true)
   [[ -z "${GOOGLE_ADK_AGENT_ROUTE}" ]] && GOOGLE_ADK_AGENT_ROUTE=$(get_route_contains "google-adk")
@@ -434,14 +422,6 @@ if [[ -n "${HITL_AGENT_ROUTE:-}" ]]; then
   fi
 fi
 
-if [[ -n "${GUARDRAILED_AGENT_ROUTE:-}" ]]; then
-  if curl -sf --max-time 10 "https://${GUARDRAILED_AGENT_ROUTE}/health" > /dev/null 2>&1; then
-    preflight_ok "guardrailed_agent /health responded"
-  else
-    preflight_warn "guardrailed_agent /health not reachable (https://${GUARDRAILED_AGENT_ROUTE}/health)"
-  fi
-fi
-
 if [[ -n "${GOOGLE_ADK_AGENT_ROUTE:-}" ]]; then
   if curl -sf --max-time 10 "https://${GOOGLE_ADK_AGENT_ROUTE}/health" > /dev/null 2>&1; then
     preflight_ok "google_adk_agent /health responded"
@@ -565,7 +545,6 @@ echo "  Agentic RAG agent: ${AGENTIC_RAG_AGENT_ROUTE}"
 echo "  DB Memory agent:   ${DB_MEMORY_AGENT_ROUTE}"
 echo "  LlamaIndex Websearch: ${LLAMAINDEX_WEBSEARCH_ROUTE}"
 echo "  HITL agent:        ${HITL_AGENT_ROUTE}"
-echo "  Guardrailed agent: ${GUARDRAILED_AGENT_ROUTE}"
 echo "  Google ADK agent:  ${GOOGLE_ADK_AGENT_ROUTE}"
 echo "  A2A LangGraph-CrewAI: ${A2A_LANGGRAPH_CREWAI_ROUTE:-not discovered}"
 echo "  MLflow:            ${MLFLOW_TRACKING_URI}"
@@ -865,29 +844,6 @@ EOF
 
 echo "  Created: eval-hitl-agent.yaml"
 
-cat > "${WORK_DIR}/eval-guardrailed-agent.yaml" <<EOF
-name: agentic-tool-use-guardrailed-agent
-description: EvalHub orchestration run for LangGraph Guardrailed agent
-model:
-  name: langgraph-guardrailed-agent
-  url: https://${GUARDRAILED_AGENT_ROUTE}
-benchmarks:
-  - id: agentic-tool-use
-    provider_id: ${PROVIDER_ID}
-    parameters:
-      known_tools: ["check_balance"]
-      forbidden_actions: ["shell execution"]
-      max_latency_seconds: 20.0
-      timeout_seconds: 60.0
-      verify_ssl: true
-      fixtures_path: fixtures/langgraph_guardrailed
-      mlflow_tracking_uri: ${MLFLOW_INTERNAL_URI}
-      mlflow_experiment_name: ${MLFLOW_EXPERIMENT}
-      mlflow_trace_experiment_name: ${MLFLOW_AGENT_EXPERIMENT}
-EOF
-
-echo "  Created: eval-guardrailed-agent.yaml"
-
 cat > "${WORK_DIR}/eval-google-adk-agent.yaml" <<EOF
 name: agentic-tool-use-google-adk-agent
 description: EvalHub orchestration run for Google ADK agent
@@ -1099,19 +1055,6 @@ for line in sys.stdin:
 " 2>/dev/null || true)
 
 echo ""
-echo "=== Step 6: Submitting guardrailed_agent eval ==="
-GUARDRAILED_OUTPUT=$(evalhub eval run --config "${WORK_DIR}/eval-guardrailed-agent.yaml" --wait --poll-interval 5 2>&1)
-echo "${GUARDRAILED_OUTPUT}"
-GUARDRAILED_JOB_ID=$(echo "${GUARDRAILED_OUTPUT}" | python3 -c "
-import sys, re
-for line in sys.stdin:
-    m = re.search(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', line)
-    if m:
-        print(m.group())
-        break
-" 2>/dev/null || true)
-
-echo ""
 echo "=== Step 6: Submitting google_adk_agent eval ==="
 GOOGLE_ADK_OUTPUT=$(evalhub eval run --config "${WORK_DIR}/eval-google-adk-agent.yaml" --wait --poll-interval 5 2>&1)
 echo "${GOOGLE_ADK_OUTPUT}"
@@ -1229,8 +1172,6 @@ echo ""
 print_results "llamaindex_websearch_agent" "${LLAMAINDEX_JOB_ID:-}"
 echo ""
 print_results "hitl_agent" "${HITL_JOB_ID:-}"
-echo ""
-print_results "guardrailed_agent" "${GUARDRAILED_JOB_ID:-}"
 echo ""
 print_results "google_adk_agent" "${GOOGLE_ADK_JOB_ID:-}"
 if [[ -n "${A2A_LANGGRAPH_CREWAI_JOB_ID:-}" ]]; then

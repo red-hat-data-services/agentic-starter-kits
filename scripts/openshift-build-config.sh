@@ -56,24 +56,16 @@ is_cleanup_denylisted() {
 
 patch_history() {
   local agent="$1"
-  if ((${#NAMESPACE_ARGS[@]})); then
-    oc patch "bc/${agent}" "${NAMESPACE_ARGS[@]}" --type=merge \
-      -p "{\"spec\":{\"successfulBuildsHistoryLimit\":${SUCCESSFUL_LIMIT},\"failedBuildsHistoryLimit\":${FAILED_LIMIT}}}"
-  else
-    oc patch "bc/${agent}" --type=merge \
-      -p "{\"spec\":{\"successfulBuildsHistoryLimit\":${SUCCESSFUL_LIMIT},\"failedBuildsHistoryLimit\":${FAILED_LIMIT}}}"
-  fi
+  local ns_flag=("${NAMESPACE_ARGS[@]+"${NAMESPACE_ARGS[@]}"}")
+  oc patch "bc/${agent}" "${ns_flag[@]}" --type=merge \
+    -p "{\"spec\":{\"successfulBuildsHistoryLimit\":${SUCCESSFUL_LIMIT},\"failedBuildsHistoryLimit\":${FAILED_LIMIT}}}"
 }
 
 cleanup() {
   local agent="$1"
-  if ((${#NAMESPACE_ARGS[@]})); then
-    oc delete "buildconfig/${agent}" "imagestream/${agent}" \
-      "${NAMESPACE_ARGS[@]}" --ignore-not-found=true
-  else
-    oc delete "buildconfig/${agent}" "imagestream/${agent}" \
-      --ignore-not-found=true
-  fi
+  local ns_flag=("${NAMESPACE_ARGS[@]+"${NAMESPACE_ARGS[@]}"}")
+  oc delete "buildconfig/${agent}" "imagestream/${agent}" \
+    "${ns_flag[@]}" --ignore-not-found=true
 }
 
 main() {

@@ -31,4 +31,3 @@ BTEST_VALIDATION_REPORT.md
 btest-results/
 site/
 HANDOFF.md
-agents/langgraph/examples/guardrailed_agent/deploy/overlays/tetikala-testing/cluster.env
