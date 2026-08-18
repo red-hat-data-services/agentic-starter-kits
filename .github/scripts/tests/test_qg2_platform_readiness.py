@@ -287,7 +287,10 @@ def test_main_writes_failing_summary_when_oc_times_out(monkeypatch, tmp_path):
         }
     ]
     markdown = md_path.read_text(encoding="utf-8")
-    assert "oc_command: FAIL — Command timed out after 60s (oc get datasciencecluster -A)" in markdown
+    assert (
+        "oc_command: FAIL — Command timed out after 60s (oc get datasciencecluster -A)"
+        in markdown
+    )
 
 
 def test_main_writes_passing_summary_on_happy_path(monkeypatch, tmp_path):
