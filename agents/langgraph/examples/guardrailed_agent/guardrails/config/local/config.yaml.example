@@ -36,3 +36,13 @@ rails:
       - self check output
     streaming:
       enabled: True
+
+# OpenTelemetry tracing — off by default. `generate_config.py` flips
+# `enabled` to true when GUARDRAILS_TRACING_ENABLED=true. Content capture stays
+# false so blocked prompts/outputs are never echoed into span attributes.
+tracing:
+  enabled: false
+  span_format: opentelemetry
+  enable_content_capture: false
+  adapters:
+    - name: OpenTelemetry

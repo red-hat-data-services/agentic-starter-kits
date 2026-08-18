@@ -1,0 +1,56 @@
+# Optional: per-rail METRICS in front of TempoMonolithic.
+#
+# Apply into the same namespace as the TempoMonolithic (`oc apply -n <ns>`):
+#   oc apply -n <ns> -f deploy/tracing/otel-collector-spanmetrics-monolithic.yaml
+#
+# Then point cluster.env at THIS Collector:
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://guardrails-spanmetrics-collector.<ns>.svc.cluster.local:4317
+#   OTEL_METRICS_EXPORTER=none
+#
+# For TempoStack use otel-collector-spanmetrics-stack.yaml (distributor) instead.
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: guardrails-spanmetrics
+spec:
+  mode: deployment
+  observability:
+    metrics:
+      enableMetrics: true
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+          http:
+            endpoint: "0.0.0.0:4318"
+    connectors:
+      spanmetrics:
+        histogram:
+          explicit:
+            buckets: [10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s]
+        dimensions:
+          - name: rail.name
+          - name: rail.type
+        metrics_flush_interval: 15s
+    processors:
+      batch:
+        timeout: 5s
+    exporters:
+      otlp:
+        endpoint: "tempo-guardrails-tracing:4317"
+        tls:
+          insecure: true
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp, spanmetrics]
+        metrics:
+          receivers: [spanmetrics]
+          processors: [batch]
+          exporters: [prometheus]
