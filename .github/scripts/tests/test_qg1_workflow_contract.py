@@ -135,7 +135,9 @@ def test_qg1_workflow_uses_shared_setup_and_qg1_action():
 def test_qg1_workflow_assumes_dedicated_service_account_before_checker():
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
     uses_values = [
-        step.get("uses", "") for step in workflow["jobs"]["qg1"]["steps"] if "uses" in step
+        step.get("uses", "")
+        for step in workflow["jobs"]["qg1"]["steps"]
+        if "uses" in step
     ]
     setup_idx = uses_values.index("./.github/actions/setup-cluster")
     assume_idx = uses_values.index("./.github/actions/assume-qg1-service-account")
