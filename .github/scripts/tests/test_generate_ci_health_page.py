@@ -25,6 +25,9 @@ FIXTURE = Path(__file__).resolve().parent.parent / "fixtures" / "ci-runs-sample.
 def test_fixture_loads_all_workflows():
     summaries = summaries_from_fixture(FIXTURE)
     assert len(summaries) == 6
+    assert summaries[0].display_name == "Code Quality"
+    assert summaries[0].latest is not None
+    assert summaries[0].latest.conclusion == "success"
 
 
 def test_qg2_fixture_entry_is_included():

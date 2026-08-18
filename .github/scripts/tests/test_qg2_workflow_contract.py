@@ -105,6 +105,9 @@ def test_qg2_workflow_uses_shared_setup_and_qg2_action():
     uses_values = [step.get("uses", "") for step in steps]
     assert "./.github/actions/setup-cluster" in uses_values
     assert "./.github/actions/run-qg2" in uses_values
+    setup_idx = uses_values.index("./.github/actions/setup-cluster")
+    run_idx = uses_values.index("./.github/actions/run-qg2")
+    assert setup_idx < run_idx
 
 
 def test_run_qg2_step_consumes_resolved_require_dsc_ready_output():

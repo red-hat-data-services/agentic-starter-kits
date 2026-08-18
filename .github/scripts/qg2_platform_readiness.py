@@ -45,6 +45,8 @@ def run_oc(*args: str, timeout: float = OC_TIMEOUT_SECONDS, check: bool = True) 
         check=check,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=timeout,
     )
     if not check and result.returncode != 0:
@@ -71,6 +73,8 @@ def run_oc_optional(
         ["oc", *args],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=timeout,
     )
     if result.returncode == 0:
@@ -291,66 +295,70 @@ def main(argv: list[str] | None = None) -> int:
         # failure once caught below. List names first (safe on an empty list,
         # and still strict — a real oc error here still propagates) to tell
         # "genuinely absent" apart from "present but not ready".
-        dsc_names_raw = run_oc(
-            "get",
-            "datasciencecluster",
-            "-A",
-            "-o",
-            "jsonpath={.items[*].metadata.name}",
-        )
-        dsc_exists = bool(dsc_names_raw.strip())
         dsc_phase = ""
         false_conditions_raw = ""
-        if dsc_exists:
-            dsc_phase = run_oc(
+        dsc_exists = False
+        if require_dsc_ready:
+            dsc_names_raw = run_oc(
                 "get",
                 "datasciencecluster",
                 "-A",
                 "-o",
-                "jsonpath={.items[0].status.phase}",
+                "jsonpath={.items[*].metadata.name}",
             )
-            false_conditions_raw = run_oc(
-                "get",
-                "datasciencecluster",
-                "-A",
-                "-o",
-                'jsonpath={.items[0].status.conditions[?(@.status=="False")].type}',
-            )
+            dsc_exists = bool(dsc_names_raw.strip())
+            if dsc_exists:
+                dsc_phase = run_oc(
+                    "get",
+                    "datasciencecluster",
+                    "-A",
+                    "-o",
+                    "jsonpath={.items[0].status.phase}",
+                )
+                false_conditions_raw = run_oc(
+                    "get",
+                    "datasciencecluster",
+                    "-A",
+                    "-o",
+                    'jsonpath={.items[0].status.conditions[?(@.status=="False")].type}',
+                )
         # As with the DataScienceCluster probe above, list names first (safe
         # on an empty list) so a genuinely-absent KServe controller
         # deployment is distinguishable from a real oc error, instead of
         # indexing `.items[0]` on a possibly-empty list.
-        kserve_names_raw = run_oc(
-            "get",
-            "deployment",
-            "-A",
-            "-l",
-            KSERVE_LABEL_SELECTOR,
-            "-o",
-            "jsonpath={.items[*].metadata.name}",
-        )
-        kserve_exists = bool(kserve_names_raw.strip())
         kserve_ready_replicas = ""
         kserve_desired_replicas = ""
-        if kserve_exists:
-            kserve_ready_replicas = run_oc(
+        kserve_exists = False
+        if require_kserve:
+            kserve_names_raw = run_oc(
                 "get",
                 "deployment",
                 "-A",
                 "-l",
                 KSERVE_LABEL_SELECTOR,
                 "-o",
-                "jsonpath={.items[0].status.readyReplicas}",
+                "jsonpath={.items[*].metadata.name}",
             )
-            kserve_desired_replicas = run_oc(
-                "get",
-                "deployment",
-                "-A",
-                "-l",
-                KSERVE_LABEL_SELECTOR,
-                "-o",
-                "jsonpath={.items[0].spec.replicas}",
-            )
+            kserve_exists = bool(kserve_names_raw.strip())
+            if kserve_exists:
+                kserve_ready_replicas = run_oc(
+                    "get",
+                    "deployment",
+                    "-A",
+                    "-l",
+                    KSERVE_LABEL_SELECTOR,
+                    "-o",
+                    "jsonpath={.items[0].status.readyReplicas}",
+                )
+                kserve_desired_replicas = run_oc(
+                    "get",
+                    "deployment",
+                    "-A",
+                    "-l",
+                    KSERVE_LABEL_SELECTOR,
+                    "-o",
+                    "jsonpath={.items[0].spec.replicas}",
+                )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
         summary = build_error_summary(args.cluster_profile, error)
         write_outputs(summary, Path(args.summary_json), Path(args.summary_md))

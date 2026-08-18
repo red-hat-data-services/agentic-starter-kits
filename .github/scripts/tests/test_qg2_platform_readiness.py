@@ -253,6 +253,43 @@ def test_main_writes_failing_summary_when_oc_errors(monkeypatch, tmp_path):
     assert payload["passed"] is False
 
 
+def test_main_writes_failing_summary_when_oc_times_out(monkeypatch, tmp_path):
+    def boom(*args, **kwargs):
+        raise subprocess.TimeoutExpired(
+            cmd=["oc", "get", "datasciencecluster", "-A"],
+            timeout=mod.OC_TIMEOUT_SECONDS,
+        )
+
+    monkeypatch.setattr(mod, "run_oc_optional", _fake_operator_deployment_ready())
+    monkeypatch.setattr(mod, "run_oc", boom)
+    json_path = tmp_path / "summary.json"
+    md_path = tmp_path / "summary.md"
+    code = mod.main(
+        [
+            "--cluster-profile",
+            "rhoai2",
+            "--cluster-type",
+            "rhoai",
+            "--summary-json",
+            str(json_path),
+            "--summary-md",
+            str(md_path),
+        ]
+    )
+    assert code == 1
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["passed"] is False
+    assert payload["checks"] == [
+        {
+            "name": "oc_command",
+            "passed": False,
+            "details": "Command timed out after 60s (oc get datasciencecluster -A)",
+        }
+    ]
+    markdown = md_path.read_text(encoding="utf-8")
+    assert "oc_command: FAIL — Command timed out after 60s (oc get datasciencecluster -A)" in markdown
+
+
 def test_main_writes_passing_summary_on_happy_path(monkeypatch, tmp_path):
     values = iter(
         [
@@ -288,6 +325,54 @@ def test_main_writes_passing_summary_on_happy_path(monkeypatch, tmp_path):
     assert code == 0
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     assert payload["passed"] is True
+
+
+def test_main_skips_disabled_dsc_and_kserve_probes(monkeypatch, tmp_path):
+    calls = []
+    values = iter(
+        [
+            "1",  # operator deployment desired replicas
+            "",  # datasciencecluster names (should stop existing code from erroring)
+            "",  # kserve deployment names (should stop existing code from erroring)
+        ]
+    )
+
+    def fake_run_oc(*args, **kwargs):
+        calls.append(args)
+        return next(values)
+
+    monkeypatch.setattr(mod, "run_oc_optional", _fake_operator_deployment_ready())
+    monkeypatch.setattr(mod, "run_oc", fake_run_oc)
+    json_path = tmp_path / "summary.json"
+    md_path = tmp_path / "summary.md"
+    code = mod.main(
+        [
+            "--cluster-profile",
+            "rhoai2",
+            "--cluster-type",
+            "rhoai",
+            "--require-dsc-ready",
+            "false",
+            "--require-kserve",
+            "false",
+            "--summary-json",
+            str(json_path),
+            "--summary-md",
+            str(md_path),
+        ]
+    )
+    assert code == 0
+    assert calls == [
+        (
+            "get",
+            "deployment",
+            "rhods-operator",
+            "-n",
+            "redhat-ods-operator",
+            "-o",
+            "jsonpath={.spec.replicas}",
+        )
+    ]
 
 
 def test_main_reports_named_dsc_failure_when_dsc_genuinely_absent(
@@ -664,7 +749,9 @@ def test_main_reports_kserve_not_ready_when_replicas_below_desired(
     assert kserve_check["details"] == "KServe controller deployment ready replicas: 0/1"
 
 
-def _fake_subprocess_run_that_fails(cmd, *, check, capture_output, text, timeout):
+def _fake_subprocess_run_that_fails(
+    cmd, *, check, capture_output, text, encoding, errors, timeout
+):
     if check:
         raise subprocess.CalledProcessError(
             returncode=1, cmd=cmd, output="", stderr="not found"
@@ -685,7 +772,24 @@ def test_run_oc_raises_on_nonzero_exit_when_check_true(monkeypatch):
         mod.run_oc("get", "deployment", "missing")
 
 
-def _fake_subprocess_run_notfound(cmd, *, capture_output, text, timeout):
+def test_run_oc_uses_utf8_replacement_when_decoding_output(monkeypatch):
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=0, stdout="ok\n", stderr=""
+        )
+
+    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+    assert mod.run_oc("get", "deployment", "rhods-operator") == "ok"
+    assert captured["encoding"] == "utf-8"
+    assert captured["errors"] == "replace"
+
+
+def _fake_subprocess_run_notfound(
+    cmd, *, capture_output, text, encoding, errors, timeout
+):
     return subprocess.CompletedProcess(
         args=cmd,
         returncode=1,
@@ -694,7 +798,9 @@ def _fake_subprocess_run_notfound(cmd, *, capture_output, text, timeout):
     )
 
 
-def _fake_subprocess_run_forbidden(cmd, *, capture_output, text, timeout):
+def _fake_subprocess_run_forbidden(
+    cmd, *, capture_output, text, encoding, errors, timeout
+):
     return subprocess.CompletedProcess(
         args=cmd,
         returncode=1,
@@ -727,7 +833,7 @@ def test_run_oc_optional_raises_on_real_error_instead_of_treating_as_absent(
 
 
 def test_run_oc_optional_returns_exists_true_on_success(monkeypatch):
-    def fake_run(cmd, *, capture_output, text, timeout):
+    def fake_run(cmd, *, capture_output, text, encoding, errors, timeout):
         return subprocess.CompletedProcess(
             args=cmd, returncode=0, stdout="1\n", stderr=""
         )
@@ -738,3 +844,22 @@ def test_run_oc_optional_returns_exists_true_on_success(monkeypatch):
     )
     assert exists is True
     assert stdout == "1"
+
+
+def test_run_oc_optional_uses_utf8_replacement_when_decoding_output(monkeypatch):
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=0, stdout="1\n", stderr=""
+        )
+
+    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+    stdout, exists = mod.run_oc_optional(
+        "get", "deployment", "rhods-operator", "-n", "redhat-ods-operator"
+    )
+    assert exists is True
+    assert stdout == "1"
+    assert captured["encoding"] == "utf-8"
+    assert captured["errors"] == "replace"
