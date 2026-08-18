@@ -11,6 +11,7 @@ This runbook covers the shared-branch CI Slack alerts for
 | `Agent Tests` | Non-canonical supporting signal | None yet | `push` on `main`, `workflow_dispatch` on `main` |
 | `Inner Loop Gating` | Canonical | `QG7` | `push` on `main` when matching eval/behavioral paths change, `workflow_dispatch` on `main` |
 | `QG1: Cluster Readiness` | Canonical | `QG1` | `schedule`, `workflow_dispatch` on `main` |
+| `QG2: Platform Readiness` | Canonical | `QG2` | `schedule`, `workflow_dispatch` on `main` |
 | `QG4: Agent Deployment Integration Tests` | Canonical | `QG4` | `schedule`, `workflow_dispatch` on `main` |
 
 ## Routing and Ownership
@@ -18,6 +19,18 @@ This runbook covers the shared-branch CI Slack alerts for
 - **Route:** repository secret `SLACK_WEBHOOK_URL`
 - **Accountable owner group:** `@aaet-tooling-experience`
 - **Human handling model:** `notify-only`
+
+## QG2 Cluster Access Requirements
+
+`QG2: Platform Readiness` authenticates via the `OC_TOKEN` secret through
+`.github/actions/setup-cluster`, then queries live cluster resources with
+`oc`. That service account needs cluster-wide (not just namespace-scoped)
+read access to `deployments`, `clusterserviceversions` (`csv`), and
+`datasciencecluster` — QG2 lists `datasciencecluster` and the
+KServe-labeled `deployment` cluster-wide (`-A`) to distinguish a genuinely
+absent resource from an RBAC error, so a token scoped to a single namespace
+will misreport as `oc_command`/`Forbidden` failures instead of clean
+`operator_health`/`kserve_controller`/`datasciencecluster_ready` results.
 
 ## Dedupe and Timing Semantics
 
@@ -30,8 +43,10 @@ This runbook covers the shared-branch CI Slack alerts for
 
 - `QG1` is the highest current action priority because lower-numbered canonical
   QGs outrank higher-numbered ones.
+- `QG2` is the next current canonical priority and should be triaged after
+  `QG1` but ahead of `QG4`, `QG7`, and supporting signals.
 - `QG4` is the next current canonical priority and should be triaged after
-  `QG1` but ahead of `QG7` and supporting signals.
+  `QG1` and `QG2` but ahead of `QG7` and supporting signals.
 - `QG7` is the next current canonical priority and should be triaged after
   `QG4` but ahead of supporting signals.
 - `Code Quality` and `Agent Tests` are supporting signals without canonical
@@ -77,6 +92,7 @@ should inspect the GitHub Actions run directly.
 | Severity bucket | Current signal mapping | Proposed acknowledgement window | Proposed triage target |
 | --- | --- | --- | --- |
 | Highest current priority | `QG1` | Within 1 business hour | Same business day |
+| Next current priority | `QG2` | Within 1 business hour | Same business day |
 | Next current priority | `QG4` | Within 1 business hour | Same business day |
 | Next current priority | `QG7` | Within 4 business hours | Next business half-day |
 | Supporting signals | `Code Quality`, `Agent Tests` | By next business day | Next business day or convert to backlog follow-up if duplicate |
