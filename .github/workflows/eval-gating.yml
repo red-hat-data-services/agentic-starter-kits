@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/eval-gating.yml"
+      - ".github/actions/run-qg7/**"
       - ".github/actions/setup-cluster/action.yaml"
       - ".github/actions/notify-slack/**"
       - "pyproject.toml"
@@ -21,6 +22,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/eval-gating.yml"
+      - ".github/actions/run-qg7/**"
       - ".github/actions/setup-cluster/action.yaml"
       - ".github/actions/notify-slack/**"
       - "pyproject.toml"
@@ -183,18 +185,10 @@ jobs:
           set -euo pipefail
           uv sync --frozen --extra test --extra test-mlflow
 
-      - name: Run shared btest runner
-        env:
-          CLUSTER_BTESTS_AGENTS: ${{ needs.deterministic.outputs.cluster_btests_agents }}
-        run: |
-          set -euo pipefail
-
-          if [[ -n "${CLUSTER_BTESTS_AGENTS}" ]]; then
-            read -r -a selected_agents <<< "${CLUSTER_BTESTS_AGENTS}"
-            bash "tests/behavioral/deterministic/run-btests-pytest.sh" "${selected_agents[@]}"
-          else
-            bash "tests/behavioral/deterministic/run-btests-pytest.sh"
-          fi
+      - name: Run QG7 behavioral eval
+        uses: ./.github/actions/run-qg7
+        with:
+          agent-name: ${{ needs.deterministic.outputs.cluster_btests_agents }}
 
       - name: Upload btest artifacts
         if: always()
