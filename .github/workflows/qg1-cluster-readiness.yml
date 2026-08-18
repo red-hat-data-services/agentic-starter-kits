@@ -37,6 +37,12 @@ jobs:
           oc-token: ${{ secrets.OC_TOKEN }}
           cluster-api-url: ${{ secrets.CLUSTER_API_URL }}
 
+      # Bootstrap with the shared ci-testing service account, then mint a
+      # short-lived token for the dedicated QG1 identity before cluster-scope
+      # readiness checks run.
+      - name: Assume dedicated QG1 service account
+        uses: ./.github/actions/assume-service-account
+
       - name: Resolve QG1 inputs
         id: resolve
         env:

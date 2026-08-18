@@ -1,0 +1,39 @@
+name: "Assume Service Account"
+description: "Mint a short-lived token for a service account and re-login with that identity."
+
+inputs:
+  service-account:
+    description: "Service account to assume; defaults to the qg1-readiness convention used by QG1"
+    required: false
+    default: "qg1-readiness"
+  namespace:
+    description: "Namespace that owns the service account"
+    required: false
+    default: "ci-testing"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Mint token and login as service account
+      shell: bash
+      env:
+        SERVICE_ACCOUNT: ${{ inputs.service-account }}
+        NAMESPACE: ${{ inputs.namespace }}
+      run: |
+        set -euo pipefail
+
+        server="$(oc whoami --show-server)"
+        qg1_token="$(oc create token "${SERVICE_ACCOUNT}" -n "${NAMESPACE}" --duration=20m)"
+        echo "::add-mask::${qg1_token}"
+
+        oc login \
+          --token="${qg1_token}" \
+          --server="${server}" \
+          --namespace="${NAMESPACE}" >/dev/null
+
+        expected_identity="system:serviceaccount:${NAMESPACE}:${SERVICE_ACCOUNT}"
+        actual_identity="$(oc whoami)"
+        if [[ "${actual_identity}" != "${expected_identity}" ]]; then
+          echo "Expected ${expected_identity}, got ${actual_identity}" >&2
+          exit 1
+        fi
