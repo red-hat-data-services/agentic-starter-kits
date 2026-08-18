@@ -66,7 +66,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            changed=$(gh pr diff ${{ github.event.pull_request.number }} --name-only | grep '\.md$' | tr '\n' ' ' || true)
+            changed=$(gh pr diff ${{ github.event.pull_request.number }} --name-only | grep '\.md$' | while read -r f; do [ -f "$f" ] && printf '%s ' "$f"; done || true)
             if [ -z "${changed// /}" ]; then
               echo "No markdown files changed — skipping link check"
               echo "targets=" >> "$GITHUB_OUTPUT"
