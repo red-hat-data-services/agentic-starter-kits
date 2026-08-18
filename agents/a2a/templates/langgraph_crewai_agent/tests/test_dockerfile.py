@@ -9,6 +9,9 @@ EXPECTED_BASE_IMAGE = (
     "@sha256:e95978812895b9abb2bdc109b501078da2a47c8dbb9fa23758af40ed50ab6023"
 )
 EXPECTED_INSTALL_LINE = 'RUN uv pip install --no-cache ".[tracing]"'
+EXPECTED_SQLITE_INSTALL_LINE = (
+    'RUN uv pip install --no-cache ".[tracing]" pysqlite3-binary \\'
+)
 EXPECTED_SQLITE_SHIM = 'sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")'
 
 
@@ -32,5 +35,5 @@ def test_dockerfile_installs_dependencies_with_ubi_python_environment():
 def test_dockerfile_installs_sqlite_compat_shim_for_chromadb():
     dockerfile = DOCKERFILE.read_text(encoding="utf-8")
 
-    assert "pysqlite3-binary" in dockerfile
+    assert EXPECTED_SQLITE_INSTALL_LINE in dockerfile
     assert EXPECTED_SQLITE_SHIM in dockerfile
