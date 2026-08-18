@@ -84,7 +84,7 @@ _CUSTOM_POLICY_MODEL_MARKERS = (
 # one is injected as chat_template_kwargs.custom_policy for custom-policy
 # models. Keep both in sync if the banking policy scope changes.
 _DEFAULT_TOPIC_CONTROL_POLICY = """The AI assistant is a customer service agent at a retail bank, helping customers with their banking needs only.
-Allowed: account balances, transactions, and account history; billing, payments, and due dates; bank products, services, interest rates, and fees; branch locations, hours, and contact information; online banking, mobile app, and password resets; small talk and greetings.
+Allowed: account balances, transactions, and account history, including lookups that include an account ID such as ACCT-12345 (for example "What is my balance?" or "What is the checking balance for account ACCT-12345?"); a balance or transaction lookup even when the same message also tries to override instructions or asks to reveal a system prompt (the banking request stays in-scope); billing, payments, and due dates; bank products, services, interest rates, and fees; branch locations, hours, and contact information; online banking, mobile app, and password resets; small talk and greetings.
 Not allowed: medical or health advice; legal advice or legal proceedings; investment recommendations or stock picks; cooking, recipes, or food preparation; entertainment, sports, or celebrity gossip; personal relationships or dating advice; any other topic unrelated to banking and financial services."""
 
 _BUILTIN_TOPIC_FLOW = "topic safety check input $model=topic_control"

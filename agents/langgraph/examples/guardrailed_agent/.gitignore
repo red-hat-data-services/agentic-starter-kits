@@ -7,4 +7,5 @@ guardrails/config/*/config.yaml
 
 # Cluster deploy — generated / local secrets
 deploy/overlays/ci-testing/cluster.env
+deploy/overlays/tetikala-testing/cluster.env
 deploy/manifests/02-guardrails-configmap.yaml

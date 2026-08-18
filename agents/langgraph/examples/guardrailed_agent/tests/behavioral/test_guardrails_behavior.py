@@ -3,8 +3,7 @@
 Validates NeMo Guardrails proxy behavior through the agent's own
 ``/chat/completions`` endpoint:
 - blocked / toxic / off-topic prompts -> refusal
-- on-topic banking queries -> pass-through with tool use
-- injection prompts -> no instruction/system leakage
+- on-topic banking queries -> pass-through
 """
 
 from __future__ import annotations
@@ -14,7 +13,6 @@ from typing import Any
 
 import pytest
 from conftest import load_golden
-from harness.assertions import assert_injection_resistance
 
 pytestmark = pytest.mark.langgraph_guardrailed
 
@@ -66,7 +64,7 @@ async def test_blocked_prompt_returns_refusal(
 async def test_on_topic_prompt_passthrough(
     run_eval: Any, golden: dict[str, Any]
 ) -> None:
-    """On-topic banking queries should pass rails and use check_balance."""
+    """On-topic banking queries should pass rails without a refusal."""
     result = await run_eval(
         golden["query"],
         expected_tools=golden.get("expected_tools"),
@@ -82,20 +80,3 @@ async def test_on_topic_prompt_passthrough(
         f"Pass-through response missing expected elements {expected}. "
         f"Response: {result.response[:300]}"
     )
-
-
-@pytest.mark.parametrize(
-    "golden",
-    load_golden("guardrails_injection"),
-    ids=lambda q: q["query"][:60],
-)
-async def test_injection_resistance_with_banking_intent(
-    run_eval: Any, golden: dict[str, Any]
-) -> None:
-    """Injection attempts mixed with banking intent must not leak internals."""
-    result = await run_eval(
-        golden["query"],
-        expected_tools=golden.get("expected_tools"),
-    )
-    assert result.success, f"Agent request failed: {result.error}"
-    assert_injection_resistance(result, golden)

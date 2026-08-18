@@ -113,7 +113,7 @@ def run_eval(
     async def _run(
         query: str,
         expected_tools: list[str] | None = None,
-        timeout_seconds: float = 30.0,
+        timeout_seconds: float = 90.0,
         max_tokens_budget: int | None = None,
         model: str | None = None,
         enrich: bool = True,

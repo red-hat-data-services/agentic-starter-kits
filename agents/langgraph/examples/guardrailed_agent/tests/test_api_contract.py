@@ -1,21 +1,26 @@
-"""API-contract unit tests for the guardrailed agent (RHAIENG-6912).
+"""API-contract unit tests for the guardrailed agent.
 
 Covers:
 - Empty messages validation returns ValidationError / 422 (not 500)
 - _extract_usage populates usage when AIMessage.usage_metadata is present
 - Local TestClient smoke of GET /health and POST /chat/completions
   (JSON + SSE) with the guardrails proxy mocked
+- Retry / graceful degrade for LLM and graph failures
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import os
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.errors import GraphRecursionError
+from openai import APIConnectionError as OpenAIConnectionError
 from openai import APIError as OpenAIAPIError
 from pydantic import ValidationError
 from starlette.testclient import TestClient
@@ -23,7 +28,13 @@ from starlette.testclient import TestClient
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import main
-from main import ChatCompletionRequest, _extract_usage
+from main import (
+    _GRACEFUL_ERROR_MESSAGE,
+    _MAX_INVOKE_ATTEMPTS,
+    ChatCompletionRequest,
+    _extract_usage,
+    _invoke_with_retry,
+)
 
 
 class TestEmptyMessagesValidation:
@@ -238,3 +249,145 @@ class TestChatCompletionsEndpoint:
         assert response.status_code == 200
         body = response.json()
         assert body["choices"][0]["message"]["content"] == main._GUARDRAILS_REFUSAL
+        assert fake_graph.ainvoke.call_count == 1
+
+    def test_connection_error_retries_then_returns_503(self, api_client):
+        client, fake_graph = api_client
+        fake_graph.ainvoke = AsyncMock(
+            side_effect=OpenAIConnectionError(request=MagicMock())
+        )
+
+        with patch("main.asyncio.sleep", new_callable=AsyncMock):
+            response = client.post(
+                "/chat/completions",
+                json={
+                    "messages": [{"role": "user", "content": "What is my balance?"}],
+                    "stream": False,
+                },
+            )
+
+        assert response.status_code == 503
+        assert main._GUARDRAILS_UNAVAILABLE in response.json()["detail"]
+        assert fake_graph.ainvoke.call_count == _MAX_INVOKE_ATTEMPTS
+
+
+class TestInvokeWithRetry:
+    def test_succeeds_on_first_attempt(self):
+        expected = {"messages": [AIMessage(content="hello")]}
+        mock_graph = AsyncMock(ainvoke=AsyncMock(return_value=expected))
+        with patch("main.agent_graph", mock_graph):
+            result = asyncio.run(_invoke_with_retry({"messages": []}, config={}))
+        assert result == expected
+        assert mock_graph.ainvoke.call_count == 1
+
+    def test_succeeds_after_transient_failure(self):
+        expected = {"messages": [AIMessage(content="recovered")]}
+        transient_exc = ValidationError.from_exception_data(
+            title="test",
+            line_errors=[
+                {
+                    "type": "dict_type",
+                    "loc": ("x",),
+                    "msg": "bad",
+                    "input": "y",
+                }
+            ],
+        )
+        mock_graph = AsyncMock(ainvoke=AsyncMock(side_effect=[transient_exc, expected]))
+        with (
+            patch("main.agent_graph", mock_graph),
+            patch("main.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            result = asyncio.run(_invoke_with_retry({"messages": []}, config={}))
+        assert result == expected
+        assert mock_graph.ainvoke.call_count == 2
+
+    def test_exhausts_retries_and_raises(self):
+        exhaust_exc = ValidationError.from_exception_data(
+            title="test",
+            line_errors=[
+                {
+                    "type": "dict_type",
+                    "loc": ("x",),
+                    "msg": "bad",
+                    "input": "y",
+                }
+            ],
+        )
+        mock_graph = AsyncMock(ainvoke=AsyncMock(side_effect=exhaust_exc))
+        with (
+            patch("main.agent_graph", mock_graph),
+            patch("main.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            with pytest.raises(ValidationError):
+                asyncio.run(_invoke_with_retry({"messages": []}, config={}))
+        assert mock_graph.ainvoke.call_count == _MAX_INVOKE_ATTEMPTS
+
+    def test_non_retryable_error_propagates_immediately(self):
+        mock_graph = AsyncMock(
+            ainvoke=AsyncMock(side_effect=RuntimeError("unexpected"))
+        )
+        with patch("main.agent_graph", mock_graph):
+            with pytest.raises(RuntimeError, match="unexpected"):
+                asyncio.run(_invoke_with_retry({"messages": []}, config={}))
+        assert mock_graph.ainvoke.call_count == 1
+
+    def test_malformed_tool_args_not_leaked_in_logs(self, caplog):
+        malformed_args = "%4W!O;VL"
+        exc = ValidationError.from_exception_data(
+            title="AIMessage",
+            line_errors=[
+                {
+                    "type": "dict_type",
+                    "loc": ("tool_calls", 0, "args"),
+                    "msg": "Input should be a valid dictionary",
+                    "input": malformed_args,
+                }
+            ],
+        )
+        mock_graph = AsyncMock(ainvoke=AsyncMock(side_effect=exc))
+        with (
+            patch("main.agent_graph", mock_graph),
+            patch("main.asyncio.sleep", new_callable=AsyncMock),
+            caplog.at_level(logging.WARNING, logger="main"),
+        ):
+            with pytest.raises(ValidationError):
+                asyncio.run(_invoke_with_retry({"messages": []}, config={}))
+        assert caplog.records
+        for record in caplog.records:
+            assert malformed_args not in record.getMessage()
+
+
+class TestHandleChatGracefulError:
+    def test_returns_200_with_error_message_after_retries_exhausted(self):
+        from main import _handle_chat
+
+        mock_graph = AsyncMock(
+            ainvoke=AsyncMock(
+                side_effect=GraphRecursionError("recursion limit reached")
+            )
+        )
+        with (
+            patch("main.agent_graph", mock_graph),
+            patch("main.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            result = asyncio.run(
+                _handle_chat([HumanMessage(content="test")], "test-model")
+            )
+        assert result["choices"][0]["message"]["content"] == _GRACEFUL_ERROR_MESSAGE
+        assert result["choices"][0]["finish_reason"] == "stop"
+        assert result["object"] == "chat.completion"
+        assert result["usage"] is None
+        assert result["context"] == []
+
+    def test_still_returns_500_for_non_retryable_errors(self):
+        from fastapi import HTTPException
+        from main import _handle_chat
+
+        mock_graph = AsyncMock(
+            ainvoke=AsyncMock(side_effect=RuntimeError("server broke"))
+        )
+        with patch("main.agent_graph", mock_graph):
+            with pytest.raises(HTTPException) as exc_info:
+                asyncio.run(_handle_chat([HumanMessage(content="test")], "test-model"))
+        assert exc_info.value.status_code == 500

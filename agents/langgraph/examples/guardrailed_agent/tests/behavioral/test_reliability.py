@@ -11,7 +11,7 @@ from harness.scorers.tool_sequence import score_tool_selection
 
 pytestmark = [pytest.mark.langgraph_guardrailed, pytest.mark.slow]
 
-PASS_K_TIMEOUT = 60.0
+PASS_K_TIMEOUT = 90.0
 
 _BALANCE_EVIDENCE = ["2450", "2,450", "checking", "savings"]
 

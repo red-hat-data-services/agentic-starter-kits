@@ -65,10 +65,16 @@ langgraph_hitl:
   pass_at_k: 8
 
 langgraph_guardrailed:
-  # Guardrails proxy adds latency vs bare LLM; start conservative.
+  # 2026-08-18 tetikala-testing (qwen2-5-7b-instruct behind NeMo Guardrails):
+  # balance-lookup latency 12.7s / 13.3s; knowledge answers ~32s.
+  # Eval timeout is 90s; OpenShift route timeout must be >30s or knowledge 504s.
+  # NeMo 0.21 chat completions drop `tools`, so check_balance never runs and
+  # $2,450 completeness stays a regression signal (do not lower that golden).
+  # pass@k tool_selection uses content heuristics (checking/savings) when
+  # tool_calls are absent from the response.
   tool_selection_accuracy: 0.85
   response_coherence_accuracy: 0.75
-  max_latency_p95: 15.0
+  max_latency_p95: 18.0
   pass_at_k: 8
 
 google_adk:

@@ -1,10 +1,78 @@
 from os import getenv
 from typing import Any
 
+import httpx
 from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
+from openai import DefaultAsyncHttpxClient, DefaultHttpxClient
 
 from guardrailed_agent.tools import check_account_balance
+
+_STAINLESS_RAW_RESPONSE_HEADER = "x-stainless-raw-response"
+
+
+def strip_stainless_raw_response(request: httpx.Request) -> str | None:
+    """Remove the OpenAI SDK raw-response flag from ``request`` headers.
+
+    Returns the previous header value so callers can restore it after send.
+    langchain-openai uses ``with_raw_response.create()`` then ``.parse()``;
+    that wrapper only works if the SDK still sees this header on the request.
+    NeMo Guardrails forwards inbound X-* headers onto its main LLM client, so
+    the flag must not go on the wire.
+    """
+    value = request.headers.get(_STAINLESS_RAW_RESPONSE_HEADER)
+    request.headers.pop(_STAINLESS_RAW_RESPONSE_HEADER, None)
+    return value
+
+
+def restore_stainless_raw_response(request: httpx.Request, value: str | None) -> None:
+    """Put ``x-stainless-raw-response`` back after the HTTP send."""
+    if value is not None:
+        request.headers[_STAINLESS_RAW_RESPONSE_HEADER] = value
+
+
+class _StripRawResponseTransport(httpx.BaseTransport):
+    def __init__(self, wrapped: httpx.BaseTransport) -> None:
+        self._wrapped = wrapped
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        raw = strip_stainless_raw_response(request)
+        try:
+            return self._wrapped.handle_request(request)
+        finally:
+            restore_stainless_raw_response(request, raw)
+
+    def close(self) -> None:
+        self._wrapped.close()
+
+
+class _StripRawResponseAsyncTransport(httpx.AsyncBaseTransport):
+    def __init__(self, wrapped: httpx.AsyncBaseTransport) -> None:
+        self._wrapped = wrapped
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        raw = strip_stainless_raw_response(request)
+        try:
+            return await self._wrapped.handle_async_request(request)
+        finally:
+            restore_stainless_raw_response(request, raw)
+
+    async def aclose(self) -> None:
+        await self._wrapped.aclose()
+
+
+def make_nemo_compatible_http_client(**kwargs: Any) -> httpx.Client:
+    """httpx client that omits NeMo-incompatible OpenAI SDK headers on the wire."""
+    client = DefaultHttpxClient(**kwargs)
+    client._transport = _StripRawResponseTransport(client._transport)
+    return client
+
+
+def make_nemo_compatible_async_http_client(**kwargs: Any) -> httpx.AsyncClient:
+    """Async httpx client that omits NeMo-incompatible OpenAI SDK headers on the wire."""
+    client = DefaultAsyncHttpxClient(**kwargs)
+    client._transport = _StripRawResponseAsyncTransport(client._transport)
+    return client
 
 
 def get_graph_closure(
@@ -54,11 +122,16 @@ def get_graph_closure(
         temperature=0.01,
         api_key=api_key,
         base_url=base_url,
+        http_client=make_nemo_compatible_http_client(),
+        http_async_client=make_nemo_compatible_async_http_client(),
     )
 
     system_prompt = """You are a customer service assistant for a retail bank.
         You help customers with account inquiries, billing, payments, and general
-        banking questions. When you receive a result from a tool, use that
+        banking questions. For any question about account balances, transactions,
+        or account history you MUST call the check_balance tool with the account
+        ID the customer provided (for example ACCT-12345). Never invent dollar
+        amounts or balances. When you receive a result from a tool, use that
         information to provide a FINAL answer to the customer immediately.
         Do NOT call tools repeatedly for the same question.
         Always be professional and helpful."""

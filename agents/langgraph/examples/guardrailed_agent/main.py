@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -9,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import openai
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import (
@@ -19,10 +21,12 @@ from fastapi.responses import (
 )
 from guardrailed_agent.agent import get_graph_closure
 from guardrailed_agent.tracing import enable_tracing
+from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.errors import GraphRecursionError
 from openai import APIConnectionError as OpenAIConnectionError
 from openai import APIError as OpenAIAPIError
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +34,21 @@ _GUARDRAILS_REFUSAL = "I'm sorry, I can't respond to that."
 _GUARDRAILS_UNAVAILABLE = (
     "The guardrails server is unavailable. Please try again later."
 )
+_MAX_INVOKE_ATTEMPTS = 3
+_GRACEFUL_ERROR_MESSAGE = (
+    "I was unable to process this request due to repeated internal errors."
+)
+_RETRYABLE_EXCEPTIONS = (
+    ValidationError,
+    OutputParserException,
+    openai.InternalServerError,
+    openai.APITimeoutError,
+    openai.APIConnectionError,
+    openai.RateLimitError,
+)
+_GRACEFUL_EXCEPTIONS = tuple(
+    exc for exc in _RETRYABLE_EXCEPTIONS if exc is not openai.APIConnectionError
+) + (GraphRecursionError,)
 
 
 def _is_guardrails_block(exc: Exception) -> bool:
@@ -235,6 +254,36 @@ def _make_completion_id() -> str:
     return f"chatcmpl-{uuid.uuid4().hex[:12]}"
 
 
+async def _invoke_with_retry(
+    input_data: dict,
+    config: dict,
+) -> dict:
+    global agent_graph
+    last_exception: Exception = RuntimeError("no invocation attempts were made")
+
+    for attempt in range(1, _MAX_INVOKE_ATTEMPTS + 1):
+        try:
+            return await agent_graph.ainvoke(input_data, config=config)
+        except _RETRYABLE_EXCEPTIONS as exc:
+            last_exception = exc
+            if attempt < _MAX_INVOKE_ATTEMPTS:
+                logger.warning(
+                    "LLM/graph invocation failed (attempt %d/%d): %s. Retrying.",
+                    attempt,
+                    _MAX_INVOKE_ATTEMPTS,
+                    type(exc).__name__,
+                )
+                await asyncio.sleep(0.5 * attempt)
+            else:
+                logger.error(
+                    "LLM/graph invocation failed after %d attempts: %s",
+                    _MAX_INVOKE_ATTEMPTS,
+                    type(exc).__name__,
+                )
+
+    raise last_exception
+
+
 @app.post(
     "/chat/completions",
     response_model=ChatCompletionResponse,
@@ -262,9 +311,29 @@ async def _handle_chat(messages: list[HumanMessage], model_id: str) -> dict[str,
     global agent_graph
 
     try:
-        result = await agent_graph.ainvoke(
-            {"messages": messages}, config={"recursion_limit": 10}
-        )
+        try:
+            result = await _invoke_with_retry(
+                {"messages": messages}, config={"recursion_limit": 10}
+            )
+        except _GRACEFUL_EXCEPTIONS:
+            return {
+                "id": _make_completion_id(),
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": model_id,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": _GRACEFUL_ERROR_MESSAGE,
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "context": [],
+                "usage": None,
+            }
 
         # Extract the final assistant message content
         assistant_content = ""
@@ -348,7 +417,7 @@ async def _handle_chat(messages: list[HumanMessage], model_id: str) -> dict[str,
                 ],
                 "usage": None,
             }
-        logger.exception("Error processing chat request")
+        logger.error("Unhandled error in chat completion request: %s", type(e).__name__)
         raise HTTPException(status_code=500, detail="Error processing request")
 
 
