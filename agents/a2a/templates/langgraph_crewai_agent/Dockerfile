@@ -9,7 +9,9 @@ WORKDIR /app
 # Switch to root for installing dependencies and preparing runtime paths
 USER 0
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# To update: docker pull ghcr.io/astral-sh/uv:latest
+#            docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/astral-sh/uv:latest
+COPY --from=ghcr.io/astral-sh/uv@sha256:fc93e9ecd7218e9ec8fba117af89348eef8fd2463c50c13347478769aaedd0ce /uv /usr/local/bin/uv
 
 COPY pyproject.toml .
 COPY src ./src
