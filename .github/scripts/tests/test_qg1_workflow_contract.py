@@ -9,7 +9,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ACTION_PATH = REPO_ROOT / ".github" / "actions" / "run-qg1" / "action.yml"
 ASSUME_ACTION_PATH = (
-    REPO_ROOT / ".github" / "actions" / "assume-qg1-service-account" / "action.yml"
+    REPO_ROOT / ".github" / "actions" / "assume-service-account" / "action.yml"
 )
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "qg1-cluster-readiness.yml"
 RBAC_MANIFEST_PATH = REPO_ROOT / ".github" / "cluster" / "qg1-readiness-rbac.yaml"
@@ -74,7 +74,7 @@ def test_run_qg1_action_declares_expected_inputs():
 
 def test_assume_qg1_service_account_action_declares_expected_inputs():
     action = yaml.safe_load(ASSUME_ACTION_PATH.read_text(encoding="utf-8"))
-    assert action["name"] == "Assume QG1 Service Account"
+    assert action["name"] == "Assume Service Account"
     assert action["runs"]["using"] == "composite"
     inputs = action["inputs"]
     assert set(inputs) == {"service-account", "namespace"}
@@ -100,8 +100,14 @@ def test_assume_qg1_service_account_action_mints_token_and_relogs():
         step for step in action["runs"]["steps"] if step.get("shell") == "bash"
     ]
     assert any("oc create token" in step.get("run", "") for step in bash_steps)
+    assert any("--duration=20m" in step.get("run", "") for step in bash_steps)
     assert any("oc whoami --show-server" in step.get("run", "") for step in bash_steps)
     assert any("oc login" in step.get("run", "") for step in bash_steps)
+    assert any(
+        "expected_identity=" in step.get("run", "")
+        and "actual_identity=" in step.get("run", "")
+        for step in bash_steps
+    )
 
 
 def test_run_qg1_action_passes_inputs_via_env_not_inline_interpolation():
@@ -128,7 +134,7 @@ def test_qg1_workflow_uses_shared_setup_and_qg1_action():
     steps = qg1_job["steps"]
     uses_values = [step.get("uses", "") for step in steps]
     assert "./.github/actions/setup-cluster" in uses_values
-    assert "./.github/actions/assume-qg1-service-account" in uses_values
+    assert "./.github/actions/assume-service-account" in uses_values
     assert "./.github/actions/run-qg1" in uses_values
 
 
@@ -140,7 +146,7 @@ def test_qg1_workflow_assumes_dedicated_service_account_before_checker():
         if "uses" in step
     ]
     setup_idx = uses_values.index("./.github/actions/setup-cluster")
-    assume_idx = uses_values.index("./.github/actions/assume-qg1-service-account")
+    assume_idx = uses_values.index("./.github/actions/assume-service-account")
     run_idx = uses_values.index("./.github/actions/run-qg1")
     assert setup_idx < assume_idx < run_idx
 
@@ -199,13 +205,13 @@ def test_qg1_rbac_manifest_declares_minimal_read_only_resources():
         (tuple(rule["apiGroups"]), tuple(rule["resources"])): set(rule["verbs"])
         for rule in cluster_role["rules"]
     }
+    assert len(rule_map) == 3
     assert rule_map[(("config.openshift.io",), ("clusterversions",))] == {
         "get",
         "list",
-        "watch",
     }
-    assert rule_map[(("",), ("nodes",))] == {"get", "list", "watch"}
-    assert rule_map[(("",), ("namespaces",))] == {"get", "list", "watch"}
+    assert rule_map[(("",), ("nodes",))] == {"get", "list"}
+    assert rule_map[(("",), ("namespaces",))] == {"get", "list"}
 
 
 def test_resolve_require_gpu_uses_dispatch_input_on_manual_run(tmp_path):

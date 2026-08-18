@@ -1,9 +1,9 @@
-name: "Assume QG1 Service Account"
-description: "Mint a short-lived token for the QG1 readiness service account and re-login with that identity."
+name: "Assume Service Account"
+description: "Mint a short-lived token for a service account and re-login with that identity."
 
 inputs:
   service-account:
-    description: "Service account to assume for cluster-readiness checks"
+    description: "Service account to assume; defaults to the qg1-readiness convention used by QG1"
     required: false
     default: "qg1-readiness"
   namespace:
@@ -14,7 +14,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Mint token and login as dedicated QG1 service account
+    - name: Mint token and login as service account
       shell: bash
       env:
         SERVICE_ACCOUNT: ${{ inputs.service-account }}
@@ -24,6 +24,7 @@ runs:
 
         server="$(oc whoami --show-server)"
         qg1_token="$(oc create token "${SERVICE_ACCOUNT}" -n "${NAMESPACE}" --duration=20m)"
+        echo "::add-mask::${qg1_token}"
 
         oc login \
           --token="${qg1_token}" \
