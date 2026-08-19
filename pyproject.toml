@@ -57,6 +57,7 @@ markers = [
     "langgraph_hitl: LangGraph Human-in-the-Loop agent (create_file with approval workflow)",
     "google_adk: Google ADK agent (dummy_web_search tool)",
     "a2a_langgraph_crewai: A2A LangGraph-CrewAI agent (ask_crew_specialist tool)",
+    "langgraph_guardrailed: LangGraph Guardrailed agent (check_balance + NeMo Guardrails proxy)",
     # Test category markers — select what capability is being tested
     "api_contract: FastAPI endpoint schema, validation, streaming (tests repo code, not the model)",
     "adversarial: Agent-level security/safety tests (PII, API keys, dangerous ops)",

@@ -40,6 +40,12 @@ class TestRailsCo:
 
     def test_rails_co_defines_greeting_flow(self, profile):
         content = (CONFIG_DIR / profile / "rails.co").read_text(encoding="utf-8")
+        if profile == "nemoguard":
+            # Canonical user-message forms disable NeMo 0.24 passthrough tool_calls.
+            assert not any(
+                line.startswith("define user") for line in content.splitlines()
+            )
+            return
         assert "express greeting" in content
 
 
@@ -128,6 +134,13 @@ class TestNemoguardConfigYaml:
             "patterns"
         ]
         assert len(patterns) >= 1
+        joined = "\n".join(patterns)
+        assert "ignore" in joined.lower()
+        assert "forget" in joined.lower()
+        assert "disregard" in joined.lower()
+        assert "previous" in joined.lower()
+        assert "your" in joined.lower()
+        assert "DAN" in joined
 
 
 class TestNemoguardPromptsYml:
@@ -162,4 +175,17 @@ class TestNemoguardPromptsYml:
     def test_topic_prompt_mentions_banking(self):
         for p in self.prompts["prompts"]:
             if "topic_safety_check_input" in p["task"]:
-                assert "bank" in p["content"].lower()
+                content = p["content"].lower()
+                assert "bank" in content
+
+    def test_s9_names_only_the_acct_digits_pattern(self):
+        """S9 stays strict on account identifiers; only ACCT-<digits> is excepted."""
+        for p in self.prompts["prompts"]:
+            if "content_safety_check_input" in p["task"] or (
+                "content_safety_check_output" in p["task"]
+            ):
+                content = p["content"]
+                assert "ACCT-12345" not in content
+                assert "S9: PII/Privacy" in content
+                assert "account identifiers" in content.lower()
+                assert "ACCT-<digits>" in content

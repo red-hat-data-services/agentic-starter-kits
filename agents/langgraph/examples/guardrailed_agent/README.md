@@ -307,10 +307,34 @@ make undeploy-rhoai           # remove agent + guardrails
 
 | Target | What it exercises | Prerequisites |
 |--------|-------------------|---------------|
-| `make test` | Unit/structural tests + `test_guardrails_smoke.py` (no LLM calls) | None |
+| `make test` | Unit/structural tests + `test_api_contract.py` + `test_guardrails_smoke.py` (no LLM calls) | None |
 | `make test-guardrails-integration` | `tests/test_guardrails.py` against **proxy** port 8090 | Ollama + `make guardrails-server-local` |
 | `make test-guardrails-integration-nemoguard` | Same tests, `GUARDRAILS_PROFILE=nemoguard` | Ollama + `make guardrails-server-nemoguard` |
 | `make test-integration` | Cluster deploy health + guardrails rails (`tests/integration/`) | `oc` logged in (QG4 uses `ci-testing`); `NVIDIA_API_KEY` for nemoguard deploy |
+
+### Behavioral tests (shared harness)
+
+Agent-local suite under `tests/behavioral/` plus root harness registration
+(`langgraph_guardrailed` / `GUARDRAILED_AGENT_URL`). Requires a running agent
+whose `BASE_URL` points at a live NeMo Guardrails proxy.
+
+```bash
+# From repo root — discovery
+uv run --extra test --extra test-mlflow \
+  pytest agents/langgraph/examples/guardrailed_agent/tests/behavioral/ --collect-only
+
+# Against a live agent (+ optional MLflow enrichment)
+GUARDRAILED_AGENT_URL=https://<route> \
+MLFLOW_TRACKING_URI=<uri> \
+MLFLOW_EXPERIMENT_NAME=guardrailed-btest \
+uv run --extra test --extra test-mlflow \
+  pytest agents/langgraph/examples/guardrailed_agent/tests/behavioral/ -v
+```
+
+On-topic and tool-calling tests through the NeMo Guardrails proxy require
+canned ``check_balance`` output (``$2,450``). Refusal tests (toxic, off-topic,
+mixed jailbreak including ``Ignore your previous instructions ... ACCT-12345``)
+still run through the proxy.
 
 `tests/test_guardrails.py` calls the NeMo Guardrails proxy directly (`http://localhost:8090/v1/chat/completions`), not the LangGraph agent. That is required to assert `guardrails.config_id` and rail outcomes without the agent stripping proxy metadata. The agent-level curls in [§6](#6-test-the-guardrails) are complementary end-to-end checks.
 

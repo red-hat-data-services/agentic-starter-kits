@@ -50,9 +50,12 @@ agent-auth = { path = "../../../../components/auth" }
 
 [tool.pytest.ini_options]
 pythonpath = ["tests"]
+asyncio_mode = "auto"
 markers = [
     "guardrails_integration: live NeMo Guardrails server + LLM required",
     "integration: OpenShift cluster deployment test",
+    "langgraph_guardrailed: LangGraph Guardrailed agent behavioral evals",
+    "slow: Tests that run multiple iterations (pass@k, repeated queries)",
 ]
 
 [build-system]
