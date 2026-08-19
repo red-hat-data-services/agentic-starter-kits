@@ -131,6 +131,12 @@ jobs:
             cluster_btests_agents="${INPUT_CLUSTER_BTESTS_AGENTS}"
           fi
 
+          # Collapse newlines/repeated whitespace: GITHUB_OUTPUT is line-oriented and the
+          # consumer splits on spaces, so a multiline value would truncate or inject lines.
+          _agents=()
+          read -r -a _agents <<< "$(tr '\n' ' ' <<< "${cluster_btests_agents}")"
+          cluster_btests_agents="${_agents[*]:-}"
+
           run_cluster_btests="false"
           reason="cluster btests disabled (EVAL_CLUSTER_BTESTS_ENABLED != true)"
 
@@ -187,8 +193,8 @@ jobs:
 
       - name: Run QG7 behavioral eval
         uses: ./.github/actions/run-qg7
-        with:
-          agent-name: ${{ needs.deterministic.outputs.cluster_btests_agents }}
+        env:
+          QG7_AGENT_NAME: ${{ needs.deterministic.outputs.cluster_btests_agents }}
 
       - name: Upload btest artifacts
         if: always()
