@@ -22,7 +22,8 @@ def _queries_with_expected_elements() -> list[dict[str, Any]]:
         q
         for q in load_golden()
         if q.get("expected_elements")
-        and q.get("category") not in {"guardrails_blocked"}
+        and q.get("category")
+        not in {"guardrails_blocked", "adversarial", "guardrails_injection"}
         and "2,450" not in q.get("expected_elements", [])
     ]
 

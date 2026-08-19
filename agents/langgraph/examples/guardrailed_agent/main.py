@@ -417,7 +417,9 @@ async def _handle_chat(messages: list[HumanMessage], model_id: str) -> dict[str,
                 ],
                 "usage": None,
             }
-        logger.error("Unhandled error in chat completion request: %s", type(e).__name__)
+        logger.exception(
+            "Unhandled error in chat completion request: %s", type(e).__name__
+        )
         raise HTTPException(status_code=500, detail="Error processing request")
 
 

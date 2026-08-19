@@ -310,11 +310,12 @@ uv run --extra test --extra test-mlflow \
   pytest agents/langgraph/examples/guardrailed_agent/tests/behavioral/ -v
 ```
 
-On-topic and tool-calling tests through the NeMo Guardrails proxy currently fail
-when the RHOAI NeMo image uses `openai==2.21.0` with `langchain-openai==0.3.35`
-(`AttributeError: 'coroutine' object has no attribute 'model_dump'`). Refusal
-tests still work because they short-circuit before the main LLM. Point the
-agent at vLLM directly to exercise greeting/knowledge tests without the proxy.
+On-topic and tool-calling tests through the NeMo Guardrails proxy currently
+cannot exercise ``check_balance``: NeMo Guardrails 0.21 drops ``tools`` from
+chat completions. Refusal tests (toxic, off-topic, mixed jailbreak) still
+run through the proxy. Do not point the agent at vLLM to bypass NeMo — the
+agent client already strips the Stainless ``x-stainless-raw-response`` header
+that otherwise breaks NeMo's OpenAI adapter.
 
 `tests/test_guardrails.py` calls the NeMo Guardrails proxy directly (`http://localhost:8090/v1/chat/completions`), not the LangGraph agent. That is required to assert `guardrails.config_id` and rail outcomes without the agent stripping proxy metadata. The agent-level curls in [§6](#6-test-the-guardrails) are complementary end-to-end checks.
 

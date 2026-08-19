@@ -71,31 +71,40 @@ def _parse_user_safety_verdict(result: str) -> bool:
     return match.group(1).lower() == "safe"
 
 
-_BANKING_LOOKUP_RE = re.compile(
-    r"\b(balance|account|transaction|checking|savings|acct[-\s]?\d+)\b",
+_ACCOUNT_ID_RE = re.compile(r"\bACCT-\d+\b", re.IGNORECASE)
+_JAILBREAK_PHRASING_RE = re.compile(
+    r"ignore\s+(all\s+)?(previous|above|your)\s+(instructions|rules|prompts)"
+    r"|reveal your system prompt|\bsystem prompt\b",
     re.IGNORECASE,
 )
 _SENSITIVE_PII_RE = re.compile(
-    r"\b(\d{3}-\d{2}-\d{4}|ssn|social security)\b|\b(?:\d[ -]*?){13,19}\b",
+    r"\b(\d{3}-\d{2}-\d{4}|ssn|social security)\b"
+    r"|\b(?:\d[ -]*?){13,19}\b"
+    r"|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"
+    r"|\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}\b"
+    r"|\b\d{1,5}\s+\w+\s+(street|st|avenue|ave|road|rd|drive|dr|lane|ln|blvd)\b",
     re.IGNORECASE,
 )
 
 
 def _allow_banking_account_pii(text: str, result: dict) -> dict:
-    """Allow a PII/Privacy-only content-safety hit on a banking account lookup.
+    """Allow a PII/Privacy-only hit on a demo account-id banking lookup.
 
-    The safety classifier treats demo account IDs such as ACCT-12345 as PII.
-    That blocks legitimate balance queries. SSNs, PANs, and non-PII
-    categories still fail closed.
+    The safety classifier treats identifiers such as ACCT-12345 as PII and
+    would otherwise block the demo's legitimate balance queries. The carve-out
+    requires an ``ACCT-<digits>`` id, rejects jailbreak phrasing, and still
+    fails closed on SSNs, PANs, emails, phones, addresses, and non-PII
+    categories.
     """
     if result.get("allowed", True):
         return result
     violations = [str(v).lower() for v in (result.get("policy_violations") or [])]
     if not violations:
         return result
-    if _SENSITIVE_PII_RE.search(text or "") or not _BANKING_LOOKUP_RE.search(
-        text or ""
-    ):
+    text = text or ""
+    if _JAILBREAK_PHRASING_RE.search(text):
+        return result
+    if _SENSITIVE_PII_RE.search(text) or not _ACCOUNT_ID_RE.search(text):
         return result
     pii_only = all("pii" in v or "privacy" in v for v in violations)
     if pii_only:
