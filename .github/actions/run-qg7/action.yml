@@ -1,0 +1,20 @@
+name: "Run QG7 Behavioral Eval"
+description: "Run shared cluster behavioral pytest suites. Caller handles checkout, setup-cluster, artifact upload, and logout."
+
+# Caller-supplied environment:
+#   QG7_AGENT_NAME - optional. A template-layout agent id, or a space-separated list of them
+#                    (e.g. "langgraph/templates/react_agent"). Unset or empty runs all agents.
+runs:
+  using: "composite"
+  steps:
+    - name: Execute shared QG7 runner
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        if [[ -n "${QG7_AGENT_NAME:-}" ]]; then
+          read -r -a selected_agents <<< "${QG7_AGENT_NAME}"
+          bash "tests/behavioral/deterministic/run-btests-pytest.sh" "${selected_agents[@]}"
+        else
+          bash "tests/behavioral/deterministic/run-btests-pytest.sh"
+        fi

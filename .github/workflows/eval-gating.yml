@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/eval-gating.yml"
+      - ".github/actions/run-qg7/**"
       - ".github/actions/setup-cluster/action.yaml"
       - ".github/actions/notify-slack/**"
       - "pyproject.toml"
@@ -16,6 +17,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/eval-gating.yml"
+      - ".github/actions/run-qg7/**"
       - ".github/actions/setup-cluster/action.yaml"
       - ".github/actions/notify-slack/**"
       - "pyproject.toml"
@@ -71,6 +73,12 @@ jobs:
             cluster_btests_agents="${INPUT_CLUSTER_BTESTS_AGENTS}"
           fi
 
+          # Collapse newlines/repeated whitespace: GITHUB_OUTPUT is line-oriented and the
+          # consumer splits on spaces, so a multiline value would truncate or inject lines.
+          _agents=()
+          read -r -a _agents <<< "$(tr '\n' ' ' <<< "${cluster_btests_agents}")"
+          cluster_btests_agents="${_agents[*]:-}"
+
           run_cluster_btests="false"
           reason="cluster btests disabled (EVAL_CLUSTER_BTESTS_ENABLED != true)"
 
@@ -116,19 +124,11 @@ jobs:
           set -euo pipefail
           uv sync --frozen --extra test --extra test-mlflow
 
-      - name: Run shared btest runner
+      - name: Run QG7 behavioral eval
         if: steps.cluster-btests-config.outputs.run_cluster_btests == 'true'
+        uses: ./.github/actions/run-qg7
         env:
-          CLUSTER_BTESTS_AGENTS: ${{ steps.cluster-btests-config.outputs.cluster_btests_agents }}
-        run: |
-          set -euo pipefail
-
-          if [[ -n "${CLUSTER_BTESTS_AGENTS}" ]]; then
-            read -r -a selected_agents <<< "${CLUSTER_BTESTS_AGENTS}"
-            bash "tests/behavioral/deterministic/run-btests-pytest.sh" "${selected_agents[@]}"
-          else
-            bash "tests/behavioral/deterministic/run-btests-pytest.sh"
-          fi
+          QG7_AGENT_NAME: ${{ steps.cluster-btests-config.outputs.cluster_btests_agents }}
 
       - name: Upload btest artifacts
         if: always() && steps.cluster-btests-config.outputs.run_cluster_btests == 'true'
