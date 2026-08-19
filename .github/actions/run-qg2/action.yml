@@ -1,0 +1,70 @@
+name: "Run QG2 Platform Readiness"
+description: "Run platform-readiness assertions after cluster setup/login."
+
+inputs:
+  cluster-profile:
+    description: "Logical cluster profile name for reporting and future matrixing"
+    required: true
+  cluster-type:
+    description: "Platform flavor: odh or rhoai"
+    required: false
+    default: "rhoai"
+  require-dsc-ready:
+    description: "Whether DataScienceCluster must be Ready"
+    required: false
+    default: "true"
+  require-kserve:
+    description: "Whether KServe controller health is required"
+    required: false
+    default: "true"
+  summary-json-path:
+    description: "Path for machine-readable summary output"
+    required: false
+    default: "qg2-results/summary.json"
+  summary-md-path:
+    description: "Path for markdown summary output"
+    required: false
+    default: "qg2-results/summary.md"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Ensure result directories exist
+      shell: bash
+      env:
+        SUMMARY_JSON_PATH: ${{ inputs.summary-json-path }}
+        SUMMARY_MD_PATH: ${{ inputs.summary-md-path }}
+      run: |
+        set -euo pipefail
+        mkdir -p "$(dirname "${SUMMARY_JSON_PATH}")"
+        mkdir -p "$(dirname "${SUMMARY_MD_PATH}")"
+
+    - name: Execute QG2 checker
+      shell: bash
+      env:
+        CLUSTER_PROFILE: ${{ inputs.cluster-profile }}
+        CLUSTER_TYPE: ${{ inputs.cluster-type }}
+        REQUIRE_DSC_READY: ${{ inputs.require-dsc-ready }}
+        REQUIRE_KSERVE: ${{ inputs.require-kserve }}
+        SUMMARY_JSON_PATH: ${{ inputs.summary-json-path }}
+        SUMMARY_MD_PATH: ${{ inputs.summary-md-path }}
+      run: |
+        set -euo pipefail
+        python .github/scripts/qg2_platform_readiness.py \
+          --cluster-profile "${CLUSTER_PROFILE}" \
+          --cluster-type "${CLUSTER_TYPE}" \
+          --require-dsc-ready "${REQUIRE_DSC_READY}" \
+          --require-kserve "${REQUIRE_KSERVE}" \
+          --summary-json "${SUMMARY_JSON_PATH}" \
+          --summary-md "${SUMMARY_MD_PATH}"
+
+    - name: Publish markdown summary
+      if: always()
+      shell: bash
+      env:
+        SUMMARY_MD_PATH: ${{ inputs.summary-md-path }}
+      run: |
+        set -euo pipefail
+        if [[ -f "${SUMMARY_MD_PATH}" ]]; then
+          cat "${SUMMARY_MD_PATH}" >> "${GITHUB_STEP_SUMMARY}"
+        fi
