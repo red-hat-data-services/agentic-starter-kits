@@ -25,7 +25,7 @@ _REFUSAL_PATTERNS = (
     re.compile(r"blocked by\b.*\brails\b", re.IGNORECASE),
 )
 
-_BALANCE_EVIDENCE = ("2450", "2,450", "checking", "savings")
+_BALANCE_EVIDENCE = ("2450", "2,450")
 
 
 def _looks_like_refusal(text: str) -> bool:

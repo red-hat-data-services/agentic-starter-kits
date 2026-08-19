@@ -136,6 +136,8 @@ class TestNemoguardConfigYaml:
         assert len(patterns) >= 1
         joined = "\n".join(patterns)
         assert "ignore" in joined.lower()
+        assert "forget" in joined.lower()
+        assert "disregard" in joined.lower()
         assert "previous" in joined.lower()
         assert "your" in joined.lower()
         assert "DAN" in joined

@@ -46,9 +46,16 @@ _RETRYABLE_EXCEPTIONS = (
     openai.APIConnectionError,
     openai.RateLimitError,
 )
-_GRACEFUL_EXCEPTIONS = tuple(
-    exc for exc in _RETRYABLE_EXCEPTIONS if exc is not openai.APIConnectionError
-) + (GraphRecursionError,)
+# Timeouts and model/parser failures degrade to HTTP 200. A hard connection
+# failure to the guardrails proxy is not listed here and surfaces as 503.
+_GRACEFUL_EXCEPTIONS = (
+    ValidationError,
+    OutputParserException,
+    openai.InternalServerError,
+    openai.APITimeoutError,
+    openai.RateLimitError,
+    GraphRecursionError,
+)
 
 
 def _is_guardrails_block(exc: Exception) -> bool:

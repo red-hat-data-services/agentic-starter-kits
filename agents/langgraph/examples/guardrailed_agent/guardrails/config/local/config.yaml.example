@@ -24,7 +24,7 @@ rails:
       input:
         patterns:
           - "\\b(hack|exploit|bypass|inject)\\s+(the|this|my)\\s+(system|filter|guardrail)"
-          - "ignore\\s+(all\\s+)?(of\\s+)?((your|the|previous|above)\\s+)+(instructions|rules|prompts)"
+          - "(ignore|forget|disregard|override|bypass|set aside|do not follow)\\s+(all\\s+)?(of\\s+)?((your|the|previous|above)\\s+)+(instructions|rules|prompts)|reveal your system prompt|\\bsystem prompt\\b|pretend you have no (rules|instructions|guidelines)"
           - "\\bDAN\\b.*\\bjailbreak\\b"
         case_insensitive: true
   input:
