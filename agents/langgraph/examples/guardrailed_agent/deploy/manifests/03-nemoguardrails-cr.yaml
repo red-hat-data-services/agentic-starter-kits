@@ -25,3 +25,13 @@ spec:
         secretKeyRef:
           name: langgraph-guardrailed-agent-guardrails-secrets
           key: nvidia-api-key
+    # OpenTelemetry — envsubst from cluster.env. finalize_nemoguardrails_cr.py
+    # strips this block when GUARDRAILS_TRACING_ENABLED is not exactly true.
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "${OTEL_EXPORTER_OTLP_ENDPOINT}"
+    - name: OTEL_SERVICE_NAME
+      value: "${OTEL_SERVICE_NAME}"
+    - name: OTEL_EXPORTER_OTLP_PROTOCOL
+      value: "${OTEL_EXPORTER_OTLP_PROTOCOL}"
+    - name: OTEL_METRICS_EXPORTER
+      value: "${OTEL_METRICS_EXPORTER}"

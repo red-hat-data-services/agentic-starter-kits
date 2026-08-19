@@ -35,6 +35,8 @@ guardrails = [
     "dataclasses-json>=0.6.7",  # undeclared transitive dep of nemoguardrails 0.21.0
     "langchain-community>=0.2,<0.4",  # >=0.4 drops GoogleSearchAPIWrapper, breaks nemoguardrails imports
     "langchain-nvidia-ai-endpoints>=1.4.3",  # required for engine=nim (NVIDIA NemoGuard NIM models)
+    "opentelemetry-distro>=0.65b0",  # provides the `opentelemetry-instrument` zero-code SDK wrapper
+    "opentelemetry-exporter-otlp-proto-http>=1.44.0",  # OTLP/HTTP exporter, configured via OTEL_* env vars
 ]
 tracing = [
     "mlflow[kubernetes]>=3.11.0",

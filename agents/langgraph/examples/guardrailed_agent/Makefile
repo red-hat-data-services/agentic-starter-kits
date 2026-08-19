@@ -6,15 +6,15 @@ VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
 GUARDRAILS_CR_NAME     := langgraph-guardrailed-agent-guardrails
-GUARDRAILS_NAMESPACE   ?= ci-testing
+GUARDRAILS_NAMESPACE   ?= $(shell oc project -q 2>/dev/null)
 CLUSTER_ENV            := deploy/overlays/ci-testing/cluster.env
 CLUSTER_ENV_EXAMPLE    := deploy/overlays/ci-testing/cluster.env.example
-GUARDRAILS_KUSTOMIZE   := deploy/overlays/ci-testing
+TRACING_COMPOSE        := guardrails/tracing/compose.yaml
 
-.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test test-guardrails-integration test-guardrails-integration-nemoguard test-integration dry-run help guardrails-server-local guardrails-server-nemoguard render-guardrails-configmap deploy-guardrails-secrets deploy-guardrails undeploy-guardrails deploy-rhoai undeploy-rhoai deploy-rhoai-dry-run
+.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test test-guardrails-integration test-guardrails-integration-nemoguard test-integration dry-run help guardrails-server-local guardrails-server-nemoguard guardrails-tracing-up guardrails-tracing-down render-guardrails-configmap deploy-guardrails-secrets deploy-guardrails undeploy-guardrails deploy-rhoai undeploy-rhoai deploy-rhoai-dry-run _check-guardrails-ns
 
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-32s %s\n", $$1, $$2}'
 
 re-init: ## Activate venv and reload .env variables
 	@source .venv/bin/activate && set -a && source .env && set +a && \
@@ -68,14 +68,52 @@ guardrails-server-local: ## Generate local (self-check, Ollama) config and start
 	  cp guardrails/config/local/config.yaml.example guardrails/config/local/config.yaml && \
 	  python3 guardrails/generate_config.py --profile local && \
 	  echo "Starting NeMo Guardrails server (local profile) on port $${GUARDRAILS_PORT:-8090}..." && \
-	  nemoguardrails server --config guardrails/config --default-config-id local --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui
+	  if [ "$${GUARDRAILS_TRACING_ENABLED:-}" = "true" ]; then \
+	    echo "OpenTelemetry tracing ENABLED -> $${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}" && \
+	    OTEL_SERVICE_NAME="$${OTEL_SERVICE_NAME:-nemo-guardrails}" \
+	    OTEL_TRACES_EXPORTER="$${OTEL_TRACES_EXPORTER:-otlp}" \
+	    OTEL_METRICS_EXPORTER="$${OTEL_METRICS_EXPORTER:-none}" \
+	    OTEL_LOGS_EXPORTER="$${OTEL_LOGS_EXPORTER:-none}" \
+	    OTEL_EXPORTER_OTLP_PROTOCOL="$${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}" \
+	    OTEL_EXPORTER_OTLP_ENDPOINT="$${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}" \
+	    opentelemetry-instrument nemoguardrails server --config guardrails/config --default-config-id local --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui; \
+	  else \
+	    nemoguardrails server --config guardrails/config --default-config-id local --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui; \
+	  fi
 
 guardrails-server-nemoguard: ## Generate layered NemoGuard-models config and start NeMo Guardrails proxy
 	@source .venv/bin/activate && set -a && source .env && set +a && \
 	  cp guardrails/config/nemoguard/config.yaml.example guardrails/config/nemoguard/config.yaml && \
 	  python3 guardrails/generate_config.py --profile nemoguard && \
 	  echo "Starting NeMo Guardrails server (nemoguard profile) on port $${GUARDRAILS_PORT:-8090}..." && \
-	  nemoguardrails server --config guardrails/config --default-config-id nemoguard --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui
+	  if [ "$${GUARDRAILS_TRACING_ENABLED:-}" = "true" ]; then \
+	    echo "OpenTelemetry tracing ENABLED -> $${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}" && \
+	    OTEL_SERVICE_NAME="$${OTEL_SERVICE_NAME:-nemo-guardrails}" \
+	    OTEL_TRACES_EXPORTER="$${OTEL_TRACES_EXPORTER:-otlp}" \
+	    OTEL_METRICS_EXPORTER="$${OTEL_METRICS_EXPORTER:-none}" \
+	    OTEL_LOGS_EXPORTER="$${OTEL_LOGS_EXPORTER:-none}" \
+	    OTEL_EXPORTER_OTLP_PROTOCOL="$${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}" \
+	    OTEL_EXPORTER_OTLP_ENDPOINT="$${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}" \
+	    opentelemetry-instrument nemoguardrails server --config guardrails/config --default-config-id nemoguard --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui; \
+	  else \
+	    nemoguardrails server --config guardrails/config --default-config-id nemoguard --port $${GUARDRAILS_PORT:-8090} --disable-chat-ui; \
+	  fi
+
+guardrails-tracing-up: ## Start local OTel Collector + Jaeger + Prometheus (needs podman-compose or docker compose)
+	@if command -v podman-compose >/dev/null 2>&1; then COMPOSE="podman-compose"; \
+	elif docker compose version >/dev/null 2>&1; then COMPOSE="docker compose"; \
+	else echo "ERROR: install podman-compose (pip install podman-compose) or Docker's compose plugin"; exit 1; fi; \
+	$$COMPOSE -f $(TRACING_COMPOSE) up -d && \
+	echo "" && \
+	echo "Jaeger UI:     http://localhost:16686" && \
+	echo "Prometheus UI: http://localhost:9090" && \
+	echo "" && \
+	echo "Now run: GUARDRAILS_TRACING_ENABLED=true make guardrails-server-local (or -nemoguard)"
+
+guardrails-tracing-down: ## Stop and remove the local tracing stack
+	@if command -v podman-compose >/dev/null 2>&1; then podman-compose -f $(TRACING_COMPOSE) down; \
+	elif docker compose version >/dev/null 2>&1; then docker compose -f $(TRACING_COMPOSE) down; \
+	else echo "ERROR: neither podman-compose nor docker compose found"; exit 1; fi
 
 run-app: ## Run agent locally with hot-reload
 	@source .venv/bin/activate && set -a && source .env && set +a && \
@@ -235,7 +273,10 @@ render-guardrails-configmap: ## Render NeMo Guardrails ConfigMap manifest for cl
 	    --cluster-env "$$CLUSTER_ENV_FILE" \
 	    --output deploy/manifests/02-guardrails-configmap.yaml
 
-deploy-guardrails-secrets: ## Create/update guardrails Secret from cluster.env or NVIDIA_API_KEY env
+_check-guardrails-ns:
+	@[ -n "$(GUARDRAILS_NAMESPACE)" ] || { echo "ERROR: GUARDRAILS_NAMESPACE is empty. Log in with oc or pass GUARDRAILS_NAMESPACE=<ns>."; exit 1; }
+
+deploy-guardrails-secrets: _check-guardrails-ns ## Create/update guardrails Secret from cluster.env or NVIDIA_API_KEY env
 	@KEY=""; \
 	  if [ -n "$${NVIDIA_API_KEY:-}" ]; then KEY="$${NVIDIA_API_KEY}"; \
 	  elif [ -f "$(CLUSTER_ENV)" ]; then \
@@ -255,9 +296,20 @@ deploy-guardrails-secrets: ## Create/update guardrails Secret from cluster.env o
 	    --from-literal=nvidia-api-key="$$KEY" \
 	    --dry-run=client -o yaml | oc apply -f -
 
-deploy-guardrails: render-guardrails-configmap deploy-guardrails-secrets ## Apply NemoGuardrails CR + ConfigMap to cluster
-	@oc apply -k "$(GUARDRAILS_KUSTOMIZE)" && \
-	  echo "" && echo "Waiting for NemoGuardrails pod..." && \
+deploy-guardrails: _check-guardrails-ns render-guardrails-configmap deploy-guardrails-secrets ## Apply NemoGuardrails CR + ConfigMap to GUARDRAILS_NAMESPACE
+	@command -v envsubst >/dev/null 2>&1 || { echo "ERROR: envsubst (gettext) is required"; exit 1; }
+	@set -a && [ -f "$(CLUSTER_ENV)" ] && source "$(CLUSTER_ENV)" || source "$(CLUSTER_ENV_EXAMPLE)"; set +a && \
+	  CR_TMP=$$(mktemp) && \
+	  trap 'rm -f "$$CR_TMP"' EXIT && \
+	  OTEL_SERVICE_NAME="$${OTEL_SERVICE_NAME:-nemo-guardrails}" \
+	  OTEL_EXPORTER_OTLP_PROTOCOL="$${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}" \
+	  OTEL_METRICS_EXPORTER="$${OTEL_METRICS_EXPORTER:-none}" \
+	  envsubst '$$OTEL_EXPORTER_OTLP_ENDPOINT $$OTEL_SERVICE_NAME $$OTEL_EXPORTER_OTLP_PROTOCOL $$OTEL_METRICS_EXPORTER' \
+	    < deploy/manifests/03-nemoguardrails-cr.yaml > "$$CR_TMP" && \
+	  python3 deploy/scripts/finalize_nemoguardrails_cr.py "$$CR_TMP" && \
+	  oc apply -n "$(GUARDRAILS_NAMESPACE)" -f "$$CR_TMP" && \
+	  oc apply -n "$(GUARDRAILS_NAMESPACE)" -f deploy/manifests/02-guardrails-configmap.yaml && \
+	  echo "" && echo "Waiting for NemoGuardrails pod in $(GUARDRAILS_NAMESPACE)..." && \
 	  for i in $$(seq 1 60); do \
 	    READY=$$(oc get pods -n "$(GUARDRAILS_NAMESPACE)" \
 	      -l app.kubernetes.io/instance=$(GUARDRAILS_CR_NAME) \
@@ -281,20 +333,37 @@ deploy-guardrails: render-guardrails-configmap deploy-guardrails-secrets ## Appl
 	    echo "Route URL: https://$$ROUTE"; \
 	  fi
 
-undeploy-guardrails: render-guardrails-configmap ## Remove NemoGuardrails CR + ConfigMap from cluster
-	@oc delete -k "$(GUARDRAILS_KUSTOMIZE)" --ignore-not-found && \
+undeploy-guardrails: _check-guardrails-ns ## Remove NemoGuardrails CR + ConfigMap + Secret from GUARDRAILS_NAMESPACE
+	@oc delete nemoguardrails $(GUARDRAILS_CR_NAME) \
+	    -n "$(GUARDRAILS_NAMESPACE)" --ignore-not-found && \
+	  oc delete configmap langgraph-guardrailed-agent-guardrails-config \
+	    -n "$(GUARDRAILS_NAMESPACE)" --ignore-not-found && \
 	  oc delete secret langgraph-guardrailed-agent-guardrails-secrets \
 	    -n "$(GUARDRAILS_NAMESPACE)" --ignore-not-found
 
-deploy-rhoai-dry-run: render-guardrails-configmap ## Preview guardrails Kustomize output
-	@oc kustomize "$(GUARDRAILS_KUSTOMIZE)"
+deploy-rhoai-dry-run: _check-guardrails-ns render-guardrails-configmap ## Preview namespaced CR + ConfigMap (no apply)
+	@command -v envsubst >/dev/null 2>&1 || { echo "ERROR: envsubst (gettext) is required"; exit 1; }
+	@set -a && [ -f "$(CLUSTER_ENV)" ] && source "$(CLUSTER_ENV)" || source "$(CLUSTER_ENV_EXAMPLE)"; set +a && \
+	  CR_TMP=$$(mktemp) && \
+	  trap 'rm -f "$$CR_TMP"' EXIT && \
+	  OTEL_SERVICE_NAME="$${OTEL_SERVICE_NAME:-nemo-guardrails}" \
+	  OTEL_EXPORTER_OTLP_PROTOCOL="$${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}" \
+	  OTEL_METRICS_EXPORTER="$${OTEL_METRICS_EXPORTER:-none}" \
+	  envsubst '$$OTEL_EXPORTER_OTLP_ENDPOINT $$OTEL_SERVICE_NAME $$OTEL_EXPORTER_OTLP_PROTOCOL $$OTEL_METRICS_EXPORTER' \
+	    < deploy/manifests/03-nemoguardrails-cr.yaml > "$$CR_TMP" && \
+	  python3 deploy/scripts/finalize_nemoguardrails_cr.py "$$CR_TMP" && \
+	  echo "--- namespace: $(GUARDRAILS_NAMESPACE) ---" && \
+	  oc apply -n "$(GUARDRAILS_NAMESPACE)" --dry-run=client -o yaml -f "$$CR_TMP" && \
+	  oc apply -n "$(GUARDRAILS_NAMESPACE)" --dry-run=client -o yaml -f deploy/manifests/02-guardrails-configmap.yaml
 
-deploy-rhoai: deploy-guardrails deploy ## Deploy guardrails proxy then agent (BASE_URL must target guardrails)
+deploy-rhoai: deploy-guardrails ## Deploy guardrails proxy then agent (BASE_URL must target guardrails)
 	@source .env 2>/dev/null || true; \
 	  EXPECTED="http://$(GUARDRAILS_CR_NAME).$(GUARDRAILS_NAMESPACE).svc.cluster.local/v1"; \
 	  if [ "$${BASE_URL}" != "$$EXPECTED" ]; then \
-	    echo "WARNING: BASE_URL=$${BASE_URL:-<unset>} — expected $$EXPECTED for RHOAI"; \
+	    echo "ERROR: BASE_URL=$${BASE_URL:-<unset>} — set it to $$EXPECTED in .env (current oc project)."; \
+	    exit 1; \
 	  fi
+	@$(MAKE) deploy
 
 undeploy-rhoai: undeploy undeploy-guardrails ## Remove agent and guardrails from cluster
 

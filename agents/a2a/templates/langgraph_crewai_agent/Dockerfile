@@ -1,24 +1,33 @@
 # Single image for both A2A servers; set A2A_ROLE at runtime (Kubernetes env or docker run -e).
-FROM python:3.12-slim
+# Use Red Hat UBI9 Python 3.12 image (no Docker Hub rate limits on OpenShift)
+# To update: docker pull registry.access.redhat.com/ubi9/python-312:latest
+#            docker inspect --format='{{index .RepoDigests 0}}' registry.access.redhat.com/ubi9/python-312:latest
+FROM registry.access.redhat.com/ubi9/python-312@sha256:e95978812895b9abb2bdc109b501078da2a47c8dbb9fa23758af40ed50ab6023
 
 WORKDIR /app
 
-RUN groupadd -r appuser && useradd -r -u 1001 -g 0 -m -d /home/appuser appuser
+# Switch to root for installing dependencies and preparing runtime paths
+USER 0
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# To update: docker pull ghcr.io/astral-sh/uv:latest
+#            docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/astral-sh/uv:latest
+COPY --from=ghcr.io/astral-sh/uv@sha256:fc93e9ecd7218e9ec8fba117af89348eef8fd2463c50c13347478769aaedd0ce /uv /usr/local/bin/uv
 
 COPY pyproject.toml .
 COPY src ./src
 # Always install MLflow tracing deps for container images (Kagenti auto-configures
 # MLflow tracing when deployed to MLflow operator from RHOAI)
-RUN uv pip install --system --no-cache ".[tracing]"
+# pysqlite3-binary (installed inline) provides SQLite >= 3.35 for ChromaDB on UBI9
+RUN uv pip install --no-cache ".[tracing]" pysqlite3-binary \
+    && SITE=$(python3 -c "import site; print(site.getsitepackages()[0])") \
+    && printf '__import__("pysqlite3")\nimport sys\nsys.modules["sqlite3"] = sys.modules.pop("pysqlite3")\n' > "$SITE/sitecustomize.py"
 
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # CrewAI runtime paths (OpenShift arbitrary UID / GID 0)
 RUN mkdir -p /home/appuser/.local/share/app \
-    && chown -R appuser:0 /app /home/appuser \
+    && chown -R 1001:0 /app /home/appuser \
     && chmod -R g=u /app /home/appuser \
     && chmod g+x /app/entrypoint.sh
 
@@ -26,7 +35,7 @@ ENV HOME=/home/appuser
 ENV PYTHONPATH=/app
 ENV PORT=8080
 
-USER appuser
+USER 1001
 
 EXPOSE 8080
 

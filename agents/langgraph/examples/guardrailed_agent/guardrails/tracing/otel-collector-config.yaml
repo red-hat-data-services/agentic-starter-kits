@@ -1,0 +1,51 @@
+# OTel Collector config for local NeMo Guardrails tracing.
+#
+# Traces flow to Jaeger for inspection AND into the spanmetrics connector, which
+# derives RED metrics (rate, errors, duration) and feeds them to a separate
+# metrics pipeline exported to Prometheus.
+#
+# NeMo Guardrails emits every rail span under the SAME span name
+# (`guardrails.rail`); the specific rail is only distinguishable via the
+# `rail.name` / `rail.type` span attributes. spanmetrics is therefore keyed on
+# those attributes as dimensions, not on the span name (which would bucket all
+# rails together).
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+connectors:
+  spanmetrics:
+    histogram:
+      explicit:
+        buckets: [10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s]
+    dimensions:
+      - name: rail.name   # e.g. self_check_input, regex_check_input, topic_safety_check_input
+      - name: rail.type   # input | output | dialog
+    metrics_flush_interval: 15s
+
+processors:
+  batch:
+    timeout: 5s
+
+exporters:
+  otlp/jaeger:
+    endpoint: "jaeger:4317"
+    tls:
+      insecure: true
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/jaeger, spanmetrics]
+    metrics:
+      receivers: [spanmetrics]
+      processors: [batch]
+      exporters: [prometheus]
