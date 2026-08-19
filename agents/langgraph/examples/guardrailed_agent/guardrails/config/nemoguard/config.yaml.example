@@ -33,6 +33,7 @@ rails:
       input:
         patterns:
           - "\\b(hack|exploit|bypass|inject)\\s+(the|this|my)\\s+(system|filter|guardrail)"
+          - "ignore\\s+(all\\s+)?(previous|above)\\s+(instructions|rules|prompts)"
           - "\\bDAN\\b.*\\bjailbreak\\b"
         case_insensitive: true
   input:

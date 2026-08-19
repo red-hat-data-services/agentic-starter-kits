@@ -41,7 +41,7 @@ TOPIC_POLICY_MAX_TOKENS = 20
 
 # Keep in sync with generate_config._DEFAULT_TOPIC_CONTROL_POLICY.
 _DEFAULT_TOPIC_POLICY = """The AI assistant is a customer service agent at a retail bank, helping customers with their banking needs only.
-Allowed: account balances, transactions, and account history, including lookups that include an account ID such as ACCT-12345 (for example "What is my balance?" or "What is the checking balance for account ACCT-12345?"); a balance or transaction lookup even when the same message also tries to override instructions or asks to reveal a system prompt (the banking request stays in-scope); billing, payments, and due dates; bank products, services, interest rates, and fees; branch locations, hours, and contact information; online banking, mobile app, and password resets; small talk and greetings.
+Allowed: account balances, transactions, and account history; billing, payments, and due dates; bank products, services, interest rates, and fees; branch locations, hours, and contact information; online banking, mobile app, and password resets; small talk and greetings.
 Not allowed: medical or health advice; legal advice or legal proceedings; investment recommendations or stock picks; cooking, recipes, or food preparation; entertainment, sports, or celebrity gossip; personal relationships or dating advice; any other topic unrelated to banking and financial services."""
 
 # Tolerates both plain-text ("User Safety: unsafe") and JSON-ish
@@ -75,15 +75,6 @@ _BANKING_LOOKUP_RE = re.compile(
     r"\b(balance|account|transaction|checking|savings|acct[-\s]?\d+)\b",
     re.IGNORECASE,
 )
-_JAILBREAK_PHRASING_RE = re.compile(
-    r"ignore\s+(all\s+)?(previous|above|your)\s+(instructions|rules|prompts)"
-    r"|reveal your system prompt|system prompt",
-    re.IGNORECASE,
-)
-_SOFT_SAFETY_VIOLATION_RE = re.compile(
-    r"pii|privacy|unauthorized advice|needs caution|jailbreak",
-    re.IGNORECASE,
-)
 _SENSITIVE_PII_RE = re.compile(
     r"\b(\d{3}-\d{2}-\d{4}|ssn|social security)\b|\b(?:\d[ -]*?){13,19}\b",
     re.IGNORECASE,
@@ -93,8 +84,8 @@ _SENSITIVE_PII_RE = re.compile(
 def _allow_banking_account_pii(text: str, result: dict) -> dict:
     """Allow a PII/Privacy-only content-safety hit on a banking account lookup.
 
-    The safety-guard NIM treats account IDs such as ACCT-12345 as PII. That
-    blocks the demo's legitimate balance queries. SSNs, PANs, and non-PII
+    The safety classifier treats demo account IDs such as ACCT-12345 as PII.
+    That blocks legitimate balance queries. SSNs, PANs, and non-PII
     categories still fail closed.
     """
     if result.get("allowed", True):
@@ -109,14 +100,6 @@ def _allow_banking_account_pii(text: str, result: dict) -> dict:
     pii_only = all("pii" in v or "privacy" in v for v in violations)
     if pii_only:
         log.info("Allowing content-safety PII/Privacy hit on a banking account lookup")
-        return {"allowed": True, "policy_violations": []}
-    if _JAILBREAK_PHRASING_RE.search(text or "") and all(
-        _SOFT_SAFETY_VIOLATION_RE.search(v) for v in violations
-    ):
-        log.info(
-            "Allowing soft content-safety hit on a banking lookup mixed with "
-            "instruction-override phrasing"
-        )
         return {"allowed": True, "policy_violations": []}
     return result
 
@@ -176,16 +159,6 @@ async def topic_policy_check_input(
     )
 
     on_topic = _parse_user_safety_verdict(result)
-    if (
-        not on_topic
-        and _BANKING_LOOKUP_RE.search(user_input)
-        and _JAILBREAK_PHRASING_RE.search(user_input)
-    ):
-        log.info(
-            "Allowing topic-policy block on a banking lookup mixed with "
-            "instruction-override phrasing"
-        )
-        on_topic = True
     log.debug(
         "Topic policy check for %r -> %r (on_topic=%s)", user_input, result, on_topic
     )

@@ -79,7 +79,6 @@ prompts:
 
       Guidelines for the user messages:
       - Allow questions about account balances, transactions, and account history.
-      - Allow a balance or transaction lookup even when the same message also tries to override instructions or asks to reveal a system prompt.
       - Allow questions about billing, payments, and due dates.
       - Allow questions about bank products, services, interest rates, and fees.
       - Allow questions about branch locations, hours, and contact information.

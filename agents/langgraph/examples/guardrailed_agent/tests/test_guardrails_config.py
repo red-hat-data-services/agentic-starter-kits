@@ -129,7 +129,7 @@ class TestNemoguardConfigYaml:
         ]
         assert len(patterns) >= 1
         joined = "\n".join(patterns)
-        assert "ignore" not in joined.lower()
+        assert "ignore" in joined.lower()
         assert "DAN" in joined
 
 
@@ -167,8 +167,6 @@ class TestNemoguardPromptsYml:
             if "topic_safety_check_input" in p["task"]:
                 content = p["content"].lower()
                 assert "bank" in content
-                assert "system prompt" in content
-                assert "override instructions" in content
 
     def test_s9_does_not_treat_bank_account_ids_as_pii(self):
         for p in self.prompts["prompts"]:
