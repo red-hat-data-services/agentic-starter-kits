@@ -24,8 +24,6 @@ CLAUDE.local.md
 **/REFACTORING.md
 STATUS.md
 .e2e-workdir
-evals/evalhub_adapter/eval-*.yaml
-evals/evalhub_adapter/provider-*.json
 results.xml
 BTEST_VALIDATION_REPORT.md
 btest-results/

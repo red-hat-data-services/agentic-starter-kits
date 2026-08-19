@@ -64,6 +64,14 @@ langgraph_hitl:
   max_latency_p95: 5.0
   pass_at_k: 8
 
+langgraph_guardrailed:
+  # balance-lookup latency ~13s; knowledge answers ~32s.
+  # Eval timeout is 90s; OpenShift route timeout must be >30s or knowledge 504s.
+  tool_selection_accuracy: 0.85
+  response_coherence_accuracy: 0.75
+  max_latency_p95: 18.0
+  pass_at_k: 8
+
 google_adk:
   tool_selection_accuracy: 0.85
   response_coherence_accuracy: 0.75

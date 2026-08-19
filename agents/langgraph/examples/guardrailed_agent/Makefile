@@ -367,9 +367,10 @@ deploy-rhoai: deploy-guardrails ## Deploy guardrails proxy then agent (BASE_URL 
 
 undeploy-rhoai: undeploy undeploy-guardrails ## Remove agent and guardrails from cluster
 
-test: ## Run unit tests (excludes guardrails-integration and cluster integration)
+test: ## Run unit tests (excludes guardrails-integration, cluster integration, behavioral)
 	uv run --extra dev --extra guardrails python -m pytest tests/ \
 	  --ignore=tests/integration \
+	  --ignore=tests/behavioral \
 	  -m "not guardrails_integration" $(PYTEST_ARGS)
 
 test-guardrails-integration: ## Run guardrails behavior tests (requires guardrails server + LLM)

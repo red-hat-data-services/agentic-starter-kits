@@ -51,6 +51,7 @@ AGENTS=(
   "google/templates/adk|GOOGLE_ADK_AGENT_URL|google-adk-agent"
   "langflow/templates/simple_tool_calling_agent|LANGFLOW_TOOL_CALLING_AGENT_URL|langflow|langflow-agent"
   "a2a/templates/langgraph_crewai_agent|A2A_LANGGRAPH_CREWAI_AGENT_URL|a2a-langgraph-agent"
+  "langgraph/examples/guardrailed_agent|GUARDRAILED_AGENT_URL|langgraph-guardrailed-agent"
 )
 ALL_AGENT_CONFIG=("${AGENTS[@]}")
 

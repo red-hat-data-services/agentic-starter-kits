@@ -79,8 +79,7 @@ agentic-starter-kits/
 │   └── a2a/
 ├── components/                          # Shared reusable packages (auth, etc.)
 ├── evals/
-│   ├── harness/                         # Shared eval engine (runner, scorers, MLflow client)
-│   └── evalhub_adapter/                 # EvalHub on-cluster adapter (JobSpec → harness)
+│   └── harness/                         # Shared eval engine (runner, scorers, MLflow client)
 ├── tests/
 │   └── behavioral/                      # Behavioral eval suite
 ├── sandboxes/
@@ -112,6 +111,7 @@ Tests require a running agent. Set the target URL via environment variables:
 | `LANGFLOW_TOOL_CALLING_AGENT_URL` | Langflow Simple Tool Calling agent tests |
 | `LANGFLOW_FLOW_ID` | Langflow flow ID (changes on re-import) |
 | `HITL_AGENT_URL` | LangGraph Human-in-the-Loop agent tests |
+| `GUARDRAILED_AGENT_URL` | LangGraph Guardrailed agent tests |
 | `GOOGLE_ADK_AGENT_URL` | Google ADK agent tests |
 | `A2A_LANGGRAPH_CREWAI_AGENT_URL` | A2A LangGraph-CrewAI agent tests |
 
@@ -128,7 +128,6 @@ See `tests/behavioral/` for full details.
 - [OpenShift Deployment](./docs/openshift-deployment.md) — Helm-based deployment guide
 - [Adding a New Agent](./docs/adding-a-new-agent.md) — How to contribute a new agent template
 - [Adding Behavioral Tests](./docs/adding-behavioral-tests.md) — How to add test coverage for an agent
-- [Adding an EvalHub Agent Integration](./docs/adding-evalhub-agent-integration.md) — How to integrate a new agent into the EvalHub evaluation pipeline
 - [Guardrails](./docs/guardrails.md) — Adding safety rails to agents (NeMo Guardrails vs Guardrails Orchestrator)
 - [llm-d Deployment](./docs/llm-d-deployment.md) — Deploy llm-d for intelligent LLM inference routing on OpenShift AI
 

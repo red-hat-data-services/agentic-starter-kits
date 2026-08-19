@@ -368,7 +368,7 @@ This project uses [Claude Code](https://code.claude.com/docs) skills to automate
 | `kagenti-deploy` | Deploy A2A-compliant agents to OpenShift with kagenti integration |
 | `deploy-agents` | Deploy agents to OpenShift with auto-detected cluster config and MLflow token refresh |
 | `fit-check` | Validate whether a new agent belongs in the repo (idea mode or existing code) |
-| `add-behavioral-tests` | Scaffold behavioral testing (pytest + EvalHub) for an agent |
+| `add-behavioral-tests` | Scaffold behavioral testing (pytest) for an agent |
 | `run-behavioral-tests` | Run and validate behavioral tests for an agent |
 | `add-integration-tests` | Add integration tests for agent deployment verification |
 

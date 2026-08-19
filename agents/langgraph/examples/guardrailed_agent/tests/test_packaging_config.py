@@ -108,6 +108,7 @@ def test_pyproject_package_name() -> None:
 def test_makefile_default_test_excludes_integration() -> None:
     assert re.search(r"(?m)^test:", MAKEFILE)
     assert "--ignore=tests/integration" in MAKEFILE
+    assert "--ignore=tests/behavioral" in MAKEFILE
     assert '-m "not guardrails_integration"' in MAKEFILE
 
 

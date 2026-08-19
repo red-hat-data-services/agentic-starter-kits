@@ -87,10 +87,6 @@ jobs:
             timeout_minutes: '45'
             MODEL_ID: qwen2-5-7b-instruct
             GUARDRAILS_MODEL_ID: qwen2-5-7b-instruct
-    env:
-      API_KEY: ${{ vars.API_KEY }}
-      BASE_URL: ${{ vars.BASE_URL }}
-      MODEL_ID: ${{ vars.MODEL_ID }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -101,9 +97,11 @@ jobs:
           oc-token: ${{ secrets.OC_TOKEN }}
           cluster-api-url: ${{ secrets.CLUSTER_API_URL }}
 
-      - name: Run integration test
+      - name: Run QG4 deployment test
         if: matrix.agent.name != 'autogen-mcp-agent' || vars.MCP_SERVER_URL != ''
-        working-directory: ${{ matrix.agent.dir }}
+        uses: ./.github/actions/run-qg4
+        with:
+          agent-dir: ${{ matrix.agent.dir }}
         env:
           API_KEY: ${{ matrix.agent.name == 'vanilla-python-openai-responses-agent' && secrets.OPENAI_API_KEY || vars.API_KEY }}
           BASE_URL: ${{ matrix.BASE_URL || vars.BASE_URL }}
@@ -117,7 +115,6 @@ jobs:
           LANGFLOW_AGENT_URL: ${{ matrix.LANGFLOW_AGENT_URL }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           GUARDRAILS_MODEL_ID: ${{ matrix.GUARDRAILS_MODEL_ID }}
-        run: make test-integration
 
       - name: Upload test results
         if: always()
@@ -125,6 +122,7 @@ jobs:
         with:
           name: ${{ matrix.agent.name }}-results
           path: ${{ matrix.agent.dir }}/results.xml
+          if-no-files-found: warn
 
       - name: Logout
         if: always()

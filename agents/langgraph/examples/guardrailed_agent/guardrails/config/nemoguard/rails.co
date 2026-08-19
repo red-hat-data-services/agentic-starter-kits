@@ -1,12 +1,4 @@
-define user express greeting
-  "Hello"
-  "Hi"
-  "Hey"
-  "Good morning"
-
-define flow
-  user express greeting
-  bot express greeting
-
-define bot express greeting
-  "Hello! Welcome to our banking service. How can I help you today?"
+# Greeting canonical forms (`define user express greeting`) are omitted on
+# purpose. NeMo 0.24's generate_user_intent skips HTTP passthrough whenever
+# user-message examples exist, which drops OpenAI `tool_calls` on the proxy
+# path this agent uses. Greetings are handled by the main LLM instead.

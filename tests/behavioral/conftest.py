@@ -31,6 +31,7 @@ _AGENT_URL_MAP = {
     "google_adk": "GOOGLE_ADK_AGENT_URL",
     "langflow_tool_calling": "LANGFLOW_TOOL_CALLING_AGENT_URL",
     "a2a_langgraph_crewai": "A2A_LANGGRAPH_CREWAI_AGENT_URL",
+    "langgraph_guardrailed": "GUARDRAILED_AGENT_URL",
 }
 
 
