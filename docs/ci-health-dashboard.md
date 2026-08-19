@@ -12,6 +12,7 @@ The dashboard covers these workflows on `main` and scheduled or manual shared-br
 | `agent-tests.yml` | Agent Tests |
 | `eval-gating.yml` | Inner Loop Gating |
 | `qg1-cluster-readiness.yml` | QG1: Cluster Readiness |
+| `qg2-platform-readiness.yml` | QG2: Platform Readiness |
 | `agent-deployment-test.yaml` | QG4: Agent Deployment Integration Tests |
 
 Pull request runs are excluded from the summary to keep the page focused on shared-branch health.
@@ -37,12 +38,13 @@ Responder workflow, dedupe semantics, and validation guidance live in
 
 ## Slack alerts
 
-The same five workflows also send immediate Slack alerts when a shared-branch run fails:
+The same six workflows also send immediate Slack alerts when a shared-branch run fails:
 
 - `Code Quality`
 - `Agent Tests`
 - `Inner Loop Gating`
 - `QG1: Cluster Readiness`
+- `QG2: Platform Readiness`
 - `QG4: Agent Deployment Integration Tests`
 
 The event list below is the union of the supported notification triggers across those workflows. Individual workflows do not all define the same trigger set.
