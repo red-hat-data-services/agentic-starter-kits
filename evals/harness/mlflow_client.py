@@ -88,9 +88,7 @@ class MLflowTraceClient:
             if "401" in msg or "403" in msg or "Authorization" in msg:
                 logger.error(
                     "MLflow auth failed (%s). Ensure MLFLOW_TRACKING_TOKEN is "
-                    "set in the environment. Pass the token as a literal "
-                    "value or refresh via: "
-                    "export MLFLOW_TRACKING_TOKEN=$(oc whoami -t)",
+                    "set in the environment to a valid token for this server.",
                     msg,
                 )
             elif "Expecting value" in msg or "JSONDecodeError" in msg:
@@ -98,9 +96,7 @@ class MLflowTraceClient:
                     "MLflow returned non-JSON (likely an OAuth redirect). "
                     "This usually means MLFLOW_TRACKING_TOKEN is expired or "
                     "invalid. The RHOAI OAuth proxy redirects to a login page "
-                    "when the token is rejected. Refresh the token: "
-                    "export MLFLOW_TRACKING_TOKEN=$(oc whoami -t) and re-register "
-                    "the provider. Raw error: %s",
+                    "when the token is rejected. Raw error: %s",
                     msg,
                 )
             else:
