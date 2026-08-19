@@ -23,14 +23,18 @@ This runbook covers the shared-branch CI Slack alerts for
 ## QG2 Cluster Access Requirements
 
 `QG2: Platform Readiness` authenticates via the `OC_TOKEN` secret through
-`.github/actions/setup-cluster`, then queries live cluster resources with
-`oc`. That service account needs cluster-wide (not just namespace-scoped)
-read access to `deployments`, `clusterserviceversions` (`csv`), and
-`datasciencecluster` — QG2 lists `datasciencecluster` and the
-KServe-labeled `deployment` cluster-wide (`-A`) to distinguish a genuinely
-absent resource from an RBAC error, so a token scoped to a single namespace
-will misreport as `oc_command`/`Forbidden` failures instead of clean
+`.github/actions/setup-cluster` only as a bootstrap identity, then mints a
+short-lived token for the dedicated `qg2-readiness` service account in
+`ci-testing` before the checker runs. That dedicated identity needs
+cluster-wide (not just namespace-scoped) read access to `deployments`,
+`clusterserviceversions` (`csv`), and `datasciencecluster` — QG2 lists
+`datasciencecluster` and the KServe-labeled `deployment` cluster-wide
+(`-A`) to distinguish a genuinely absent resource from an RBAC error, so a
+token scoped to a single namespace will misreport as `oc_command`/`Forbidden`
+failures instead of clean
 `operator_health`/`kserve_controller`/`datasciencecluster_ready` results.
+The bootstrap `github-actions` service account only needs permission to
+mint `serviceaccounts/token` in `ci-testing`.
 
 ## Dedupe and Timing Semantics
 
