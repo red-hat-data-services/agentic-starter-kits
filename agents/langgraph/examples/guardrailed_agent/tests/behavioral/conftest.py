@@ -40,6 +40,18 @@ def _find_repo_root() -> Path:
     )
 
 
+_GRACEFUL_ERROR_SNIPPET = "repeated internal errors"
+
+
+def assert_not_graceful_degrade(result: Any) -> None:
+    """HTTP 200 graceful errors are not successful eval outcomes."""
+    text = (getattr(result, "response", None) or "").lower()
+    assert _GRACEFUL_ERROR_SNIPPET not in text, (
+        "Graceful HTTP 200 error is not a successful eval response: "
+        f"{(result.response or '')[:300]}"
+    )
+
+
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 STREAM = False
 

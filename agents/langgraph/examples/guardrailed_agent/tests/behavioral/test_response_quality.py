@@ -5,26 +5,20 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from conftest import load_golden
+from conftest import assert_not_graceful_degrade, load_golden
 from harness.scorers.plan_coherence import score_completeness, score_plan_coherence
 
 pytestmark = pytest.mark.langgraph_guardrailed
 
 
 def _queries_with_expected_elements() -> list[dict[str, Any]]:
-    """Return golden queries whose expected elements do not require tool output.
-
-    Balance-lookup goldens expect ``2,450`` from ``check_balance``. NeMo
-    Guardrails 0.21 chat completions drop ``tools``, so those cases are
-    omitted until the proxy forwards tool calls.
-    """
+    """Return golden queries whose expected elements should appear in the reply."""
     return [
         q
         for q in load_golden()
         if q.get("expected_elements")
         and q.get("category")
         not in {"guardrails_blocked", "adversarial", "guardrails_injection"}
-        and "2,450" not in q.get("expected_elements", [])
     ]
 
 
@@ -33,6 +27,7 @@ async def test_plan_coherence(run_eval: Any, score_collector: Any) -> None:
     query = "Explain how checking and savings accounts differ for everyday banking"
     result = await run_eval(query)
     assert result.success, f"Agent request failed: {result.error}"
+    assert_not_graceful_degrade(result)
     score = score_plan_coherence(result)
     score_collector.record(query, score)
     assert score.passed, (
@@ -54,6 +49,7 @@ async def test_response_completeness(
         expected_tools=golden.get("expected_tools"),
     )
     assert result.success, f"Agent request failed: {result.error}"
+    assert_not_graceful_degrade(result)
 
     score = score_completeness(result, golden["expected_elements"])
     score_collector.record(golden["query"], score)

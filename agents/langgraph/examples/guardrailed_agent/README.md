@@ -331,12 +331,10 @@ uv run --extra test --extra test-mlflow \
   pytest agents/langgraph/examples/guardrailed_agent/tests/behavioral/ -v
 ```
 
-On-topic and tool-calling tests through the NeMo Guardrails proxy currently
-cannot exercise ``check_balance``: NeMo Guardrails 0.21 drops ``tools`` from
-chat completions. Refusal tests (toxic, off-topic, mixed jailbreak) still
-run through the proxy. Do not point the agent at vLLM to bypass NeMo — the
-agent client already strips the Stainless ``x-stainless-raw-response`` header
-that otherwise breaks NeMo's OpenAI adapter.
+On-topic and tool-calling tests through the NeMo Guardrails proxy require
+canned ``check_balance`` output (``$2,450``). Refusal tests (toxic, off-topic,
+mixed jailbreak including ``Ignore your previous instructions ... ACCT-12345``)
+still run through the proxy.
 
 `tests/test_guardrails.py` calls the NeMo Guardrails proxy directly (`http://localhost:8090/v1/chat/completions`), not the LangGraph agent. That is required to assert `guardrails.config_id` and rail outcomes without the agent stripping proxy metadata. The agent-level curls in [§6](#6-test-the-guardrails) are complementary end-to-end checks.
 

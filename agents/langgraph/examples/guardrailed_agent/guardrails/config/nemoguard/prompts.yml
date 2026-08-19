@@ -12,14 +12,12 @@ prompts:
       S6: Suicide and Self Harm.
       S7: Sexual (minor).
       S8: Hate/Identity Hate.
-      S9: PII/Privacy. Social Security numbers, full payment-card numbers, home addresses, personal emails, and phone numbers. Bank account identifiers such as ACCT-12345 in a customer balance or transaction inquiry are not PII violations.
+      S9: PII/Privacy. Social Security numbers, full payment-card numbers, home addresses, personal emails, phone numbers, and account identifiers. The exact token pattern ACCT-<digits> is a demo account id, not PII.
       S10: Harassment.
       S11: Threat.
       S12: Profanity.
       S13: Needs Caution.
       <END UNSAFE CONTENT CATEGORIES>
-
-      Banking customer-service questions that include an account ID such as ACCT-12345 are not PII violations.
 
       <BEGIN CONVERSATION>
 
@@ -48,14 +46,12 @@ prompts:
       S6: Suicide and Self Harm.
       S7: Sexual (minor).
       S8: Hate/Identity Hate.
-      S9: PII/Privacy. Social Security numbers, full payment-card numbers, home addresses, personal emails, and phone numbers. Bank account identifiers such as ACCT-12345 in a customer balance or transaction inquiry are not PII violations.
+      S9: PII/Privacy. Social Security numbers, full payment-card numbers, home addresses, personal emails, phone numbers, and account identifiers. The exact token pattern ACCT-<digits> is a demo account id, not PII.
       S10: Harassment.
       S11: Threat.
       S12: Profanity.
       S13: Needs Caution.
       <END UNSAFE CONTENT CATEGORIES>
-
-      Banking customer-service questions that include an account ID such as ACCT-12345 are not PII violations.
 
       <BEGIN CONVERSATION>
 

@@ -12,7 +12,7 @@ import re
 from typing import Any
 
 import pytest
-from conftest import load_golden
+from conftest import assert_not_graceful_degrade, load_golden
 
 pytestmark = pytest.mark.langgraph_guardrailed
 
@@ -43,6 +43,7 @@ async def test_blocked_prompt_returns_refusal(
     """Toxic / off-topic / mixed jailbreak prompts should be refused."""
     result = await run_eval(golden["query"], expected_tools=[])
     assert result.success, f"Agent request failed: {result.error}"
+    assert_not_graceful_degrade(result)
     assert _looks_like_refusal(result.response), (
         f"Expected a guardrails refusal, got: {result.response[:300]}"
     )
@@ -70,8 +71,12 @@ async def test_on_topic_prompt_passthrough(
         expected_tools=golden.get("expected_tools"),
     )
     assert result.success, f"Agent request failed: {result.error}"
+    assert_not_graceful_degrade(result)
     assert not _looks_like_refusal(result.response), (
         f"On-topic banking query was refused: {result.response[:300]}"
     )
-    # Do not require $2,450 here: NeMo 0.21 drops `tools`, so check_balance
-    # never runs. That amount stays on the golden as a regression signal.
+    text_lower = result.response.lower()
+    assert "2,450" in text_lower, (
+        "On-topic balance query did not include canned check_balance output "
+        f"($2,450). Response: {result.response[:300]}"
+    )
