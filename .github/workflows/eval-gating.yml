@@ -11,11 +11,6 @@ on:
       - "uv.lock"
       - "tests/behavioral/**"
       - "agents/**/tests/behavioral/**"
-      - "evals/evalhub_adapter/__init__.py"
-      - "evals/evalhub_adapter/adapter.py"
-      - "evals/evalhub_adapter/config.py"
-      - "evals/evalhub_adapter/evaluations.py"
-      - "evals/evalhub_adapter/tests/**"
       - "evals/harness/**"
   pull_request:
     branches: [main]
@@ -27,11 +22,6 @@ on:
       - "uv.lock"
       - "tests/behavioral/**"
       - "agents/**/tests/behavioral/**"
-      - "evals/evalhub_adapter/__init__.py"
-      - "evals/evalhub_adapter/adapter.py"
-      - "evals/evalhub_adapter/config.py"
-      - "evals/evalhub_adapter/evaluations.py"
-      - "evals/evalhub_adapter/tests/**"
       - "evals/harness/**"
   workflow_dispatch:
     inputs:
@@ -52,61 +42,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deterministic:
-    name: Deterministic Adapter Tests
+  cluster-btests:
+    name: Cluster Behavioral Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     permissions:
       contents: read
-      checks: write
-    outputs:
-      run_cluster_btests: ${{ steps.cluster-btests-config.outputs.run_cluster_btests }}
-      cluster_btests_reason: ${{ steps.cluster-btests-config.outputs.reason }}
-      cluster_btests_agents: ${{ steps.cluster-btests-config.outputs.cluster_btests_agents }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.12"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-
-      - name: Install deterministic dependencies
-        run: |
-          set -euo pipefail
-          uv sync --frozen --extra test --extra test-mlflow
-
-      - name: Run adapter deterministic tests
-        id: deterministic-tests
-        run: |
-          mkdir -p test-results
-          uv run --no-sync pytest evals/evalhub_adapter/tests \
-            -m "unit or integration" \
-            --junitxml=test-results/eval-deterministic.xml \
-            -v --tb=short
-
-      - name: Publish deterministic report
-        if: always() && steps.deterministic-tests.outcome != 'skipped'
-        uses: mikepenz/action-junit-report@d9f48fc87bc235f7e214acf696ca5abc0a986f16 # v6.4.2
-        with:
-          report_paths: test-results/eval-deterministic.xml
-          check_name: Deterministic Adapter Results
-          include_passed: true
-          annotate_only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
-
-      - name: Upload deterministic artifacts
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: deterministic-adapter-results
-          path: test-results/eval-deterministic.xml
-
       - name: Resolve cluster btests config
         id: cluster-btests-config
         env:
@@ -145,11 +87,8 @@ jobs:
             fi
           fi
 
-          {
-            echo "run_cluster_btests=${run_cluster_btests}"
-            echo "reason=${reason}"
-            echo "cluster_btests_agents=${cluster_btests_agents}"
-          } >> "${GITHUB_OUTPUT}"
+          echo "run_cluster_btests=${run_cluster_btests}" >> "${GITHUB_OUTPUT}"
+          echo "cluster_btests_agents=${cluster_btests_agents}" >> "${GITHUB_OUTPUT}"
 
           {
             echo "## Cluster BTests Decision"
@@ -158,34 +97,29 @@ jobs:
             echo "- reason: ${reason}"
           } >> "${GITHUB_STEP_SUMMARY}"
 
-  cluster-btests:
-    name: Cluster Behavioral Tests
-    needs: deterministic
-    if: needs.deterministic.outputs.run_cluster_btests == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    permissions:
-      contents: read
-    steps:
       - name: Checkout
+        if: steps.cluster-btests-config.outputs.run_cluster_btests == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup cluster tools
+        if: steps.cluster-btests-config.outputs.run_cluster_btests == 'true'
         uses: ./.github/actions/setup-cluster
         with:
           oc-token: ${{ secrets.OC_TOKEN }}
           cluster-api-url: ${{ secrets.CLUSTER_API_URL }}
 
       - name: Install btest runner dependencies
+        if: steps.cluster-btests-config.outputs.run_cluster_btests == 'true'
         run: |
           set -euo pipefail
           uv sync --frozen --extra test --extra test-mlflow
 
       - name: Run shared btest runner
+        if: steps.cluster-btests-config.outputs.run_cluster_btests == 'true'
         env:
-          CLUSTER_BTESTS_AGENTS: ${{ needs.deterministic.outputs.cluster_btests_agents }}
+          CLUSTER_BTESTS_AGENTS: ${{ steps.cluster-btests-config.outputs.cluster_btests_agents }}
         run: |
           set -euo pipefail
 
@@ -197,7 +131,7 @@ jobs:
           fi
 
       - name: Upload btest artifacts
-        if: always()
+        if: always() && steps.cluster-btests-config.outputs.run_cluster_btests == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cluster-btest-results
@@ -205,7 +139,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Logout
-        if: always()
+        if: always() && steps.cluster-btests-config.outputs.run_cluster_btests == 'true'
         run: oc logout || true
 
   notify-slack:
@@ -215,7 +149,7 @@ jobs:
       github.event_name != 'pull_request' &&
       github.repository == 'red-hat-data-services/agentic-starter-kits' &&
       (github.event_name != 'workflow_dispatch' || github.ref_name == 'main')
-    needs: [deterministic, cluster-btests]
+    needs: [cluster-btests]
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -79,8 +79,7 @@ agentic-starter-kits/
 │   └── a2a/
 ├── components/                          # Shared reusable packages (auth, etc.)
 ├── evals/
-│   ├── harness/                         # Shared eval engine (runner, scorers, MLflow client)
-│   └── evalhub_adapter/                 # EvalHub on-cluster adapter (JobSpec → harness)
+│   └── harness/                         # Shared eval engine (runner, scorers, MLflow client)
 ├── tests/
 │   └── behavioral/                      # Behavioral eval suite
 ├── sandboxes/
@@ -128,7 +127,6 @@ See `tests/behavioral/` for full details.
 - [OpenShift Deployment](./docs/openshift-deployment.md) — Helm-based deployment guide
 - [Adding a New Agent](./docs/adding-a-new-agent.md) — How to contribute a new agent template
 - [Adding Behavioral Tests](./docs/adding-behavioral-tests.md) — How to add test coverage for an agent
-- [Adding an EvalHub Agent Integration](./docs/adding-evalhub-agent-integration.md) — How to integrate a new agent into the EvalHub evaluation pipeline
 - [Guardrails](./docs/guardrails.md) — Adding safety rails to agents (NeMo Guardrails vs Guardrails Orchestrator)
 - [llm-d Deployment](./docs/llm-d-deployment.md) — Deploy llm-d for intelligent LLM inference routing on OpenShift AI
 

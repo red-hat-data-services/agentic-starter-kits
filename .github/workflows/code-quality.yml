@@ -65,8 +65,28 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # `gh pr diff --name-only` also lists files the PR deletes, so lychee used to be
+          # handed markdown paths that no longer exist on disk and the job failed. The
+          # `[ -f "$f" ]` test below filters those out.
+          # The `gh pr diff` failure is fatal on purpose: the previous pipeline-wide
+          # `|| true` swallowed errors, leaving `changed` empty so the link check silently
+          # skipped and the job went green without checking anything.
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            changed=$(gh pr diff ${{ github.event.pull_request.number }} --name-only | grep '\.md$' | tr '\n' ' ' || true)
+            if ! diff_files=$(gh pr diff ${{ github.event.pull_request.number }} --name-only); then
+              echo "::error::Unable to determine changed files for link check"
+              exit 1
+            fi
+            changed=$(
+              while IFS= read -r f; do
+                case "$f" in
+                  *.md)
+                    if [ -f "$f" ]; then
+                      printf '%s ' "$f"
+                    fi
+                    ;;
+                esac
+              done <<< "$diff_files"
+            )
             if [ -z "${changed// /}" ]; then
               echo "No markdown files changed — skipping link check"
               echo "targets=" >> "$GITHUB_OUTPUT"

@@ -40,7 +40,7 @@ WORKFLOWS = (
     {
         "file": "eval-gating.yml",
         "name": "Inner Loop Gating",
-        "description": "Behavioral pytest and EvalHub gating on selected paths.",
+        "description": "Behavioral pytest gating on selected paths.",
     },
     {
         "file": "qg1-cluster-readiness.yml",
