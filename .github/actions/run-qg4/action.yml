@@ -1,0 +1,15 @@
+name: "Run QG4 Agent Deployment Test"
+description: "Run an agent's integration test suite. Caller handles checkout, setup-cluster, artifact upload, and logout."
+
+inputs:
+  agent-dir:
+    description: "Path to the agent directory (relative to repo root)"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run integration test
+      shell: bash
+      working-directory: ${{ inputs.agent-dir }}
+      run: make test-integration
