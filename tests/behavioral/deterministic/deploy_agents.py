@@ -253,9 +253,41 @@ def load_agent_env_spec(agent_dir: str | Path) -> tuple[list[str], list[str]]:
 # ---------------------------------------------------------------------------
 
 
-def mlflow_operator_present() -> bool:
-    """True on RHOAI 3.5+, where MLflow is managed by the MLflow operator."""
-    return _oc(["get", "crd", MLFLOW_OPERATOR_CRD], check=False).returncode == 0
+def _is_forbidden(result: subprocess.CompletedProcess[str]) -> bool:
+    return "forbidden" in (result.stderr or "").lower()
+
+
+def mlflow_operator_present() -> bool | None:
+    """True on RHOAI 3.5+, where MLflow is managed by the MLflow operator.
+
+    None when the check itself is not permitted. CRDs are cluster-scoped, and a
+    namespace-scoped CI ServiceAccount cannot read them -- collapsing that into
+    False would claim "RHOAI < 3.5" on a 3.5 cluster and silently skip the
+    namespace label.
+    """
+    result = _oc(["get", "crd", MLFLOW_OPERATOR_CRD], check=False)
+    if result.returncode == 0:
+        return True
+    return None if _is_forbidden(result) else False
+
+
+def _mlflow_label_present(namespace: str) -> bool:
+    """True if the namespace already carries `mlflow-tracking=enabled`.
+
+    Reading its own namespace is within a namespace-admin's rights even when
+    reading CRDs cluster-wide is not, so this works where the CRD probe does not.
+    """
+    result = _oc(
+        [
+            "get",
+            "namespace",
+            namespace,
+            "-o",
+            "jsonpath={.metadata.labels.mlflow-tracking}",
+        ],
+        check=False,
+    )
+    return result.returncode == 0 and result.stdout.strip() == "enabled"
 
 
 def ensure_mlflow_namespace_label(namespace: str) -> bool:
@@ -264,14 +296,52 @@ def ensure_mlflow_namespace_label(namespace: str) -> bool:
     RHOAI 3.5+ maps MLflow workspaces 1:1 onto labelled namespaces. Without the
     label agents fail with `RESOURCE_DOES_NOT_EXIST: Workspace '<ns>' not
     found`. Pre-3.5 clusters have no such concept, so the label is skipped.
-    Returns True if the label was applied.
+    Returns True if the label is in place.
     """
-    if not mlflow_operator_present():
+    present = mlflow_operator_present()
+    if present is False:
         logger.info(
             "MLflow operator CRD absent (RHOAI < 3.5) — skipping namespace label"
         )
         return False
-    _oc(["label", "namespace", namespace, "mlflow-tracking=enabled", "--overwrite"])
+
+    if present is None:
+        # Operator presence unknown. If the label is already there the point is
+        # moot; otherwise say so loudly rather than deploying agents that will
+        # fail at runtime with `Workspace not found`.
+        if _mlflow_label_present(namespace):
+            logger.info(
+                "Cannot read CRDs (not permitted); namespace %s is already "
+                "labelled mlflow-tracking=enabled",
+                namespace,
+            )
+            return True
+        logger.warning(
+            "Cannot read CRDs (not permitted), so RHOAI version is unknown and "
+            "namespace %s is not labelled mlflow-tracking=enabled. Attempting "
+            "to label it anyway.",
+            namespace,
+        )
+
+    result = _oc(
+        ["label", "namespace", namespace, "mlflow-tracking=enabled", "--overwrite"],
+        check=False,
+    )
+    if result.returncode != 0:
+        if present is None and _is_forbidden(result):
+            raise MLflowConfigError(
+                f"Namespace {namespace} is not labelled mlflow-tracking=enabled "
+                "and this credential may label neither it nor read the MLflow "
+                "operator CRD. On RHOAI 3.5+ every agent would come up untraced "
+                f"with `Workspace '{namespace}' not found`. Pre-label the "
+                "namespace out of band: "
+                f"oc label namespace {namespace} mlflow-tracking=enabled"
+            )
+        raise RuntimeError(
+            f"oc label namespace {namespace} failed ({result.returncode})\n"
+            f"stdout: {_redact(result.stdout)}\n"
+            f"stderr: {_redact(result.stderr)}"
+        )
     logger.info("Labelled namespace %s with mlflow-tracking=enabled", namespace)
     return True
 
@@ -309,6 +379,14 @@ def _tracking_uri_candidates() -> list[str]:
     """
     result = _oc(["get", "route", "-A", "-o", "json"], check=False, timeout=60)
     if result.returncode != 0 or not result.stdout.strip():
+        if _is_forbidden(result):
+            # Listing routes is cluster-scoped; a namespace-scoped CI
+            # ServiceAccount cannot do it, so this link of the chain is simply
+            # unavailable there. Set MLFLOW_TRACKING_URI explicitly instead.
+            logger.warning(
+                "Cannot list routes cluster-wide (not permitted) — route "
+                "discovery unavailable"
+            )
         return []
     try:
         items = json.loads(result.stdout).get("items", [])
@@ -382,8 +460,10 @@ def resolve_mlflow_tracking_uri(namespace: str) -> str:
     raise MLflowConfigError(
         "Could not resolve MLFLOW_TRACKING_URI: no env override, no existing "
         f"deployment in {namespace} carrying it, and no MLflow or data-science "
-        "gateway route in the cluster. Without it the btest runner cannot "
-        "enrich results with trace data."
+        "gateway route was visible in the cluster. Without it the btest runner "
+        "cannot enrich results with trace data. Note that route discovery needs "
+        "cluster-wide route read, which a namespace-scoped CI ServiceAccount "
+        "does not have — in CI, set the MLFLOW_TRACKING_URI repository variable."
     )
 
 

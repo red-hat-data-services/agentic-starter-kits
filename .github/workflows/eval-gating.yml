@@ -77,6 +77,12 @@ jobs:
       API_KEY: ${{ vars.API_KEY }}
       BASE_URL: ${{ vars.BASE_URL }}
       MODEL_ID: ${{ vars.MODEL_ID }}
+      # Route discovery needs cluster-wide route read, which the namespace-scoped
+      # CI ServiceAccount does not have. Without this the resolution chain rests
+      # entirely on reading the URI off a pre-existing deployment, so the first
+      # run against an empty ci-testing would fail the whole deploy pass.
+      # Unset falls back to discovery, which is correct for a cluster-admin.
+      MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
       # vanilla_python/openai_responses_agent talks to OpenAI, not the cluster LLM.
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}

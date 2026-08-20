@@ -677,3 +677,109 @@ def test_route_discovery_ignores_unrelated_routes(monkeypatch) -> None:
 
     assert not any("rhods-dashboard" in c for c in candidates)
     assert candidates[0] == "https://rh-ai.apps.example.com/mlflow"
+
+
+_FORBIDDEN_CRD = (
+    'customresourcedefinitions.apiextensions.k8s.io "mlflowoperators.'
+    'components.platform.opendatahub.io" is forbidden: User '
+    '"system:serviceaccount:ci-testing:qg7-ci" cannot get resource '
+    '"customresourcedefinitions" in API group "apiextensions.k8s.io" '
+    "at the cluster scope"
+)
+
+
+def _stub_oc(monkeypatch, handler) -> list[list[str]]:
+    """Route `_oc` through `handler`, recording every argv it sees."""
+    seen: list[list[str]] = []
+
+    def fake_oc(args, **kwargs):
+        seen.append(list(args))
+        return handler(list(args))
+
+    monkeypatch.setattr(deploy_agents, "_oc", fake_oc)
+    return seen
+
+
+def test_operator_probe_reports_unknown_rather_than_absent_when_forbidden(
+    monkeypatch,
+) -> None:
+    # CRDs are cluster-scoped. Collapsing "not permitted" into False claims
+    # RHOAI < 3.5 on a 3.5 cluster and silently skips the namespace label.
+    _stub_oc(
+        monkeypatch,
+        lambda args: subprocess.CompletedProcess(args, 1, "", _FORBIDDEN_CRD),
+    )
+
+    assert deploy_agents.mlflow_operator_present() is None
+
+
+def test_operator_probe_reports_absent_when_the_crd_is_genuinely_missing(
+    monkeypatch,
+) -> None:
+    _stub_oc(
+        monkeypatch,
+        lambda args: subprocess.CompletedProcess(
+            args, 1, "", 'Error from server (NotFound): "..." not found'
+        ),
+    )
+
+    assert deploy_agents.mlflow_operator_present() is False
+
+
+def test_namespace_label_is_left_alone_when_forbidden_but_already_present(
+    monkeypatch,
+) -> None:
+    def handler(args):
+        if args[:2] == ["get", "crd"]:
+            return subprocess.CompletedProcess(args, 1, "", _FORBIDDEN_CRD)
+        if args[:2] == ["get", "namespace"]:
+            return subprocess.CompletedProcess(args, 0, "enabled", "")
+        raise AssertionError(f"unexpected oc call: {args}")
+
+    seen = _stub_oc(monkeypatch, handler)
+
+    assert deploy_agents.ensure_mlflow_namespace_label("ci-testing") is True
+    assert not any(a[0] == "label" for a in seen), "should not attempt to relabel"
+
+
+def test_namespace_label_raises_actionably_when_forbidden_and_absent(
+    monkeypatch,
+) -> None:
+    # The false-green: skipping the label here leaves every agent to fail at
+    # runtime with `Workspace not found`, long after the deploy gate went green.
+    forbidden_label = (
+        'namespaces "ci-testing" is forbidden: User "system:serviceaccount:'
+        'ci-testing:qg7-ci" cannot patch resource "namespaces"'
+    )
+
+    def handler(args):
+        if args[:2] == ["get", "crd"]:
+            return subprocess.CompletedProcess(args, 1, "", _FORBIDDEN_CRD)
+        if args[:2] == ["get", "namespace"]:
+            return subprocess.CompletedProcess(args, 0, "", "")
+        if args[0] == "label":
+            return subprocess.CompletedProcess(args, 1, "", forbidden_label)
+        raise AssertionError(f"unexpected oc call: {args}")
+
+    _stub_oc(monkeypatch, handler)
+
+    with pytest.raises(
+        deploy_agents.MLflowConfigError, match="mlflow-tracking=enabled"
+    ):
+        deploy_agents.ensure_mlflow_namespace_label("ci-testing")
+
+
+def test_route_discovery_yields_nothing_when_listing_routes_is_forbidden(
+    monkeypatch,
+) -> None:
+    forbidden_routes = (
+        "routes.route.openshift.io is forbidden: User "
+        '"system:serviceaccount:ci-testing:qg7-ci" cannot list resource '
+        '"routes" in API group "route.openshift.io" at the cluster scope'
+    )
+    _stub_oc(
+        monkeypatch,
+        lambda args: subprocess.CompletedProcess(args, 1, "", forbidden_routes),
+    )
+
+    assert deploy_agents._tracking_uri_candidates() == []
