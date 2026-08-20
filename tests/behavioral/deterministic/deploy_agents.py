@@ -24,6 +24,7 @@ import base64
 import json
 import logging
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -90,6 +91,7 @@ DEPLOY_TIMEOUTS: dict[str, int] = {
 DEFAULT_DEPLOY_TIMEOUT = 300
 DEFAULT_BUILD_TIMEOUT = 600
 DEFAULT_UNDEPLOY_TIMEOUT = 120
+DEFAULT_ROLLOUT_TIMEOUT = 180
 
 # Agents that need different *values* for the standard vars. QG7's env block is
 # job-level rather than per-matrix, so the swap QG4 does with matrix `include`
@@ -101,6 +103,14 @@ ENV_SOURCE_ALIASES: dict[str, dict[str, str]] = {
         "API_KEY": "OPENAI_API_KEY",
         "BASE_URL": "OPENAI_BASE_URL",
         "MODEL_ID": "OPENAI_MODEL_ID",
+    },
+    # Talks to the llama-stack/OGX endpoint that also serves its vector store,
+    # not the plain vLLM service. With the shared BASE_URL its retrieval calls
+    # 404 on /v1/vector-io/query and every retrieval btest fails at request time
+    # -- the deploy gates pass, because /health does not touch the vector store.
+    "langgraph/templates/agentic_rag": {
+        "BASE_URL": "OGX_BASE_URL",
+        "MODEL_ID": "OGX_MODEL_ID",
     },
 }
 
@@ -288,24 +298,61 @@ def _tracking_uri_from_deployments(namespace: str) -> str | None:
     return None
 
 
-def _tracking_uri_from_route() -> str | None:
-    result = _oc(
-        ["get", "route", "-n", MLFLOW_ROUTE_NAMESPACE, "-o", "json"],
-        check=False,
-        timeout=60,
-    )
+def _tracking_uri_candidates() -> list[str]:
+    """Every plausible tracking URI a route in the cluster suggests, best first.
+
+    RHOAI 3.5 fronts the tracking server with the data-science gateway at
+    `/mlflow`; the standalone `mlflow` route in `redhat-ods-applications` is
+    still present on such clusters but answers 404. Older layouts only have the
+    standalone route. Both shapes are offered and the caller picks the one that
+    actually responds.
+    """
+    result = _oc(["get", "route", "-A", "-o", "json"], check=False, timeout=60)
     if result.returncode != 0 or not result.stdout.strip():
-        return None
+        return []
     try:
         items = json.loads(result.stdout).get("items", [])
     except json.JSONDecodeError:
-        return None
+        return []
+
+    gateways: list[str] = []
+    standalone: list[str] = []
     for item in items:
-        name = item.get("metadata", {}).get("name", "")
+        meta = item.get("metadata", {})
+        name = meta.get("name", "")
         host = item.get("spec", {}).get("host")
-        if "mlflow" in name and host:
-            return f"https://{host}"
-    return None
+        if not host:
+            continue
+        if "data-science-gateway" in name:
+            gateways.append(f"https://{host}/mlflow")
+        elif "mlflow" in name and meta.get("namespace") == MLFLOW_ROUTE_NAMESPACE:
+            standalone.append(f"https://{host}")
+    return gateways + standalone
+
+
+def _tracking_uri_from_route(token: str | None = None) -> str | None:
+    """First route-derived URI whose MLflow API answers, or None.
+
+    Unvalidated route discovery is worse than none: a URI that 404s reaches
+    every agent's `.env`, so all of them come up untraced and the tracing gate
+    reports a broken token rather than a bad URI.
+    """
+    candidates = _tracking_uri_candidates()
+    if not candidates:
+        return None
+    try:
+        token = token or oc_token()
+    except MLflowConfigError:
+        return candidates[0]
+    for candidate in candidates:
+        if _mlflow_server_reachable(candidate, token):
+            return candidate
+    logger.warning(
+        "No route-derived MLflow URI answered /api/3.0/mlflow/server-info "
+        "(tried: %s) — falling back to the first candidate",
+        ", ".join(candidates),
+    )
+    return candidates[0]
 
 
 def resolve_mlflow_tracking_uri(namespace: str) -> str:
@@ -329,14 +376,14 @@ def resolve_mlflow_tracking_uri(namespace: str) -> str:
 
     routed = _tracking_uri_from_route()
     if routed:
-        logger.info("MLFLOW_TRACKING_URI discovered from the MLflow route")
+        logger.info("MLFLOW_TRACKING_URI discovered from a route: %s", routed)
         return routed
 
     raise MLflowConfigError(
         "Could not resolve MLFLOW_TRACKING_URI: no env override, no existing "
-        f"deployment in {namespace} carrying it, and no MLflow route in "
-        f"{MLFLOW_ROUTE_NAMESPACE}. Without it the btest runner cannot enrich "
-        "results with trace data."
+        f"deployment in {namespace} carrying it, and no MLflow or data-science "
+        "gateway route in the cluster. Without it the btest runner cannot "
+        "enrich results with trace data."
     )
 
 
@@ -543,6 +590,26 @@ def probe_agent(
 # ---------------------------------------------------------------------------
 
 
+def wait_for_rollout(
+    deployment_name: str,
+    namespace: str,
+    *,
+    timeout: int = DEFAULT_ROLLOUT_TIMEOUT,
+) -> None:
+    """Block until the deployment's newest ReplicaSet is fully rolled out."""
+    _oc(
+        [
+            "rollout",
+            "status",
+            f"deployment/{deployment_name}",
+            "-n",
+            namespace,
+            f"--timeout={timeout}s",
+        ],
+        timeout=timeout + 30,
+    )
+
+
 def deploy_agent(
     agent_dir: str | Path,
     namespace: str,
@@ -550,6 +617,7 @@ def deploy_agent(
     deployment_names: list[str] | tuple[str, ...],
     deploy_timeout: int = DEFAULT_DEPLOY_TIMEOUT,
     build_timeout: int = DEFAULT_BUILD_TIMEOUT,
+    rollout_timeout: int = DEFAULT_ROLLOUT_TIMEOUT,
 ) -> dict[str, str]:
     """Build in-cluster and Helm-deploy, returning {deployment_name: route_url}.
 
@@ -563,6 +631,14 @@ def deploy_agent(
 
     logger.info("Deploying to cluster: %s", agent_dir)
     run_make("deploy", cwd=agent_dir, timeout=deploy_timeout)
+
+    # `make deploy` does not wait for the new pods. Without this the readiness
+    # probe hits the route, which the *previous* generation's Ready pod still
+    # serves, so a crash-looping new image passes the probe and the tracing gate
+    # both -- observed live on autogen-mcp-agent, whose new image failed to
+    # import while a 27h-old pod answered /health with 200.
+    for name in deployment_names:
+        wait_for_rollout(name, namespace, timeout=rollout_timeout)
 
     routes: dict[str, str] = {}
     for name in deployment_names:
@@ -709,8 +785,12 @@ def refresh_mlflow_token(
 # Tracing verification (skill Step 4f)
 # ---------------------------------------------------------------------------
 
-_TRACING_OK = "[Tracing Enabled]"
-_TRACING_FAILED = "[Tracing] Failed to configure"
+# a2a tags its markers with the framework -- `[Tracing Enabled LangGraph]`,
+# `[Tracing CrewAI] Failed to configure` -- so an exact-string match never fires
+# for either of its deployments and both silently fall through to the weaker
+# token-only fallback. Match the bracketed tag instead of a literal.
+_TRACING_OK = re.compile(r"\[Tracing Enabled[^\]]*\]")
+_TRACING_FAILED = re.compile(r"\[Tracing[^\]]*\] Failed to configure")
 
 # How long to wait for one of those markers after the rollout reports Ready.
 # Observed on a live cluster: ~20s between `oc rollout status` returning and the
@@ -806,11 +886,11 @@ def verify_tracing_enabled(
             timeout=60,
         ).stdout
 
-        if _TRACING_OK in logs:
+        if _TRACING_OK.search(logs):
             logger.info("Tracing enabled for %s/%s", namespace, deployment_name)
             return
 
-        if _TRACING_FAILED in logs:
+        if _TRACING_FAILED.search(logs):
             raise TracingNotEnabledError(
                 f"{namespace}/{deployment_name}: MLflow tracing failed to configure — "
                 f"{_tracing_hint(logs)}"
@@ -876,6 +956,7 @@ __all__ = [
     "remove_env_file",
     "resolve_mlflow_tracking_uri",
     "undeploy_agent",
+    "wait_for_rollout",
     "verify_tracing_enabled",
     "write_env_file",
 ]

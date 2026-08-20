@@ -91,6 +91,10 @@ jobs:
       # agentic_rag is in the btest array but not the QG4 matrix, so its deploy
       # path is unproven. VECTOR_STORE_ID is `optional` in its agent.yaml, but the
       # agent crashes at runtime without it — the readiness probe will catch that.
+      # OGX_* are its LLM endpoint: the vector store lives behind llama-stack, so
+      # the shared BASE_URL 404s on /v1/vector-io/query (see ENV_SOURCE_ALIASES).
+      OGX_BASE_URL: ${{ vars.OGX_BASE_URL }}
+      OGX_MODEL_ID: ${{ vars.OGX_MODEL_ID }}
       EMBEDDING_MODEL: ${{ vars.EMBEDDING_MODEL }}
       EMBEDDING_DIMENSION: ${{ vars.EMBEDDING_DIMENSION }}
       VECTOR_STORE_PROVIDER: ${{ vars.VECTOR_STORE_PROVIDER }}

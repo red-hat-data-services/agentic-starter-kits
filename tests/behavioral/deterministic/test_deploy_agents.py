@@ -538,3 +538,142 @@ def test_tracing_falls_back_to_token_only_after_the_window(monkeypatch) -> None:
     )
 
     assert slept, "fallback must not fire on the first read"
+
+
+def test_tracing_marker_tolerates_a2a_framework_tag(monkeypatch) -> None:
+    # a2a logs `[Tracing Enabled LangGraph]`/`[Tracing Enabled CrewAI]`, so an
+    # exact `[Tracing Enabled]` match never fires and both of its deployments
+    # fall through to the weaker token-only check.
+    _stub_logs(monkeypatch, ["[Tracing Enabled LangGraph] MLflow -> x, Experiment: e"])
+
+    deploy_agents.verify_tracing_enabled("a2a-langgraph-agent", "ci-testing")
+
+
+def test_tracing_failure_marker_tolerates_a2a_framework_tag(monkeypatch) -> None:
+    _stub_logs(monkeypatch, ["[Tracing CrewAI] Failed to configure: UNAUTHENTICATED"])
+
+    with pytest.raises(deploy_agents.TracingNotEnabledError, match="MLflow operator"):
+        deploy_agents.verify_tracing_enabled("a2a-crew-agent", "ci-testing")
+
+
+def test_deploy_agent_waits_for_the_rollout_before_probing(monkeypatch) -> None:
+    # Without the wait, `make deploy` returns while the previous generation's
+    # pod is still Ready and still serving the route, so a crash-looping new
+    # image passes the readiness probe.
+    calls: list[str] = []
+
+    def fake_run_make(target, **kwargs):
+        calls.append(f"make:{target}")
+
+    def fake_oc(args, **kwargs):
+        calls.append(f"oc:{' '.join(args[:2])}")
+        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+    def fake_get_route(name, namespace):
+        calls.append(f"route:{name}")
+        return f"https://{name}"
+
+    monkeypatch.setattr(deploy_agents, "run_make", fake_run_make)
+    monkeypatch.setattr(deploy_agents, "_oc", fake_oc)
+    monkeypatch.setattr(deploy_agents, "get_route", fake_get_route)
+
+    routes = deploy_agents.deploy_agent(
+        AGENTS_DIR / "langgraph/templates/react_agent",
+        "ci-testing",
+        deployment_names=["langgraph-react-agent"],
+    )
+
+    assert routes == {"langgraph-react-agent": "https://langgraph-react-agent"}
+    assert calls == [
+        "make:build-openshift",
+        "make:deploy",
+        "oc:rollout status",
+        "route:langgraph-react-agent",
+    ]
+
+
+def test_agentic_rag_prefers_the_ogx_endpoint() -> None:
+    shared = {
+        "API_KEY": "k",
+        "BASE_URL": "http://vllm-svc:8000/v1",
+        "MODEL_ID": "qwen2-5-7b-instruct",
+        "EMBEDDING_MODEL": "e",
+        "EMBEDDING_DIMENSION": "384",
+        "VECTOR_STORE_PROVIDER": "milvus",
+        "VECTOR_STORE_ID": "v",
+    }
+    aliases = deploy_agents.ENV_SOURCE_ALIASES["langgraph/templates/agentic_rag"]
+
+    def env_map(environ):
+        return build_env_map(
+            AGENTS_DIR / "langgraph/templates/agentic_rag",
+            "ci-testing",
+            container_image="img:latest",
+            include_mlflow=False,
+            environ=environ,
+            aliases=aliases,
+        )
+
+    aliased = env_map(
+        {**shared, "OGX_BASE_URL": "http://ogx:8321/v1", "OGX_MODEL_ID": "vllm/qwen"}
+    )
+    assert aliased["BASE_URL"] == "http://ogx:8321/v1"
+    assert aliased["MODEL_ID"] == "vllm/qwen"
+
+    # Unset source falls back to the shared value, as with openai_responses_agent.
+    assert env_map(shared)["BASE_URL"] == "http://vllm-svc:8000/v1"
+
+
+_ROUTES_JSON = """
+{"items": [
+  {"metadata": {"name": "data-science-gateway", "namespace": "openshift-ingress"},
+   "spec": {"host": "rh-ai.apps.example.com"}},
+  {"metadata": {"name": "mlflow", "namespace": "redhat-ods-applications"},
+   "spec": {"host": "mlflow-redhat-ods-applications.apps.example.com"}},
+  {"metadata": {"name": "rhods-dashboard", "namespace": "redhat-ods-applications"},
+   "spec": {"host": "rhods-dashboard.apps.example.com"}}
+]}
+"""
+
+
+def _stub_routes(monkeypatch, reachable: set[str]) -> None:
+    def fake_oc(args, **kwargs):
+        return subprocess.CompletedProcess(args, 0, stdout=_ROUTES_JSON, stderr="")
+
+    monkeypatch.setattr(deploy_agents, "_oc", fake_oc)
+    monkeypatch.setattr(deploy_agents, "oc_token", lambda: "t")
+    monkeypatch.setattr(
+        deploy_agents, "_mlflow_server_reachable", lambda uri, token: uri in reachable
+    )
+
+
+def test_route_discovery_prefers_the_gateway_when_the_bare_route_404s(
+    monkeypatch,
+) -> None:
+    # RHOAI 3.5 keeps a standalone `mlflow` route that answers 404; the tracking
+    # server is behind the data-science gateway at /mlflow. Picking the 404 one
+    # writes a dead URI into every agent's .env.
+    _stub_routes(monkeypatch, {"https://rh-ai.apps.example.com/mlflow"})
+
+    assert (
+        deploy_agents._tracking_uri_from_route()
+        == "https://rh-ai.apps.example.com/mlflow"
+    )
+
+
+def test_route_discovery_accepts_the_standalone_route_on_older_layouts(
+    monkeypatch,
+) -> None:
+    standalone = "https://mlflow-redhat-ods-applications.apps.example.com"
+    _stub_routes(monkeypatch, {standalone})
+
+    assert deploy_agents._tracking_uri_from_route() == standalone
+
+
+def test_route_discovery_ignores_unrelated_routes(monkeypatch) -> None:
+    _stub_routes(monkeypatch, set())
+
+    candidates = deploy_agents._tracking_uri_candidates()
+
+    assert not any("rhods-dashboard" in c for c in candidates)
+    assert candidates[0] == "https://rh-ai.apps.example.com/mlflow"
