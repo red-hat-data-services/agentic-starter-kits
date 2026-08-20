@@ -488,3 +488,53 @@ def test_undeploy_skips_flow_import_agents(tmp_path: Path, monkeypatch) -> None:
 )
 def test_tracing_hints(log_line: str, expected: str) -> None:
     assert expected in deploy_agents._tracing_hint(log_line)
+
+
+def _stub_logs(monkeypatch, pages: list[str]) -> list[float]:
+    """Feed verify_tracing_enabled one log tail per call; record each sleep."""
+    slept: list[float] = []
+    remaining = list(pages)
+
+    def fake_oc(args, **kwargs):
+        return subprocess.CompletedProcess(
+            args, 0, stdout=remaining.pop(0) if remaining else pages[-1], stderr=""
+        )
+
+    monkeypatch.setattr(deploy_agents, "_oc", fake_oc)
+    monkeypatch.setattr(deploy_agents.time, "sleep", slept.append)
+    return slept
+
+
+def test_tracing_marker_appearing_late_is_accepted(monkeypatch) -> None:
+    # A rollout reports Ready before the app finishes logging, so the first
+    # read can miss a marker that shows up seconds later.
+    slept = _stub_logs(monkeypatch, ["starting up", "[Tracing Enabled] MLflow -> x"])
+
+    deploy_agents.verify_tracing_enabled("react-agent", "ci-testing", poll_interval=1.0)
+
+    assert slept == [1.0]
+
+
+def test_tracing_failure_is_not_retried(monkeypatch) -> None:
+    slept = _stub_logs(monkeypatch, ["[Tracing] Failed to configure: UNAUTHENTICATED"])
+
+    with pytest.raises(deploy_agents.TracingNotEnabledError, match="MLflow operator"):
+        deploy_agents.verify_tracing_enabled("react-agent", "ci-testing")
+
+    assert slept == []
+
+
+def test_tracing_falls_back_to_token_only_after_the_window(monkeypatch) -> None:
+    slept = _stub_logs(monkeypatch, ["no marker here"])
+    monkeypatch.setattr(deploy_agents, "_mlflow_server_reachable", lambda *a: True)
+
+    deploy_agents.verify_tracing_enabled(
+        "react-agent",
+        "ci-testing",
+        tracking_uri="https://mlflow.example/mlflow",
+        token="t",
+        startup_wait=0.3,
+        poll_interval=0.1,
+    )
+
+    assert slept, "fallback must not fire on the first read"

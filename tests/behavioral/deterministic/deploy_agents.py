@@ -27,6 +27,7 @@ import os
 import shlex
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -711,6 +712,12 @@ def refresh_mlflow_token(
 _TRACING_OK = "[Tracing Enabled]"
 _TRACING_FAILED = "[Tracing] Failed to configure"
 
+# How long to wait for one of those markers after the rollout reports Ready.
+# Observed on a live cluster: ~20s between `oc rollout status` returning and the
+# agent printing [Tracing Enabled].
+_TRACING_STARTUP_WAIT = 90.0
+_TRACING_POLL_INTERVAL = 5.0
+
 _TRACING_HINTS = (
     (
         "matches the configured selector",
@@ -768,31 +775,53 @@ def verify_tracing_enabled(
     tracking_uri: str | None = None,
     token: str | None = None,
     tail: int = 200,
+    startup_wait: float = _TRACING_STARTUP_WAIT,
+    poll_interval: float = _TRACING_POLL_INTERVAL,
 ) -> None:
     """Raise unless the agent's startup logs show MLflow tracing came up.
 
     `/health` returns 200 OK while tracing is broken; the symptom only shows up
     much later as btests skipping with "tool_calls not exposed". Gating here
     stops QG7 burning its whole timeout producing unusable results.
+
+    The marker is polled rather than read once: a rollout counts a pod Ready
+    before the app finishes its startup logging, so a single read lands either
+    on the outgoing pod (whose marker has scrolled past `tail`) or on a new pod
+    that has not printed it yet. Both look identical to a genuinely broken
+    agent, and both would fall through to the token check below -- which proves
+    the *token* works, not that the *agent* is tracing.
     """
-    logs = _oc(
-        ["logs", f"deployment/{deployment_name}", "-n", namespace, f"--tail={tail}"],
-        check=False,
-        timeout=60,
-    ).stdout
+    deadline = time.monotonic() + startup_wait
+    logs = ""
+    while True:
+        logs = _oc(
+            [
+                "logs",
+                f"deployment/{deployment_name}",
+                "-n",
+                namespace,
+                f"--tail={tail}",
+            ],
+            check=False,
+            timeout=60,
+        ).stdout
 
-    if _TRACING_OK in logs:
-        logger.info("Tracing enabled for %s/%s", namespace, deployment_name)
-        return
+        if _TRACING_OK in logs:
+            logger.info("Tracing enabled for %s/%s", namespace, deployment_name)
+            return
 
-    if _TRACING_FAILED in logs:
-        raise TracingNotEnabledError(
-            f"{namespace}/{deployment_name}: MLflow tracing failed to configure — "
-            f"{_tracing_hint(logs)}"
-        )
+        if _TRACING_FAILED in logs:
+            raise TracingNotEnabledError(
+                f"{namespace}/{deployment_name}: MLflow tracing failed to configure — "
+                f"{_tracing_hint(logs)}"
+            )
 
-    # Ambiguous: neither marker in the tail. Ask MLflow directly rather than
-    # guessing from log truncation.
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(min(poll_interval, max(0.0, deadline - time.monotonic())))
+
+    # Ambiguous: neither marker appeared within the startup window. Ask MLflow
+    # directly rather than guessing from log truncation.
     if tracking_uri and _mlflow_server_reachable(tracking_uri, token or oc_token()):
         logger.warning(
             "%s/%s: no [Tracing Enabled] marker in the last %d log lines, but the "
