@@ -1,14 +1,59 @@
 name: "Run QG7 Behavioral Eval"
-description: "Run shared cluster behavioral pytest suites. Caller handles checkout, setup-cluster, artifact upload, and logout."
+description: "Deploy the btest agent set, run the shared cluster behavioral pytest suites, then tear it back down. Caller handles checkout, setup-cluster, artifact upload, and logout."
 
 # Caller-supplied environment:
 #   QG7_AGENT_NAME - optional. A template-layout agent id, or a space-separated list of them
 #                    (e.g. "langgraph/templates/react_agent"). Unset or empty runs all agents.
+#                    Agents in deploy_agents.EXCLUDED_AGENTS are filtered out either way.
+#   The agents' own env (API_KEY, BASE_URL, MODEL_ID, POSTGRES_*, MCP_SERVER_URL,
+#   LANGFLOW_AGENT_URL, ...) must also be set by the caller — the deploy step writes each
+#   agent's .env from its agent.yaml `env` block, reading these from the environment.
+#   See the `cluster-btests` job in eval-gating.yml for the authoritative mapping.
+#
+# Deploy and teardown live here rather than in the workflow because they are QG7-internal.
+# Teardown is an `if: always()` step *inside* this action — composite actions cannot express
+# a job-level `if`, and keeping it here means it only runs when the caller entered the action
+# at all (i.e. never against a logged-out runner).
 runs:
   using: "composite"
   steps:
+    - name: Resolve agent selection
+      id: selection
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # Computed exactly once and reused by both the deploy step and the runner.
+        # The runner is allowlist-only — it has no exclude flag, and an agent that
+        # was never deployed emits NO_ROUTE, which fails the gate. So excluding an
+        # agent from deploy without also removing it from the runner's argv would
+        # fail QG7 on the very agent we chose to skip.
+        selection=$(bash tests/behavioral/deterministic/deploy-btest-agents.sh \
+          --print-selection ${QG7_AGENT_NAME:-})
+
+        # An empty QG7_AGENT_NAME means "full set", so empty output can only mean
+        # the exclusion filter ate everything. Letting that through would hand the
+        # runner no args and silently run all agents.
+        [ -n "$selection" ] || { echo "::error::empty agent selection"; exit 1; }
+
+        echo "agents=$(echo "$selection" | tr '\n' ' ' | sed 's/ *$//')" >> "$GITHUB_OUTPUT"
+
+    - name: Deploy btest agents
+      shell: bash
+      env:
+        QG7_SELECTED_AGENTS: ${{ steps.selection.outputs.agents }}
+      run: |
+        set -euo pipefail
+
+        read -r -a selected_agents <<< "${QG7_SELECTED_AGENTS}"
+        bash tests/behavioral/deterministic/deploy-btest-agents.sh "${selected_agents[@]}"
+
     - name: Execute shared QG7 runner
       shell: bash
+      env:
+        # Overrides whatever the caller passed: the runner must receive the same
+        # reduced list the deploy pass used.
+        QG7_AGENT_NAME: ${{ steps.selection.outputs.agents }}
       run: |
         set -euo pipefail
 
@@ -18,3 +63,17 @@ runs:
         else
           bash "tests/behavioral/deterministic/run-btests-pytest.sh"
         fi
+
+    - name: Teardown btest agents
+      if: always()
+      shell: bash
+      env:
+        QG7_SELECTED_AGENTS: ${{ steps.selection.outputs.agents }}
+      run: |
+        set -euo pipefail
+
+        # Reads qg7-deployed.txt, not the selection, so a deploy that failed
+        # partway through still tears down exactly what came up.
+        read -r -a selected_agents <<< "${QG7_SELECTED_AGENTS:-}"
+        bash tests/behavioral/deterministic/deploy-btest-agents.sh \
+          --undeploy "${selected_agents[@]}"

@@ -47,9 +47,54 @@ jobs:
   cluster-btests:
     name: Cluster Behavioral Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # QG7 now deploys and tears down its own agents in the shared ci-testing
+    # namespace. The workflow-level group is scoped per ref, but the workflow
+    # triggers on both push and pull_request to main, so two PRs in flight would
+    # otherwise deploy and undeploy identical deployment names concurrently.
+    # Not cancel-in-progress: a cancelled run would skip its teardown.
+    #
+    # Residual risk, accepted: QG4 (nightly, 03:00 UTC) deploys the same
+    # deployment names into ci-testing and undeploys in a `finally`. A QG4 run
+    # overlapping a QG7 run will tear QG7's agents down mid-suite. Fixing that
+    # needs a QG4 edit, tracked as follow-up.
+    concurrency:
+      group: cluster-btests-ci-testing
+      cancel-in-progress: false
+    # 11 agents through a 4-wide build pool ≈ 3 waves × ~20 min/build-and-deploy,
+    # plus the btest run and teardown, plus headroom. Revisit with real numbers
+    # from the first full run.
+    timeout-minutes: 150
     permissions:
       contents: read
+    # Mirrors QG4's per-matrix env (agent-deployment-test.yaml is the
+    # authoritative mapping, referenced read-only). The deploy pass writes each
+    # agent's .env from its agent.yaml `env` block, reading these; vars an agent
+    # does not declare are ignored, and unset optional vars are simply skipped.
+    #
+    # NVIDIA_API_KEY / GUARDRAILS_MODEL_ID are deliberately omitted: only
+    # guardrailed_agent consumes them and it is excluded (RHAIENG-7081).
+    env:
+      API_KEY: ${{ vars.API_KEY }}
+      BASE_URL: ${{ vars.BASE_URL }}
+      MODEL_ID: ${{ vars.MODEL_ID }}
+      # vanilla_python/openai_responses_agent talks to OpenAI, not the cluster LLM.
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+      OPENAI_MODEL_ID: ${{ vars.OPENAI_MODEL_ID }}
+      POSTGRES_HOST: ${{ vars.POSTGRES_HOST }}
+      POSTGRES_PORT: ${{ vars.POSTGRES_PORT }}
+      POSTGRES_DB: ${{ vars.POSTGRES_DB }}
+      POSTGRES_USER: ${{ vars.POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      MCP_SERVER_URL: ${{ vars.MCP_SERVER_URL }}
+      LANGFLOW_AGENT_URL: ${{ vars.LANGFLOW_AGENT_URL }}
+      # agentic_rag is in the btest array but not the QG4 matrix, so its deploy
+      # path is unproven. VECTOR_STORE_ID is `optional` in its agent.yaml, but the
+      # agent crashes at runtime without it — the readiness probe will catch that.
+      EMBEDDING_MODEL: ${{ vars.EMBEDDING_MODEL }}
+      EMBEDDING_DIMENSION: ${{ vars.EMBEDDING_DIMENSION }}
+      VECTOR_STORE_PROVIDER: ${{ vars.VECTOR_STORE_PROVIDER }}
+      VECTOR_STORE_ID: ${{ vars.VECTOR_STORE_ID }}
     steps:
       - name: Resolve cluster btests config
         id: cluster-btests-config

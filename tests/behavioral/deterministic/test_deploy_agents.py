@@ -1,0 +1,490 @@
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+import deploy_agents
+import deploy_btest_agents
+import pytest
+from deploy_agents import (
+    EXCLUDED_AGENTS,
+    DeploymentModelError,
+    MissingEnvError,
+    build_env_map,
+    deployment_model,
+    mlflow_env,
+    readiness_probe,
+)
+from deploy_btest_agents import (
+    AgentTarget,
+    parse_agent_tuples,
+    read_agent_config,
+    select_agents,
+)
+
+REPO_ROOT = deploy_agents.REPO_ROOT
+AGENTS_DIR = REPO_ROOT / "agents"
+
+RUNNER_SCRIPT = Path(__file__).with_name("run-btests-pytest.sh")
+DRIVER_SCRIPT = Path(__file__).with_name("deploy-btest-agents.sh")
+
+REACT_AGENT = AGENTS_DIR / "langgraph/templates/react_agent"
+A2A_AGENT = AGENTS_DIR / "a2a/templates/langgraph_crewai_agent"
+LANGFLOW_AGENT = AGENTS_DIR / "langflow/templates/simple_tool_calling_agent"
+
+
+def _targets() -> list[AgentTarget]:
+    return parse_agent_tuples(read_agent_config(), "ci-testing")
+
+
+# ---------------------------------------------------------------------------
+# Agent selection — the runner is allowlist-only, so these two lists must match
+# ---------------------------------------------------------------------------
+
+
+def test_agent_config_matches_runner_array() -> None:
+    ids = [t.agent_id for t in _targets()]
+    assert len(ids) == 12
+    assert "langgraph/templates/react_agent" in ids
+    assert len(set(ids)) == len(ids)
+
+
+def test_selection_excludes_guardrailed_agent() -> None:
+    selected = select_agents(_targets(), [])
+    ids = [t.agent_id for t in selected]
+
+    assert len(ids) == 11
+    assert "langgraph/examples/guardrailed_agent" not in ids
+
+
+def test_exclusion_applies_to_explicit_requests() -> None:
+    """A workflow_dispatch naming an excluded agent must not deploy it."""
+    selected = select_agents(
+        _targets(),
+        ["langgraph/templates/react_agent", "langgraph/examples/guardrailed_agent"],
+    )
+
+    assert [t.agent_id for t in selected] == ["langgraph/templates/react_agent"]
+
+
+def test_unknown_agent_is_rejected() -> None:
+    with pytest.raises(SystemExit):
+        select_agents(_targets(), ["langgraph/templates/does_not_exist"])
+
+
+def test_print_selection_matches_deploy_selection() -> None:
+    """The list handed to the runner is the same one the deploy pass used.
+
+    An agent that was never deployed produces NO_ROUTE, which fails the gate —
+    so excluding one from deploy without also removing it from the runner's
+    argv would fail QG7 on the very agent we chose to skip.
+    """
+    printed = subprocess.run(
+        ["bash", str(DRIVER_SCRIPT), "--print-selection"],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=REPO_ROOT,
+    )
+    assert printed.returncode == 0, printed.stderr
+
+    from_driver = [ln for ln in printed.stdout.splitlines() if ln.strip()]
+    from_module = [t.agent_id for t in select_agents(_targets(), [])]
+    assert from_driver == from_module
+
+
+def test_all_selected_agents_resolve_to_a_directory() -> None:
+    for target in select_agents(_targets(), []):
+        assert (target.agent_dir / "agent.yaml").is_file(), target.agent_id
+
+
+def test_excluded_agents_are_all_in_the_runner_array() -> None:
+    """Guards against EXCLUDED_AGENTS rotting after an AGENTS array edit."""
+    ids = {t.agent_id for t in _targets()}
+    assert set(EXCLUDED_AGENTS) <= ids
+
+
+# ---------------------------------------------------------------------------
+# Multi-deployment agents
+# ---------------------------------------------------------------------------
+
+
+def test_a2a_has_two_deployments() -> None:
+    a2a = next(
+        t for t in _targets() if t.agent_id == "a2a/templates/langgraph_crewai_agent"
+    )
+
+    assert set(a2a.deployment_names) == {"a2a-crew-agent", "a2a-langgraph-agent"}
+    # Two-phase Helm waits on two rollouts; 300s is not enough.
+    assert a2a.deploy_timeout == 600
+
+
+def test_langflow_uses_its_own_namespace() -> None:
+    langflow = next(
+        t
+        for t in _targets()
+        if t.agent_id == "langflow/templates/simple_tool_calling_agent"
+    )
+
+    assert langflow.namespace == "langflow-agent"
+    assert langflow.deployment_name == "langflow"
+
+
+def test_standard_agent_has_one_deployment() -> None:
+    react = next(
+        t for t in _targets() if t.agent_id == "langgraph/templates/react_agent"
+    )
+
+    assert react.deployment_names == ("langgraph-react-agent",)
+    assert react.deploy_timeout == 300
+
+
+# ---------------------------------------------------------------------------
+# deploymentModel
+# ---------------------------------------------------------------------------
+
+
+def test_langflow_is_flow_import() -> None:
+    assert deployment_model(LANGFLOW_AGENT) == "flow-import"
+    assert deploy_agents.is_flow_import(LANGFLOW_AGENT)
+
+
+def test_standard_agent_has_no_deployment_model() -> None:
+    assert deployment_model(REACT_AGENT) is None
+    assert not deploy_agents.is_flow_import(REACT_AGENT)
+
+
+def test_unknown_deployment_model_raises(tmp_path: Path) -> None:
+    """Falling through to the standard build path would try to build an agent
+    that may have no Dockerfile — so an unknown model is an error."""
+    (tmp_path / "agent.yaml").write_text(
+        "name: bogus-agent\ndeploymentModel: config-driven\n", encoding="utf-8"
+    )
+
+    with pytest.raises(DeploymentModelError, match="config-driven"):
+        deployment_model(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# Readiness probes — three shapes, so /health cannot be hardcoded
+# ---------------------------------------------------------------------------
+
+
+def test_readiness_probe_standard() -> None:
+    probe = readiness_probe(REACT_AGENT)
+
+    assert probe.path == "/health"
+    probe.check({"status": "healthy", "agent_initialized": True})
+    with pytest.raises(AssertionError):
+        probe.check({"status": "healthy", "agent_initialized": False})
+    with pytest.raises(AssertionError):
+        probe.check({"status": "degraded", "agent_initialized": True})
+
+
+def test_readiness_probe_a2a() -> None:
+    probe = readiness_probe(A2A_AGENT)
+
+    assert probe.path == "/.well-known/agent-card.json"
+    probe.check(
+        {
+            "name": "x",
+            "supportedInterfaces": [],
+            "version": "1",
+            "capabilities": {},
+            "skills": [],
+        }
+    )
+    with pytest.raises(AssertionError, match="skills"):
+        probe.check(
+            {
+                "name": "x",
+                "supportedInterfaces": [],
+                "version": "1",
+                "capabilities": {},
+            }
+        )
+
+
+def test_readiness_probe_langflow() -> None:
+    probe = readiness_probe(LANGFLOW_AGENT)
+
+    assert probe.path == "/health_check"
+    probe.check({"status": "ok", "chat": "ok", "db": "ok"})
+    with pytest.raises(AssertionError, match="db"):
+        probe.check({"status": "ok", "chat": "ok", "db": "error"})
+
+
+# ---------------------------------------------------------------------------
+# build_env_map
+# ---------------------------------------------------------------------------
+
+_MLFLOW_KWARGS = {
+    "tracking_uri": "https://mlflow.example.test",
+    "token": "sha256~fake",
+}
+
+
+def test_build_env_map_reports_every_missing_var_at_once() -> None:
+    with pytest.raises(MissingEnvError) as exc:
+        build_env_map(
+            REACT_AGENT,
+            "ci-testing",
+            container_image="img:latest",
+            include_mlflow=False,
+            environ={},
+        )
+
+    assert set(exc.value.missing) == {"API_KEY", "BASE_URL", "MODEL_ID"}
+
+
+def test_build_env_map_demands_api_key_for_a2a() -> None:
+    """agent.yaml is authoritative, not the drifted per-agent conftest.
+
+    a2a's integration conftest defaults API_KEY to 'not-needed'; agent.yaml
+    lists it as required. Driving off agent.yaml makes this stricter.
+    """
+    with pytest.raises(MissingEnvError) as exc:
+        build_env_map(
+            A2A_AGENT,
+            "ci-testing",
+            container_image="img:latest",
+            include_mlflow=False,
+            environ={"BASE_URL": "https://llm", "MODEL_ID": "m"},
+        )
+
+    assert exc.value.missing == ["API_KEY"]
+
+
+def test_build_env_map_includes_optional_vars_when_present() -> None:
+    env_map = build_env_map(
+        AGENTS_DIR / "autogen/templates/mcp_agent",
+        "ci-testing",
+        container_image="img:latest",
+        include_mlflow=False,
+        environ={
+            "API_KEY": "k",
+            "BASE_URL": "https://llm",
+            "MODEL_ID": "m",
+            "MCP_SERVER_URL": "https://mcp",
+        },
+    )
+
+    assert env_map["MCP_SERVER_URL"] == "https://mcp"
+    assert env_map["CONTAINER_IMAGE"] == "img:latest"
+
+
+def test_build_env_map_never_forwards_port_or_container_image() -> None:
+    env_map = build_env_map(
+        REACT_AGENT,
+        "ci-testing",
+        container_image="img:latest",
+        include_mlflow=False,
+        environ={
+            "API_KEY": "k",
+            "BASE_URL": "https://llm",
+            "MODEL_ID": "m",
+            "PORT": "9999",
+            "CONTAINER_IMAGE": "stale:image",
+        },
+    )
+
+    assert "PORT" not in env_map
+    assert env_map["CONTAINER_IMAGE"] == "img:latest"
+
+
+def test_openai_agent_prefers_the_openai_vars() -> None:
+    """QG7's env block is job-level, so QG4's per-matrix swap happens via aliases."""
+    aliases = deploy_agents.ENV_SOURCE_ALIASES[
+        "vanilla_python/templates/openai_responses_agent"
+    ]
+    env_map = build_env_map(
+        AGENTS_DIR / "vanilla_python/templates/openai_responses_agent",
+        "ci-testing",
+        container_image="img:latest",
+        include_mlflow=False,
+        environ={
+            "API_KEY": "cluster-key",
+            "BASE_URL": "https://cluster-llm",
+            "MODEL_ID": "cluster-model",
+            "OPENAI_API_KEY": "openai-key",
+            "OPENAI_BASE_URL": "https://api.openai.test",
+            "OPENAI_MODEL_ID": "gpt-x",
+        },
+        aliases=aliases,
+    )
+
+    assert env_map["API_KEY"] == "openai-key"
+    assert env_map["BASE_URL"] == "https://api.openai.test"
+    assert env_map["MODEL_ID"] == "gpt-x"
+
+
+def test_alias_falls_back_when_the_source_var_is_unset() -> None:
+    """Mirrors QG4's `${{ matrix.BASE_URL || vars.BASE_URL }}`."""
+    env_map = build_env_map(
+        AGENTS_DIR / "vanilla_python/templates/openai_responses_agent",
+        "ci-testing",
+        container_image="img:latest",
+        include_mlflow=False,
+        environ={
+            "API_KEY": "cluster-key",
+            "BASE_URL": "https://cluster-llm",
+            "MODEL_ID": "cluster-model",
+        },
+        aliases=deploy_agents.ENV_SOURCE_ALIASES[
+            "vanilla_python/templates/openai_responses_agent"
+        ],
+    )
+
+    assert env_map["BASE_URL"] == "https://cluster-llm"
+
+
+def test_build_env_map_adds_mlflow_block() -> None:
+    env_map = build_env_map(
+        REACT_AGENT,
+        "ci-testing",
+        container_image="img:latest",
+        include_mlflow=True,
+        deployment_name="langgraph-react-agent",
+        environ={"API_KEY": "k", "BASE_URL": "https://llm", "MODEL_ID": "m"},
+        **_MLFLOW_KWARGS,
+    )
+
+    assert env_map["MLFLOW_TRACKING_URI"] == "https://mlflow.example.test"
+    assert env_map["MLFLOW_EXPERIMENT_NAME"] == "ci-testing/langgraph-react-agent"
+    assert env_map["MLFLOW_WORKSPACE"] == "ci-testing"
+    assert env_map["MLFLOW_TRACKING_INSECURE_TLS"] == "true"
+    assert env_map["MLFLOW_TRACKING_TOKEN"] == "sha256~fake"
+
+
+# ---------------------------------------------------------------------------
+# mlflow_env
+# ---------------------------------------------------------------------------
+
+
+def test_experiment_name_is_unique_per_deployment() -> None:
+    """A shared experiment name cross-contaminates traces (RHAIENG-6743)."""
+    names = {
+        mlflow_env("ci-testing", deployment, **_MLFLOW_KWARGS)["MLFLOW_EXPERIMENT_NAME"]
+        for deployment in (
+            "langgraph-react-agent",
+            "crewai-websearch-agent",
+            "a2a-langgraph-agent",
+        )
+    }
+
+    assert len(names) == 3
+
+
+# ---------------------------------------------------------------------------
+# .env round trip
+# ---------------------------------------------------------------------------
+
+
+def test_write_env_file_stashes_and_restores_a_pre_existing_env(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / ".env").write_text("MINE=keep\n", encoding="utf-8")
+
+    deploy_agents.write_env_file(tmp_path, {"API_KEY": "k"})
+    assert (tmp_path / ".env").read_text() == "API_KEY=k\n"
+
+    deploy_agents.remove_env_file(tmp_path)
+    assert (tmp_path / ".env").read_text() == "MINE=keep\n"
+
+
+def test_remove_env_file_leaves_nothing_behind(tmp_path: Path) -> None:
+    deploy_agents.write_env_file(tmp_path, {"API_KEY": "k"})
+    deploy_agents.remove_env_file(tmp_path)
+
+    assert not (tmp_path / ".env").exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_write_env_file_quotes_awkward_values(tmp_path: Path) -> None:
+    deploy_agents.write_env_file(tmp_path, {"MODEL_ID": "a b", "API_KEY": "x'y"})
+    written = (tmp_path / ".env").read_text()
+
+    sourced = subprocess.run(
+        [
+            "bash",
+            "-c",
+            f'set -a; source "{tmp_path / ".env"}"; printf "%s|%s" "$MODEL_ID" "$API_KEY"',
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert sourced.stdout == "a b|x'y", written
+
+
+# ---------------------------------------------------------------------------
+# Deploy record — teardown reads this, not the selection
+# ---------------------------------------------------------------------------
+
+
+def test_deploy_record_round_trip(tmp_path: Path) -> None:
+    record = deploy_btest_agents._DeployedRecord(tmp_path / "qg7-deployed.txt")
+    record.reset()
+    assert record.read() == []
+
+    record.add("langgraph/templates/react_agent")
+    record.add("crewai/templates/websearch_agent")
+
+    assert record.read() == [
+        "langgraph/templates/react_agent",
+        "crewai/templates/websearch_agent",
+    ]
+
+
+def test_undeploy_is_a_noop_without_a_record(tmp_path: Path, monkeypatch) -> None:
+    """The deploy pass truncates the record before doing anything, so no record
+    means nothing was deployed."""
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    called = []
+    monkeypatch.setattr(
+        deploy_btest_agents, "undeploy_agent", lambda d: called.append(d)
+    )
+
+    assert deploy_btest_agents.run_undeploy([]) == 0
+    assert called == []
+
+
+def test_undeploy_skips_flow_import_agents(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    targets = select_agents(_targets(), [])
+    langflow_id = "langflow/templates/simple_tool_calling_agent"
+
+    record = deploy_btest_agents._DeployedRecord(tmp_path / "qg7-deployed.txt")
+    record.reset()
+    record.add(langflow_id)
+    record.add("langgraph/templates/react_agent")
+
+    called: list[Path] = []
+    monkeypatch.setattr(
+        deploy_btest_agents, "undeploy_agent", lambda d: called.append(Path(d))
+    )
+    monkeypatch.setattr(deploy_btest_agents, "remove_env_file", lambda d: None)
+
+    assert deploy_btest_agents.run_undeploy(targets) == 0
+    assert called == [AGENTS_DIR / "langgraph/templates/react_agent"]
+
+
+# ---------------------------------------------------------------------------
+# Tracing verification hints
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("log_line", "expected"),
+    [
+        (
+            "RESOURCE_DOES_NOT_EXIST: Workspace 'ci-testing' not found",
+            "mlflow-tracking=enabled",
+        ),
+        ('401 {"error_code":"UNAUTHENTICATED"}', "MLflow operator"),
+        ("Expecting value: line 1 column 1 (char 0)", "expired or invalid"),
+        ("something else entirely", "no recognized failure pattern"),
+    ],
+)
+def test_tracing_hints(log_line: str, expected: str) -> None:
+    assert expected in deploy_agents._tracing_hint(log_line)
