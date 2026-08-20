@@ -57,7 +57,7 @@ is_cleanup_denylisted() {
 patch_history() {
   local agent="$1"
   local ns_flag=("${NAMESPACE_ARGS[@]+"${NAMESPACE_ARGS[@]}"}")
-  oc patch "bc/${agent}" "${ns_flag[@]}" --type=merge \
+  oc patch "bc/${agent}" ${ns_flag[@]+"${ns_flag[@]}"} --type=merge \
     -p "{\"spec\":{\"successfulBuildsHistoryLimit\":${SUCCESSFUL_LIMIT},\"failedBuildsHistoryLimit\":${FAILED_LIMIT}}}"
 }
 
@@ -65,7 +65,7 @@ cleanup() {
   local agent="$1"
   local ns_flag=("${NAMESPACE_ARGS[@]+"${NAMESPACE_ARGS[@]}"}")
   oc delete "buildconfig/${agent}" "imagestream/${agent}" \
-    "${ns_flag[@]}" --ignore-not-found=true
+    ${ns_flag[@]+"${ns_flag[@]}"} --ignore-not-found=true
 }
 
 main() {
