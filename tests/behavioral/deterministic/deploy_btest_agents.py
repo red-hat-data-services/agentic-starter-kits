@@ -41,6 +41,7 @@ from deploy_agents import (
     get_route,
     is_flow_import,
     load_agent_name,
+    missing_aliased_sources,
     oc_token,
     probe_agent,
     readiness_probe,
@@ -131,13 +132,21 @@ def parse_agent_tuples(tuples: list[str], namespace: str) -> list[AgentTarget]:
 
 
 def select_agents(
-    targets: list[AgentTarget], requested: list[str]
+    targets: list[AgentTarget],
+    requested: list[str],
+    environ: dict[str, str] | None = None,
 ) -> list[AgentTarget]:
-    """Apply the caller's allowlist, then subtract EXCLUDED_AGENTS.
+    """Apply the caller's allowlist, subtract EXCLUDED_AGENTS, then drop agents
+    whose aliased env vars are unset.
 
     The exclusion is applied whether or not the caller named agents explicitly:
     a workflow_dispatch asking for an excluded agent would otherwise deploy one
     this landing does not model.
+
+    The env skip follows QG4's precedent (agent-deployment-test.yaml:102, which
+    skips autogen-mcp-agent when MCP_SERVER_URL is empty): one unconfigured agent
+    should not fail the gate for the other eight. It happens at selection time,
+    so the runner's argv never names an agent the deploy pass dropped.
     """
     by_id = {t.agent_id: t for t in targets}
     if requested:
@@ -155,6 +164,16 @@ def select_agents(
     for target in chosen:
         if target.agent_id in EXCLUDED_AGENTS:
             logger.warning("Excluding %s (see EXCLUDED_AGENTS)", target.agent_id)
+            continue
+        unset = missing_aliased_sources(target.agent_dir, target.agent_id, environ)
+        if unset:
+            logger.warning(
+                "Skipping %s: %s unset, and its alias exists because the shared "
+                "value points elsewhere -- deploying it would test the wrong "
+                "endpoint. Set them to include it.",
+                target.agent_id,
+                ", ".join(unset),
+            )
             continue
         kept.append(target)
     return kept

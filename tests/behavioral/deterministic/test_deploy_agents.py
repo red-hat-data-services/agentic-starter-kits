@@ -49,8 +49,17 @@ def test_agent_config_matches_runner_array() -> None:
     assert len(set(ids)) == len(ids)
 
 
+_FULLY_CONFIGURED = {
+    "OPENAI_API_KEY": "k",
+    "OPENAI_BASE_URL": "https://api.openai.com/v1",
+    "OPENAI_MODEL_ID": "gpt-4o",
+    "OGX_BASE_URL": "http://ogx:8321/v1",
+    "OGX_MODEL_ID": "vllm/qwen",
+}
+
+
 def test_selection_excludes_the_untestable_agents() -> None:
-    selected = select_agents(_targets(), [])
+    selected = select_agents(_targets(), [], environ=_FULLY_CONFIGURED)
     ids = [t.agent_id for t in selected]
 
     # Derived, not a literal -- the count moves every time an agent is excluded or
@@ -59,6 +68,32 @@ def test_selection_excludes_the_untestable_agents() -> None:
     assert len(ids) == len(_targets()) - len(EXCLUDED_AGENTS)
     for excluded in EXCLUDED_AGENTS:
         assert excluded not in ids
+
+
+def test_agent_with_unset_aliases_is_skipped_not_failed() -> None:
+    """Mirrors QG4's `if: … || vars.MCP_SERVER_URL != ''` (agent-deployment-test.yaml:102).
+
+    One unconfigured agent must not fail the gate for the rest -- but it must not
+    deploy against the shared endpoint either, which is what the alias exists to
+    prevent.
+    """
+    selected = select_agents(_targets(), [], environ={})
+    ids = [t.agent_id for t in selected]
+
+    assert "vanilla_python/templates/openai_responses_agent" not in ids
+    assert "langgraph/templates/react_agent" in ids
+    assert len(ids) == len(_targets()) - len(EXCLUDED_AGENTS) - 1
+
+
+def test_partially_set_aliases_still_skip() -> None:
+    """Two of three set is not enough -- the third would fall back silently."""
+    selected = select_agents(
+        _targets(),
+        ["vanilla_python/templates/openai_responses_agent"],
+        environ={"OPENAI_API_KEY": "k", "OPENAI_BASE_URL": "https://api.openai.com/v1"},
+    )
+
+    assert selected == []
 
 
 def test_exclusion_applies_to_explicit_requests() -> None:

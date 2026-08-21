@@ -503,6 +503,32 @@ def mlflow_env(
 # ---------------------------------------------------------------------------
 
 
+def missing_aliased_sources(
+    agent_dir: Path, agent_id: str, environ: dict[str, str] | None = None
+) -> list[str]:
+    """Aliased env vars this agent needs that are unset, if any.
+
+    An agent with an ENV_SOURCE_ALIASES entry cannot be tested at all without it:
+    the alias exists because the shared value points somewhere else. Rather than
+    fail the whole gate for one unconfigured agent, the selection drops it --
+    matching QG4, which skips autogen-mcp-agent the same way when MCP_SERVER_URL
+    is empty (agent-deployment-test.yaml:102).
+
+    Only *required* vars count. An unset alias for an optional var just means the
+    var is omitted, which is fine.
+    """
+    environ = os.environ if environ is None else environ
+    aliases = ENV_SOURCE_ALIASES.get(agent_id, {})
+    if not aliases:
+        return []
+    required, _ = load_agent_env_spec(agent_dir)
+    return sorted(
+        alias
+        for var, alias in aliases.items()
+        if var in required and not environ.get(alias, "").strip()
+    )
+
+
 def build_env_map(
     agent_dir: str | Path,
     namespace: str,
@@ -1021,6 +1047,7 @@ __all__ = [
     "DEPLOY_TIMEOUTS",
     "EXCLUDED_AGENTS",
     "ENV_SOURCE_ALIASES",
+    "missing_aliased_sources",
     "EXTRA_DEPLOYMENTS",
     "FLOW_IMPORT",
     "INTERNAL_REGISTRY",
