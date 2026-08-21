@@ -49,12 +49,16 @@ def test_agent_config_matches_runner_array() -> None:
     assert len(set(ids)) == len(ids)
 
 
-def test_selection_excludes_guardrailed_agent() -> None:
+def test_selection_excludes_the_untestable_agents() -> None:
     selected = select_agents(_targets(), [])
     ids = [t.agent_id for t in selected]
 
-    assert len(ids) == 11
-    assert "langgraph/examples/guardrailed_agent" not in ids
+    # Derived, not a literal -- the count moves every time an agent is excluded or
+    # re-enabled. Sound because test_excluded_agents_are_all_in_the_runner_array
+    # proves every excluded id is in the array being subtracted from.
+    assert len(ids) == len(_targets()) - len(EXCLUDED_AGENTS)
+    for excluded in EXCLUDED_AGENTS:
+        assert excluded not in ids
 
 
 def test_exclusion_applies_to_explicit_requests() -> None:
@@ -318,24 +322,30 @@ def test_openai_agent_prefers_the_openai_vars() -> None:
     assert env_map["MODEL_ID"] == "gpt-x"
 
 
-def test_alias_falls_back_when_the_source_var_is_unset() -> None:
-    """Mirrors QG4's `${{ matrix.BASE_URL || vars.BASE_URL }}`."""
-    env_map = build_env_map(
-        AGENTS_DIR / "vanilla_python/templates/openai_responses_agent",
-        "ci-testing",
-        container_image="img:latest",
-        include_mlflow=False,
-        environ={
-            "API_KEY": "cluster-key",
-            "BASE_URL": "https://cluster-llm",
-            "MODEL_ID": "cluster-model",
-        },
-        aliases=deploy_agents.ENV_SOURCE_ALIASES[
-            "vanilla_python/templates/openai_responses_agent"
-        ],
-    )
+def test_absent_alias_does_not_fall_back_to_the_shared_endpoint() -> None:
+    """Deliberately does NOT mirror QG4's `${{ matrix.BASE_URL || vars.BASE_URL }}`.
 
-    assert env_map["BASE_URL"] == "https://cluster-llm"
+    That `||` is where the false green comes from: this agent talks to OpenAI, so
+    silently substituting the cluster LLM makes the gate pass against an endpoint
+    the agent is not meant to use. QG7 fails instead.
+    """
+    with pytest.raises(MissingEnvError) as exc:
+        build_env_map(
+            AGENTS_DIR / "vanilla_python/templates/openai_responses_agent",
+            "ci-testing",
+            container_image="img:latest",
+            include_mlflow=False,
+            environ={
+                "API_KEY": "cluster-key",
+                "BASE_URL": "https://cluster-llm",
+                "MODEL_ID": "cluster-model",
+            },
+            aliases=deploy_agents.ENV_SOURCE_ALIASES[
+                "vanilla_python/templates/openai_responses_agent"
+            ],
+        )
+
+    assert exc.value.missing == ["OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL_ID"]
 
 
 def test_build_env_map_adds_mlflow_block() -> None:
@@ -620,8 +630,40 @@ def test_agentic_rag_prefers_the_ogx_endpoint() -> None:
     assert aliased["BASE_URL"] == "http://ogx:8321/v1"
     assert aliased["MODEL_ID"] == "vllm/qwen"
 
-    # Unset source falls back to the shared value, as with openai_responses_agent.
-    assert env_map(shared)["BASE_URL"] == "http://vllm-svc:8000/v1"
+    # An unset alias must NOT fall back to the shared value. The alias exists
+    # because the shared endpoint is wrong for this agent, so falling back would
+    # deploy against the vLLM service and pass -- a green gate testing the wrong
+    # thing. Fail, naming the alias rather than the agent.yaml var.
+    with pytest.raises(MissingEnvError) as exc:
+        env_map(shared)
+    assert exc.value.missing == ["OGX_BASE_URL", "OGX_MODEL_ID"]
+
+
+def test_empty_alias_does_not_fall_back_to_the_shared_endpoint() -> None:
+    """RHAIENG-7097: GitHub substitutes "" for an undefined variable, silently.
+
+    Without this, openai_responses_agent runs against the cluster vLLM and passes.
+    """
+    with pytest.raises(MissingEnvError) as exc:
+        build_env_map(
+            AGENTS_DIR / "vanilla_python/templates/openai_responses_agent",
+            "ci-testing",
+            container_image="img:latest",
+            include_mlflow=False,
+            environ={
+                "API_KEY": "shared-key",
+                "BASE_URL": "http://vllm-svc:8000/v1",
+                "MODEL_ID": "qwen2-5-7b-instruct",
+                "OPENAI_API_KEY": "",
+                "OPENAI_BASE_URL": "",
+                "OPENAI_MODEL_ID": "",
+            },
+            aliases=deploy_agents.ENV_SOURCE_ALIASES[
+                "vanilla_python/templates/openai_responses_agent"
+            ],
+        )
+
+    assert exc.value.missing == ["OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL_ID"]
 
 
 _ROUTES_JSON = """

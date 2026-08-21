@@ -72,6 +72,15 @@ EXCLUDED_AGENTS = (
     # bypass the proxy and green the gate against an *unguarded* agent -- silent,
     # so it gets its own ticket rather than a rushed special case.
     "langgraph/examples/guardrailed_agent",
+    # RHAIENG-7094: broken at HEAD -- mcp.shared.context.RequestContext no longer
+    # exists for the installed autogen_ext, so any fresh build crash-loops. Its
+    # btests only ever passed against a stale pod. Pre-existing, not a QG7 defect.
+    "autogen/templates/mcp_agent",
+    # RHAIENG-7095: the OGX llama-stack has no vector stores, so VECTOR_STORE_ID is
+    # stale and retrieval fails with `Vector_store '...' not found`. Cluster data,
+    # not code -- the ENV_SOURCE_ALIASES entry below stays, ready for the store's
+    # return.
+    "langgraph/templates/agentic_rag",
 )
 
 FLOW_IMPORT = "flow-import"
@@ -511,24 +520,31 @@ def build_env_map(
     aliases = aliases or {}
     required, optional = load_agent_env_spec(agent_dir)
 
-    def read(var: str) -> str:
+    def read(var: str) -> tuple[str, str]:
+        """Resolve one var, returning (value, the env name it should have come from).
+
+        An ENV_SOURCE_ALIASES entry exists precisely because the shared value is
+        *wrong* for this agent, so an empty alias must not fall back to it: GitHub
+        substitutes "" for an undefined variable, and the fallback would quietly
+        deploy the agent against the shared endpoint and pass. Report the alias as
+        missing instead, so the gate fails loudly and names what to set
+        (RHAIENG-7097).
+        """
         alias = aliases.get(var)
         if alias:
-            aliased = environ.get(alias, "").strip()
-            if aliased:
-                return aliased
-        return environ.get(var, "").strip()
+            return environ.get(alias, "").strip(), alias
+        return environ.get(var, "").strip(), var
 
     env_map: dict[str, str] = {}
     missing: list[str] = []
     for var in required:
         if var in _ENV_PASSTHROUGH_DENYLIST:
             continue
-        value = read(var)
+        value, source = read(var)
         if value:
             env_map[var] = value
         else:
-            missing.append(var)
+            missing.append(source)
     if missing:
         # Report every missing name at once — one CI round trip per fix, not one
         # per variable.
@@ -537,7 +553,7 @@ def build_env_map(
     for var in optional:
         if var in _ENV_PASSTHROUGH_DENYLIST:
             continue
-        value = read(var)
+        value, _ = read(var)
         if value:
             env_map[var] = value
 

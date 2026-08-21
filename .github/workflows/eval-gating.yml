@@ -56,13 +56,13 @@ jobs:
     # Residual risk, accepted: QG4 (nightly, 03:00 UTC) deploys the same
     # deployment names into ci-testing and undeploys in a `finally`. A QG4 run
     # overlapping a QG7 run will tear QG7's agents down mid-suite. Fixing that
-    # needs a QG4 edit, tracked as follow-up.
+    # needs a QG4 edit, tracked as RHAIENG-7101.
     concurrency:
       group: cluster-btests-ci-testing
       cancel-in-progress: false
-    # 11 agents through a 4-wide build pool ≈ 3 waves × ~20 min/build-and-deploy,
-    # plus the btest run and teardown, plus headroom. Revisit with real numbers
-    # from the first full run.
+    # 9 agents through a 4-wide build pool ≈ 3 waves × ~20 min/build-and-deploy,
+    # plus the btest run and teardown, plus headroom. Budget still sized for the
+    # pre-exclusion 11. Revisit with real numbers from the first full run.
     timeout-minutes: 150
     permissions:
       contents: read
@@ -92,13 +92,15 @@ jobs:
       POSTGRES_DB: ${{ vars.POSTGRES_DB }}
       POSTGRES_USER: ${{ vars.POSTGRES_USER }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      # Consumed only by autogen/templates/mcp_agent, currently in EXCLUDED_AGENTS
+      # (RHAIENG-7094 — crash-loops on a fresh build). Retained for re-enablement.
       MCP_SERVER_URL: ${{ vars.MCP_SERVER_URL }}
       LANGFLOW_AGENT_URL: ${{ vars.LANGFLOW_AGENT_URL }}
-      # agentic_rag is in the btest array but not the QG4 matrix, so its deploy
-      # path is unproven. VECTOR_STORE_ID is `optional` in its agent.yaml, but the
-      # agent crashes at runtime without it — the readiness probe will catch that.
-      # OGX_* are its LLM endpoint: the vector store lives behind llama-stack, so
-      # the shared BASE_URL 404s on /v1/vector-io/query (see ENV_SOURCE_ALIASES).
+      # Everything below is consumed only by langgraph/templates/agentic_rag, also
+      # in EXCLUDED_AGENTS (RHAIENG-7095 — the OGX llama-stack has no vector store
+      # for VECTOR_STORE_ID to name). Retained for re-enablement: OGX_* are its LLM
+      # endpoint, because the vector store lives behind llama-stack and the shared
+      # BASE_URL 404s on /v1/vector-io/query (see ENV_SOURCE_ALIASES).
       OGX_BASE_URL: ${{ vars.OGX_BASE_URL }}
       OGX_MODEL_ID: ${{ vars.OGX_MODEL_ID }}
       EMBEDDING_MODEL: ${{ vars.EMBEDDING_MODEL }}
