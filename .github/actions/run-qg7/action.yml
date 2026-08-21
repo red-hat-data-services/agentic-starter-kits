@@ -46,7 +46,8 @@ runs:
         set -euo pipefail
 
         read -r -a selected_agents <<< "${QG7_SELECTED_AGENTS}"
-        bash tests/behavioral/deterministic/deploy-btest-agents.sh "${selected_agents[@]}"
+        bash tests/behavioral/deterministic/deploy-btest-agents.sh \
+          ${selected_agents[@]+"${selected_agents[@]}"}
 
     - name: Execute shared QG7 runner
       shell: bash
@@ -76,4 +77,4 @@ runs:
         # partway through still tears down exactly what came up.
         read -r -a selected_agents <<< "${QG7_SELECTED_AGENTS:-}"
         bash tests/behavioral/deterministic/deploy-btest-agents.sh \
-          --undeploy "${selected_agents[@]}"
+          --undeploy ${selected_agents[@]+"${selected_agents[@]}"}

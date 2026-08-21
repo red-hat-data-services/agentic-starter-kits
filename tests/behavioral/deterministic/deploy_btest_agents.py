@@ -340,7 +340,7 @@ def run_deploy(targets: list[AgentTarget], workers: int) -> int:
                 record=record,
             )
             logger.info("Deployed %s", target.agent_id)
-        except BaseException as exc:  # noqa: BLE001 — reported, then re-raised as exit code
+        except Exception as exc:
             stop.set()
             with failures_lock:
                 failures.append((target.agent_id, exc))
@@ -350,9 +350,10 @@ def run_deploy(targets: list[AgentTarget], workers: int) -> int:
         try:
             _probe_flow_import(target)
             logger.info("Probed pre-deployed %s", target.agent_id)
-        except BaseException as exc:  # noqa: BLE001
+        except Exception as exc:
             stop.set()
-            failures.append((target.agent_id, exc))
+            with failures_lock:
+                failures.append((target.agent_id, exc))
             logger.error("FAILED %s: %s", target.agent_id, exc)
 
     if build_targets:

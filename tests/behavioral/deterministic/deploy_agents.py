@@ -436,10 +436,10 @@ def _tracking_uri_from_route(token: str | None = None) -> str | None:
             return candidate
     logger.warning(
         "No route-derived MLflow URI answered /api/3.0/mlflow/server-info "
-        "(tried: %s) — falling back to the first candidate",
+        "(tried: %s)",
         ", ".join(candidates),
     )
-    return candidates[0]
+    return None
 
 
 def resolve_mlflow_tracking_uri(namespace: str) -> str:
@@ -1018,9 +1018,10 @@ def verify_tracing_enabled(
                 f"{_tracing_hint(logs)}"
             )
 
-        if time.monotonic() >= deadline:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
             break
-        time.sleep(min(poll_interval, max(0.0, deadline - time.monotonic())))
+        time.sleep(min(poll_interval, remaining))
 
     # Ambiguous: neither marker appeared within the startup window. Ask MLflow
     # directly rather than guessing from log truncation.
