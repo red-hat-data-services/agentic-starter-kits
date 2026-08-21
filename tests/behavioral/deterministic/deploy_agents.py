@@ -435,8 +435,7 @@ def _tracking_uri_from_route(token: str | None = None) -> str | None:
         if _mlflow_server_reachable(candidate, token):
             return candidate
     logger.warning(
-        "No route-derived MLflow URI answered /api/3.0/mlflow/server-info "
-        "(tried: %s)",
+        "No route-derived MLflow URI answered /api/3.0/mlflow/server-info (tried: %s)",
         ", ".join(candidates),
     )
     return None
