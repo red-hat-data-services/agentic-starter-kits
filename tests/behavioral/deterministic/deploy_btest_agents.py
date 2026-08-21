@@ -342,6 +342,10 @@ def run_deploy(targets: list[AgentTarget], workers: int) -> int:
             logger.info("Deployed %s", target.agent_id)
         except Exception as exc:
             stop.set()
+            try:
+                remove_env_file(target.agent_dir)
+            except Exception:
+                logger.debug("Could not clean up .env for %s", target.agent_id)
             with failures_lock:
                 failures.append((target.agent_id, exc))
             logger.error("FAILED %s: %s", target.agent_id, exc)

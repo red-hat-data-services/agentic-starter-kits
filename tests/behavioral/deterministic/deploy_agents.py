@@ -615,6 +615,7 @@ def write_env_file(agent_dir: str | Path, env_map: dict[str, str]) -> Path:
     if env_path.exists() and not backup.exists():
         env_path.replace(backup)
     env_path.touch(mode=0o600)
+    env_path.chmod(0o600)
     env_path.write_text(
         "".join(f"{key}={shlex.quote(value)}\n" for key, value in env_map.items()),
         encoding="utf-8",
