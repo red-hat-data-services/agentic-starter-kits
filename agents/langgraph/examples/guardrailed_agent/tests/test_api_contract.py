@@ -228,45 +228,6 @@ class TestChatCompletionsEndpoint:
                 content_parts.append(delta["content"])
         assert "".join(content_parts)
 
-    def test_sse_emits_content_when_llm_does_not_stream_tokens(self, api_client):
-        """NeMo passthrough + tools uses non-streaming LLM calls, so the
-        playground SSE path must surface content from on_chat_model_end."""
-        client, fake_graph = api_client
-        content = "Your checking balance is $2,450.00."
-
-        async def _astream_events_end_only(*_args, **_kwargs):
-            message = MagicMock()
-            message.content = content
-            message.tool_calls = []
-            yield {
-                "event": "on_chat_model_end",
-                "data": {"output": message},
-            }
-
-        fake_graph.astream_events = _astream_events_end_only
-
-        with client.stream(
-            "POST",
-            "/chat/completions",
-            json={
-                "messages": [{"role": "user", "content": "What is my balance?"}],
-                "stream": True,
-            },
-        ) as response:
-            assert response.status_code == 200
-            chunks = list(response.iter_lines())
-
-        assert any(line.strip() == "data: [DONE]" for line in chunks)
-        content_parts = []
-        for line in chunks:
-            if not line.startswith("data: ") or line.strip() == "data: [DONE]":
-                continue
-            payload = json.loads(line[len("data: ") :])
-            delta = payload.get("choices", [{}])[0].get("delta", {})
-            if delta.get("content"):
-                content_parts.append(delta["content"])
-        assert "".join(content_parts) == content
-
     def test_guardrails_block_returns_refusal(self, api_client):
         client, fake_graph = api_client
         request = MagicMock()

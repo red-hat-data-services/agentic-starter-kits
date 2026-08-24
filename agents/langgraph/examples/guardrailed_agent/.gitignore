@@ -5,10 +5,8 @@
 # from .env values — may contain API_KEY, never commit.
 guardrails/config/*/config.yaml
 
-# Cluster deploy — generated / local secrets (keep the .example template)
+# Cluster deploy — generated / local secrets
 deploy/overlays/ci-testing/cluster.env
-deploy/overlays/ci-testing/cluster.env.*
-!deploy/overlays/ci-testing/cluster.env.example
 deploy/manifests/02-guardrails-configmap.yaml
 
 # Tracing — filled-in production object-storage credentials (template is committed)
