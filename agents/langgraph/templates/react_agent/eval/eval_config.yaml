@@ -6,6 +6,7 @@
 #
 # Optional:
 #   enabled_by_env: Only load this scorer if the specified env var is set to "true"
+#   model_env:      Read the judge model from this env var instead of EVAL_JUDGE_MODEL
 #
 # Sources:
 #   MLflow scorers:     module: mlflow.genai.scorers
@@ -37,6 +38,7 @@ scorers:
     - name: PIILeakage
       module: mlflow.genai.scorers.deepeval
       enabled_by_env: EVAL_ENABLE_PII
+      model_env: EVAL_PII_MODEL
 
   # Use-case specific scorers — add scorers relevant to your agent's domain.
   # Can be MLflow, third-party, or custom (defined in scorers.py).

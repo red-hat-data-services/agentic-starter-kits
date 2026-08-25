@@ -8,6 +8,7 @@ Usage:
 """
 
 import importlib
+import inspect
 import os
 import time
 from pathlib import Path
@@ -84,9 +85,16 @@ def resolve_scorer(entry: dict, judge_model: str):
     if env_flag and os.getenv(env_flag, "").lower() != "true":
         return None
 
+    model = judge_model
+    if entry.get("model_env"):
+        model = os.getenv(entry["model_env"], model)
+
     module = importlib.import_module(entry["module"])
-    cls = getattr(module, entry["name"])
-    return cls(model=judge_model)
+    cls_or_obj = getattr(module, entry["name"])
+
+    if inspect.isclass(cls_or_obj):
+        return cls_or_obj(model=model)
+    return cls_or_obj
 
 
 def get_scorers(config: dict) -> list:
