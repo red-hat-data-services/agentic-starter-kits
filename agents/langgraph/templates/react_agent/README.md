@@ -240,7 +240,7 @@ This template includes a config-driven MLflow GenAI evaluation setup. The eval s
 
 ### Eval Directory Structure
 
-```
+```text
 eval/
 ├── eval_config.yaml   # Scorer configuration (core, use-case, guidelines)
 ├── eval_data.yaml     # Golden queries with expected results
@@ -265,6 +265,7 @@ EVAL_JUDGE_BASE_URL=<endpoint-url>  # only needed for OpenAI-compatible endpoint
 ```
 
 The judge model format is `<provider>:/<model>`. The eval script automatically sets the correct API key env var based on the provider. Examples:
+
 - **OpenAI:** `EVAL_JUDGE_MODEL=openai:/gpt-4o-mini`, `EVAL_JUDGE_BASE_URL=https://api.openai.com/v1`
 - **vLLM / RHOAI:** `EVAL_JUDGE_MODEL=openai:/<served-model-name>`, `EVAL_JUDGE_BASE_URL=https://<your-vllm-route>/v1`
 - **Anthropic:** `EVAL_JUDGE_MODEL=anthropic:/claude-sonnet-4-20250514` (no `BASE_URL` needed)
