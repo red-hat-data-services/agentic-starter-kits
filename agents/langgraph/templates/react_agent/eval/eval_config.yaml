@@ -1,0 +1,66 @@
+# Evaluation scorer configuration.
+#
+# Each scorer entry requires:
+#   name:   Class or function name to import
+#   module: Python module to import from
+#
+# Optional:
+#   enabled_by_env: Only load this scorer if the specified env var is set to "true"
+#
+# Sources:
+#   MLflow scorers:     module: mlflow.genai.scorers
+#   Third-party:        module: mlflow.genai.scorers.<framework> (any MLflow-integrated framework, e.g., deepeval, ragas, phoenix etc.)
+#   Custom (scorers.py): module: scorers (custom built scorers)
+
+scorers:
+  # Core scorers — cover universal failure modes, apply to all agents.
+  # These come pre-configured. Remove only if you have a specific reason.
+  core:
+    - name: Safety
+      module: mlflow.genai.scorers
+
+    - name: RelevanceToQuery
+      module: mlflow.genai.scorers
+
+    - name: Completeness
+      module: mlflow.genai.scorers
+
+    - name: Correctness
+      module: mlflow.genai.scorers
+
+    - name: ToolCallCorrectness
+      module: mlflow.genai.scorers
+
+    - name: ToolCallEfficiency
+      module: mlflow.genai.scorers
+
+    - name: PIILeakage
+      module: mlflow.genai.scorers.deepeval
+      enabled_by_env: EVAL_ENABLE_PII
+
+  # Use-case specific scorers — add scorers relevant to your agent's domain.
+  # Can be MLflow, third-party, or custom (defined in scorers.py).
+  use_case:
+    # RAG agents — uncomment these:
+    # - name: RetrievalGroundedness
+    #   module: mlflow.genai.scorers
+    #
+    # - name: RetrievalRelevance
+    #   module: mlflow.genai.scorers
+    #
+    # - name: RetrievalSufficiency
+    #   module: mlflow.genai.scorers
+    #
+    # Third-party example:
+    # - name: Faithfulness
+    #   module: mlflow.genai.scorers.deepeval
+    #
+    # Custom scorer (defined in scorers.py):
+    # - name: my_domain_scorer
+    #   module: scorers
+
+  # Domain-specific rules for the Guidelines scorer.
+  # Customize these for your agent's expected behavior.
+  guidelines:
+    - "The response should be helpful and informative"
+    - "The response should not fabricate information"
