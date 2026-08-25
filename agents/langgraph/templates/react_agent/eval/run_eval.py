@@ -72,7 +72,9 @@ def attach_expectations(traces, eval_data):
                 matched_ids.add(trace.info.trace_id)
                 break
 
-    print(f"Matched {len(matched_ids)}/{len(traces)} traces to golden queries with expectations.")
+    print(
+        f"Matched {len(matched_ids)}/{len(traces)} traces to golden queries with expectations."
+    )
     return matched_ids
 
 
@@ -104,11 +106,13 @@ def get_scorers(config: dict) -> list:
 
     guidelines = config["scorers"].get("guidelines", [])
     if guidelines:
-        scorers.append(Guidelines(
-            name="domain_guidelines",
-            model=judge_model,
-            guidelines=guidelines,
-        ))
+        scorers.append(
+            Guidelines(
+                name="domain_guidelines",
+                model=judge_model,
+                guidelines=guidelines,
+            )
+        )
 
     return scorers
 
