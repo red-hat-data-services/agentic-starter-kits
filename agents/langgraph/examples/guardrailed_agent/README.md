@@ -130,8 +130,8 @@ After editing, restart `make guardrails-server-local` or `make guardrails-server
 - [uv](https://docs.astral.sh/uv/) — Python package manager
 - [Ollama](https://ollama.com/) — local LLM inference (or any OpenAI-compatible endpoint)
 - [Podman](https://podman.io/) or [Docker](https://www.docker.com/) — for container builds
-- [oc](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) — for OpenShift AI deployment
-- [Helm](https://helm.sh/) — for deploying to Kubernetes/OpenShift AI
+- [oc](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) — for OpenShift deployment
+- [Helm](https://helm.sh/) — for deploying to Kubernetes/OpenShift
 - [GNU Make](https://www.gnu.org/software/make/) and a bash-compatible shell
 
 ## Local Development
