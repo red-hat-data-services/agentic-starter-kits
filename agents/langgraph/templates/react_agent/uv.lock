@@ -2767,7 +2767,7 @@ tracing = [
 requires-dist = [
     { name = "agent-auth", marker = "extra == 'auth'", directory = "../../../../components/auth" },
     { name = "chardet", specifier = ">=7.1.0" },
-    { name = "deepeval", marker = "extra == 'eval'" },
+    { name = "deepeval", marker = "extra == 'eval'", specifier = ">=4.2,<5" },
     { name = "fastapi", specifier = ">=0.135.1" },
     { name = "flask", specifier = ">=3.1.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },

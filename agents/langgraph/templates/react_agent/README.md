@@ -236,12 +236,12 @@ make test
 
 ## Evaluation
 
-This template includes a config-driven MLflow GenAI evaluation setup. The eval script reads existing traces from MLflow and scores them using scorers defined in `eval/eval_config.yaml`.
+This template includes a config-driven MLflow GenAI evaluation setup. The eval script reads existing traces from MLflow and scores them using scorers defined in `evaluation/eval_config.yaml`.
 
 ### Eval Directory Structure
 
 ```text
-eval/
+evaluation/
 ├── eval_config.yaml   # Scorer configuration (core, use-case, guidelines)
 ├── eval_data.yaml     # Golden queries with expected results
 ├── scorers.py         # Custom scorer definitions (add your own here)
@@ -272,8 +272,8 @@ The judge model format is `<provider>:/<model>`. The eval script automatically s
 
 ### Running Evaluation
 
-1. Add your golden queries and expectations to `eval/eval_data.yaml`
-2. Customize the guidelines in `eval/eval_config.yaml` for your domain
+1. Add your golden queries and expectations to `evaluation/eval_data.yaml`
+2. Customize the guidelines in `evaluation/eval_config.yaml` for your domain
 3. Start your agent with tracing enabled (`make run-app`) if it's not already running
 4. Run:
 
@@ -295,7 +295,7 @@ The judge model format is `<provider>:/<model>`. The eval script automatically s
 
 ### Scorer Configuration
 
-Scorers are configured in `eval/eval_config.yaml`, organized into three sections. Scorers in both **core** and **use-case** sections can come from any of three sources:
+Scorers are configured in `evaluation/eval_config.yaml`, organized into three sections. Scorers in both **core** and **use-case** sections can come from any of three sources:
 
 | Source | `module` value | Example |
 |--------|---------------|---------|
@@ -351,7 +351,7 @@ guidelines:
 
 ### Adding a Custom Scorer
 
-1. Define your scorer in `eval/scorers.py`:
+1. Define your scorer in `evaluation/scorers.py`:
 
    ```python
    from mlflow.genai.scorers import scorer
@@ -363,7 +363,7 @@ guidelines:
        return {"score": 1.0, "rationale": "Meets criteria"}
    ```
 
-2. Add it to `eval/eval_config.yaml` under `core` or `use_case`:
+2. Add it to `evaluation/eval_config.yaml` under `core` or `use_case`:
 
    ```yaml
    use_case:

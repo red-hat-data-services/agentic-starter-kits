@@ -222,8 +222,7 @@ undeploy: ## Remove deployment from cluster
 	exit $$cleanup_status
 
 eval: ## Run MLflow GenAI evaluation
-	@source .venv/bin/activate && set -a && source .env && set +a && \
-	  uv run --extra eval python eval/run_eval.py
+	@uv run --extra eval python evaluation/run_eval.py
 
 test: ## Run unit tests
 	uv run --extra dev python -m pytest tests/ --ignore=tests/integration --ignore=tests/behavioral $(PYTEST_ARGS)
