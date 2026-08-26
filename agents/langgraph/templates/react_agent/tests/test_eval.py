@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-pytest.importorskip("mlflow", reason="eval dependencies not installed (install with --extra eval)")
+pytest.importorskip(
+    "mlflow", reason="eval dependencies not installed (install with --extra eval)"
+)
 
 import sys  # noqa: E402
 import textwrap  # noqa: E402

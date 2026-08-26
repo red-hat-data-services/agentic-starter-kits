@@ -45,7 +45,10 @@ def generate_traces(eval_data: list[dict], agent_url: str) -> None:
         try:
             response = httpx.post(
                 f"{agent_url}/chat/completions",
-                json={"messages": [{"role": "user", "content": question}], "stream": False},
+                json={
+                    "messages": [{"role": "user", "content": question}],
+                    "stream": False,
+                },
                 timeout=60,
             )
             response.raise_for_status()
