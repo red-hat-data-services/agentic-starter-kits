@@ -9,6 +9,7 @@ Usage:
 
 import importlib
 import inspect
+import json
 import os
 import time
 from pathlib import Path
@@ -72,32 +73,44 @@ def generate_traces(eval_data: list[dict], agent_url: str) -> None:
     print(f"Generated {len(eval_data)} traces.\n")
 
 
-def attach_expectations(traces, eval_data):
-    """Match traces to golden queries by index and log expectations.
+def _extract_question(trace):
+    """Extract the user question from a trace's request data."""
+    try:
+        request = json.loads(trace.data.request)
+        return request["messages"][0]["content"]
+    except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+        return None
 
-    Traces are sorted by timestamp so their order matches the sequential
-    order queries were sent in generate_traces().
+
+def attach_expectations(traces, eval_data):
+    """Match traces to golden queries by content and log expectations.
+
+    Each golden query's question is matched against the question extracted
+    from trace.data.request using exact string comparison. This is immune
+    to interleaved traces from concurrent agent traffic.
 
     Returns the set of trace IDs that matched a golden query.
     """
-    sorted_traces = sorted(traces, key=lambda t: t.info.timestamp_ms)
     matched_ids = set()
 
-    for i, query in enumerate(eval_data):
-        if i >= len(sorted_traces):
-            break
-        trace = sorted_traces[i]
-        expectations = query.get("expectations", {})
-        for name, value in expectations.items():
-            mlflow.log_expectation(
-                trace_id=trace.info.trace_id,
-                name=name,
-                value=value,
-            )
-        matched_ids.add(trace.info.trace_id)
+    for query in eval_data:
+        question = query["inputs"]["question"]
+        for trace in traces:
+            if trace.info.trace_id in matched_ids:
+                continue
+            if _extract_question(trace) == question:
+                expectations = query.get("expectations", {})
+                for name, value in expectations.items():
+                    mlflow.log_expectation(
+                        trace_id=trace.info.trace_id,
+                        name=name,
+                        value=value,
+                    )
+                matched_ids.add(trace.info.trace_id)
+                break
 
     print(
-        f"Matched {len(matched_ids)}/{len(sorted_traces)} traces to golden queries with expectations."
+        f"Matched {len(matched_ids)}/{len(traces)} traces to golden queries with expectations."
     )
     return matched_ids
 

@@ -8,6 +8,7 @@ pytest.importorskip(
     "mlflow", reason="eval dependencies not installed (install with --extra eval)"
 )
 
+import json  # noqa: E402
 import sys  # noqa: E402
 import textwrap  # noqa: E402
 from pathlib import Path  # noqa: E402
@@ -224,21 +225,22 @@ class TestGetScorers:
 # ---------------------------------------------------------------------------
 
 
-def _make_trace(trace_id: str, timestamp_ms: int) -> MagicMock:
-    """Create a mock trace with the given ID and timestamp."""
+def _make_trace(trace_id: str, timestamp_ms: int, question: str = "") -> MagicMock:
+    """Create a mock trace with the given ID, timestamp, and request content."""
     trace = MagicMock()
     trace.info.trace_id = trace_id
     trace.info.timestamp_ms = timestamp_ms
+    trace.data.request = json.dumps({"messages": [{"content": question}]})
     return trace
 
 
 class TestAttachExpectations:
-    def test_matches_by_index_order(self) -> None:
-        """Traces sorted by timestamp are matched to eval_data by index."""
+    def test_matches_by_content(self) -> None:
+        """Traces are matched to eval_data by question content."""
         traces = [
-            _make_trace("t1", 1000),
-            _make_trace("t2", 2000),
-            _make_trace("t3", 3000),
+            _make_trace("t1", 1000, "Q1"),
+            _make_trace("t2", 2000, "Q2"),
+            _make_trace("t3", 3000, "Q3"),
         ]
         eval_data = [
             {"inputs": {"question": "Q1"}, "expectations": {"expected_facts": ["A1"]}},
@@ -251,12 +253,12 @@ class TestAttachExpectations:
         assert matched_ids == {"t1", "t2", "t3"}
         assert mock_mlflow.log_expectation.call_count == 3
 
-    def test_sorts_traces_by_timestamp(self) -> None:
-        """Even if traces arrive out of order, they get sorted before matching."""
+    def test_ignores_unrelated_traces(self) -> None:
+        """Traces that don't match any golden query are skipped."""
         traces = [
-            _make_trace("t3", 3000),
-            _make_trace("t1", 1000),
-            _make_trace("t2", 2000),
+            _make_trace("t1", 1000, "Q1"),
+            _make_trace("stray", 1500, "Some other question"),
+            _make_trace("t2", 2000, "Q2"),
         ]
         eval_data = [
             {"inputs": {"question": "Q1"}, "expectations": {"expected_facts": ["A1"]}},
@@ -266,13 +268,12 @@ class TestAttachExpectations:
             matched_ids = attach_expectations(traces, eval_data)
 
         assert matched_ids == {"t1", "t2"}
-        calls = mock_mlflow.log_expectation.call_args_list
-        assert calls[0].kwargs["trace_id"] == "t1"
-        assert calls[1].kwargs["trace_id"] == "t2"
+        assert "stray" not in matched_ids
+        assert mock_mlflow.log_expectation.call_count == 2
 
     def test_more_queries_than_traces(self) -> None:
         """If fewer traces than queries, only match what we have."""
-        traces = [_make_trace("t1", 1000)]
+        traces = [_make_trace("t1", 1000, "Q1")]
         eval_data = [
             {"inputs": {"question": "Q1"}, "expectations": {"expected_facts": ["A1"]}},
             {"inputs": {"question": "Q2"}, "expectations": {"expected_facts": ["A2"]}},
@@ -284,7 +285,7 @@ class TestAttachExpectations:
 
     def test_query_without_expectations(self) -> None:
         """Queries with no expectations still match (trace ID tracked)."""
-        traces = [_make_trace("t1", 1000)]
+        traces = [_make_trace("t1", 1000, "Q1")]
         eval_data = [{"inputs": {"question": "Q1"}}]
 
         with patch("evaluation.run_eval.mlflow") as mock_mlflow:
