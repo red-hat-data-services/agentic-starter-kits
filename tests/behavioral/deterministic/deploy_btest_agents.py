@@ -393,7 +393,7 @@ def run_undeploy(targets: list[AgentTarget]) -> int:
     for agent_id in deployed:
         target = by_id.get(agent_id)
         agent_dir = target.agent_dir if target else REPO_ROOT / "agents" / agent_id
-        if target and is_flow_import(agent_dir):
+        if is_flow_import(agent_dir):
             logger.info("Skipping undeploy of flow-import agent %s", agent_id)
             continue
         logger.info("Undeploying %s", agent_id)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import pytest
 from deploy_agents import (
     EXCLUDED_AGENTS,
     DeploymentModelError,
+    HardcodedTokenError,
     MissingEnvError,
     build_env_map,
     deployment_model,
@@ -860,3 +862,154 @@ def test_route_discovery_yields_nothing_when_listing_routes_is_forbidden(
     )
 
     assert deploy_agents._tracking_uri_candidates() == []
+
+
+# ---------------------------------------------------------------------------
+# Token refresh subsystem (skill Step 4)
+# ---------------------------------------------------------------------------
+
+
+def _deployment_json(env_entries: list[dict]) -> str:
+    """Minimal deployment JSON with the given env block."""
+    return json.dumps(
+        {
+            "spec": {
+                "template": {
+                    "spec": {"containers": [{"name": "agent", "env": env_entries}]}
+                }
+            }
+        }
+    )
+
+
+_SECRET_REF_ENV = [
+    {
+        "name": "MLFLOW_TRACKING_TOKEN",
+        "valueFrom": {"secretKeyRef": {"name": "my-mlflow-secret", "key": "token"}},
+    }
+]
+_HARDCODED_ENV = [{"name": "MLFLOW_TRACKING_TOKEN", "value": "sha256~literal"}]
+_NO_TOKEN_ENV = [{"name": "API_KEY", "value": "k"}]
+
+
+def test_mlflow_token_secret_name_returns_secret_ref(monkeypatch) -> None:
+    _stub_oc(
+        monkeypatch,
+        lambda args: subprocess.CompletedProcess(
+            args, 0, _deployment_json(_SECRET_REF_ENV), ""
+        ),
+    )
+
+    assert (
+        deploy_agents.mlflow_token_secret_name("react-agent", "ci-testing")
+        == "my-mlflow-secret"
+    )
+
+
+def test_mlflow_token_secret_name_raises_on_hardcoded_value(monkeypatch) -> None:
+    _stub_oc(
+        monkeypatch,
+        lambda args: subprocess.CompletedProcess(
+            args, 0, _deployment_json(_HARDCODED_ENV), ""
+        ),
+    )
+
+    with pytest.raises(HardcodedTokenError, match="literal value"):
+        deploy_agents.mlflow_token_secret_name("react-agent", "ci-testing")
+
+
+def test_mlflow_token_secret_name_returns_none_when_no_token_env(monkeypatch) -> None:
+    _stub_oc(
+        monkeypatch,
+        lambda args: subprocess.CompletedProcess(
+            args, 0, _deployment_json(_NO_TOKEN_ENV), ""
+        ),
+    )
+
+    assert deploy_agents.mlflow_token_secret_name("react-agent", "ci-testing") is None
+
+
+def test_mlflow_token_secret_name_returns_none_on_missing_deployment(
+    monkeypatch,
+) -> None:
+    _stub_oc(
+        monkeypatch,
+        lambda args: subprocess.CompletedProcess(args, 1, "", "NotFound"),
+    )
+
+    assert deploy_agents.mlflow_token_secret_name("ghost", "ci-testing") is None
+
+
+_EXISTING_SECRET = json.dumps(
+    {
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "metadata": {"name": "my-mlflow-secret", "namespace": "ci-testing"},
+        "data": {"other-key": "b3RoZXI="},
+    }
+)
+
+
+def test_apply_token_to_secret_uses_helm_field_manager(monkeypatch) -> None:
+    seen = _stub_oc(
+        monkeypatch,
+        lambda args: subprocess.CompletedProcess(
+            args, 0, _EXISTING_SECRET if args[:2] == ["get", "secret"] else "", ""
+        ),
+    )
+
+    deploy_agents._apply_token_to_secret("my-mlflow-secret", "ci-testing", "dG9rZW4=")
+
+    apply_call = next(a for a in seen if a[0] == "apply")
+    assert "--server-side" in apply_call
+    assert "--field-manager=helm" in apply_call
+
+
+def test_refresh_mlflow_token_deduplicates_shared_secrets(monkeypatch) -> None:
+    applied: list[str] = []
+
+    def handler(args):
+        if args[:2] == ["get", "deployment"]:
+            return subprocess.CompletedProcess(
+                args, 0, _deployment_json(_SECRET_REF_ENV), ""
+            )
+        if args[:2] == ["get", "secret"]:
+            return subprocess.CompletedProcess(args, 0, _EXISTING_SECRET, "")
+        if args[0] == "apply":
+            applied.append("apply")
+            return subprocess.CompletedProcess(args, 0, "", "")
+        if args[:2] == ["rollout", "restart"]:
+            return subprocess.CompletedProcess(args, 0, "", "")
+        if args[:2] == ["rollout", "status"]:
+            return subprocess.CompletedProcess(args, 0, "", "")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    _stub_oc(monkeypatch, handler)
+
+    refreshed = deploy_agents.refresh_mlflow_token(
+        "ci-testing",
+        ["a2a-langgraph-agent", "a2a-crew-agent"],
+        token="sha256~t",
+    )
+
+    assert refreshed == ["my-mlflow-secret"]
+    assert len(applied) == 1
+
+
+def test_refresh_mlflow_token_skips_deployment_without_secret_ref(
+    monkeypatch,
+) -> None:
+    def handler(args):
+        if args[:2] == ["get", "deployment"]:
+            return subprocess.CompletedProcess(
+                args, 0, _deployment_json(_NO_TOKEN_ENV), ""
+            )
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    _stub_oc(monkeypatch, handler)
+
+    refreshed = deploy_agents.refresh_mlflow_token(
+        "ci-testing", ["no-token-agent"], token="sha256~t"
+    )
+
+    assert refreshed == []

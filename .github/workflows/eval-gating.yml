@@ -56,7 +56,10 @@ jobs:
     # Residual risk, accepted: QG4 (nightly, 03:00 UTC) deploys the same
     # deployment names into ci-testing and undeploys in a `finally`. A QG4 run
     # overlapping a QG7 run will tear QG7's agents down mid-suite. Fixing that
-    # needs a QG4 edit, tracked as RHAIENG-7101.
+    # needs a QG4 edit, tracked as RHAIENG-7101. The orchestrator pipeline
+    # (quality-gates-pipeline.yml) has the same overlap class -- a manual
+    # workflow_dispatch during a nightly cron would collide. Low risk (cron
+    # fires once/day, dispatch is deliberate); same group name would fix both.
     concurrency:
       group: cluster-btests-ci-testing
       cancel-in-progress: false

@@ -24,6 +24,10 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 # Source the runner as a library to pick up its AGENTS array.
 BTEST_LIB_ONLY=1 source "${SCRIPT_DIR}/run-btests-pytest.sh"
 
+if [ -z "${AGENTS+x}" ] || [ "${#AGENTS[@]}" -eq 0 ]; then
+  echo "run-btests-pytest.sh defined no AGENTS entries" >&2
+  exit 1
+fi
 QG7_AGENT_CONFIG="$(printf '%s\n' "${AGENTS[@]}")"
 export QG7_AGENT_CONFIG
 
