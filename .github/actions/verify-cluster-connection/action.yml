@@ -1,0 +1,20 @@
+name: "Verify Cluster Connection"
+description: "Smoke-test the OpenShift cluster connection. Requires setup-cluster to have run first."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Verify cluster connection
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "--- Logged in as ---"
+        oc whoami
+        echo ""
+        echo "--- Current project ---"
+        oc project
+        echo ""
+        echo "--- Namespace resources ---"
+        oc get all -n ci-testing --no-headers 2>&1 | head -10 || true
+        echo ""
+        echo "Cluster connection verified successfully."

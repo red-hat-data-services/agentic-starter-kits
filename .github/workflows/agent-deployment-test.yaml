@@ -8,8 +8,6 @@
 name: "QG4: Agent Deployment Integration Tests"
 
 on:
-  schedule:
-    - cron: "0 3 * * *" # 11 PM EDT / 10 PM EST
   workflow_dispatch:
 
 permissions:
@@ -32,18 +30,7 @@ jobs:
           cluster-api-url: ${{ secrets.CLUSTER_API_URL }}
 
       - name: Verify cluster connection
-        run: |
-          set -o pipefail
-          echo "--- Logged in as ---"
-          oc whoami
-          echo ""
-          echo "--- Current project ---"
-          oc project
-          echo ""
-          echo "--- Namespace resources ---"
-          oc get all -n ci-testing --no-headers 2>&1 | head -10 || true
-          echo ""
-          echo "Cluster connection verified successfully."
+        uses: ./.github/actions/verify-cluster-connection
 
       - name: Logout
         if: always()
@@ -58,6 +45,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # ⚠️  Keep in sync with quality-gates-pipeline.yml matrix
         agent:
           - { name: langgraph-react-agent, dir: agents/langgraph/templates/react_agent }
           - { name: langgraph-hitl-agent, dir: agents/langgraph/templates/human_in_the_loop }

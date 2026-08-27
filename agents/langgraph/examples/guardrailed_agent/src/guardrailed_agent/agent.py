@@ -117,11 +117,17 @@ def get_graph_closure(
 
     tools = [check_account_balance]
 
+    # NeMo Guardrails (passthrough) accepts tools only on non-streaming
+    # /v1/chat/completions. The playground always sets stream=true, which
+    # would otherwise 422: "tools ... only supported for non-streaming
+    # requests when ... passthrough: true". disable_streaming keeps the
+    # agent's SSE endpoint but sends non-streaming LLM calls to the proxy.
     chat = ChatOpenAI(
         model=model_id,
         temperature=0.01,
         api_key=api_key,
         base_url=base_url,
+        disable_streaming=True,
         http_client=make_nemo_compatible_http_client(),
         http_async_client=make_nemo_compatible_async_http_client(),
     )

@@ -242,7 +242,7 @@ Tracing is **opt-in**: off by default, zero overhead when unset, and content cap
 
 Full setup for all three — manifests, `OTEL_*` env vars, reading traces, and PromQL queries — lives in **[deploy/tracing/README.md](deploy/tracing/README.md)**.
 
-## Deploying to OpenShift
+## Deploying to OpenShift AI
 
 On RHOAI, NeMo Guardrails runs as a separate pod managed by the `NemoGuardrails` CRD
 (TrustyAI Operator). The agent's `BASE_URL` must point at that guardrails Service —
