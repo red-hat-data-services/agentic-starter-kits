@@ -48,6 +48,7 @@ _REDACT_PATTERNS = [
     re.compile(r'(--set\s+secrets\.postgresPassword=")[^"]*"'),
     re.compile(r"(--set\s+secrets\.postgresPassword=)\S+"),
     re.compile(r"(POSTGRES_USER=)\S+"),
+    re.compile(r"(MLFLOW_TRACKING_TOKEN=)\S+"),
 ]
 
 
