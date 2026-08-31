@@ -198,10 +198,18 @@ jobs:
             exit 0
           fi
 
-          pass_list=$(jq -s '[.[] | select(.status == "success") | {name: .name, qg7_id: (.dir | ltrimstr("agents/"))}]' "${result_files[@]}")
+          # Agents QG7 cannot run (mirrors deploy_agents.EXCLUDED_AGENTS).
+          qg7_excluded='["langgraph/examples/guardrailed_agent","langgraph/templates/agentic_rag"]'
+
+          all_passing=$(jq -s '[.[] | select(.status == "success") | {name: .name, qg7_id: (.dir | ltrimstr("agents/"))}]' "${result_files[@]}")
+          pass_list=$(echo "${all_passing}" | jq --argjson excluded "${qg7_excluded}" \
+            '[.[] | select(.qg7_id | IN($excluded[]) | not)]')
+          qg7_skipped=$(echo "${all_passing}" | jq --argjson excluded "${qg7_excluded}" \
+            '[.[] | select(.qg7_id | IN($excluded[]))]')
           fail_list=$(jq -s '[.[] | select(.status != "success") | .name]' "${result_files[@]}")
 
           pass_count=$(echo "${pass_list}" | jq 'length')
+          skip_count=$(echo "${qg7_skipped}" | jq 'length')
           fail_count=$(echo "${fail_list}" | jq 'length')
           has_passing=$(echo "${pass_list}" | jq 'length > 0')
 
@@ -211,11 +219,16 @@ jobs:
           {
             echo "## QG4 Results"
             echo ""
-            echo "**Passed:** ${pass_count} agent(s)"
+            echo "**Passed → QG7:** ${pass_count} agent(s)"
             echo "${pass_list}" | jq -r '.[] | "- ✅ \(.name)"'
             echo ""
+            if [[ "${skip_count}" -gt 0 ]]; then
+              echo "**Passed but QG7-excluded:** ${skip_count} agent(s)"
+              echo "${qg7_skipped}" | jq -r '.[] | "- ⏭️ \(.name) (\(.qg7_id))"'
+              echo ""
+            fi
             if [[ "${fail_count}" -gt 0 ]]; then
-              echo "**Failed:** ${fail_count} agent(s) — excluded from QG7"
+              echo "**Failed:** ${fail_count} agent(s)"
               echo "${fail_list}" | jq -r '.[] | "- ❌ \(.)"'
             else
               echo "**Failed:** none"
