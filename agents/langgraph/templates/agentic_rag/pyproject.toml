@@ -31,9 +31,16 @@ auth = [
 ]
 dev = [
     "pytest>=9.0.2",
+    "httpx>=0.27",
+]
+eval = [
+    "mlflow[kubernetes]>=3.11.0",
+    "pyyaml>=6.0",
+    "httpx>=0.27",
+    "deepeval>=4.2,<5",
 ]
 tracing = [
-    "mlflow>=3.10.0",
+    "mlflow[kubernetes]>=3.11.0",
 ]
 
 [tool.setuptools.packages.find]

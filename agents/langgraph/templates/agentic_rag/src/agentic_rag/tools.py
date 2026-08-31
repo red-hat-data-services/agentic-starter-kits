@@ -5,6 +5,12 @@ from langchain_core.tools import tool
 from ogx_client import OgxClient
 from pydantic import BaseModel, Field
 
+try:
+    import mlflow
+    from mlflow.entities import Document as MlflowDocument
+except ImportError:
+    mlflow = None
+
 # Cache to avoid re-initializing on every tool call
 _client_cache = None
 _vector_store_id_cache = None
@@ -104,6 +110,7 @@ def retriever_tool(query: str) -> str:
         return "No relevant information was found in the provided documents for this query."
 
     formatted_docs = []
+    retriever_docs = []
     for i, chunk in enumerate(response.chunks, 1):
         # Skip chunks that are empty or just separators/whitespace
         content = chunk.content.strip()
@@ -124,6 +131,20 @@ def retriever_tool(query: str) -> str:
         doc_text += f"Score: {getattr(chunk, 'score', 'N/A')}"
 
         formatted_docs.append(doc_text)
+
+        if mlflow:
+            retriever_docs.append(
+                MlflowDocument(
+                    page_content=content,
+                    metadata={"source": source, "score": getattr(chunk, "score", None)},
+                )
+            )
+
+    # Log RETRIEVER span for MLflow RAG evaluation scorers
+    if mlflow and retriever_docs:
+        with mlflow.start_span(name="retrieve", span_type="RETRIEVER") as span:
+            span.set_inputs({"query": query})
+            span.set_outputs(retriever_docs)
 
     # If all chunks were filtered out, return no information message
     if not formatted_docs:
