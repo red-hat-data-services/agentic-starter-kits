@@ -13,12 +13,15 @@ USER 0
 COPY --from=ghcr.io/astral-sh/uv@sha256:fc93e9ecd7218e9ec8fba117af89348eef8fd2463c50c13347478769aaedd0ce /uv /usr/local/bin/uv
 
 # Copy project files for dependency installation
-COPY pyproject.toml .
+COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
 
-# Install the project and its dependencies using uv
+# Install from the lockfile so builds are reproducible (--frozen fails if
+# uv.lock is stale relative to pyproject.toml).
 # pysqlite3-binary (installed inline) provides SQLite >= 3.35 for ChromaDB on UBI9
-RUN uv pip install --no-cache ".[tracing]" pysqlite3-binary \
+ENV UV_PROJECT_ENVIRONMENT=/opt/app-root
+RUN uv sync --frozen --no-dev --extra tracing \
+    && uv pip install --no-cache pysqlite3-binary \
     && SITE=$(python3 -c "import site; print(site.getsitepackages()[0])") \
     && printf '__import__("pysqlite3")\nimport sys\nsys.modules["sqlite3"] = sys.modules.pop("pysqlite3")\n' > "$SITE/sitecustomize.py"
 

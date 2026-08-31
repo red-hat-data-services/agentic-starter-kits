@@ -13,11 +13,13 @@ USER 0
 COPY --from=ghcr.io/astral-sh/uv@sha256:fc93e9ecd7218e9ec8fba117af89348eef8fd2463c50c13347478769aaedd0ce /uv /usr/local/bin/uv
 
 # Copy project files for dependency installation
-COPY pyproject.toml .
+COPY pyproject.toml uv.lock ./
 COPY mcp_server.py register_tools.py utils.py ./
 
-# Install the project and its dependencies using uv
-RUN uv pip install --no-cache .
+# Install from the lockfile so builds are reproducible (--frozen fails if
+# uv.lock is stale relative to pyproject.toml)
+ENV UV_PROJECT_ENVIRONMENT=/opt/app-root
+RUN uv sync --frozen --no-dev
 
 # Copy config and data files (not needed for install)
 COPY tools_config.yaml churn_schema.json ./

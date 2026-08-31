@@ -83,7 +83,7 @@ def test_dockerfile_installs_auth_extra_from_staged_component() -> None:
         NORMALIZED_DOCKERFILE,
     )
     assert re.search(
-        r'RUN uv pip install --no-cache "\.\[tracing,auth\]"',
+        r"RUN uv sync --frozen --no-dev --extra tracing --extra auth",
         NORMALIZED_DOCKERFILE,
     )
 
