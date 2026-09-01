@@ -10,8 +10,10 @@ from mlflow.genai.scorers import scorer  # noqa: F401
 
 # Example:
 #
+# from mlflow.entities import Feedback
+#
 # @scorer
-# def my_domain_scorer(request, response, expected_facts=None):
+# def my_domain_scorer(*, inputs, outputs, expectations=None, trace=None):
 #     """Check domain-specific quality criteria."""
 #     # Your scoring logic here
-#     return {"score": 1.0, "rationale": "Meets criteria"}
+#     return Feedback(value=1.0, rationale="Meets criteria")
