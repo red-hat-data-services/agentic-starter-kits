@@ -70,7 +70,7 @@ def deployed_agent(cluster_auth, deployed_guardrails, agent_dir, agent_name):
     try:
         logger.info("Building image on cluster via build-openshift...")
         build_attempted = True
-        run_make("build-openshift", cwd=agent_dir, timeout=600)
+        run_make("build-openshift", cwd=agent_dir, timeout=900)
 
         logger.info("Deploying agent to cluster...")
         run_make("deploy", cwd=agent_dir, timeout=300)

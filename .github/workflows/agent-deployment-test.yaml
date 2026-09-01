@@ -41,9 +41,10 @@ jobs:
     needs: verify-cluster-connection
     if: github.repository == 'red-hat-data-services/agentic-starter-kits'
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ fromJSON(matrix.timeout_minutes || '20') }}
+    timeout-minutes: ${{ fromJSON(matrix.timeout_minutes || '25') }}
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
         # ⚠️  Keep in sync with quality-gates-pipeline.yml matrix
         agent:
