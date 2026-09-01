@@ -38,9 +38,19 @@ def load_eval_data(path: str | None = None) -> list[dict]:
     return data.get("queries") or []
 
 
+def _get_int_env(name: str, default: int) -> int:
+    """Read an integer env var, exiting with a clear error if it's not a valid integer."""
+    value = os.getenv(name, str(default))
+    try:
+        return int(value)
+    except ValueError:
+        print(f"ERROR: {name}='{value}' is not a valid integer.")
+        raise SystemExit(1) from None
+
+
 def generate_traces(eval_data: list[dict], agent_url: str) -> None:
     """Send golden queries to the running agent to generate traces."""
-    request_timeout = int(os.getenv("EVAL_REQUEST_TIMEOUT", "60"))
+    request_timeout = _get_int_env("EVAL_REQUEST_TIMEOUT", 60)
     print(f"Sending {len(eval_data)} golden queries to {agent_url}...")
     for query in eval_data:
         question = query["inputs"]["question"]
@@ -133,8 +143,24 @@ def resolve_scorer(entry: dict, judge_model: str):
     cls_or_obj = getattr(module, entry["name"])
 
     if inspect.isclass(cls_or_obj):
-        return cls_or_obj(model=model)
+        try:
+            init_params = inspect.signature(cls_or_obj.__init__).parameters
+        except (TypeError, ValueError):
+            init_params = {}
+        accepts_model = "model" in init_params or any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in init_params.values()
+        )
+        return cls_or_obj(model=model) if accepts_model else cls_or_obj()
     return cls_or_obj
+
+
+def _resolve_scorer_or_warn(entry: dict, judge_model: str):
+    """Resolve a scorer entry, warning and skipping it instead of crashing the run."""
+    try:
+        return resolve_scorer(entry, judge_model)
+    except (ModuleNotFoundError, AttributeError) as e:
+        print(f"WARNING: Could not load scorer '{entry.get('name')}': {e}. Skipping.")
+        return None
 
 
 def get_scorers(config: dict, judge_model: str) -> list:
@@ -143,12 +169,12 @@ def get_scorers(config: dict, judge_model: str) -> list:
     scorer_config = config.get("scorers", {})
 
     for entry in scorer_config.get("core") or []:
-        s = resolve_scorer(entry, judge_model)
+        s = _resolve_scorer_or_warn(entry, judge_model)
         if s:
             scorers.append(s)
 
     for entry in scorer_config.get("use_case") or []:
-        s = resolve_scorer(entry, judge_model)
+        s = _resolve_scorer_or_warn(entry, judge_model)
         if s:
             scorers.append(s)
 
@@ -221,8 +247,8 @@ def main():
         generate_traces(eval_data, agent_url)
 
     expected_count = len(eval_data) if eval_data else 0
-    trace_timeout = int(os.getenv("EVAL_TRACE_TIMEOUT", "60"))
-    poll_interval = int(os.getenv("EVAL_POLL_INTERVAL", "4"))
+    trace_timeout = _get_int_env("EVAL_TRACE_TIMEOUT", 60)
+    poll_interval = max(_get_int_env("EVAL_POLL_INTERVAL", 4), 1)
     max_attempts = max(trace_timeout // poll_interval, 1)
     golden_questions = (
         {q["inputs"]["question"] for q in eval_data} if eval_data else set()

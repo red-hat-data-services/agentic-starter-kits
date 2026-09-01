@@ -50,7 +50,6 @@ auth = [
     { name = "agent-auth" },
 ]
 dev = [
-    { name = "httpx" },
     { name = "pytest" },
 ]
 eval = [
@@ -60,7 +59,7 @@ eval = [
     { name = "pyyaml" },
 ]
 tracing = [
-    { name = "mlflow", extra = ["kubernetes"] },
+    { name = "mlflow" },
 ]
 
 [package.metadata]
@@ -70,7 +69,6 @@ requires-dist = [
     { name = "deepeval", marker = "extra == 'eval'", specifier = ">=4.2,<5" },
     { name = "fastapi", specifier = ">=0.135.1" },
     { name = "flask", specifier = ">=3.1.0" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'eval'", specifier = ">=0.27" },
     { name = "langchain", specifier = ">=1.2.10" },
     { name = "langchain-community", specifier = ">=0.4.1" },
@@ -78,8 +76,8 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=1.1.10" },
     { name = "langgraph-prebuilt", specifier = ">=1.0.0" },
     { name = "milvus-lite", specifier = ">=2.5.1" },
+    { name = "mlflow", marker = "extra == 'tracing'", specifier = ">=3.11.0" },
     { name = "mlflow", extras = ["kubernetes"], marker = "extra == 'eval'", specifier = ">=3.11.0" },
-    { name = "mlflow", extras = ["kubernetes"], marker = "extra == 'tracing'", specifier = ">=3.11.0" },
     { name = "ogx-client", specifier = ">=1.1.0" },
     { name = "openai", specifier = ">=2.24.0" },
     { name = "pymilvus", specifier = "==2.6.9" },

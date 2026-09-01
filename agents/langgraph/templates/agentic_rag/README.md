@@ -574,13 +574,14 @@ guidelines:
 1. Define your scorer in `evaluation/scorers.py`:
 
    ```python
+   from mlflow.entities import Feedback
    from mlflow.genai.scorers import scorer
 
    @scorer
-   def my_domain_scorer(request, response, expected_facts=None):
+   def my_domain_scorer(*, inputs, outputs, expectations=None, trace=None):
        """Check domain-specific quality criteria."""
        # Your scoring logic here
-       return {"score": 1.0, "rationale": "Meets criteria"}
+       return Feedback(value=1.0, rationale="Meets criteria")
    ```
 
 2. Add it to `evaluation/eval_config.yaml` under `core` or `use_case`:
