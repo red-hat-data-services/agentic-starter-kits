@@ -20,11 +20,39 @@ runs:
     - name: Install uv
       uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
 
-    - name: Install OpenShift CLI and Helm
+    - name: Install Helm
       uses: redhat-actions/openshift-tools-installer@144527c7d98999f2652264c048c7a9bd103f8a82 # v1.13.1
       with:
-        oc: "4"
         helm: "3"
+
+    - name: Install OpenShift CLI (oc) with retry
+      shell: bash
+      run: |
+        OC_MIRROR_URL="https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz"
+        MAX_ATTEMPTS=3
+        RETRY_DELAY=10
+
+        for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+          echo "::group::oc install attempt ${attempt}/${MAX_ATTEMPTS}"
+          if curl -sSfL --retry 3 --retry-delay 5 --retry-all-errors \
+               "$OC_MIRROR_URL" -o /tmp/oc.tar.gz; then
+            tar xzf /tmp/oc.tar.gz -C /usr/local/bin oc
+            rm -f /tmp/oc.tar.gz
+            echo "::endgroup::"
+            echo "✅ oc installed successfully on attempt ${attempt}"
+            oc version --client
+            exit 0
+          fi
+          echo "::endgroup::"
+          echo "⚠️ oc install attempt ${attempt} failed"
+          if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
+            echo "Retrying in ${RETRY_DELAY}s..."
+            sleep "$RETRY_DELAY"
+          fi
+        done
+
+        echo "::error::Failed to install oc after ${MAX_ATTEMPTS} attempts"
+        exit 1
 
     - name: Login to OpenShift
       shell: bash
