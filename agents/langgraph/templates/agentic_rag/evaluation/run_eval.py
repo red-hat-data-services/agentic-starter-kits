@@ -224,7 +224,9 @@ def main():
     trace_timeout = int(os.getenv("EVAL_TRACE_TIMEOUT", "60"))
     poll_interval = int(os.getenv("EVAL_POLL_INTERVAL", "4"))
     max_attempts = max(trace_timeout // poll_interval, 1)
-    golden_questions = {q["inputs"]["question"] for q in eval_data} if eval_data else set()
+    golden_questions = (
+        {q["inputs"]["question"] for q in eval_data} if eval_data else set()
+    )
 
     traces = []
     for attempt in range(max_attempts):
