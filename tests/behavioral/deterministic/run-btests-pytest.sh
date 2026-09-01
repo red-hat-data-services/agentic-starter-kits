@@ -237,7 +237,7 @@ preflight() {
       fi
 
       # Curl the health endpoint
-      if curl -sk "${route_host}/health_check" >/dev/null 2>&1; then
+      if curl -fsSk --connect-timeout 10 --max-time 30 "https://${route_host}/health_check" >/dev/null 2>&1; then
         ok "Route '${deploy}' (flow-import) — healthy"
       else
         warn "Route '${deploy}' (flow-import) — health check failed or endpoint unreachable"
@@ -301,6 +301,18 @@ detect_mlflow_config() {
   done
 
   if [[ -z "$deploy_json" ]]; then
+    # All selected agents may be flow-import (Langfuse-only); MLflow is not needed
+    local has_standard=false
+    for agent_tuple in "${AGENTS[@]}"; do
+      if ! is_flow_import "$(agent_path "$agent_tuple")"; then
+        has_standard=true
+        break
+      fi
+    done
+    if [[ "$has_standard" == "false" ]]; then
+      warn "All selected agents are flow-import (Langfuse-only). Skipping MLflow detection."
+      return 0
+    fi
     die "No agent deployments found. Cannot detect MLflow configuration."
   fi
 
