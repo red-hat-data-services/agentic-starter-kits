@@ -9,6 +9,15 @@ from os import getenv
 from pathlib import Path
 from typing import Any
 
+# Fix sqlite3 version issue for chromadb (required by ai4rag)
+# Must be done BEFORE importing agentic_rag
+import sys
+try:
+    import pysqlite3
+    sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
+except ImportError:
+    pass  # pysqlite3-binary not available, continue with system sqlite3
+
 import openai
 from agentic_rag.agent import get_graph_closure
 from agentic_rag.tracing import enable_tracing

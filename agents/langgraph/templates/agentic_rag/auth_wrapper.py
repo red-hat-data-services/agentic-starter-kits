@@ -30,39 +30,30 @@ _PROTECTED_PATHS = frozenset({"/chat/completions", "/chat/completions/"})
 
 _AUTH_ENABLED = bool(_K8S_API_URL and _K8S_REVIEWER_TOKEN)
 
-_tls_verify: str | bool = _K8S_CA_PATH if Path(_K8S_CA_PATH).is_file() else True
-_http_client: httpx.AsyncClient | None = None
-
-
-def _get_http_client() -> httpx.AsyncClient:
-    global _http_client
-    if _http_client is None or _http_client.is_closed:
-        _http_client = httpx.AsyncClient(verify=_tls_verify, timeout=10.0)
-    return _http_client
+_tls_verify: str | bool = _K8S_CA_PATH if Path(_K8S_CA_PATH).is_file() else False
 
 
 async def _validate_k8s_token(token: str) -> bool:
     if not (_K8S_API_URL and _K8S_REVIEWER_TOKEN):
         return False
     try:
-        client = _get_http_client()
-        resp = await client.post(
-            f"{_K8S_API_URL}/apis/authentication.k8s.io/v1/tokenreviews",
-            json={
-                "apiVersion": "authentication.k8s.io/v1",
-                "kind": "TokenReview",
-                "spec": {"token": token},
-            },
-            headers={
-                "Authorization": f"Bearer {_K8S_REVIEWER_TOKEN}",
-                "Content-Type": "application/json",
-            },
-        )
+        async with httpx.AsyncClient(verify=_tls_verify, timeout=10.0) as client:
+            resp = await client.post(
+                f"{_K8S_API_URL}/apis/authentication.k8s.io/v1/tokenreviews",
+                json={
+                    "apiVersion": "authentication.k8s.io/v1",
+                    "kind": "TokenReview",
+                    "spec": {"token": token},
+                },
+                headers={
+                    "Authorization": f"Bearer {_K8S_REVIEWER_TOKEN}",
+                    "Content-Type": "application/json",
+                },
+            )
         if resp.status_code == 201:
             status = resp.json().get("status", {})
             if status.get("authenticated"):
                 user = status.get("user", {}).get("username", "unknown")
-                # If ALLOWED_SA_USERNAME is set, verify the identity matches
                 if _ALLOWED_SA_USERNAME and user != _ALLOWED_SA_USERNAME:
                     log.warning(
                         "K8s token authenticated but username mismatch: got %s, expected %s",
@@ -101,9 +92,7 @@ class _BearerAuthMiddleware:
 
         if not token:
             response = JSONResponse(
-                {
-                    "error": "Missing API key (use X-Api-Key or Authorization: Bearer header)"
-                },
+                {"error": "Missing API key (use X-Api-Key)"},
                 status_code=401,
             )
             await response(scope, receive, send)

@@ -7,7 +7,7 @@ CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/
 MODEL          ?= llama3.1:8b
 OLLAMA_EMBEDDING_MODEL ?= embeddinggemma:latest
 
-.PHONY: init re-init env ollama ogx-server run-app run-app-fresh run-cli load-docs build push build-openshift deploy undeploy test test-integration dry-run setup-gateway teardown-gateway build-openshell create-sandbox wait-sandbox setup-egress load-docs-sandbox start-agent deploy-openshell undeploy-openshell playground-sandbox help
+.PHONY: init re-init env ollama ogx-server run-app run-app-fresh run-cli load-docs build push build-openshift deploy undeploy test test-integration dry-run refresh-certs setup-gateway teardown-gateway build-openshell create-sandbox wait-sandbox setup-egress load-docs-sandbox check-collection start-agent deploy-openshell undeploy-openshell playground-sandbox expose-agent help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -241,6 +241,14 @@ OPENSHELL_SANDBOX ?= $(shell . ./.env 2>/dev/null && echo $${OPENSHELL_SANDBOX_N
 OPENSHELL_IMAGE   := openshell-agentic-rag
 OPENSHELL_VERSION ?= 0.0.99
 
+refresh-certs: ## Refresh openShell client certificates from cluster
+	@echo "==> Refreshing openShell client certificates..." && \
+	  MTLS_DIR=~/.config/openshell/gateways/openshift/mtls && mkdir -p $$MTLS_DIR && \
+	  oc -n openshell get secret openshell-client-tls -o jsonpath='{.data.ca\.crt}'  | base64 -d > $$MTLS_DIR/ca.crt && \
+	  oc -n openshell get secret openshell-client-tls -o jsonpath='{.data.tls\.crt}' | base64 -d > $$MTLS_DIR/tls.crt && \
+	  oc -n openshell get secret openshell-client-tls -o jsonpath='{.data.tls\.key}' | base64 -d > $$MTLS_DIR/tls.key && \
+	  echo "    Certificates refreshed."
+
 setup-gateway: ## Install openShell gateway, create Route, register CLI (one-time)
 	@set -e && \
 	  APPS_DOMAIN=$$(oc get ingresses.config cluster -o jsonpath='{.spec.domain}') && \
@@ -300,8 +308,12 @@ teardown-gateway: ## Uninstall openShell gateway and clean up
 	  echo "Gateway removed."
 
 build-openshell: ## Build openShell sandbox image via OpenShift BuildConfig
-	@oc new-build --strategy=docker --binary \
-	  --name=$(OPENSHELL_IMAGE) --to=$(OPENSHELL_IMAGE):latest 2>/dev/null || true && \
+	@rm -rf ./images ./components && \
+	  trap 'rm -rf ./images ./components' EXIT && \
+	  cp -r ../../../../images ./images && \
+	  mkdir -p ./components && cp -r ../../../../components/auth ./components/auth && \
+	  oc new-build --strategy=docker --binary \
+	    --name=$(OPENSHELL_IMAGE) --to=$(OPENSHELL_IMAGE):latest 2>/dev/null || true && \
 	  oc patch bc $(OPENSHELL_IMAGE) \
 	    -p '{"spec":{"strategy":{"dockerStrategy":{"dockerfilePath":"Containerfile.openshell"}}}}' && \
 	  oc start-build $(OPENSHELL_IMAGE) --from-dir=. --follow && \
@@ -331,12 +343,15 @@ create-sandbox: ## Delete existing sandbox and create a new one (with 120s timeo
 	  openshell sandbox create --name "$$SANDBOX" --from "$$IMAGE" \
 	    --env "BASE_URL=$$BASE_URL" \
 	    --env "MODEL_ID=$$MODEL_ID" \
+	    --env "API_KEY=$$API_KEY" \
+	    --env "MAAS_API_KEY=$$MAAS_API_KEY" \
+	    --env "MAAS_BASE_URL=$$MAAS_BASE_URL" \
 	    --env "EMBEDDING_MODEL=$$EMBEDDING_MODEL" \
 	    --env "EMBEDDING_DIMENSION=$${EMBEDDING_DIMENSION:-1024}" \
-	    --env "VECTOR_STORE_PROVIDER=$$VECTOR_STORE_PROVIDER" \
-	    --env "API_KEY=$$API_KEY" \
+	    --env "MILVUS_URI=$$MILVUS_URI" \
+	    --env "MILVUS_TOKEN=$$MILVUS_TOKEN" \
 	    --env "PORT=8080" </dev/null & \
-	  CPID=$$!; ( sleep 120 && kill $$CPID 2>/dev/null ) & TPID=$$!; \
+	  CPID=$$!; ( sleep 80 && kill $$CPID 2>/dev/null ) & TPID=$$!; \
 	  wait $$CPID 2>/dev/null; RC=$$?; kill $$TPID 2>/dev/null; wait $$TPID 2>/dev/null; \
 	  if [ $$RC -ne 0 ]; then echo "    sandbox create exited with $$RC (may still be starting — wait-sandbox will poll)"; fi; true
 
@@ -352,66 +367,97 @@ wait-sandbox: ## Poll until sandbox phase is Ready (max 150s)
 	  done; \
 	  echo "ERROR: sandbox not ready after 150s"; exit 1
 
-setup-egress: ## Resolve python binary and add OGX + K8s API egress policies
+setup-egress: ## Add MaaS + Milvus egress policies for agent Python binary
 	@$(_openshell-env) && \
-	  echo "==> Resolving python path..." && \
-	  PYTHON_BIN=$$(openshell sandbox exec -n "$$SANDBOX" -- readlink -f /sandbox/.venv/bin/python3 2>&1 | grep -v WARN | tail -1) && \
-	  echo "    $$PYTHON_BIN" && \
-	  echo "==> Adding egress policy for OGX..." && \
-	  OGX_HOST=$$(echo "$$BASE_URL" | sed -E 's|^https?://||;s|/.*||') && \
-	  openshell policy update "$$SANDBOX" --add-endpoint "$$OGX_HOST:443" --binary "$$PYTHON_BIN" --wait && \
-	  echo "==> Adding egress policy for K8s API (TokenReview)..." && \
-	  K8S_API_HOST=$$(oc whoami --show-server | sed -E 's|^https?://||;s|/.*||') && \
-	  openshell policy update "$$SANDBOX" --add-endpoint "$$K8S_API_HOST" --binary "$$PYTHON_BIN" --wait
+	  echo "==> Using agent Python binary: /usr/bin/python3.12" && \
+	  PYTHON_BIN="/usr/bin/python3.12" && \
+	  echo "==> Adding egress policy for MaaS (chat model)..." && \
+	  MAAS_CHAT_HOST=$$(echo "$$BASE_URL" | sed -E 's|^https?://||;s|/.*||') && \
+	  openshell policy update "$$SANDBOX" --add-endpoint "$$MAAS_CHAT_HOST:443" --binary "$$PYTHON_BIN" --wait && \
+	  echo "==> Adding egress policy for MaaS (embeddings)..." && \
+	  MAAS_EMB_HOST=$$(echo "$$MAAS_BASE_URL" | sed -E 's|^https?://||;s|/.*||') && \
+	  openshell policy update "$$SANDBOX" --add-endpoint "$$MAAS_EMB_HOST:443" --binary "$$PYTHON_BIN" --wait && \
+	  echo "==> Adding egress policies for K8s API + Milvus (tls: skip — bypass proxy TLS inspection)..." && \
+	  MILVUS_HOSTPORT=$$(echo "$$MILVUS_URI" | sed -E 's|^https?://||;s|/.*||') && \
+	  MILVUS_HOST_ONLY=$$(echo "$$MILVUS_HOSTPORT" | cut -d: -f1) && \
+	  MILVUS_PORT_ONLY=$$(echo "$$MILVUS_HOSTPORT" | cut -d: -f2) && \
+	  POLICY_FILE=$$(mktemp /tmp/openshell-policy.XXXXXX) && \
+	  export MILVUS_H="$$MILVUS_HOST_ONLY" MILVUS_P="$$MILVUS_PORT_ONLY" PY_BIN="$$PYTHON_BIN" && \
+	  openshell policy get "$$SANDBOX" --full -o json 2>/dev/null | sed -n '/^{/,$$p' | \
+	    python3 -c 'import json,sys,os;d=json.load(sys.stdin);p=d["policy"];p["network_policies"]["k8s_api"]={"name":"k8s-api","endpoints":[{"host":"kubernetes.default.svc","port":443,"tls":"skip"}],"binaries":[{"path":os.environ["PY_BIN"]}]};p["network_policies"]["milvus_grpc"]={"name":"milvus-grpc","endpoints":[{"host":os.environ["MILVUS_H"],"port":int(os.environ["MILVUS_P"]),"tls":"skip"}],"binaries":[{"path":os.environ["PY_BIN"]}]};json.dump(p,sys.stdout,indent=2)' > "$$POLICY_FILE" && \
+	  openshell policy set "$$SANDBOX" --policy "$$POLICY_FILE" --wait && \
+	  rm -f "$$POLICY_FILE" && \
+	  echo "Done!"
 
-load-docs-sandbox: ## Load documents into vector store inside sandbox, update VECTOR_STORE_ID in .env
-	@$(_openshell-env) && \
-	  echo "==> Loading documents..." && \
-	  DOC_OUTPUT=$$(openshell sandbox exec -n "$$SANDBOX" \
-	    --env "BASE_URL=$$BASE_URL" \
-	    --env "EMBEDDING_MODEL=$$EMBEDDING_MODEL" \
-	    --env "EMBEDDING_DIMENSION=$${EMBEDDING_DIMENSION:-1024}" \
-	    --env "VECTOR_STORE_PROVIDER=$$VECTOR_STORE_PROVIDER" \
-	    --env "API_KEY=$$API_KEY" \
-	    --env "DOCS_TO_LOAD=/sandbox/data/sample_knowledge.txt" \
-	    --workdir /sandbox \
-	    -- python3 data/load_documents.py 2>&1) && \
-	  echo "$$DOC_OUTPUT" && \
-	  VSID=$$(echo "$$DOC_OUTPUT" | grep -oE 'vs_[a-zA-Z0-9_-]+' | tail -1) && \
-	  if [ -z "$$VSID" ]; then echo "ERROR: failed to extract VECTOR_STORE_ID"; exit 1; fi && \
-	  sed -i.bak "s|^VECTOR_STORE_ID=.*|VECTOR_STORE_ID=$$VSID|" .env && rm -f .env.bak && \
-	  echo "    Vector store: $$VSID (updated in .env)"
+load-docs-sandbox: ## Load documents into Milvus using OpenShift Job with ai4rag, update MILVUS_COLLECTION_NAME in .env
+	@./scripts/create-load-docs-job-ai4rag.sh
 
-start-agent: ## Start uvicorn inside sandbox, expose service URL and create Route
+check-collection: ## Check if Milvus collection exists and show details
 	@$(_openshell-env) && \
-	  if [ -z "$$VECTOR_STORE_ID" ]; then echo "ERROR: No VECTOR_STORE_ID in .env. Run 'make load-docs-sandbox' first or set it manually."; exit 1; fi && \
-	  VSID="$$VECTOR_STORE_ID" && \
+	  if [ -z "$$MILVUS_COLLECTION_NAME" ]; then echo "ERROR: MILVUS_COLLECTION_NAME not set in .env"; exit 1; fi && \
+	  echo "==> Copying check_collection.py to sandbox..." && \
+	  oc exec -n openshell "default--$$SANDBOX" -- mkdir -p /sandbox/scripts && \
+	  oc cp scripts/check_collection.py openshell/"default--$$SANDBOX":/sandbox/scripts/check_collection.py 2>/dev/null && \
+	  echo "==> Checking Milvus collection: $$MILVUS_COLLECTION_NAME" && \
+	  oc exec -n openshell "default--$$SANDBOX" -- bash -c '\
+	    export MILVUS_URI="'"$$MILVUS_URI"'" && \
+	    export MILVUS_TOKEN="'"$$MILVUS_TOKEN"'" && \
+	    export MILVUS_SERVER_CERT="/sandbox/data/certs/milvus-ca.crt" && \
+	    export MILVUS_COLLECTION_NAME="'"$$MILVUS_COLLECTION_NAME"'" && \
+	    export PYTHONPATH=/sandbox/.local/lib/python3.12/site-packages:/sandbox/.local/lib64/python3.12/site-packages:/sandbox && \
+	    cd /sandbox && /usr/bin/python3.12 scripts/check_collection.py' 2>&1 | grep -v "PyMilvusDeprecationWarning"
+
+start-agent: refresh-certs ## Start agent with external URL access and K8s ServiceAccount auth
+	@$(_openshell-env) && \
+	  if [ -z "$$MILVUS_COLLECTION_NAME" ]; then echo "ERROR: MILVUS_COLLECTION_NAME not set in .env. Run 'make load-docs-sandbox' first."; exit 1; fi && \
 	  echo "==> Creating agent-client ServiceAccount and token..." && \
 	  oc create sa agent-client 2>/dev/null || true && \
 	  CLIENT_TOKEN=$$(oc create token agent-client --duration=168h) && \
 	  oc delete secret agent-client-token 2>/dev/null || true && \
 	  oc create secret generic agent-client-token --from-literal=token="$$CLIENT_TOKEN" && \
 	  echo "==> Generating sandbox reviewer token..." && \
-	  K8S_API_URL=$$(oc whoami --show-server) && \
+	  K8S_API_URL="https://kubernetes.default.svc" && \
 	  K8S_REVIEWER_TOKEN=$$(oc create token openshell-sandbox -n openshell --duration=168h) && \
-	  ALLOWED_SA_USERNAME="system:serviceaccount:$$NS:agent-client" && \
-	  echo "==> Starting agent (VECTOR_STORE_ID=$$VSID)..." && \
-	  (openshell sandbox exec -n "$$SANDBOX" \
-	    --env "VECTOR_STORE_ID=$$VSID" \
-	    --env "K8S_API_URL=$$K8S_API_URL" \
-	    --env "K8S_REVIEWER_TOKEN=$$K8S_REVIEWER_TOKEN" \
-	    --env "ALLOWED_SA_USERNAME=$$ALLOWED_SA_USERNAME" \
-	    --workdir /sandbox \
-	    -- uvicorn auth_wrapper:app --host 127.0.0.1 --port 8080 >/dev/null 2>&1 &) && \
-	  echo "    Waiting 10s for agent startup..." && \
-	  sleep 10 && \
-	  HEALTH=$$(openshell sandbox exec -n "$$SANDBOX" -- curl -sf http://127.0.0.1:8080/health 2>/dev/null) && \
-	  if [ -z "$$HEALTH" ]; then echo "ERROR: agent health check failed"; exit 1; fi && \
-	  echo "    $$HEALTH" && \
+	  ALLOWED_SA_USERNAME="system:serviceaccount:$${NS}:agent-client" && \
+	  echo "==> Stopping any running agent..." && \
+	  oc exec -n openshell "default--$$SANDBOX" -- bash -c "pkill -f python3" 2>/dev/null || true && \
+	  sleep 5 && \
+	  echo "==> Starting agent (collection: $$MILVUS_COLLECTION_NAME, auth: enabled)..." && \
+	  openshell sandbox exec -n "$$SANDBOX" -- bash -c '\
+	    export API_KEY="'"$$API_KEY"'" && \
+	    export BASE_URL="'"$$BASE_URL"'" && \
+	    export MODEL_ID="'"$$MODEL_ID"'" && \
+	    export MAAS_API_KEY="'"$$MAAS_API_KEY"'" && \
+	    export MAAS_BASE_URL="'"$$MAAS_BASE_URL"'" && \
+	    export EMBEDDING_MODEL="'"$$EMBEDDING_MODEL"'" && \
+	    export EMBEDDING_DIMENSION="'"$$EMBEDDING_DIMENSION"'" && \
+	    export MILVUS_URI="'"$$MILVUS_URI"'" && \
+	    export MILVUS_TOKEN="'"$$MILVUS_TOKEN"'" && \
+	    export MILVUS_COLLECTION_NAME="'"$$MILVUS_COLLECTION_NAME"'" && \
+	    export MILVUS_SERVER_CERT="/sandbox/data/certs/milvus-ca.crt" && \
+	    export MILVUS_SERVER_NAME="'"$$MILVUS_SERVER_NAME"'" && \
+	    export K8S_API_URL="'"$$K8S_API_URL"'" && \
+	    export K8S_REVIEWER_TOKEN="'"$$K8S_REVIEWER_TOKEN"'" && \
+	    export ALLOWED_SA_USERNAME="'"$$ALLOWED_SA_USERNAME"'" && \
+	    export PYTHONPATH=/sandbox/.local/lib/python3.12/site-packages:/sandbox/.local/lib64/python3.12/site-packages:/sandbox && \
+	    cd /sandbox && \
+	    nohup /usr/bin/python3.12 -m uvicorn auth_wrapper:app --host 0.0.0.0 --port 8080 > /sandbox/agent.log 2>&1 &\
+	    echo $$! > /sandbox/agent.pid && \
+	    sleep 3 && \
+	    if kill -0 $$! 2>/dev/null; then echo "Agent process alive"; else echo "ERROR: Agent died on startup"; cat /sandbox/agent.log; exit 1; fi' && \
+	  echo "    Agent started in background."
+
+expose-agent: ## Expose agent service and create Route
+	@$(_openshell-env) && \
 	  echo "==> Exposing service URL..." && \
-	  openshell service expose "$$SANDBOX" 8080 agent && \
+	  openshell service expose "$$SANDBOX" 8080 agent 2>/dev/null || true && \
+	  sleep 2 && \
 	  SVC_HOST="default--$$SANDBOX--agent.openshell.$$APPS_DOMAIN" && \
-	  printf 'apiVersion: route.openshift.io/v1\nkind: Route\nmetadata:\n  name: openshell-rag-agent\n  namespace: openshell\nspec:\n  host: "%s"\n  to:\n    kind: Service\n    name: openshell\n  port:\n    targetPort: 8080\n  tls:\n    termination: passthrough\n' "$$SVC_HOST" | oc apply -f - && \
+	  printf 'apiVersion: route.openshift.io/v1\nkind: Route\nmetadata:\n  name: openshell-rag-agent\n  namespace: openshell\nspec:\n  host: "%s"\n  to:\n    kind: Service\n    name: openshell\n  port:\n    targetPort: grpc\n  tls:\n    termination: passthrough\n' "$$SVC_HOST" | oc apply -f - && \
+	  echo "==> Waiting for agent to initialize (10s)..." && \
+	  sleep 10 && \
+	  echo "==> Checking agent health..." && \
+	  curl -sk -m 3 "https://$$SVC_HOST/health" 2>/dev/null || echo "Agent not ready yet (check logs)" && \
 	  echo "" && \
 	  echo "════════════════════════════════════════════════════════════════" && \
 	  echo "Agent URL: https://$$SVC_HOST" && \
@@ -424,15 +470,19 @@ start-agent: ## Start uvicorn inside sandbox, expose service URL and create Rout
 	  echo "    -H \"X-Api-Key: \$$TOKEN\" \\" && \
 	  echo "    -H 'Content-Type: application/json' \\" && \
 	  echo "    -d '{\"messages\":[{\"role\":\"user\",\"content\":\"What are appropriate chunk sizes?\"}]}'" && \
+	  echo "" && \
+	  echo "Check logs:" && \
+	  echo "  oc exec -n openshell default--$$SANDBOX -- tail -50 /sandbox/agent.log" && \
 	  echo "════════════════════════════════════════════════════════════════"
 
-deploy-openshell: create-sandbox wait-sandbox setup-egress load-docs-sandbox start-agent ## Create sandbox, start agent, expose public URL
+deploy-openshell: create-sandbox wait-sandbox setup-egress start-agent expose-agent ## Create sandbox, start agent, expose public URL
 
 undeploy-openshell: ## Remove openShell sandbox and route
 	@export OPENSHELL_GATEWAY_INSECURE=true && \
-	  openshell sandbox delete $(OPENSHELL_SANDBOX) 2>/dev/null || true && \
+	  (openshell sandbox delete $(OPENSHELL_SANDBOX) 2>/dev/null || true) && \
 	  oc -n openshell delete route openshell-rag-agent 2>/dev/null || true && \
-	  echo "Sandbox $(OPENSHELL_SANDBOX) and route removed."
+	  echo "Sandbox $(OPENSHELL_SANDBOX) and route removed." && \
+	  sleep 10 2>/dev/null || true
 
 playground-sandbox: ## Start sandbox playground web UI (auto-fetches agent URL and SA token)
 	@. .venv/bin/activate && \
