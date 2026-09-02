@@ -11,6 +11,7 @@ Usage:
     deploy-btest-agents.sh                          # deploy the full set
     deploy-btest-agents.sh langgraph/templates/react_agent
     deploy-btest-agents.sh --print-selection        # effective agent ids, one per line
+    deploy-btest-agents.sh --print-excluded         # EXCLUDED_AGENTS as JSON array
     deploy-btest-agents.sh --undeploy               # tear down what was deployed
 """
 
@@ -428,6 +429,11 @@ def build_parser() -> argparse.ArgumentParser:
             "runner is allowlist-only, so its argv must be this same list."
         ),
     )
+    parser.add_argument(
+        "--print-excluded",
+        action="store_true",
+        help="print EXCLUDED_AGENTS as a JSON array and exit",
+    )
     parser.add_argument("--undeploy", action="store_true", help="teardown pass")
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
     return parser
@@ -440,6 +446,12 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s [%(levelname)s] %(message)s",
         datefmt="%H:%M:%S",
     )
+
+    if args.print_excluded:
+        import json
+
+        print(json.dumps(list(EXCLUDED_AGENTS)))
+        return 0
 
     # --print-selection must not need a cluster; the namespace only labels the
     # targets and is not consulted for the id list.
