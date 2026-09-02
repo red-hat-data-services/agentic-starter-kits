@@ -94,8 +94,7 @@ DEPLOY_TIMEOUTS: dict[str, int] = {
     "a2a/templates/langgraph_crewai_agent": 600,
 }
 DEFAULT_DEPLOY_TIMEOUT = 300
-# Seconds; align with QG4 build-openshift timeout (RHAIENG-7217).
-DEFAULT_BUILD_TIMEOUT = int(os.environ.get("QG_BUILD_TIMEOUT_SECONDS", 900))
+DEFAULT_BUILD_TIMEOUT = 900
 DEFAULT_UNDEPLOY_TIMEOUT = 120
 DEFAULT_ROLLOUT_TIMEOUT = 180
 
