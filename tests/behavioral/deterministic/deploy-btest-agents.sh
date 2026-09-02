@@ -4,6 +4,7 @@
 # Usage:  ./deploy-btest-agents.sh                        # deploy the full set
 #         ./deploy-btest-agents.sh langgraph/templates/react_agent
 #         ./deploy-btest-agents.sh --print-selection      # effective ids, one per line
+#         ./deploy-btest-agents.sh --print-excluded       # EXCLUDED_AGENTS as JSON
 #         ./deploy-btest-agents.sh --undeploy             # tear down what was deployed
 #
 # QG7's runner (run-btests-pytest.sh) assumes agents are already deployed,
