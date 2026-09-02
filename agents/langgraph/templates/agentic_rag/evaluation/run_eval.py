@@ -39,13 +39,17 @@ def load_eval_data(path: str | None = None) -> list[dict]:
 
 
 def _get_int_env(name: str, default: int) -> int:
-    """Read an integer env var, exiting with a clear error if it's not a valid integer."""
+    """Read an integer env var, exiting with a clear error if it's not a valid non-negative integer."""
     value = os.getenv(name, str(default))
     try:
-        return int(value)
+        result = int(value)
     except ValueError:
         print(f"ERROR: {name}='{value}' is not a valid integer.")
         raise SystemExit(1) from None
+    if result < 0:
+        print(f"ERROR: {name}={result} must not be negative.")
+        raise SystemExit(1)
+    return result
 
 
 def generate_traces(eval_data: list[dict], agent_url: str) -> None:
@@ -158,8 +162,9 @@ def _resolve_scorer_or_warn(entry: dict, judge_model: str):
     """Resolve a scorer entry, warning and skipping it instead of crashing the run."""
     try:
         return resolve_scorer(entry, judge_model)
-    except (ModuleNotFoundError, AttributeError) as e:
-        print(f"WARNING: Could not load scorer '{entry.get('name')}': {e}. Skipping.")
+    except (ModuleNotFoundError, AttributeError, TypeError) as e:
+        name = entry.get("name") if isinstance(entry, dict) else "<invalid entry>"
+        print(f"WARNING: Could not load scorer '{name}': {e}. Skipping.")
         return None
 
 
