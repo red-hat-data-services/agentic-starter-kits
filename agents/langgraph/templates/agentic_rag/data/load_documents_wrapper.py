@@ -9,6 +9,7 @@ import sys
 # CRITICAL: Do this BEFORE any other imports
 try:
     import pysqlite3
+
     sys.modules["sqlite3"] = pysqlite3
     print("✓ Using pysqlite3 instead of system sqlite3")
 except ImportError:
@@ -17,4 +18,5 @@ except ImportError:
 # Now it's safe to import and run the actual loader
 if __name__ == "__main__":
     from load_documents_ai4rag import load_and_index_documents
+
     load_and_index_documents()

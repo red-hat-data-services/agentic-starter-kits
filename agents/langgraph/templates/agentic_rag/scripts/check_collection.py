@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Check if Milvus collection exists and show basic info."""
+
 import os
 
 from pymilvus import Collection, connections, utility
@@ -43,7 +44,9 @@ if collection_name in collections:
             results = col.query(expr="", limit=5, output_fields=["chunk_id", "content"])
             print(f"   Query returned: {len(results)} rows")
             for r in results[:3]:
-                print(f"     - {r.get('chunk_id', '?')}: {str(r.get('content', ''))[:80]}")
+                print(
+                    f"     - {r.get('chunk_id', '?')}: {str(r.get('content', ''))[:80]}"
+                )
         except Exception as e:
             print(f"   Query error: {e}")
 else:

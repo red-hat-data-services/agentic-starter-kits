@@ -7,6 +7,7 @@ from typing import Optional
 # Must be done BEFORE importing ai4rag
 try:
     import pysqlite3  # noqa: F401
+
     sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
 except ImportError:
     pass  # pysqlite3-binary not available, continue with system sqlite3
@@ -53,12 +54,14 @@ def get_retriever(
     if milvus_cert and not milvus_cert.startswith("-----BEGIN"):
         # It's a file path - read the certificate content
         if os.path.exists(milvus_cert):
-            with open(milvus_cert, 'r') as f:
+            with open(milvus_cert, "r") as f:
                 cert_content = f.read()
             os.environ["MILVUS_SERVER_CERT"] = cert_content
             print(f"✓ Loaded Milvus certificate from {milvus_cert}")
         else:
-            print(f"⚠ Milvus cert file not found at {milvus_cert} - connection may fail")
+            print(
+                f"⚠ Milvus cert file not found at {milvus_cert} - connection may fail"
+            )
     elif milvus_cert and milvus_cert.startswith("-----BEGIN"):
         print("✓ Using Milvus certificate from environment (PEM text)")
 
@@ -93,13 +96,10 @@ def get_retriever(
 
     # Initialize embedding model
     params = OpenAIEmbeddingParams(
-        embedding_dimension=embedding_dimension,
-        context_length=1015
+        embedding_dimension=embedding_dimension, context_length=1015
     )
     embedding_model = OpenAIEmbeddingModel(
-        client=client,
-        model_id=embedding_model_id,
-        params=params
+        client=client, model_id=embedding_model_id, params=params
     )
 
     # Initialize Milvus vector store
@@ -168,7 +168,7 @@ def retriever_tool(query: str) -> str:
     for i, doc in enumerate(retrieved_docs, 1):
         # Skip chunks that are empty or just separators/whitespace
         # ai4rag returns AI4RAGChunk with .text attribute, not .page_content
-        content = getattr(doc, 'text', getattr(doc, 'page_content', '')).strip()
+        content = getattr(doc, "text", getattr(doc, "page_content", "")).strip()
         if not content or all(c in "=-_*#|" for c in content):
             continue
 
@@ -177,7 +177,7 @@ def retriever_tool(query: str) -> str:
         source = metadata.get("source", "unknown")
 
         # Extract score if available (ai4rag chunks may have score/similarity)
-        score = getattr(doc, 'score', getattr(doc, 'similarity', None))
+        score = getattr(doc, "score", getattr(doc, "similarity", None))
         score_str = f"{score:.3f}" if score is not None else "N/A"
 
         # Format each document with clear separation

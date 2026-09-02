@@ -14,6 +14,7 @@ from typing import Any
 # Must be done BEFORE importing agentic_rag
 try:
     import pysqlite3  # noqa: F401
+
     sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
 except ImportError:
     pass  # pysqlite3-binary not available, continue with system sqlite3

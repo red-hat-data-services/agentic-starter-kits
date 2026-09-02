@@ -46,7 +46,9 @@ def load_and_index_documents(
     # Get Milvus configuration
     milvus_uri = os.getenv("MILVUS_URI")
     milvus_token = os.getenv("MILVUS_TOKEN")
-    milvus_cert = os.getenv("MILVUS_SERVER_CERT")  # None if not set, empty string if set to ""
+    milvus_cert = os.getenv(
+        "MILVUS_SERVER_CERT"
+    )  # None if not set, empty string if set to ""
 
     # Generate a unique collection name with timestamp if not provided
     milvus_collection = os.getenv("MILVUS_COLLECTION_NAME")
@@ -68,7 +70,7 @@ def load_and_index_documents(
         # It's a file path - read the certificate content
         if not os.path.exists(milvus_cert):
             raise ValueError(f"MILVUS_SERVER_CERT file not found at {milvus_cert}")
-        with open(milvus_cert, 'r') as f:
+        with open(milvus_cert, "r") as f:
             cert_content = f.read()
         os.environ["MILVUS_SERVER_CERT"] = cert_content
         print(f"✓ Loaded certificate from {milvus_cert}")
@@ -77,7 +79,9 @@ def load_and_index_documents(
         os.environ["MILVUS_SERVER_CERT"] = milvus_cert
         print("✓ Using certificate from environment variable (PEM text)")
     else:
-        print("⚠ No MILVUS_SERVER_CERT provided - connection may fail if TLS is required")
+        print(
+            "⚠ No MILVUS_SERVER_CERT provided - connection may fail if TLS is required"
+        )
 
     # Set other environment variables for ai4rag
     os.environ["MILVUS_URI"] = milvus_uri
@@ -96,13 +100,10 @@ def load_and_index_documents(
 
     # Initialize embedding model
     params = OpenAIEmbeddingParams(
-        embedding_dimension=embedding_dimension,
-        context_length=1015
+        embedding_dimension=embedding_dimension, context_length=1015
     )
     embedding_model = OpenAIEmbeddingModel(
-        client=client,
-        model_id=embedding_model_id,
-        params=params
+        client=client, model_id=embedding_model_id, params=params
     )
 
     # Initialize Milvus vector store
@@ -155,7 +156,9 @@ def load_and_index_documents(
     # ai4rag's vector store handles the embedding and insertion
     vector_store.add_documents(ai4rag_chunks)
 
-    print(f"\n✅ Done! {len(ai4rag_chunks)} chunks inserted into Milvus collection '{milvus_collection}'")
+    print(
+        f"\n✅ Done! {len(ai4rag_chunks)} chunks inserted into Milvus collection '{milvus_collection}'"
+    )
     print("\n📋 To use this collection, update your .env file:")
     print(f"   MILVUS_COLLECTION_NAME={milvus_collection}")
 

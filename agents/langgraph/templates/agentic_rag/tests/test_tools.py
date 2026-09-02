@@ -143,7 +143,13 @@ def test_retriever_tool_filters_empty_chunks(mock_get_retriever):
 @patch("src.agentic_rag.tools.Retriever")
 @patch("src.agentic_rag.tools.OpenAI")
 @patch("src.agentic_rag.tools.getenv")
-def test_get_retriever_initialization(mock_get_env, mock_openai_class, mock_retriever_class, mock_get_config, mock_get_store):
+def test_get_retriever_initialization(
+    mock_get_env,
+    mock_openai_class,
+    mock_retriever_class,
+    mock_get_config,
+    mock_get_store,
+):
     """Test that retriever is properly initialized."""
     # Reset cache
     tools_module._retriever_cache = None
@@ -193,7 +199,13 @@ def test_get_retriever_caching(mock_openai_class):
 @patch("src.agentic_rag.tools.Retriever")
 @patch("src.agentic_rag.tools.OpenAI")
 @patch("src.agentic_rag.tools.getenv")
-def test_get_retriever_with_explicit_params(mock_get_env, mock_openai_class, mock_retriever_class, mock_get_config, mock_get_store):
+def test_get_retriever_with_explicit_params(
+    mock_get_env,
+    mock_openai_class,
+    mock_retriever_class,
+    mock_get_config,
+    mock_get_store,
+):
     """Test that explicit parameters override environment variables."""
     # Reset cache
     tools_module._retriever_cache = None
@@ -212,7 +224,7 @@ def test_get_retriever_with_explicit_params(mock_get_env, mock_openai_class, moc
     result = get_retriever(
         maas_api_key="custom-key",
         maas_base_url="https://custom.example.com/v1",
-        milvus_collection="custom-collection"
+        milvus_collection="custom-collection",
     )
 
     # Should use provided parameters
