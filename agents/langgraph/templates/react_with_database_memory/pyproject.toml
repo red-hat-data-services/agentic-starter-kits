@@ -37,6 +37,12 @@ tracing = [
 dev = [
     "pytest>=9.0.2",
 ]
+eval = [
+    "mlflow[kubernetes]>=3.11.0",
+    "pyyaml>=6.0",
+    "httpx>=0.27",
+    "deepeval>=4.2,<5",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
