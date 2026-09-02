@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import sys
 import time
 import uuid
 from collections.abc import AsyncIterator
@@ -11,9 +12,8 @@ from typing import Any
 
 # Fix sqlite3 version issue for chromadb (required by ai4rag)
 # Must be done BEFORE importing agentic_rag
-import sys
 try:
-    import pysqlite3
+    import pysqlite3  # noqa: F401
     sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
 except ImportError:
     pass  # pysqlite3-binary not available, continue with system sqlite3

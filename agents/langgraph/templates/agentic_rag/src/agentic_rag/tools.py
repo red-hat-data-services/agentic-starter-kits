@@ -1,17 +1,20 @@
 import os
+import sys
 from os import getenv
 from typing import Optional
 
 # Fix sqlite3 version issue for chromadb (required by ai4rag)
 # Must be done BEFORE importing ai4rag
-import sys
 try:
-    import pysqlite3
+    import pysqlite3  # noqa: F401
     sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
 except ImportError:
     pass  # pysqlite3-binary not available, continue with system sqlite3
 
-from ai4rag.rag.embedding.openai_model import OpenAIEmbeddingModel, OpenAIEmbeddingParams
+from ai4rag.rag.embedding.openai_model import (
+    OpenAIEmbeddingModel,
+    OpenAIEmbeddingParams,
+)
 from ai4rag.rag.retrieval.retriever import Retriever
 from ai4rag.rag.vector_store import get_vector_store, get_vector_store_config
 from langchain_core.tools import tool
@@ -57,7 +60,7 @@ def get_retriever(
         else:
             print(f"⚠ Milvus cert file not found at {milvus_cert} - connection may fail")
     elif milvus_cert and milvus_cert.startswith("-----BEGIN"):
-        print(f"✓ Using Milvus certificate from environment (PEM text)")
+        print("✓ Using Milvus certificate from environment (PEM text)")
 
     # Return cached retriever if it exists
     if _retriever_cache is not None:

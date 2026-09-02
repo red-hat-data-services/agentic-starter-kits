@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Check if Milvus collection exists and show basic info."""
 import os
-from pymilvus import connections, Collection, utility
+
+from pymilvus import Collection, connections, utility
 
 milvus_uri = os.getenv("MILVUS_URI")
 milvus_token = os.getenv("MILVUS_TOKEN")

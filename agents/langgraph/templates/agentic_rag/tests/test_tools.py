@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from src.agentic_rag.tools import (
     RetrieverInput,
-    get_retriever_components,
+    get_retriever,
     retriever_tool,
 )
 
@@ -28,25 +28,18 @@ def test_retriever_input_schema():
     assert schema.query == "test query"
 
 
-@patch("src.agentic_rag.tools.get_retriever_components")
-def test_retriever_tool_invoke_with_string_query(mock_get_components):
+@patch("src.agentic_rag.tools.get_retriever")
+def test_retriever_tool_invoke_with_string_query(mock_get_retriever):
     """Test that the retriever tool can be invoked with a string query."""
-    # Mock the OGX client and vector store response
-    mock_client = Mock()
+    # Mock ai4rag retriever and chunks
+    mock_retriever = Mock()
     mock_chunk = Mock()
-    mock_chunk.content = "LangGraph is a library for building stateful, multi-actor applications with LLMs."
+    mock_chunk.text = "LangGraph is a library for building stateful, multi-actor applications with LLMs."
     mock_chunk.score = 0.95
-    mock_chunk.chunk_metadata = Mock(source="langgraph_docs.txt")
+    mock_chunk.metadata = {"source": "langgraph_docs.txt"}
 
-    mock_response = Mock()
-    mock_response.chunks = [mock_chunk]
-
-    mock_client.vector_io.query.return_value = mock_response
-
-    mock_get_components.return_value = {
-        "client": mock_client,
-        "vector_store_id": "test-vector-store-id",
-    }
+    mock_retriever.retrieve.return_value = [mock_chunk]
+    mock_get_retriever.return_value = mock_retriever
 
     # Invoke the tool
     query = "What is LangGraph?"
@@ -60,26 +53,17 @@ def test_retriever_tool_invoke_with_string_query(mock_get_components):
     assert "Source:" in result
     assert "Score:" in result
 
-    # Verify the client was called correctly
-    mock_client.vector_io.query.assert_called_once_with(
-        vector_store_id="test-vector-store-id", query=query, params={"max_chunks": 5}
-    )
+    # Verify the retriever was called correctly
+    mock_retriever.retrieve.assert_called_once_with(query)
 
 
-@patch("src.agentic_rag.tools.get_retriever_components")
-def test_retriever_tool_no_results(mock_get_components):
+@patch("src.agentic_rag.tools.get_retriever")
+def test_retriever_tool_no_results(mock_get_retriever):
     """Test retriever tool behavior when no results are found."""
     # Mock empty response
-    mock_client = Mock()
-    mock_response = Mock()
-    mock_response.chunks = []
-
-    mock_client.vector_io.query.return_value = mock_response
-
-    mock_get_components.return_value = {
-        "client": mock_client,
-        "vector_store_id": "test-vector-store-id",
-    }
+    mock_retriever = Mock()
+    mock_retriever.retrieve.return_value = []
+    mock_get_retriever.return_value = mock_retriever
 
     # Invoke the tool
     result = retriever_tool.invoke({"query": "nonexistent query"})
@@ -88,31 +72,24 @@ def test_retriever_tool_no_results(mock_get_components):
     assert "No relevant information was found" in result
 
 
-@patch("src.agentic_rag.tools.get_retriever_components")
-def test_retriever_tool_multiple_chunks(mock_get_components):
+@patch("src.agentic_rag.tools.get_retriever")
+def test_retriever_tool_multiple_chunks(mock_get_retriever):
     """Test retriever tool with multiple chunks returned."""
     # Mock multiple chunks
-    mock_client = Mock()
+    mock_retriever = Mock()
 
     mock_chunk1 = Mock()
-    mock_chunk1.content = "First document content about LangGraph."
+    mock_chunk1.text = "First document content about LangGraph."
     mock_chunk1.score = 0.95
-    mock_chunk1.chunk_metadata = Mock(source="doc1.txt")
+    mock_chunk1.metadata = {"source": "doc1.txt"}
 
     mock_chunk2 = Mock()
-    mock_chunk2.content = "Second document content about agents."
+    mock_chunk2.text = "Second document content about agents."
     mock_chunk2.score = 0.85
-    mock_chunk2.chunk_metadata = Mock(source="doc2.txt")
+    mock_chunk2.metadata = {"source": "doc2.txt"}
 
-    mock_response = Mock()
-    mock_response.chunks = [mock_chunk1, mock_chunk2]
-
-    mock_client.vector_io.query.return_value = mock_response
-
-    mock_get_components.return_value = {
-        "client": mock_client,
-        "vector_store_id": "test-vector-store-id",
-    }
+    mock_retriever.retrieve.return_value = [mock_chunk1, mock_chunk2]
+    mock_get_retriever.return_value = mock_retriever
 
     # Invoke the tool
     result = retriever_tool.invoke({"query": "LangGraph agents"})
@@ -126,36 +103,29 @@ def test_retriever_tool_multiple_chunks(mock_get_components):
     assert "doc2.txt" in result
 
 
-@patch("src.agentic_rag.tools.get_retriever_components")
-def test_retriever_tool_filters_empty_chunks(mock_get_components):
+@patch("src.agentic_rag.tools.get_retriever")
+def test_retriever_tool_filters_empty_chunks(mock_get_retriever):
     """Test that empty or separator chunks are filtered out."""
     # Mock chunks with empty/separator content
-    mock_client = Mock()
+    mock_retriever = Mock()
 
     mock_chunk1 = Mock()
-    mock_chunk1.content = "====="  # Separator
+    mock_chunk1.text = "====="  # Separator
     mock_chunk1.score = 0.90
-    mock_chunk1.chunk_metadata = Mock(source="separator.txt")
+    mock_chunk1.metadata = {"source": "separator.txt"}
 
     mock_chunk2 = Mock()
-    mock_chunk2.content = "   "  # Whitespace only
+    mock_chunk2.text = "   "  # Whitespace only
     mock_chunk2.score = 0.88
-    mock_chunk2.chunk_metadata = Mock(source="whitespace.txt")
+    mock_chunk2.metadata = {"source": "whitespace.txt"}
 
     mock_chunk3 = Mock()
-    mock_chunk3.content = "Actual content"  # Valid content
+    mock_chunk3.text = "Actual content"  # Valid content
     mock_chunk3.score = 0.95
-    mock_chunk3.chunk_metadata = Mock(source="valid.txt")
+    mock_chunk3.metadata = {"source": "valid.txt"}
 
-    mock_response = Mock()
-    mock_response.chunks = [mock_chunk1, mock_chunk2, mock_chunk3]
-
-    mock_client.vector_io.query.return_value = mock_response
-
-    mock_get_components.return_value = {
-        "client": mock_client,
-        "vector_store_id": "test-vector-store-id",
-    }
+    mock_retriever.retrieve.return_value = [mock_chunk1, mock_chunk2, mock_chunk3]
+    mock_get_retriever.return_value = mock_retriever
 
     # Invoke the tool
     result = retriever_tool.invoke({"query": "test"})
@@ -168,100 +138,112 @@ def test_retriever_tool_filters_empty_chunks(mock_get_components):
     assert "Document 2" not in result
 
 
-@patch("src.agentic_rag.tools.OgxClient")
+@patch("src.agentic_rag.tools.get_vector_store")
+@patch("src.agentic_rag.tools.get_vector_store_config")
+@patch("src.agentic_rag.tools.Retriever")
+@patch("src.agentic_rag.tools.OpenAI")
 @patch("src.agentic_rag.tools.getenv")
-def test_get_retriever_components_initialization(mock_get_env, mock_client_class):
-    """Test that retriever components are properly initialized."""
+def test_get_retriever_initialization(mock_get_env, mock_openai_class, mock_retriever_class, mock_get_config, mock_get_store):
+    """Test that retriever is properly initialized."""
     # Reset cache
-    tools_module._client_cache = None
-    tools_module._vector_store_id_cache = None
+    tools_module._retriever_cache = None
 
-    # Mock environment variables: BASE_URL, VECTOR_STORE_ID, API_KEY
-    def getenv_side_effect(key):
+    # Mock environment variables (getenv can have default as 2nd arg)
+    def getenv_side_effect(key, default=None):
         return {
-            "BASE_URL": "http://localhost:8321",
-            "VECTOR_STORE_ID": "test-vector-store-123",
-            "API_KEY": "test-key",
-        }.get(key)
+            "MAAS_API_KEY": "test-maas-key",
+            "MAAS_BASE_URL": "https://maas.example.com/v1",
+            "MILVUS_COLLECTION_NAME": "test-collection-123",
+            "EMBEDDING_MODEL": "test-embedding-model",
+            "EMBEDDING_DIMENSION": "1024",
+        }.get(key, default)
 
     mock_get_env.side_effect = getenv_side_effect
-    mock_client_class.return_value = Mock()
+    mock_get_config.return_value = Mock()
+    mock_get_store.return_value = Mock()
+    mock_retriever_class.return_value = Mock()
 
     # Call function
-    result = get_retriever_components()
+    result = get_retriever()
 
     # Assertions
-    assert "client" in result
-    assert "vector_store_id" in result
-    assert result["vector_store_id"] == "test-vector-store-123"
-    mock_client_class.assert_called_once_with(
-        base_url="http://localhost:8321", api_key="test-key"
+    assert result is not None
+    mock_openai_class.assert_called_once_with(
+        base_url="https://maas.example.com/v1", api_key="test-maas-key"
     )
 
 
-@patch("src.agentic_rag.tools.OgxClient")
-@patch("src.agentic_rag.tools.getenv")
-def test_get_retriever_components_caching(mock_get_env, mock_client_class):
-    """Test that retriever components are cached after first call."""
-    # Set up cache with values
-    mock_cached_client = Mock()
-    tools_module._client_cache = mock_cached_client
-    tools_module._vector_store_id_cache = "cached-vector-store-id"
+@patch("src.agentic_rag.tools.OpenAI")
+def test_get_retriever_caching(mock_openai_class):
+    """Test that retriever is cached after first call."""
+    # Set up cache with mock retriever
+    mock_cached_retriever = Mock()
+    tools_module._retriever_cache = mock_cached_retriever
 
     # Call function
-    result = get_retriever_components()
+    result = get_retriever()
 
-    # Should return cached values without calling OgxClient
-    assert result["client"] == mock_cached_client
-    assert result["vector_store_id"] == "cached-vector-store-id"
-    mock_client_class.assert_not_called()
+    # Should return cached retriever without calling OpenAI
+    assert result == mock_cached_retriever
+    mock_openai_class.assert_not_called()
 
 
-@patch("src.agentic_rag.tools.OgxClient")
+@patch("src.agentic_rag.tools.get_vector_store")
+@patch("src.agentic_rag.tools.get_vector_store_config")
+@patch("src.agentic_rag.tools.Retriever")
+@patch("src.agentic_rag.tools.OpenAI")
 @patch("src.agentic_rag.tools.getenv")
-def test_get_retriever_components_with_base_url(mock_get_env, mock_client_class):
-    """Test that base_url parameter is used when provided."""
+def test_get_retriever_with_explicit_params(mock_get_env, mock_openai_class, mock_retriever_class, mock_get_config, mock_get_store):
+    """Test that explicit parameters override environment variables."""
     # Reset cache
-    tools_module._client_cache = None
-    tools_module._vector_store_id_cache = None
+    tools_module._retriever_cache = None
 
-    def getenv_side_effect(key):
+    def getenv_side_effect(key, default=None):
         return {
-            "VECTOR_STORE_ID": "test-id",
-            "API_KEY": "test-key",
-        }.get(key)
+            "MILVUS_COLLECTION_NAME": "env-collection",
+        }.get(key, default)
 
     mock_get_env.side_effect = getenv_side_effect
-    mock_client_class.return_value = Mock()
+    mock_get_config.return_value = Mock()
+    mock_get_store.return_value = Mock()
+    mock_retriever_class.return_value = Mock()
 
-    # Call with explicit base_url
-    result = get_retriever_components(base_url="http://custom:9999")
-
-    # Should use provided base_url (stripped of /v1 suffix if present)
-    mock_client_class.assert_called_once_with(
-        base_url="http://custom:9999", api_key="test-key"
+    # Call with explicit parameters
+    result = get_retriever(
+        maas_api_key="custom-key",
+        maas_base_url="https://custom.example.com/v1",
+        milvus_collection="custom-collection"
     )
-    assert result["vector_store_id"] == "test-id"
+
+    # Should use provided parameters
+    mock_openai_class.assert_called_once_with(
+        base_url="https://custom.example.com/v1", api_key="custom-key"
+    )
+    assert result is not None
 
 
 @patch("src.agentic_rag.tools.getenv")
-def test_get_retriever_components_no_vector_store(mock_get_env):
-    """Test error handling when VECTOR_STORE_ID env var is not set."""
+def test_get_retriever_no_collection(mock_get_env):
+    """Test error handling when MILVUS_COLLECTION_NAME env var is not set."""
     # Reset cache
-    tools_module._client_cache = None
-    tools_module._vector_store_id_cache = None
+    tools_module._retriever_cache = None
 
-    def getenv_side_effect(key):
-        return {"BASE_URL": "http://localhost:8321"}.get(key)
+    def getenv_side_effect(key, default=None):
+        return {
+            "MAAS_API_KEY": "test-key",
+            "MAAS_BASE_URL": "https://maas.example.com/v1",
+            "EMBEDDING_MODEL": "test-model",
+            "EMBEDDING_DIMENSION": "1024",
+        }.get(key, default)
 
     mock_get_env.side_effect = getenv_side_effect
 
-    # Should raise RuntimeError when VECTOR_STORE_ID is missing
+    # Should raise RuntimeError when MILVUS_COLLECTION_NAME is missing
     with pytest.raises(RuntimeError) as exc_info:
-        get_retriever_components()
+        get_retriever()
 
-    assert "VECTOR_STORE_ID" in str(exc_info.value)
-    assert "load_documents.py" in str(exc_info.value)
+    assert "MILVUS_COLLECTION_NAME" in str(exc_info.value)
+    assert "load_documents" in str(exc_info.value)
 
 
 if __name__ == "__main__":

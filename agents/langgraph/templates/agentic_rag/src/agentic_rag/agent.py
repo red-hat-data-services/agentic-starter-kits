@@ -88,7 +88,13 @@ def get_graph_closure(
         # Combine default and custom prompts
         system_message_text = default_system_prompt
         if instruction_prompt is not None:
-            system_message_text = default_system_prompt + "\n\n" + instruction_prompt.content
+            # Extract content as string (handle list type from LangChain message content)
+            content = instruction_prompt.content
+            if isinstance(content, str):
+                system_message_text = default_system_prompt + "\n\n" + content
+            elif isinstance(content, list):
+                # Join list items if content is a list
+                system_message_text = default_system_prompt + "\n\n" + str(content)
 
         # Create agent using LangChain's create_agent
         graph = create_agent(

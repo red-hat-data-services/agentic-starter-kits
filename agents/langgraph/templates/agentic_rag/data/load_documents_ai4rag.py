@@ -10,9 +10,11 @@ NOTE: Use load_documents_wrapper.py as entry point to fix sqlite3 issue.
 import os
 import uuid
 from datetime import datetime
-from pathlib import Path
 
-from ai4rag.rag.embedding.openai_model import OpenAIEmbeddingModel, OpenAIEmbeddingParams
+from ai4rag.rag.embedding.openai_model import (
+    OpenAIEmbeddingModel,
+    OpenAIEmbeddingParams,
+)
 from ai4rag.rag.vector_store import get_vector_store, get_vector_store_config
 from dotenv import load_dotenv
 from langchain_community.document_loaders import TextLoader
@@ -73,7 +75,7 @@ def load_and_index_documents(
     elif milvus_cert and milvus_cert.startswith("-----BEGIN"):
         # It's already PEM text - use it directly
         os.environ["MILVUS_SERVER_CERT"] = milvus_cert
-        print(f"✓ Using certificate from environment variable (PEM text)")
+        print("✓ Using certificate from environment variable (PEM text)")
     else:
         print("⚠ No MILVUS_SERVER_CERT provided - connection may fail if TLS is required")
 
@@ -154,7 +156,7 @@ def load_and_index_documents(
     vector_store.add_documents(ai4rag_chunks)
 
     print(f"\n✅ Done! {len(ai4rag_chunks)} chunks inserted into Milvus collection '{milvus_collection}'")
-    print(f"\n📋 To use this collection, update your .env file:")
+    print("\n📋 To use this collection, update your .env file:")
     print(f"   MILVUS_COLLECTION_NAME={milvus_collection}")
 
     return milvus_collection
