@@ -199,8 +199,13 @@ jobs:
             exit 0
           fi
 
-          # Agents QG7 cannot run (mirrors deploy_agents.EXCLUDED_AGENTS).
-          qg7_excluded='["langgraph/examples/guardrailed_agent","langgraph/templates/agentic_rag"]'
+          # Agents that pass QG4 but should not run QG7 behavioral evals.
+          # This is intentionally separate from EXCLUDED_AGENTS in deploy_agents.py —
+          # QG4 and QG7 gate different things and may exclude different agents.
+          qg7_excluded='[
+            "langgraph/examples/guardrailed_agent",
+            "langgraph/templates/agentic_rag"
+          ]'
 
           all_passing=$(jq -s '[.[] | select(.status == "success") | {name: .name, qg7_id: (.dir | ltrimstr("agents/"))}]' "${result_files[@]}")
           pass_list=$(echo "${all_passing}" | jq --argjson excluded "${qg7_excluded}" \
