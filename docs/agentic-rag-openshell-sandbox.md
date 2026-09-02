@@ -103,7 +103,7 @@ CONTAINER_IMAGE=image-registry.openshift-image-registry.svc:5000/<namespace>/ope
 
 ## Step 4 — Load documents into Milvus
 
-**_NOTE_**: Skip this step if `.env` already has a valid `MILVUS_COLLECTION_NAME`.
+***NOTE***: Skip this step if `.env` already has a valid `MILVUS_COLLECTION_NAME`.
 
 ```bash
 make load-docs-sandbox
