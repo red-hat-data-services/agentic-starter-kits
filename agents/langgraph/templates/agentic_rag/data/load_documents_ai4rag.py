@@ -26,7 +26,7 @@ load_dotenv(verbose=True)
 
 def load_and_index_documents(
     docs_to_load: str | None = None,
-    chunk_size: int = 512,
+    chunk_size: int | None = None,
     chunk_overlap: int = 128,
 ):
     """
@@ -34,9 +34,13 @@ def load_and_index_documents(
 
     Args:
         docs_to_load: Path to text file to load
-        chunk_size: Size of text chunks
+        chunk_size: Size of text chunks (overrides CHUNK_SIZE env var)
         chunk_overlap: Overlap between chunks
     """
+    # Resolve chunk_size from env var with fallback, but explicit param takes precedence
+    if chunk_size is None:
+        chunk_size = int(os.getenv("CHUNK_SIZE", "512"))
+
     # Get MaaS configuration
     maas_api_key = os.getenv("MAAS_API_KEY")
     maas_base_url = os.getenv("MAAS_BASE_URL")

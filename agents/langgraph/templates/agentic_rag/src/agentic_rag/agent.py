@@ -93,8 +93,14 @@ def get_graph_closure(
             if isinstance(content, str):
                 system_message_text = default_system_prompt + "\n\n" + content
             elif isinstance(content, list):
-                # Join list items if content is a list
-                system_message_text = default_system_prompt + "\n\n" + str(content)
+                # Extract text from content blocks (list of dicts with 'text' key or plain strings)
+                text_parts = []
+                for item in content:
+                    if isinstance(item, dict) and "text" in item:
+                        text_parts.append(item["text"])
+                    elif isinstance(item, str):
+                        text_parts.append(item)
+                system_message_text = default_system_prompt + "\n\n" + " ".join(text_parts)
 
         # Create agent using LangChain's create_agent
         graph = create_agent(

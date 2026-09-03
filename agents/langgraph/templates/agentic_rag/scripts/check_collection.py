@@ -10,9 +10,16 @@ milvus_token = os.getenv("MILVUS_TOKEN")
 milvus_cert = os.getenv("MILVUS_SERVER_CERT")
 collection_name = os.getenv("MILVUS_COLLECTION_NAME")
 
-# Parse URI properly for both http:// and https://
-secure = milvus_uri.startswith("https://")
-uri_without_scheme = milvus_uri.replace("https://", "").replace("http://", "")
+# Security: Only accept HTTPS when sending credentials
+if not milvus_uri.startswith("https://"):
+    raise ValueError(
+        f"MILVUS_URI must use HTTPS when authenticating (got: {milvus_uri}). "
+        "Refusing to send credentials over insecure connection."
+    )
+
+# Parse URI properly for HTTPS
+secure = True
+uri_without_scheme = milvus_uri.replace("https://", "")
 host = uri_without_scheme.split(":")[0]
 port = uri_without_scheme.split(":")[-1].split("/")[0]  # Remove any path after port
 user, password = milvus_token.split(":")

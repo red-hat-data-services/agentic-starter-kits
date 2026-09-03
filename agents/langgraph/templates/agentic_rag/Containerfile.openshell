@@ -40,8 +40,12 @@ COPY --chown=1001:0 playground/ ./playground/
 COPY --chown=1001:0 images/ ./images/
 COPY --chown=1001:0 data/ ./data/
 
-# Make /sandbox accessible to OpenShell sandbox user (arbitrary UID)
-RUN chmod -R 777 /sandbox
+# Set granular permissions: read-only for code, write for runtime directories
+# OpenShell sandbox needs write access only to data/ and cache directories
+RUN chmod -R 755 /sandbox && \
+    chmod -R 775 /sandbox/data && \
+    chmod -R 775 /sandbox/.local && \
+    find /sandbox -type f -name "*.py" -exec chmod 644 {} \;
 
 # Default user (OpenShell will override this)
 USER 1001

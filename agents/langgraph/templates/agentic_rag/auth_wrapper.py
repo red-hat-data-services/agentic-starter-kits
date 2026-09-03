@@ -36,6 +36,11 @@ _tls_verify: str | bool = _K8S_CA_PATH if Path(_K8S_CA_PATH).is_file() else Fals
 async def _validate_k8s_token(token: str) -> bool:
     if not (_K8S_API_URL and _K8S_REVIEWER_TOKEN):
         return False
+    # Security warning: log when TLS verification is disabled
+    if _tls_verify is False:
+        log.warning(
+            "K8s CA certificate unavailable - connecting without TLS verification (insecure)"
+        )
     try:
         async with httpx.AsyncClient(verify=_tls_verify, timeout=10.0) as client:
             resp = await client.post(

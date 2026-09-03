@@ -15,6 +15,14 @@ from src.agentic_rag.tools import (
 )
 
 
+@pytest.fixture(autouse=True)
+def reset_retriever_cache():
+    """Reset retriever cache before and after each test to prevent test pollution."""
+    tools_module._retriever_cache = None
+    yield
+    tools_module._retriever_cache = None
+
+
 def test_retriever_tool_exists():
     """Test that the retriever tool is properly defined."""
     assert retriever_tool is not None
@@ -151,9 +159,6 @@ def test_get_retriever_initialization(
     mock_get_store,
 ):
     """Test that retriever is properly initialized."""
-    # Reset cache
-    tools_module._retriever_cache = None
-
     # Mock environment variables (getenv can have default as 2nd arg)
     def getenv_side_effect(key, default=None):
         return {
@@ -207,9 +212,6 @@ def test_get_retriever_with_explicit_params(
     mock_get_store,
 ):
     """Test that explicit parameters override environment variables."""
-    # Reset cache
-    tools_module._retriever_cache = None
-
     def getenv_side_effect(key, default=None):
         return {
             "MILVUS_COLLECTION_NAME": "env-collection",
@@ -237,9 +239,6 @@ def test_get_retriever_with_explicit_params(
 @patch("src.agentic_rag.tools.getenv")
 def test_get_retriever_no_collection(mock_get_env):
     """Test error handling when MILVUS_COLLECTION_NAME env var is not set."""
-    # Reset cache
-    tools_module._retriever_cache = None
-
     def getenv_side_effect(key, default=None):
         return {
             "MAAS_API_KEY": "test-key",

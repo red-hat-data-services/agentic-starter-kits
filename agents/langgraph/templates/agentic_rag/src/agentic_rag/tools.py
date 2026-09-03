@@ -175,17 +175,23 @@ def retriever_tool(query: str) -> str:
     for i, doc in enumerate(retrieved_docs, 1):
         # Skip chunks that are empty or just separators/whitespace
         # ai4rag returns AI4RAGChunk with .text attribute, not .page_content
-        content = getattr(doc, "text", getattr(doc, "page_content", "")).strip()
+        # Handle None text by treating it as empty string
+        text_content = getattr(doc, "text", getattr(doc, "page_content", None))
+        content = (text_content or "").strip()
         if not content or all(c in "=-_*#|" for c in content):
             continue
 
-        # Extract source from metadata
-        metadata = getattr(doc, "metadata", {})
+        # Extract source from metadata (handle None metadata)
+        metadata = getattr(doc, "metadata", None) or {}
         source = metadata.get("source", "unknown")
 
         # Extract score if available (ai4rag chunks may have score/similarity)
+        # Handle None and non-numeric scores
         score = getattr(doc, "score", getattr(doc, "similarity", None))
-        score_str = f"{score:.3f}" if score is not None else "N/A"
+        if score is not None and isinstance(score, (int, float)):
+            score_str = f"{score:.3f}"
+        else:
+            score_str = "N/A"
 
         # Format each document with clear separation
         doc_text = f"--- Document {len(formatted_docs) + 1} ---\n"
