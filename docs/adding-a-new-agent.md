@@ -118,8 +118,31 @@ Every Makefile includes a `build-openshift` target for in-cluster builds (no Pod
 - Base image: `registry.access.redhat.com/ubi9/python-312:latest` (avoids Docker Hub rate limits on OpenShift)
 - Non-root user: UID 1001 (UBI9 default) with GID 0 for OpenShift arbitrary UID support
 - Port: 8080
-- Use `uv pip install` for dependencies
+- Install from `uv.lock` with `uv sync --frozen --no-dev` (see below)
 - Set `PYTHONPATH=/opt/app-root/src`
+
+### Installing dependencies from the lockfile
+
+Always install from `uv.lock` so container builds are reproducible. Copy both
+`pyproject.toml` and `uv.lock`, set `UV_PROJECT_ENVIRONMENT=/opt/app-root` to
+install into the UBI9 venv, then run `uv sync --frozen`:
+
+```dockerfile
+COPY pyproject.toml uv.lock ./
+COPY src/ ./src/
+
+ENV UV_PROJECT_ENVIRONMENT=/opt/app-root
+RUN uv sync --frozen --no-dev --extra tracing
+```
+
+- `--frozen` makes the build fail if `uv.lock` is stale relative to
+  `pyproject.toml`, instead of silently re-resolving.
+- `--no-dev` excludes dev dependencies from the image.
+- Add `--extra <name>` for each optional dependency group the image needs
+  (e.g. `--extra tracing`, `--extra auth`).
+
+**Do not** use `uv pip install .` — it ignores the lockfile and performs a
+fresh PyPI resolve, which can pull in breaking major versions.
 
 ## 9. Test Your Agent
 

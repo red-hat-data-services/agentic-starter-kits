@@ -22,6 +22,12 @@ from langchain_core.tools import tool
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
+try:
+    import mlflow
+    from mlflow.entities import Document as MlflowDocument
+except ImportError:
+    mlflow = None
+
 # Cache to avoid re-initializing on every tool call
 _retriever_cache = None
 
@@ -165,6 +171,7 @@ def retriever_tool(query: str) -> str:
         return "No relevant information was found in the provided documents for this query."
 
     formatted_docs = []
+    retriever_docs = []
     for i, doc in enumerate(retrieved_docs, 1):
         # Skip chunks that are empty or just separators/whitespace
         # ai4rag returns AI4RAGChunk with .text attribute, not .page_content
@@ -187,6 +194,20 @@ def retriever_tool(query: str) -> str:
         doc_text += f"Score: {score_str}"
 
         formatted_docs.append(doc_text)
+
+        if mlflow:
+            retriever_docs.append(
+                MlflowDocument(
+                    page_content=content,
+                    metadata={"source": source, "score": getattr(doc, "score", None)},
+                )
+            )
+
+    # Log RETRIEVER span for MLflow RAG evaluation scorers
+    if mlflow and retriever_docs:
+        with mlflow.start_span(name="retrieve", span_type="RETRIEVER") as span:
+            span.set_inputs({"query": query})
+            span.set_outputs(retriever_docs)
 
     # If all chunks were filtered out, return no information message
     if not formatted_docs:

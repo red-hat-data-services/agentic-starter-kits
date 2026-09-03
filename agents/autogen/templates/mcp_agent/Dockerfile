@@ -13,13 +13,16 @@ USER 0
 COPY --from=ghcr.io/astral-sh/uv@sha256:fc93e9ecd7218e9ec8fba117af89348eef8fd2463c50c13347478769aaedd0ce /uv /usr/local/bin/uv
 
 # Copy project files for dependency installation
-COPY pyproject.toml .
+COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
 COPY components/auth/ ./components/auth/
 
-# Install the project and its dependencies using uv
-RUN uv pip install --no-cache ./components/auth \
-    && uv pip install --no-cache ".[tracing]" \
+# Install from the lockfile so builds are reproducible (--frozen fails if
+# uv.lock is stale relative to pyproject.toml). Auth component is installed
+# separately as it is not tracked in pyproject.toml.
+ENV UV_PROJECT_ENVIRONMENT=/opt/app-root
+RUN uv sync --frozen --no-dev --extra tracing \
+    && uv pip install --no-cache ./components/auth \
     && rm -rf ./components/auth
 
 # Copy the application entrypoint, playground UI, and images

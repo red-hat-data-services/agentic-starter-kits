@@ -7,7 +7,7 @@ CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/
 MODEL          ?= llama3.1:8b
 OLLAMA_EMBEDDING_MODEL ?= embeddinggemma:latest
 
-.PHONY: init re-init env ollama ogx-server run-app run-app-fresh run-cli load-docs build push build-openshift deploy undeploy test test-integration dry-run refresh-certs setup-gateway teardown-gateway build-openshell create-sandbox wait-sandbox setup-egress load-docs-sandbox check-collection start-agent deploy-openshell undeploy-openshell playground-sandbox expose-agent help
+.PHONY: init re-init env ollama ogx-server run-app run-app-fresh run-cli load-docs build push build-openshift deploy undeploy test test-integration eval dry-run refresh-certs setup-gateway teardown-gateway build-openshell create-sandbox wait-sandbox setup-egress load-docs-sandbox check-collection start-agent deploy-openshell undeploy-openshell playground-sandbox expose-agent help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -491,6 +491,9 @@ playground-sandbox: ## Start sandbox playground web UI (auto-fetches agent URL a
 	  echo "Auto-fetching SA token from Secret agent-client-token..." && \
 	  echo "" && \
 	  python playground-sandbox/app.py
+
+eval: ## Run MLflow GenAI evaluation
+	@uv run --extra eval python evaluation/run_eval.py
 
 test: ## Run unit tests
 	uv run --extra dev python -m pytest tests/ --ignore=tests/integration --ignore=tests/behavioral $(PYTEST_ARGS)

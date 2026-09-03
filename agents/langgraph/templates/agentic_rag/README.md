@@ -48,7 +48,7 @@ make env
 
 ### Tracing (optional)
 
-Tracing is optional. If MLflow tracing is required, enable it by uncommenting and setting the following environment variables in the `.env` file.
+Tracing is optional. If MLflow tracing is required, enable it by uncommenting and setting the following environment variables in the `.env` file. For how tracing works under the hood (span structure, autolog behavior, verification steps), see [tracing.md](../../../../tracing.md).
 
 #### Tracing with a local MLflow server
 
@@ -447,6 +447,161 @@ python -c "from agent_auth.middleware import SATokenAuthMiddleware; print('OK')"
 ```bash
 make test
 ```
+
+## Evaluation
+
+This template includes a config-driven MLflow GenAI evaluation setup. The eval script reads existing traces from MLflow and scores them using scorers defined in `evaluation/eval_config.yaml`.
+
+### Eval Directory Structure
+
+```text
+evaluation/
+├── eval_config.yaml   # Scorer configuration (core, use-case, guidelines)
+├── eval_data.yaml     # Golden queries with expected results
+├── scorers.py         # Custom scorer definitions (add your own here)
+└── run_eval.py        # Evaluation logic (no need to edit)
+```
+
+### Prerequisites
+
+- Agent must be running with tracing enabled (`MLFLOW_TRACKING_URI` set in `.env`)
+- Complete the Setup steps below
+
+### Setup
+
+**Set environment variables** in `.env`:
+
+```ini
+# Required for eval
+EVAL_JUDGE_MODEL=<provider>:/<model>
+EVAL_JUDGE_API_KEY=<api-key>
+EVAL_JUDGE_BASE_URL=<endpoint-url>  # only needed for OpenAI-compatible endpoints
+```
+
+The judge model format is `<provider>:/<model>`. The eval script automatically sets the correct API key env var based on the provider. Examples:
+
+- **OpenAI:** `EVAL_JUDGE_MODEL=openai:/gpt-4o-mini`, `EVAL_JUDGE_BASE_URL=https://api.openai.com/v1`
+- **vLLM / RHOAI:** `EVAL_JUDGE_MODEL=openai:/<served-model-name>`, `EVAL_JUDGE_BASE_URL=https://<your-vllm-route>/v1`
+- **Anthropic:** `EVAL_JUDGE_MODEL=anthropic:/claude-sonnet-4-20250514` (no `BASE_URL` needed)
+
+### Running Evaluation
+
+1. Add your golden queries and expectations to `evaluation/eval_data.yaml`
+2. Customize the guidelines in `evaluation/eval_config.yaml` for your domain
+3. Start your agent with tracing enabled (`make run-app`) if it's not already running
+4. Run:
+
+   ```bash
+   make eval
+   ```
+
+   This will:
+   - Send each golden query from `eval_data.yaml` to the running agent
+   - Wait for traces to be recorded in MLflow
+   - Attach expectations (e.g., `expected_facts`) to matching traces
+   - Score all traces with the configured scorers
+
+   By default, the eval script connects to the agent at `http://localhost:8000`. To target a deployed agent, set `AGENT_URL` in `.env`:
+
+   ```ini
+   AGENT_URL=https://<your-agent-route>
+   ```
+
+### Scorer Configuration
+
+Scorers are configured in `evaluation/eval_config.yaml`, organized into three sections. Scorers in both **core** and **use-case** sections can come from any of three sources:
+
+| Source | `module` value | Example |
+|--------|---------------|---------|
+| MLflow built-in | `mlflow.genai.scorers` | Safety, Correctness |
+| Third-party (any MLflow-integrated framework) | `mlflow.genai.scorers.<framework>` | DeepEval PIILeakage, Phoenix Hallucination |
+| Custom (defined in `scorers.py`) | `scorers` | Your own domain-specific scorers |
+
+#### Core Scorers
+
+Cover universal failure modes. Pre-configured for all agents — remove only with a specific reason.
+
+| Scorer | What it checks |
+|--------|---------------|
+| **Safety** | Responses are free of harmful or toxic content |
+| **RelevanceToQuery** | Responses directly address the user's question |
+| **Completeness** | All parts of the user's request are addressed |
+| **Correctness** | Responses match expected facts (requires `expected_facts` in eval data) |
+| **ToolCallCorrectness** | Agent selects appropriate tools with correct arguments |
+| **ToolCallEfficiency** | No redundant or duplicate tool calls |
+| **PIILeakage** *(opt-in)* | Responses don't leak personally identifiable information |
+
+> **PIILeakage** is disabled by default. Enable it by setting `EVAL_ENABLE_PII=true` in `.env`. It uses DeepEval and defaults to `openai:/gpt-4.1-mini` (override with `EVAL_PII_MODEL`). DeepEval has a known JSON parsing issue with `gpt-4o` — use `gpt-4.1-mini` or `gpt-4o-mini`.
+
+#### Use-case Scorers (RAG)
+
+This template includes three RAG-specific scorers pre-configured under `use_case`. These evaluate retrieval quality and require `RETRIEVER`-type spans in traces (handled automatically by the retriever tool).
+
+| Scorer | What it checks |
+|--------|---------------|
+| **RetrievalGroundedness** | The final answer is grounded in the retrieved documents |
+| **RetrievalRelevance** | Each retrieved document is relevant to the query (per-document) |
+| **RetrievalSufficiency** | The retrieved documents provide enough information to answer |
+
+> **RetrievalRelevance** is a per-document scorer — it produces one assessment per retrieved chunk. Queries that don't trigger retrieval (e.g., greetings) will show errors for RAG scorers, which is expected.
+
+You can add more use-case scorers from MLflow, third-party frameworks, or custom definitions in `scorers.py`:
+
+```yaml
+use_case:
+  # Third-party scorer (any MLflow-integrated framework)
+  - name: Faithfulness
+    module: mlflow.genai.scorers.deepeval
+
+  # Custom scorer (defined in scorers.py)
+  - name: my_domain_scorer
+    module: scorers
+```
+
+#### Guidelines
+
+A list of plain-text rules evaluated by the `Guidelines` scorer. Customize these for your agent:
+
+```yaml
+guidelines:
+  - "The response should be helpful and informative"
+  - "The response should not fabricate information"
+  - "Answers to knowledge questions must be grounded in retrieved documents"
+```
+
+### Adding a Custom Scorer
+
+1. Define your scorer in `evaluation/scorers.py`:
+
+   ```python
+   from mlflow.entities import Feedback
+   from mlflow.genai.scorers import scorer
+
+   @scorer
+   def my_domain_scorer(*, inputs, outputs, expectations=None, trace=None):
+       """Check domain-specific quality criteria."""
+       # Your scoring logic here
+       return Feedback(value=1.0, rationale="Meets criteria")
+   ```
+
+2. Add it to `evaluation/eval_config.yaml` under `core` or `use_case`:
+
+   ```yaml
+   use_case:
+     - name: my_domain_scorer
+       module: scorers
+   ```
+
+3. Run `make eval` — your scorer will be picked up automatically.
+
+### Viewing Results
+
+Results are logged to MLflow. View them in the MLflow UI under the Traces tab.
+
+### Advanced Evaluation
+
+For failure mode deep-dives, custom scorer patterns, and end-to-end evaluation, see the
+[Agentic Evaluation Enablement Material](https://github.com/red-hat-data-services/red-hat-ai-examples/tree/main/examples/agentic-evaluation).
 
 ## API Endpoints
 
