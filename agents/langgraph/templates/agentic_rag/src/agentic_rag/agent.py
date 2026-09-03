@@ -100,7 +100,9 @@ def get_graph_closure(
                         text_parts.append(item["text"])
                     elif isinstance(item, str):
                         text_parts.append(item)
-                system_message_text = default_system_prompt + "\n\n" + " ".join(text_parts)
+                system_message_text = (
+                    default_system_prompt + "\n\n" + " ".join(text_parts)
+                )
 
         # Create agent using LangChain's create_agent
         graph = create_agent(

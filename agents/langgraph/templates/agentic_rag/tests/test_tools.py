@@ -159,6 +159,7 @@ def test_get_retriever_initialization(
     mock_get_store,
 ):
     """Test that retriever is properly initialized."""
+
     # Mock environment variables (getenv can have default as 2nd arg)
     def getenv_side_effect(key, default=None):
         return {
@@ -212,6 +213,7 @@ def test_get_retriever_with_explicit_params(
     mock_get_store,
 ):
     """Test that explicit parameters override environment variables."""
+
     def getenv_side_effect(key, default=None):
         return {
             "MILVUS_COLLECTION_NAME": "env-collection",
@@ -239,6 +241,7 @@ def test_get_retriever_with_explicit_params(
 @patch("src.agentic_rag.tools.getenv")
 def test_get_retriever_no_collection(mock_get_env):
     """Test error handling when MILVUS_COLLECTION_NAME env var is not set."""
+
     def getenv_side_effect(key, default=None):
         return {
             "MAAS_API_KEY": "test-key",
