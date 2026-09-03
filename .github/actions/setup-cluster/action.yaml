@@ -8,6 +8,10 @@ inputs:
   cluster-api-url:
     description: "OpenShift cluster API URL"
     required: true
+  oc-version:
+    description: "OCP release channel or version for the oc CLI (e.g. 'stable', '4.15.0')"
+    required: false
+    default: "stable"
 
 runs:
   using: "composite"
@@ -27,32 +31,7 @@ runs:
 
     - name: Install OpenShift CLI (oc) with retry
       shell: bash
-      run: |
-        OC_MIRROR_URL="https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz"
-        MAX_ATTEMPTS=3
-        RETRY_DELAY=10
-
-        for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
-          echo "::group::oc install attempt ${attempt}/${MAX_ATTEMPTS}"
-          if curl -sSfL --retry 3 --retry-delay 5 --retry-all-errors \
-               "$OC_MIRROR_URL" -o /tmp/oc.tar.gz; then
-            tar xzf /tmp/oc.tar.gz -C /usr/local/bin oc
-            rm -f /tmp/oc.tar.gz
-            echo "::endgroup::"
-            echo "✅ oc installed successfully on attempt ${attempt}"
-            oc version --client
-            exit 0
-          fi
-          echo "::endgroup::"
-          echo "⚠️ oc install attempt ${attempt} failed"
-          if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
-            echo "Retrying in ${RETRY_DELAY}s..."
-            sleep "$RETRY_DELAY"
-          fi
-        done
-
-        echo "::error::Failed to install oc after ${MAX_ATTEMPTS} attempts"
-        exit 1
+      run: bash "$GITHUB_ACTION_PATH/install-oc.sh" "${{ inputs.oc-version }}"
 
     - name: Login to OpenShift
       shell: bash
