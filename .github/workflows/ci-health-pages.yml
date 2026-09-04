@@ -15,6 +15,7 @@ on:
       - Inner Loop Gating
       - "QG1: Cluster Readiness"
       - "QG2: Platform Readiness"
+      - "Quality Gates Pipeline"
       - "QG4: Agent Deployment Integration Tests"
     types: [completed]
   workflow_dispatch:

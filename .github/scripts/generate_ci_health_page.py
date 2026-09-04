@@ -53,9 +53,14 @@ WORKFLOWS = (
         "description": "Operator, DataScienceCluster, and KServe platform readiness checks.",
     },
     {
+        "file": "quality-gates-pipeline.yml",
+        "name": "Quality Gates Pipeline",
+        "description": "Nightly QG4 deploy/health checks fanning out into QG7 behavioral evals.",
+    },
+    {
         "file": "agent-deployment-test.yaml",
         "name": "QG4: Agent Deployment Integration Tests",
-        "description": "Nightly OpenShift deploy, /health checks, and teardown.",
+        "description": "Manual (workflow_dispatch-only) QG4 deploy/health check run.",
     },
 )
 RELEVANT_EVENTS = frozenset({"push", "schedule", "workflow_dispatch"})
