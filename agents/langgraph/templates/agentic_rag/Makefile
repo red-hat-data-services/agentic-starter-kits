@@ -438,6 +438,7 @@ start-agent: refresh-certs ## Start agent with external URL access and K8s Servi
 	    export MILVUS_SERVER_NAME="'"$$MILVUS_SERVER_NAME"'" && \
 	    export K8S_API_URL="'"$$K8S_API_URL"'" && \
 	    export K8S_REVIEWER_TOKEN="'"$$K8S_REVIEWER_TOKEN"'" && \
+	    export PLAYGROUND_TOKEN="'"$$CLIENT_TOKEN"'" && \
 	    export ALLOWED_SA_USERNAME="'"$$ALLOWED_SA_USERNAME"'" && \
 	    export PYTHONPATH=/sandbox/.local/lib/python3.12/site-packages:/sandbox/.local/lib64/python3.12/site-packages:/sandbox && \
 	    cd /sandbox && \

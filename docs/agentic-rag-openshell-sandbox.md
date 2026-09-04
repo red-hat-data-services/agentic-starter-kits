@@ -101,7 +101,7 @@ CONTAINER_IMAGE=image-registry.openshift-image-registry.svc:5000/<namespace>/ope
 # openshell-agentic-rag-1   Source   Docker   Complete   2m
 ```
 
-## Step 4 — Load documents into Milvus
+## Step 4 — Load documents into Milvus (optional)
 
 ***NOTE***: Skip this step if `.env` already has a valid `MILVUS_COLLECTION_NAME`.
 
@@ -220,32 +220,32 @@ https://default--rag-sandbox--agent.openshell.<APPS_DOMAIN>/docs
 The `/docs` and `/health` endpoints are unauthenticated — only
 `/chat/completions` requires an API key.
 
+Swagger UI includes a **Sandbox Playground** shortcut and an instruction at the
+top of the page. In the sandbox image, both the root URL (`/`) and `/playground`
+serve the sandbox Playground directly, using the same public Route as Swagger.
+
+The embedded Playground uses the short-lived ServiceAccount token on the server
+side, so the user does not need to enter a token in the browser.
+
 ---
 
-## Step 7 — Interactive Playground (Optional)
+## Step 7 — Interactive Playground
 
-For a better experience, use the web-based playground UI instead of curl:
+`make deploy-openshell` starts the agent and exposes both Swagger UI and the
+sandbox Playground through the same Route. After deployment, open:
 
-```bash
-make playground-sandbox
+```text
+https://default--rag-sandbox--agent.openshell.<APPS_DOMAIN>/
 ```
 
-This starts a Flask web UI on <http://localhost:5002> that:
+The Playground:
 
-- Auto-fetches the agent URL from the OpenShift Route
-- Auto-fetches the SA token from the `agent-client-token` Secret
+- Uses the server-side ServiceAccount token automatically
 - Provides a chat interface with streaming responses
 - Maintains conversation history across messages
 - Collapses reasoning steps and retrieved context into expandable sections
 
 ![Sandbox Playground](../images/sandbox_playground.png)
-
-**Requirements:**
-
-- `oc` CLI logged into OpenShift with access to `openshell` namespace
-- Flask (already in dependencies)
-
-To override auto-detection, set `AGENT_URL` and `AGENT_TOKEN` environment variables before running.
 
 ---
 
@@ -289,6 +289,11 @@ sandbox image was built, then rebuild and redeploy.
 **Embedding model not in allowed list**: Model provider configuration may have empty allowed models list. Verify provider config includes the model name.
 
 **openShell CLI connection issues**: If `openshell` commands fail with TLS errors, refresh client certificates with `make refresh-certs`.
+
+**Playground is not available at `/`**: The embedded Playground requires a
+recent sandbox image. Rebuild and redeploy with `make build-openshell` and
+`make deploy-openshell`. As a temporary fallback for an older image, run
+`make playground-sandbox` locally.
 
 ## Cleanup
 
