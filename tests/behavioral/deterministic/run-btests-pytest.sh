@@ -224,20 +224,25 @@ preflight() {
     local path
     path=$(agent_path "$agent_tuple")
 
-    # Flow-import agents have no Kubernetes Deployment; check route + health endpoint instead
+    # Flow-import agents have no Kubernetes Deployment; check health endpoint instead
     if is_flow_import "$path"; then
-      local route_host
-      route_host=$(timeout 30 oc get route "${deploy}" -n "${ns}" \
-        -o jsonpath='{.spec.host}' 2>/dev/null || true)
-
-      if [[ -z "$route_host" ]]; then
-        fail "Route '${deploy}' not found for flow-import agent '${path}' (namespace: ${ns})"
-        all_healthy=false
-        continue
+      local health_url=""
+      if [[ -n "${LANGFLOW_AGENT_URL:-}" ]]; then
+        health_url="${LANGFLOW_AGENT_URL%/}"
+        health_url="${health_url%/health_check}/health_check"
+      else
+        local route_host
+        route_host=$(timeout 30 oc get route "${deploy}" -n "${ns}" \
+          -o jsonpath='{.spec.host}' 2>/dev/null || true)
+        if [[ -z "$route_host" ]]; then
+          fail "Route '${deploy}' not found for flow-import agent '${path}' (namespace: ${ns})"
+          all_healthy=false
+          continue
+        fi
+        health_url="https://${route_host}/health_check"
       fi
 
-      # Curl the health endpoint
-      if curl -fsSk --connect-timeout 10 --max-time 30 "https://${route_host}/health_check" >/dev/null 2>&1; then
+      if curl -fsSk --connect-timeout 10 --max-time 30 "${health_url}" >/dev/null 2>&1; then
         ok "Route '${deploy}' (flow-import) — healthy"
       else
         warn "Route '${deploy}' (flow-import) — health check failed or endpoint unreachable"
@@ -372,17 +377,25 @@ run_tests() {
     deploy=$(agent_deploy "$agent_tuple")
     ns=$(agent_ns "$agent_tuple")
 
-    local route_host
-    route_host=$(timeout 30 oc get route "${deploy}" -n "${ns}" \
-      -o jsonpath='{.spec.host}' 2>/dev/null || true)
+    local agent_url=""
 
-    if [[ -z "$route_host" ]]; then
-      warn "No route found for '${deploy}'. Skipping ${path}."
-      echo "NO_ROUTE" > "${RESULTS_DIR}/$(echo "$path" | tr '/' '_').exit"
-      continue
+    # Flow-import agents (Langflow) use a pre-deployed instance whose URL
+    # comes from an env var; fall back to oc get route only if unset.
+    if is_flow_import "$path" && [[ -n "${LANGFLOW_AGENT_URL:-}" ]]; then
+      agent_url="${LANGFLOW_AGENT_URL%/}"
+      agent_url="${agent_url%/health_check}"
+    else
+      local route_host
+      route_host=$(timeout 30 oc get route "${deploy}" -n "${ns}" \
+        -o jsonpath='{.spec.host}' 2>/dev/null || true)
+
+      if [[ -z "$route_host" ]]; then
+        warn "No route found for '${deploy}'. Skipping ${path}."
+        echo "NO_ROUTE" > "${RESULTS_DIR}/$(echo "$path" | tr '/' '_').exit"
+        continue
+      fi
+      agent_url="https://${route_host}"
     fi
-
-    local agent_url="https://${route_host}"
     local test_path
     test_path=$(resolve_test_path "$path")
 
