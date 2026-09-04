@@ -1,18 +1,20 @@
 # Quality Gates Pipeline
 #
-# Orchestrator that chains QG4 (deployment health) and QG7 (behavioral evals)
-# using staged fan-out with a dynamic matrix. Each gate handles its own
-# setup and teardown independently.
+# Orchestrator that chains QG1 (cluster readiness), QG2 (platform readiness),
+# QG4 (deployment health), and QG7 (behavioral evals) using staged fan-out
+# with a dynamic matrix. Each gate handles its own setup and teardown independently.
 #
 # Flow:
-#   verify-cluster-connection
-#     └─► qg4 (matrix, all agents, fail-fast: false)
-#           └─► collect-qg4 (build JSON pass-list from outcomes)
-#                 └─► qg7 (dynamic matrix, only QG4-passing agents)
-#                       └─► notify-slack
+#   qg1 (cluster readiness)
+#     └─► qg2 (platform readiness)
+#           └─► verify-cluster-connection
+#                 └─► qg4 (matrix, all agents, fail-fast: false)
+#                       └─► collect-qg4 (build JSON pass-list from outcomes)
+#                             └─► qg7 (dynamic matrix, only QG4-passing agents)
+#                                   └─► notify-slack
 #
 # Ref: RFC Discussion #285
-# Depends on: .github/actions/run-qg4, .github/actions/run-qg7
+# Depends on: .github/actions/run-qg1, .github/actions/run-qg2, .github/actions/run-qg4, .github/actions/run-qg7
 
 name: "Quality Gates Pipeline"
 
@@ -25,10 +27,109 @@ permissions:
   contents: read
 
 jobs:
+  # ── Stage 0a: QG1 — Cluster readiness ──────────────────────────────────
+  qg1:
+    name: "QG1: Cluster Readiness"
+    if: github.repository == 'red-hat-data-services/agentic-starter-kits'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup cluster tools
+        uses: ./.github/actions/setup-cluster
+        with:
+          oc-token: ${{ secrets.OC_TOKEN }}
+          cluster-api-url: ${{ secrets.CLUSTER_API_URL }}
+
+      - name: Assume dedicated QG1 service account
+        uses: ./.github/actions/assume-service-account
+        with:
+          service-account: qg1-readiness
+
+      - name: Run QG1
+        uses: ./.github/actions/run-qg1
+        with:
+          cluster-profile: ${{ vars.QG1_CLUSTER_PROFILE || 'rhoai2' }}
+          require-gpu: ${{ vars.QG1_REQUIRE_GPU || 'true' }}
+          required-namespaces: ${{ vars.QG1_REQUIRED_NAMESPACES || 'ci-testing' }}
+          summary-json-path: qg1-results/summary.json
+          summary-md-path: qg1-results/summary.md
+
+      - name: Upload QG1 results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: qg1-results
+          path: qg1-results/**
+          if-no-files-found: warn
+
+      - name: Logout
+        if: always()
+        run: oc logout || true
+
+  # ── Stage 0b: QG2 — Platform readiness ─────────────────────────────────
+  qg2:
+    name: "QG2: Platform Readiness"
+    # QG2 runs sequentially after QG1 and only if QG1 succeeds: platform
+    # readiness checks assume a reachable, GPU/namespace-verified cluster.
+    # verify-cluster-connection additionally requires both qg1 and qg2 to
+    # succeed before QG4/QG7 are allowed to run.
+    needs: qg1
+    if: needs.qg1.result == 'success' && github.repository == 'red-hat-data-services/agentic-starter-kits'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup cluster tools
+        uses: ./.github/actions/setup-cluster
+        with:
+          oc-token: ${{ secrets.OC_TOKEN }}
+          cluster-api-url: ${{ secrets.CLUSTER_API_URL }}
+
+      - name: Assume dedicated QG2 service account
+        uses: ./.github/actions/assume-service-account
+        with:
+          service-account: qg2-readiness
+
+      - name: Run QG2
+        uses: ./.github/actions/run-qg2
+        with:
+          cluster-profile: ${{ vars.QG2_CLUSTER_PROFILE || 'rhoai2' }}
+          cluster-type: ${{ vars.QG2_CLUSTER_TYPE || 'rhoai' }}
+          require-dsc-ready: ${{ vars.QG2_REQUIRE_DSC_READY || 'true' }}
+          require-kserve: ${{ vars.QG2_REQUIRE_KSERVE || 'true' }}
+          summary-json-path: qg2-results/summary.json
+          summary-md-path: qg2-results/summary.md
+
+      - name: Upload QG2 results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: qg2-results
+          path: qg2-results/**
+          if-no-files-found: warn
+
+      - name: Logout
+        if: always()
+        run: oc logout || true
+
   # ── Pre-flight: verify cluster is reachable before fanning out ──────────
   verify-cluster-connection:
     name: "Verify Cluster Connection"
-    if: github.repository == 'red-hat-data-services/agentic-starter-kits'
+    needs: [qg1, qg2]
+    if: >-
+      always() &&
+      github.repository == 'red-hat-data-services/agentic-starter-kits' &&
+      needs.qg1.result == 'success' &&
+      needs.qg2.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -332,7 +433,7 @@ jobs:
       !cancelled() &&
       github.repository == 'red-hat-data-services/agentic-starter-kits' &&
       (github.event_name != 'workflow_dispatch' || github.ref_name == 'main')
-    needs: [verify-cluster-connection, qg4, collect-qg4, qg7]
+    needs: [qg1, qg2, verify-cluster-connection, qg4, collect-qg4, qg7]
     runs-on: ubuntu-latest
     permissions:
       contents: read
