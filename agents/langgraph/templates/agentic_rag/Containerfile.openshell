@@ -8,18 +8,51 @@
 ARG BASE_IMAGE=ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e
 FROM ${BASE_IMAGE}
 
-COPY --chown=sandbox:sandbox pyproject.toml ./
-COPY --chown=sandbox:sandbox src/ ./src/
+USER 0
 
-# Pin ogx-client to match OGX server (1.1.x), then install the project.
-# --no-sources skips [tool.uv.sources] relative paths (local-dev only).
-RUN uv pip install --no-cache "ogx-client==1.1.0" && \
-    uv pip install --no-cache --no-sources "."
+WORKDIR /sandbox
 
-COPY --chown=sandbox:sandbox main.py auth_wrapper.py ./
-COPY --chown=sandbox:sandbox playground/ ./playground/
-COPY --chown=sandbox:sandbox data/ ./data/
+# Install uv for fast dependency installation
+COPY --from=ghcr.io/astral-sh/uv@sha256:fc93e9ecd7218e9ec8fba117af89348eef8fd2463c50c13347478769aaedd0ce /uv /usr/local/bin/uv
+
+# Install the auth component first (resolves the path dependency issue)
+# Use system Python 3.12 for compatibility (base image has both 3.12 and 3.14)
+COPY --chown=1001:0 components/auth/ ./components/auth/
+RUN uv pip install --python /usr/bin/python3.12 --prefix /sandbox/.local --no-cache --no-sources ./components/auth/
+
+COPY --chown=1001:0 pyproject.toml uv.lock .
+COPY --chown=1001:0 src/ ./src/
+
+# Remove path dependency (agent-auth already installed above) before exporting
+# Export requirements from uv.lock to respect lockfile and avoid re-resolving dependencies
+# Use --python /usr/bin/python3.12 for compatibility with system Python
+RUN sed -i '/^\[tool\.uv\.sources\]/,/^\[/{/agent-auth/d}' pyproject.toml && \
+    uv export --frozen --no-dev --extra tracing --no-emit-project --no-hashes > requirements.txt && \
+    uv pip install --python /usr/bin/python3.12 --prefix /sandbox/.local --no-cache -r requirements.txt && \
+    uv pip install --python /usr/bin/python3.12 --prefix /sandbox/.local --no-cache --no-deps .
+
+# Make Python find packages in /sandbox/.local (installed for python3.12 compatibility)
+ENV PYTHONPATH="/sandbox/.local/lib/python3.12/site-packages:/sandbox/.local/lib64/python3.12/site-packages:$PYTHONPATH"
+
+# Application code and assets
+COPY --chown=1001:0 main.py auth_wrapper.py .
+COPY --chown=1001:0 playground-sandbox/ ./playground-sandbox/
+COPY --chown=1001:0 images/ ./images/
+COPY --chown=1001:0 data/ ./data/
+
+# Set granular permissions: read-only for code, write for runtime directories
+# OpenShell sandbox needs write access only to data/ and cache directories
+RUN chmod -R 755 /sandbox && \
+    chmod -R 775 /sandbox/data && \
+    chmod -R 775 /sandbox/.local && \
+    find /sandbox -type f -name "*.py" -exec chmod 644 {} \;
+
+# Default user (OpenShell will override this)
+USER 1001
 
 ENV PORT=8080
 
-ENTRYPOINT ["uvicorn", "auth_wrapper:app", "--host", "127.0.0.1", "--port", "8080"]
+EXPOSE 8080
+
+# NOTE: OpenShell's sandbox supervisor replaces CMD at runtime.
+CMD ["uvicorn", "auth_wrapper:app", "--host", "127.0.0.1", "--port", "8080"] 
