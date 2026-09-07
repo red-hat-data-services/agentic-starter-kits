@@ -19,7 +19,7 @@ Agents are organized by framework. Pick one and follow its README:
 | **LangGraph** | [ReAct Agent](./agents/langgraph/templates/react_agent/) | General-purpose agent using a ReAct loop: it reasons and calls tools (e.g. search, math) step by step. Built with LangGraph and LangChain. |
 | **LangGraph** | [Agentic RAG](./agents/langgraph/templates/agentic_rag/) | RAG agent that indexes documents in a vector store (Milvus) and retrieves relevant chunks to augment the LLM's answers with your own data. |
 | **LangGraph** | [ReAct + DB Memory](./agents/langgraph/templates/react_with_database_memory/) | ReAct agent with PostgreSQL-backed conversation memory. Full chat history is persisted in the database while a FIFO sliding window keeps only the last N messages in the LLM context. |
-| **LangGraph** | [CI Failure Summarizer](./agents/langgraph/templates/ci_failure_summarizer/) | Spike agent that ingests QG4 GitHub Actions failures, groups incidents in PostgreSQL, composes triage summaries, and posts to Slack via manual `POST /summarize` trigger. |
+| **LangGraph** | [CI Failure Summarizer](./agents/langgraph/examples/ci_failure_summarizer/) | Spike agent that ingests QG4 GitHub Actions failures, groups incidents in PostgreSQL, composes triage summaries, and posts to Slack via manual `POST /summarize` trigger. |
 | **LangGraph** | [Human-in-the-Loop](./agents/langgraph/templates/human_in_the_loop/) | ReAct agent with a human approval step. The agent pauses before executing tool calls and waits for user confirmation, enabling oversight of critical actions. |
 | **LangGraph** | [Guardrailed Agent](./agents/langgraph/examples/guardrailed_agent/) | Banking agent with NeMo Guardrails safety layer. Content safety, topic boundaries, and regex filtering via the proxy pattern. Two profiles: `local` (self-check) and `nemoguard` (supports dedicated NIM classifiers per layer). |
 | **LlamaIndex** | [WebSearch Agent](./agents/llamaindex/templates/websearch_agent/) | Agent built on LlamaIndex that uses a web search tool to query the internet and use the results in its answers. |
@@ -62,9 +62,9 @@ agentic-starter-kits/
 │   │   │   ├── react_agent/
 │   │   │   ├── agentic_rag/
 │   │   │   ├── react_with_database_memory/
-│   │   │   ├── ci_failure_summarizer/
 │   │   │   └── human_in_the_loop/
 │   │   ├── examples/                    # Business use-case demos
+│   │   │   ├── ci_failure_summarizer/
 │   │   └── deployment/                  # Helm chart for this framework
 │   ├── crewai/
 │   ├── llamaindex/

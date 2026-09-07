@@ -65,7 +65,7 @@ The LLM configuration (`MODEL_ID`, `BASE_URL`, `API_KEY`) is retained only for t
 `make init` creates a `.env` file from `.env.example`. Set your environment variables in the `.env` file.
 
 ```bash
-cd agents/langgraph/templates/ci_failure_summarizer
+cd agents/langgraph/examples/ci_failure_summarizer
 make init
 ```
 
@@ -115,7 +115,7 @@ curl -X POST http://localhost:8000/summarize \
 **Python script (no HTTP server required):**
 
 ```bash
-cd agents/langgraph/templates/ci_failure_summarizer
+cd agents/langgraph/examples/ci_failure_summarizer
 uv run python examples/trigger_summary.py --no-slack
 ```
 
@@ -253,7 +253,7 @@ make ogx-server
 > You should see output indicating the app started on `http://localhost:8000`.
 
 ```bash
-cd agents/langgraph/templates/ci_failure_summarizer
+cd agents/langgraph/examples/ci_failure_summarizer
 make run-app           # fails if port is already in use; use make run-app-fresh to restart
 ```
 
@@ -265,7 +265,7 @@ ship a built-in playground UI.
 For terminal-based testing of the inherited `/chat/completions` scaffold without a browser:
 
 ```bash
-cd agents/langgraph/templates/ci_failure_summarizer
+cd agents/langgraph/examples/ci_failure_summarizer
 make run-cli
 ```
 
@@ -299,7 +299,7 @@ This spike does not register itself in the QG4 matrix yet; deploy and trigger ma
 ### Setup
 
 ```bash
-cd agents/langgraph/templates/ci_failure_summarizer
+cd agents/langgraph/examples/ci_failure_summarizer
 make init
 ```
 
