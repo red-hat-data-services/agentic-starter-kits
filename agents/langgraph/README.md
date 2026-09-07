@@ -2,7 +2,9 @@
 
 Agent templates built with [LangGraph](https://langchain-ai.github.io/langgraph/) and [LangChain](https://www.langchain.com/).
 
-## Available Agents
+## Templates
+
+Reusable starter templates for building new agents.
 
 | Agent | Description |
 |-------|-------------|
@@ -10,7 +12,15 @@ Agent templates built with [LangGraph](https://langchain-ai.github.io/langgraph/
 | [agentic_rag](templates/agentic_rag/) | RAG agent that indexes documents in Milvus and retrieves relevant chunks to augment answers |
 | [react_with_database_memory](templates/react_with_database_memory/) | ReAct agent with PostgreSQL-backed conversation memory for persistent, thread-based chat history |
 | [human_in_the_loop](templates/human_in_the_loop/) | Agent with Human-in-the-Loop approval that pauses for human review before executing sensitive tools (e.g. send_email) |
+
+## Examples
+
+Business use-case demos built on the templates above.
+
+| Agent | Description |
+|-------|-------------|
 | [ci_failure_summarizer](examples/ci_failure_summarizer/) | Spike agent that ingests QG4 GitHub Actions failures, groups incidents, composes triage summaries, and posts to Slack (manual trigger) |
+| [guardrailed_agent](examples/guardrailed_agent/) | Banking agent with NeMo Guardrails safety layer. Content safety, topic boundaries, and regex filtering via the proxy pattern |
 
 ## Resources
 
