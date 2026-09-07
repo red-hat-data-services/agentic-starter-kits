@@ -51,6 +51,53 @@ ruff format --check path/to/file.py
 - Never commit `.env` files -- only `.env.example` templates
 - Standard containers: UBI9 base (`registry.access.redhat.com/ubi9/python-312`), non-root UID 1001, port 8080
 
+## Pre-commit hooks
+
+This repo uses pre-commit hooks (defined in `.pre-commit-config.yaml`). They run
+automatically on `git commit` and enforce:
+
+- Conventional Commits format on commit messages
+- Branch protection (`no-commit-to-branch`) -- blocks direct commits to `main`
+- Python linting and formatting via `ruff`
+- Markdown linting via `markdownlint`
+- Link checking on markdown files via `lychee`
+- Secret scanning via `gitleaks` (API keys, tokens, passwords -- broader than
+  the private-key check)
+- Lock file sync (`uv lock` on modified `pyproject.toml`)
+- File-hygiene checks (trailing whitespace, end-of-file newline, YAML/JSON/TOML
+  validation, merge conflict markers, large files, debug statements, private keys)
+
+When a pre-commit hook modifies a file (e.g., ruff auto-fix, uv.lock update), the
+commit will fail with "files were modified by this hook." Stage the modified files and
+commit again.
+
+## Dependency management
+
+Every agent directory with a `pyproject.toml` must also have a committed `uv.lock`.
+When modifying dependencies:
+
+- Use lower-bound pins (`>=1.2.0`) in `pyproject.toml` -- avoid upper-bound caps
+  unless a dependency has known breaking changes
+- The `uv-lock` pre-commit hook auto-runs `uv lock` when `pyproject.toml` changes
+- Always commit `uv.lock` alongside `pyproject.toml` changes
+
+## Commit message format
+
+This repo enforces Conventional Commits. PR titles become the commit message on `main`
+(squash merge). Use the format:
+
+```text
+<type>(optional scope): <description>
+```
+
+Allowed types: `feat`, `fix`, `docs`, `chore`, `test`, `perf`, `refactor`, `ci`,
+`build`, `style`, `revert`. Add `!` after type/scope for breaking changes.
+
+## Linking PRs to Jira
+
+Include a Jira ticket ID (e.g., `RHAIENG-123`) in the PR title, branch name, or
+description so the PR automatically appears under Development on the Jira issue.
+
 ## Tooling preferences
 
 - Prefer the Atlassian MCP server for Jira and Confluence access in this repository when it is available and authorized
@@ -75,6 +122,20 @@ Several agents diverge significantly from the standard pattern:
 **openclaw/deployment** - Kustomize-based deployment of OpenClaw on OpenShift. Uses pre-built image (`ghcr.io/openclaw/openclaw:latest`), not a Dockerfile. Kustomize overlays for customization (model endpoint, storage class). No Makefile, no FastAPI, no src/. Port 18789 (gateway).
 
 **codex/deployment** - CLI-based coding agent (OpenAI Codex CLI, Apache 2.0). `Containerfile` installs Codex via npm (pre-built upstream binary with disclaimer); `Containerfile.base` available as source-built alternative. No Makefile, no pyproject.toml, no FastAPI, no `/chat/completions`, no tests/. Uses `entrypoint.sh` for runtime config, `sleep infinity` for `oc exec` access. Requires vLLM with Responses API (`/v1/responses`) and non-harmony models.
+
+**claude-code** - Claude Code on OpenShift deployment guide. No `src/`, no `pyproject.toml`, no standard Makefile targets. Uses Containerfile with Anthropic's native installer. Do not redistribute built images (proprietary binary). See `agents/claude-code/README.md` for backend configurations (Anthropic API, Vertex AI, vLLM, OGX).
+
+**opencode** - Deployment templates only, no standard agent structure.
+
+## MLflow tracing
+
+All agent templates must include MLflow tracing integration (opt-in via
+`MLFLOW_TRACKING_URI`). When adding or modifying tracing:
+
+- Tracing module goes in `src/<package>/tracing.py`
+- Call `enable_tracing()` as the first line in the FastAPI `lifespan()` function
+- MLflow is an optional dependency under the `tracing` extra in `pyproject.toml`
+- See `tracing.md` at the repo root for the full architecture and autolog levels
 
 ## Common gotchas
 
