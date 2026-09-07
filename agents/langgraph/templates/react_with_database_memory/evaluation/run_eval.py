@@ -148,9 +148,13 @@ def resolve_scorer(entry: dict, judge_model: str):
 
     if inspect.isclass(cls_or_obj):
         try:
-            return cls_or_obj(model=model)
-        except TypeError:
-            return cls_or_obj()
+            init_params = inspect.signature(cls_or_obj.__init__).parameters
+        except (TypeError, ValueError):
+            init_params = {}
+        accepts_model = "model" in init_params or any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in init_params.values()
+        )
+        return cls_or_obj(model=model) if accepts_model else cls_or_obj()
     return cls_or_obj
 
 
@@ -210,20 +214,20 @@ def main():
     if not tracking_uri:
         print("ERROR: MLFLOW_TRACKING_URI is not set. Cannot read traces.")
         print("Set it in .env and ensure the agent has been run with tracing enabled.")
-        return
+        raise SystemExit(1)
 
     mlflow.set_tracking_uri(tracking_uri)
 
     experiment_name = os.getenv("MLFLOW_EXPERIMENT_NAME")
     if not experiment_name:
         print("ERROR: MLFLOW_EXPERIMENT_NAME is not set.")
-        return
+        raise SystemExit(1)
 
     experiment = mlflow.get_experiment_by_name(experiment_name)
     if experiment is None:
         print(f"ERROR: Experiment '{experiment_name}' not found on MLflow server.")
         print("Run the agent first to create traces, then re-run eval.")
-        return
+        raise SystemExit(1)
 
     mlflow.set_experiment(experiment_name)
 
@@ -232,6 +236,19 @@ def main():
     print(f"Loaded {len(scorers)} scorers from eval_config.yaml.")
 
     eval_data = load_eval_data()
+    if not eval_data:
+        print("ERROR: No golden queries in evaluation/eval_data.yaml.")
+        print("Add at least one query under 'queries:' before running make eval.")
+        raise SystemExit(1)
+
+    golden_questions = {q["inputs"]["question"] for q in eval_data}
+    if len(golden_questions) < len(eval_data):
+        dupes = len(eval_data) - len(golden_questions)
+        print(
+            f"WARNING: eval_data.yaml contains {dupes} duplicate question(s). "
+            f"Only {len(golden_questions)} unique queries will be sent and matched."
+        )
+
     agent_url = os.getenv("AGENT_URL", "http://localhost:8000")
 
     existing = mlflow.search_traces(
@@ -242,16 +259,12 @@ def main():
     )
     baseline_ms = existing[0].info.timestamp_ms if existing else 0
 
-    if eval_data:
-        generate_traces(eval_data, agent_url)
+    generate_traces(eval_data, agent_url)
 
-    expected_count = len(eval_data) if eval_data else 0
+    expected_count = len(golden_questions)
     trace_timeout = _get_int_env("EVAL_TRACE_TIMEOUT", 60)
     poll_interval = max(_get_int_env("EVAL_POLL_INTERVAL", 4), 1)
     max_attempts = max(trace_timeout // poll_interval, 1)
-    golden_questions = (
-        {q["inputs"]["question"] for q in eval_data} if eval_data else set()
-    )
 
     traces = []
     for attempt in range(max_attempts):
@@ -280,19 +293,18 @@ def main():
 
     print(f"Found {len(traces)} traces from this run to evaluate.")
 
-    if eval_data:
-        matched_ids = attach_expectations(traces, eval_data)
-        traces = mlflow.search_traces(
-            locations=[experiment.experiment_id],
-            return_type="list",
-            filter_string=f"trace.timestamp_ms > {baseline_ms}",
-        )
-        traces = [t for t in traces if t.info.trace_id in matched_ids]
+    matched_ids = attach_expectations(traces, eval_data)
+    traces = mlflow.search_traces(
+        locations=[experiment.experiment_id],
+        return_type="list",
+        filter_string=f"trace.timestamp_ms > {baseline_ms}",
+    )
+    traces = [t for t in traces if t.info.trace_id in matched_ids]
 
-        if not traces:
-            print("WARNING: No traces matched golden queries. Skipping evaluation.")
-            print("This can happen if traces were not fully written when matching ran.")
-            return
+    if not traces:
+        print("WARNING: No traces matched golden queries. Skipping evaluation.")
+        print("This can happen if traces were not fully written when matching ran.")
+        return
 
     print(f"Evaluating {len(traces)} traces with {len(scorers)} scorers...")
 

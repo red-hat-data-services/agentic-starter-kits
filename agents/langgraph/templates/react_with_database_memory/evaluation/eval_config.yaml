@@ -64,6 +64,6 @@ scorers:
   # Domain-specific rules for the Guidelines scorer.
   # Customize these for your agent's expected behavior.
   guidelines:
-    - "The response should be helpful and informative"
-    - "The response should not fabricate information"
-    - "The response should stay consistent with earlier turns in the conversation"
+    - "The response should be helpful and directly address the user's question"
+    - "The response should not fabricate information or present uncertain claims as facts"
+    - "The response should use the appropriate tools when needed rather than guessing"
