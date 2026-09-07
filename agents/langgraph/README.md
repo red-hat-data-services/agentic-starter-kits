@@ -1,10 +1,10 @@
 # LangGraph Agents
 
-Agent templates built with [LangGraph](https://langchain-ai.github.io/langgraph/) and [LangChain](https://www.langchain.com/).
+Agents built with [LangGraph](https://langchain-ai.github.io/langgraph/) and [LangChain](https://www.langchain.com/).
 
 ## Templates
 
-Reusable starter templates for building new agents.
+Reusable starter kits for building your own agents:
 
 | Agent | Description |
 |-------|-------------|
@@ -15,12 +15,12 @@ Reusable starter templates for building new agents.
 
 ## Examples
 
-Business use-case demos built on the templates above.
+Business use-case demos and spikes built on top of the templates:
 
 | Agent | Description |
 |-------|-------------|
+| [guardrailed_agent](examples/guardrailed_agent/) | Banking agent with NeMo Guardrails safety layer (content safety, topic boundaries, regex filtering via the proxy pattern) |
 | [ci_failure_summarizer](examples/ci_failure_summarizer/) | Spike agent that ingests QG4 GitHub Actions failures, groups incidents, composes triage summaries, and posts to Slack (manual trigger) |
-| [guardrailed_agent](examples/guardrailed_agent/) | Banking agent with NeMo Guardrails safety layer. Content safety, topic boundaries, and regex filtering via the proxy pattern |
 
 ## Resources
 
