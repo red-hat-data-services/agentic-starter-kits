@@ -12,16 +12,18 @@ Production-ready starter kits for building and deploying AI agents on Red Hat Op
 
 ## Agents
 
-Agents are organized by framework. Pick one and follow its README:
+Agents are organized by framework. Pick one and follow its README.
+
+### Templates
+
+Reusable starter kits for building new agents.
 
 | Framework | Agent | Description |
 |-----------|-------|-------------|
 | **LangGraph** | [ReAct Agent](./agents/langgraph/templates/react_agent/) | General-purpose agent using a ReAct loop: it reasons and calls tools (e.g. search, math) step by step. Built with LangGraph and LangChain. |
 | **LangGraph** | [Agentic RAG](./agents/langgraph/templates/agentic_rag/) | RAG agent that indexes documents in a vector store (Milvus) and retrieves relevant chunks to augment the LLM's answers with your own data. |
 | **LangGraph** | [ReAct + DB Memory](./agents/langgraph/templates/react_with_database_memory/) | ReAct agent with PostgreSQL-backed conversation memory. Full chat history is persisted in the database while a FIFO sliding window keeps only the last N messages in the LLM context. |
-| **LangGraph** | [CI Failure Summarizer](./agents/langgraph/templates/ci_failure_summarizer/) | Spike agent that ingests QG4 GitHub Actions failures, groups incidents in PostgreSQL, composes triage summaries, and posts to Slack via manual `POST /summarize` trigger. |
 | **LangGraph** | [Human-in-the-Loop](./agents/langgraph/templates/human_in_the_loop/) | ReAct agent with a human approval step. The agent pauses before executing tool calls and waits for user confirmation, enabling oversight of critical actions. |
-| **LangGraph** | [Guardrailed Agent](./agents/langgraph/examples/guardrailed_agent/) | Banking agent with NeMo Guardrails safety layer. Content safety, topic boundaries, and regex filtering via the proxy pattern. Two profiles: `local` (self-check) and `nemoguard` (supports dedicated NIM classifiers per layer). |
 | **LlamaIndex** | [WebSearch Agent](./agents/llamaindex/templates/websearch_agent/) | Agent built on LlamaIndex that uses a web search tool to query the internet and use the results in its answers. |
 | **CrewAI** | [WebSearch Agent](./agents/crewai/templates/websearch_agent/) | CrewAI-based agent with a web search tool to query the internet and answer user questions. |
 | **Vanilla Python** | [OpenAI Responses Agent](./agents/vanilla_python/templates/openai_responses_agent/) | Minimal agent with no framework: only the OpenAI Python client and an Action/Observation loop with tools. Use with OpenAI or any compatible API. |
@@ -29,6 +31,22 @@ Agents are organized by framework. Pick one and follow its README:
 | **Google ADK** | [ADK Agent](./agents/google/templates/adk/) | General-purpose agent using Google ADK 2.0 with LiteLLM to route inference through an OGX-compatible endpoint. |
 | **Langflow** | [Simple Tool Calling Agent](./agents/langflow/templates/simple_tool_calling_agent/) | Tool-calling agent built with Langflow's visual flow builder. Calls external APIs as tools and reasons over results. Includes Langfuse v3 tracing. Runs locally via `podman-compose`. |
 | **A2A** | [LangGraph + CrewAI Agent](./agents/a2a/templates/langgraph_crewai_agent/) | Multi-agent system using the Agent-to-Agent (A2A) protocol. A LangGraph orchestrator delegates tasks to a CrewAI worker agent. Uses a dedicated Helm chart. |
+
+### Examples
+
+Business use-case demos built on the templates above.
+
+| Framework | Agent | Description |
+|-----------|-------|-------------|
+| **LangGraph** | [CI Failure Summarizer](./agents/langgraph/examples/ci_failure_summarizer/) | Spike agent that ingests QG4 GitHub Actions failures, groups incidents in PostgreSQL, composes triage summaries, and posts to Slack via manual `POST /summarize` trigger. |
+| **LangGraph** | [Guardrailed Agent](./agents/langgraph/examples/guardrailed_agent/) | Banking agent with NeMo Guardrails safety layer. Content safety, topic boundaries, and regex filtering via the proxy pattern. Two profiles: `local` (self-check) and `nemoguard` (supports dedicated NIM classifiers per layer). |
+
+### Deployments
+
+Pre-built agents and tools deployed on OpenShift.
+
+| Framework | Agent | Description |
+|-----------|-------|-------------|
 | **Claude Code** | [Claude Code on OpenShift](./agents/claude-code/) | Deploy Claude Code on OpenShift with multiple backend options (Anthropic API, Vertex AI, vLLM, OGX). Includes deployment manifests and configuration guides. |
 | **OpenClaw** | [OpenClaw on OpenShift](./agents/openclaw/deployment/) | Deploy OpenClaw on OpenShift with vLLM model serving, OAuth SSO, and production-grade security. Kustomize-based deployment using pre-built images. |
 | **Codex** | [Codex on OpenShift](./agents/codex/deployment/) | Run OpenAI Codex CLI inside an OpenShell sandbox on OpenShift. Containerfile-based deployment. |
@@ -62,9 +80,10 @@ agentic-starter-kits/
 │   │   │   ├── react_agent/
 │   │   │   ├── agentic_rag/
 │   │   │   ├── react_with_database_memory/
-│   │   │   ├── ci_failure_summarizer/
 │   │   │   └── human_in_the_loop/
 │   │   ├── examples/                    # Business use-case demos
+│   │   │   ├── ci_failure_summarizer/
+│   │   │   └── guardrailed_agent/
 │   │   └── deployment/                  # Helm chart for this framework
 │   ├── crewai/
 │   ├── llamaindex/

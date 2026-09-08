@@ -94,6 +94,22 @@ is_flow_import() {
   [[ -f "$agent_yaml" ]] && grep -qE '^\s*deploymentModel:\s*flow-import' "$agent_yaml"
 }
 
+# Trims whitespace from LANGFLOW_AGENT_URL and echoes it only if non-empty and
+# https://; otherwise echoes nothing so callers fall back to route lookup.
+# Mirrors the validation in resolve_langflow_url()/_probe_flow_import().
+resolved_langflow_url() {
+  local url="${LANGFLOW_AGENT_URL:-}"
+  url="${url#"${url%%[![:space:]]*}"}"
+  url="${url%"${url##*[![:space:]]}"}"
+  if [[ -z "$url" ]]; then
+    return
+  fi
+  if [[ "$url" != https://* ]]; then
+    die "LANGFLOW_AGENT_URL must use https:// (got: ${url})"
+  fi
+  echo "$url"
+}
+
 validate_agent_url_map_sync() {
   local agent_tuples=("$@")
   if [[ ${#agent_tuples[@]} -eq 0 ]]; then
@@ -224,23 +240,32 @@ preflight() {
     local path
     path=$(agent_path "$agent_tuple")
 
-    # Flow-import agents have no Kubernetes Deployment; check route + health endpoint instead
+    # Flow-import agents have no Kubernetes Deployment; check health endpoint instead
     if is_flow_import "$path"; then
-      local route_host
-      route_host=$(timeout 30 oc get route "${deploy}" -n "${ns}" \
-        -o jsonpath='{.spec.host}' 2>/dev/null || true)
-
-      if [[ -z "$route_host" ]]; then
-        fail "Route '${deploy}' not found for flow-import agent '${path}' (namespace: ${ns})"
-        all_healthy=false
-        continue
+      local health_url="" source_desc=""
+      local langflow_url
+      langflow_url=$(resolved_langflow_url)
+      if [[ -n "$langflow_url" ]]; then
+        health_url="${langflow_url%/}"
+        health_url="${health_url%/health_check}/health_check"
+        source_desc="LANGFLOW_AGENT_URL"
+      else
+        local route_host
+        route_host=$(timeout 30 oc get route "${deploy}" -n "${ns}" \
+          -o jsonpath='{.spec.host}' 2>/dev/null || true)
+        if [[ -z "$route_host" ]]; then
+          fail "Route '${deploy}' not found for flow-import agent '${path}' (namespace: ${ns})"
+          all_healthy=false
+          continue
+        fi
+        health_url="https://${route_host}/health_check"
+        source_desc="route '${deploy}'"
       fi
 
-      # Curl the health endpoint
-      if curl -fsSk --connect-timeout 10 --max-time 30 "https://${route_host}/health_check" >/dev/null 2>&1; then
-        ok "Route '${deploy}' (flow-import) — healthy"
+      if curl -fsSk --connect-timeout 10 --max-time 30 "${health_url}" >/dev/null 2>&1; then
+        ok "${source_desc} (flow-import) — healthy"
       else
-        warn "Route '${deploy}' (flow-import) — health check failed or endpoint unreachable"
+        warn "${source_desc} (flow-import) — health check failed or endpoint unreachable"
         all_healthy=false
       fi
       continue
@@ -372,17 +397,29 @@ run_tests() {
     deploy=$(agent_deploy "$agent_tuple")
     ns=$(agent_ns "$agent_tuple")
 
-    local route_host
-    route_host=$(timeout 30 oc get route "${deploy}" -n "${ns}" \
-      -o jsonpath='{.spec.host}' 2>/dev/null || true)
+    local agent_url=""
 
-    if [[ -z "$route_host" ]]; then
-      warn "No route found for '${deploy}'. Skipping ${path}."
-      echo "NO_ROUTE" > "${RESULTS_DIR}/$(echo "$path" | tr '/' '_').exit"
-      continue
+    # Flow-import agents (Langflow) use a pre-deployed instance whose URL
+    # comes from an env var; fall back to oc get route only if unset.
+    local langflow_url=""
+    if is_flow_import "$path"; then
+      langflow_url=$(resolved_langflow_url)
     fi
+    if [[ -n "$langflow_url" ]]; then
+      agent_url="${langflow_url%/}"
+      agent_url="${agent_url%/health_check}"
+    else
+      local route_host
+      route_host=$(timeout 30 oc get route "${deploy}" -n "${ns}" \
+        -o jsonpath='{.spec.host}' 2>/dev/null || true)
 
-    local agent_url="https://${route_host}"
+      if [[ -z "$route_host" ]]; then
+        warn "No route found for '${deploy}'. Skipping ${path}."
+        echo "NO_ROUTE" > "${RESULTS_DIR}/$(echo "$path" | tr '/' '_').exit"
+        continue
+      fi
+      agent_url="https://${route_host}"
+    fi
     local test_path
     test_path=$(resolve_test_path "$path")
 

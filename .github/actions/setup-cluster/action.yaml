@@ -8,6 +8,10 @@ inputs:
   cluster-api-url:
     description: "OpenShift cluster API URL"
     required: true
+  oc-version:
+    description: "OCP release channel or version for the oc CLI (e.g. 'stable', '4.15.0')"
+    required: false
+    default: "stable"
 
 runs:
   using: "composite"
@@ -20,11 +24,14 @@ runs:
     - name: Install uv
       uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
 
-    - name: Install OpenShift CLI and Helm
+    - name: Install Helm
       uses: redhat-actions/openshift-tools-installer@144527c7d98999f2652264c048c7a9bd103f8a82 # v1.13.1
       with:
-        oc: "4"
         helm: "3"
+
+    - name: Install OpenShift CLI (oc) with retry
+      shell: bash
+      run: bash "$GITHUB_ACTION_PATH/install-oc.sh" "${{ inputs.oc-version }}"
 
     - name: Login to OpenShift
       shell: bash
