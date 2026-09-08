@@ -28,11 +28,8 @@ try:
 except ImportError:
     mlflow = None
 
-# Cache to avoid re-initializing on every tool call
-_retriever_cache = None
 
-
-def get_retriever(
+def _initialize_retriever(
     maas_api_key: Optional[str] = None,
     maas_base_url: Optional[str] = None,
     embedding_model_id: Optional[str] = None,
@@ -40,7 +37,7 @@ def get_retriever(
     milvus_collection: Optional[str] = None,
 ) -> Retriever:
     """
-    Get or create the ai4rag retriever with MaaS embeddings and Milvus vector store.
+    Initialize the ai4rag retriever with MaaS embeddings and Milvus vector store.
 
     Args:
         maas_api_key: MaaS API key
@@ -52,10 +49,7 @@ def get_retriever(
     Returns:
         ai4rag Retriever instance
     """
-    global _retriever_cache
-
     # Handle MILVUS_SERVER_CERT FIRST - convert path to PEM text before anything else
-    # This must be done before cache check and before ai4rag reads the env var
     milvus_cert = getenv("MILVUS_SERVER_CERT")
     if milvus_cert and not milvus_cert.startswith("-----BEGIN"):
         # It's a file path - read the certificate content
@@ -70,10 +64,6 @@ def get_retriever(
             )
     elif milvus_cert and milvus_cert.startswith("-----BEGIN"):
         print("✓ Using Milvus certificate from environment (PEM text)")
-
-    # Return cached retriever if it exists
-    if _retriever_cache is not None:
-        return _retriever_cache
 
     # Get configuration from environment if not provided
     if not maas_api_key:
@@ -127,96 +117,108 @@ def get_retriever(
         ranker_alpha=0.5,
     )
 
-    # Cache the retriever
-    _retriever_cache = retriever
-
     return retriever
 
 
-class RetrieverInput(BaseModel):
-    """Schema for the retriever tool input."""
+def create_retriever_tool():
+    """Factory function that creates a retriever tool with cached retriever instance."""
+    _retriever_cache = None
 
-    query: str = Field(
-        description="The search query describing what information you need to retrieve."
-    )
+    class RetrieverInput(BaseModel):
+        """Schema for the retriever tool input."""
 
+        query: str = Field(
+            description="The search query describing what information you need to retrieve."
+        )
 
-@tool("retriever", args_schema=RetrieverInput)
-def retriever_tool(query: str) -> str:
-    """
-    Search the knowledge base for information relevant to the query.
+    @tool("retriever", args_schema=RetrieverInput)
+    def retriever_tool(query: str) -> str:
+        """
+        Search the knowledge base for information relevant to the query.
 
-    Use this tool when you need to find specific information from the knowledge base
-    to answer the user's question accurately.
+        Use this tool when you need to find specific information from the knowledge base
+        to answer the user's question accurately.
 
-    Args:
-        query: The search query describing what information you need to retrieve.
+        Args:
+            query: The search query describing what information you need to retrieve.
 
-    Returns:
-        Retrieved documents containing relevant information.
-    """
-    # Handle case where query might be passed as a dict (defensive fix)
-    if isinstance(query, dict):
-        # Extract the actual query value from the dict
-        query = query.get("value", query.get("query", str(query)))
+        Returns:
+            Retrieved documents containing relevant information.
+        """
+        nonlocal _retriever_cache
 
-    # Get retriever
-    retriever = get_retriever()
+        # Handle case where query might be passed as a dict (defensive fix)
+        if isinstance(query, dict):
+            # Extract the actual query value from the dict
+            query = query.get("value", query.get("query", str(query)))
 
-    # Retrieve documents
-    retrieved_docs = retriever.retrieve(query)
+        # Initialize retriever on first call
+        if _retriever_cache is None:
+            _retriever_cache = _initialize_retriever()
 
-    # Format the retrieved documents
-    if not retrieved_docs or len(retrieved_docs) == 0:
-        return "No relevant information was found in the provided documents for this query."
+        # Retrieve documents
+        retrieved_docs = _retriever_cache.retrieve(query)
 
-    formatted_docs = []
-    retriever_docs = []
-    for i, doc in enumerate(retrieved_docs, 1):
-        # Skip chunks that are empty or just separators/whitespace
-        # ai4rag returns AI4RAGChunk with .text attribute, not .page_content
-        # Handle None text by treating it as empty string
-        text_content = getattr(doc, "text", getattr(doc, "page_content", None))
-        content = (text_content or "").strip()
-        if not content or all(c in "=-_*#|" for c in content):
-            continue
+        # Format the retrieved documents
+        if not retrieved_docs or len(retrieved_docs) == 0:
+            return "No relevant information was found in the provided documents for this query."
 
-        # Extract source from metadata (handle None metadata)
-        metadata = getattr(doc, "metadata", None) or {}
-        source = metadata.get("source", "unknown")
+        formatted_docs = []
+        retriever_docs = []
+        for i, doc in enumerate(retrieved_docs, 1):
+            # Skip chunks that are empty or just separators/whitespace
+            # ai4rag returns AI4RAGChunk with .text attribute, not .page_content
+            # Handle None text by treating it as empty string
+            text_content = getattr(doc, "text", getattr(doc, "page_content", None))
+            content = (text_content or "").strip()
+            if not content or all(c in "=-_*#|" for c in content):
+                continue
 
-        # Extract score if available (ai4rag chunks may have score/similarity)
-        # Handle None and non-numeric scores
-        score = getattr(doc, "score", getattr(doc, "similarity", None))
-        if score is not None and isinstance(score, (int, float)):
-            score_str = f"{score:.3f}"
-        else:
-            score_str = "N/A"
+            # Extract source from metadata (handle None metadata)
+            metadata = getattr(doc, "metadata", None) or {}
+            source = metadata.get("source", "unknown")
 
-        # Format each document with clear separation
-        doc_text = f"--- Document {len(formatted_docs) + 1} ---\n"
-        doc_text += f"Content: {content}\n"
-        doc_text += f"Source: {source}\n"
-        doc_text += f"Score: {score_str}"
+            # Extract score if available (ai4rag chunks may have score/similarity)
+            # Handle None and non-numeric scores
+            score = getattr(doc, "score", getattr(doc, "similarity", None))
+            if score is not None and isinstance(score, (int, float)):
+                score_str = f"{score:.3f}"
+            else:
+                score_str = "N/A"
 
-        formatted_docs.append(doc_text)
+            # Format each document with clear separation
+            doc_text = f"--- Document {len(formatted_docs) + 1} ---\n"
+            doc_text += f"Content: {content}\n"
+            doc_text += f"Source: {source}\n"
+            doc_text += f"Score: {score_str}"
 
-        if mlflow:
-            retriever_docs.append(
-                MlflowDocument(
-                    page_content=content,
-                    metadata={"source": source, "score": getattr(doc, "score", None)},
+            formatted_docs.append(doc_text)
+
+            if mlflow:
+                retriever_docs.append(
+                    MlflowDocument(
+                        page_content=content,
+                        metadata={
+                            "source": source,
+                            "score": getattr(doc, "score", None),
+                        },
+                    )
                 )
-            )
 
-    # Log RETRIEVER span for MLflow RAG evaluation scorers
-    if mlflow and retriever_docs:
-        with mlflow.start_span(name="retrieve", span_type="RETRIEVER") as span:
-            span.set_inputs({"query": query})
-            span.set_outputs(retriever_docs)
+        # Log RETRIEVER span for MLflow RAG evaluation scorers
+        if mlflow and retriever_docs:
+            with mlflow.start_span(name="retrieve", span_type="RETRIEVER") as span:
+                span.set_inputs({"query": query})
+                span.set_outputs(retriever_docs)
 
-    # If all chunks were filtered out, return no information message
-    if not formatted_docs:
-        return "No relevant information was found in the provided documents for this query."
+        # If all chunks were filtered out, return no information message
+        if not formatted_docs:
+            return "No relevant information was found in the provided documents for this query."
 
-    return "\n\n".join(formatted_docs)
+        return "\n\n".join(formatted_docs)
+
+    return retriever_tool
+
+
+# Create the retriever tool instance using closure pattern
+retriever_tool = create_retriever_tool()

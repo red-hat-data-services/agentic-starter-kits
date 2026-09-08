@@ -3,24 +3,15 @@ import sys
 from unittest.mock import Mock, patch
 
 import pytest
-import src.agentic_rag.tools as tools_module
 
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.agentic_rag.tools import (
-    RetrieverInput,
-    get_retriever,
+    _initialize_retriever,
+    create_retriever_tool,
     retriever_tool,
 )
-
-
-@pytest.fixture(autouse=True)
-def reset_retriever_cache():
-    """Reset retriever cache before and after each test to prevent test pollution."""
-    tools_module._retriever_cache = None
-    yield
-    tools_module._retriever_cache = None
 
 
 def test_retriever_tool_exists():
@@ -30,14 +21,8 @@ def test_retriever_tool_exists():
     assert retriever_tool.description is not None
 
 
-def test_retriever_input_schema():
-    """Test that the RetrieverInput schema is properly defined."""
-    schema = RetrieverInput(query="test query")
-    assert schema.query == "test query"
-
-
-@patch("src.agentic_rag.tools.get_retriever")
-def test_retriever_tool_invoke_with_string_query(mock_get_retriever):
+@patch("src.agentic_rag.tools._initialize_retriever")
+def test_retriever_tool_invoke_with_string_query(mock_initialize_retriever):
     """Test that the retriever tool can be invoked with a string query."""
     # Mock ai4rag retriever and chunks
     mock_retriever = Mock()
@@ -47,11 +32,14 @@ def test_retriever_tool_invoke_with_string_query(mock_get_retriever):
     mock_chunk.metadata = {"source": "langgraph_docs.txt"}
 
     mock_retriever.retrieve.return_value = [mock_chunk]
-    mock_get_retriever.return_value = mock_retriever
+    mock_initialize_retriever.return_value = mock_retriever
+
+    # Create fresh tool instance for this test
+    test_tool = create_retriever_tool()
 
     # Invoke the tool
     query = "What is LangGraph?"
-    result = retriever_tool.invoke({"query": query})
+    result = test_tool.invoke({"query": query})
 
     # Assertions
     assert isinstance(result, str)
@@ -65,23 +53,26 @@ def test_retriever_tool_invoke_with_string_query(mock_get_retriever):
     mock_retriever.retrieve.assert_called_once_with(query)
 
 
-@patch("src.agentic_rag.tools.get_retriever")
-def test_retriever_tool_no_results(mock_get_retriever):
+@patch("src.agentic_rag.tools._initialize_retriever")
+def test_retriever_tool_no_results(mock_initialize_retriever):
     """Test retriever tool behavior when no results are found."""
     # Mock empty response
     mock_retriever = Mock()
     mock_retriever.retrieve.return_value = []
-    mock_get_retriever.return_value = mock_retriever
+    mock_initialize_retriever.return_value = mock_retriever
+
+    # Create fresh tool instance for this test
+    test_tool = create_retriever_tool()
 
     # Invoke the tool
-    result = retriever_tool.invoke({"query": "nonexistent query"})
+    result = test_tool.invoke({"query": "nonexistent query"})
 
     # Should return a message indicating no results
     assert "No relevant information was found" in result
 
 
-@patch("src.agentic_rag.tools.get_retriever")
-def test_retriever_tool_multiple_chunks(mock_get_retriever):
+@patch("src.agentic_rag.tools._initialize_retriever")
+def test_retriever_tool_multiple_chunks(mock_initialize_retriever):
     """Test retriever tool with multiple chunks returned."""
     # Mock multiple chunks
     mock_retriever = Mock()
@@ -97,10 +88,13 @@ def test_retriever_tool_multiple_chunks(mock_get_retriever):
     mock_chunk2.metadata = {"source": "doc2.txt"}
 
     mock_retriever.retrieve.return_value = [mock_chunk1, mock_chunk2]
-    mock_get_retriever.return_value = mock_retriever
+    mock_initialize_retriever.return_value = mock_retriever
+
+    # Create fresh tool instance for this test
+    test_tool = create_retriever_tool()
 
     # Invoke the tool
-    result = retriever_tool.invoke({"query": "LangGraph agents"})
+    result = test_tool.invoke({"query": "LangGraph agents"})
 
     # Should contain both documents
     assert "Document 1" in result
@@ -111,8 +105,8 @@ def test_retriever_tool_multiple_chunks(mock_get_retriever):
     assert "doc2.txt" in result
 
 
-@patch("src.agentic_rag.tools.get_retriever")
-def test_retriever_tool_filters_empty_chunks(mock_get_retriever):
+@patch("src.agentic_rag.tools._initialize_retriever")
+def test_retriever_tool_filters_empty_chunks(mock_initialize_retriever):
     """Test that empty or separator chunks are filtered out."""
     # Mock chunks with empty/separator content
     mock_retriever = Mock()
@@ -133,10 +127,13 @@ def test_retriever_tool_filters_empty_chunks(mock_get_retriever):
     mock_chunk3.metadata = {"source": "valid.txt"}
 
     mock_retriever.retrieve.return_value = [mock_chunk1, mock_chunk2, mock_chunk3]
-    mock_get_retriever.return_value = mock_retriever
+    mock_initialize_retriever.return_value = mock_retriever
+
+    # Create fresh tool instance for this test
+    test_tool = create_retriever_tool()
 
     # Invoke the tool
-    result = retriever_tool.invoke({"query": "test"})
+    result = test_tool.invoke({"query": "test"})
 
     # Should only contain the valid document
     assert "Document 1" in result
@@ -151,7 +148,7 @@ def test_retriever_tool_filters_empty_chunks(mock_get_retriever):
 @patch("src.agentic_rag.tools.Retriever")
 @patch("src.agentic_rag.tools.OpenAI")
 @patch("src.agentic_rag.tools.getenv")
-def test_get_retriever_initialization(
+def test_initialize_retriever_initialization(
     mock_get_env,
     mock_openai_class,
     mock_retriever_class,
@@ -176,7 +173,7 @@ def test_get_retriever_initialization(
     mock_retriever_class.return_value = Mock()
 
     # Call function
-    result = get_retriever()
+    result = _initialize_retriever()
 
     # Assertions
     assert result is not None
@@ -185,19 +182,29 @@ def test_get_retriever_initialization(
     )
 
 
-@patch("src.agentic_rag.tools.OpenAI")
-def test_get_retriever_caching(mock_openai_class):
-    """Test that retriever is cached after first call."""
-    # Set up cache with mock retriever
-    mock_cached_retriever = Mock()
-    tools_module._retriever_cache = mock_cached_retriever
+@patch("src.agentic_rag.tools._initialize_retriever")
+def test_retriever_tool_caching(mock_initialize_retriever):
+    """Test that retriever is cached after first call within a tool instance."""
+    # Mock retriever
+    mock_retriever = Mock()
+    mock_chunk = Mock()
+    mock_chunk.text = "Test content"
+    mock_chunk.score = 0.95
+    mock_chunk.metadata = {"source": "test.txt"}
+    mock_retriever.retrieve.return_value = [mock_chunk]
+    mock_initialize_retriever.return_value = mock_retriever
 
-    # Call function
-    result = get_retriever()
+    # Create a tool instance
+    test_tool = create_retriever_tool()
 
-    # Should return cached retriever without calling OpenAI
-    assert result == mock_cached_retriever
-    mock_openai_class.assert_not_called()
+    # Call the tool twice
+    test_tool.invoke({"query": "first query"})
+    test_tool.invoke({"query": "second query"})
+
+    # _initialize_retriever should only be called once (cached on second call)
+    assert mock_initialize_retriever.call_count == 1
+    # But retrieve should be called twice
+    assert mock_retriever.retrieve.call_count == 2
 
 
 @patch("src.agentic_rag.tools.get_vector_store")
@@ -205,7 +212,7 @@ def test_get_retriever_caching(mock_openai_class):
 @patch("src.agentic_rag.tools.Retriever")
 @patch("src.agentic_rag.tools.OpenAI")
 @patch("src.agentic_rag.tools.getenv")
-def test_get_retriever_with_explicit_params(
+def test_initialize_retriever_with_explicit_params(
     mock_get_env,
     mock_openai_class,
     mock_retriever_class,
@@ -225,7 +232,7 @@ def test_get_retriever_with_explicit_params(
     mock_retriever_class.return_value = Mock()
 
     # Call with explicit parameters
-    result = get_retriever(
+    result = _initialize_retriever(
         maas_api_key="custom-key",
         maas_base_url="https://custom.example.com/v1",
         milvus_collection="custom-collection",
@@ -239,7 +246,7 @@ def test_get_retriever_with_explicit_params(
 
 
 @patch("src.agentic_rag.tools.getenv")
-def test_get_retriever_no_collection(mock_get_env):
+def test_initialize_retriever_no_collection(mock_get_env):
     """Test error handling when MILVUS_COLLECTION_NAME env var is not set."""
 
     def getenv_side_effect(key, default=None):
@@ -254,7 +261,7 @@ def test_get_retriever_no_collection(mock_get_env):
 
     # Should raise RuntimeError when MILVUS_COLLECTION_NAME is missing
     with pytest.raises(RuntimeError) as exc_info:
-        get_retriever()
+        _initialize_retriever()
 
     assert "MILVUS_COLLECTION_NAME" in str(exc_info.value)
     assert "load_documents" in str(exc_info.value)
