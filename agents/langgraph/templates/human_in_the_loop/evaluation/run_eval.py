@@ -95,6 +95,19 @@ def generate_traces(eval_data: list[dict], agent_url: str) -> None:
                 timeout=request_timeout,
             )
             response.raise_for_status()
+            body = response.json()
+            choices = body.get("choices") or []
+            if choices:
+                finish_reason = choices[0].get("finish_reason")
+                if finish_reason == "pending_approval":
+                    print(
+                        f"\nERROR: Agent returned 'pending_approval' for: {question}"
+                        "\nThe HITL template requires human approval for this query."
+                        "\nEval cannot score incomplete responses. Either approve the "
+                        "pending request or adjust eval_data.yaml to avoid queries "
+                        "that trigger approval."
+                    )
+                    raise SystemExit(1)
         except httpx.ConnectError:
             print(
                 f"\nERROR: Could not connect to agent at {agent_url}."
@@ -131,8 +144,9 @@ def attach_expectations(traces, eval_data):
     """Match traces to golden queries by content and log expectations.
 
     Each golden query's question is matched against the question extracted
-    from trace.data.request using exact string comparison. This is immune
-    to interleaved traces from concurrent agent traffic.
+    from trace.data.request using exact string comparison. Interleaved
+    traces from concurrent traffic with different questions are ignored,
+    but concurrent requests with identical question text could mis-associate.
 
     Returns a mapping of matched trace IDs to expectation names logged for each trace.
     """
@@ -368,10 +382,10 @@ def main():
     expected_count = len(eval_data)
     trace_timeout = _get_int_env("EVAL_TRACE_TIMEOUT", 60)
     poll_interval = max(_get_int_env("EVAL_POLL_INTERVAL", 4), 1)
-    max_attempts = max(trace_timeout // poll_interval, 1)
+    deadline = time.monotonic() + trace_timeout
 
     traces = []
-    for attempt in range(max_attempts):
+    while True:
         traces = mlflow.search_traces(
             locations=[experiment.experiment_id],
             return_type="list",
@@ -381,7 +395,9 @@ def main():
             matched = [t for t in traces if _extract_question(t) in golden_questions]
             if len(matched) >= expected_count:
                 break
-        time.sleep(poll_interval)
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(min(poll_interval, max(deadline - time.monotonic(), 0)))
 
     traces = filter_matching_traces_or_exit(
         traces=traces,
