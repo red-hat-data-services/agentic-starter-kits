@@ -28,8 +28,14 @@ runs:
         # was never deployed emits NO_ROUTE, which fails the gate. So excluding an
         # agent from deploy without also removing it from the runner's argv would
         # fail QG7 on the very agent we chose to skip.
-        selection=$(bash tests/behavioral/deterministic/deploy-btest-agents.sh \
-          --print-selection ${QG7_AGENT_NAME:-})
+        if [[ -n "${QG7_AGENT_NAME:-}" ]]; then
+          read -r -a agent_args <<< "${QG7_AGENT_NAME}"
+          selection=$(bash tests/behavioral/deterministic/deploy-btest-agents.sh \
+            --print-selection "${agent_args[@]}")
+        else
+          selection=$(bash tests/behavioral/deterministic/deploy-btest-agents.sh \
+            --print-selection)
+        fi
 
         # An empty QG7_AGENT_NAME means "full set", so empty output can only mean
         # the exclusion filter ate everything. Letting that through would hand the
