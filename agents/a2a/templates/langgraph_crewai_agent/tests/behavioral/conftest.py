@@ -98,9 +98,9 @@ def run_eval(
         # Prefer the orchestrator-only experiment so trace lookups can't pick
         # up the CrewAI specialist's traces (separate process, same default
         # experiment otherwise -- see src/a2a_langgraph_crewai/tracing.py).
-        experiment = os.environ.get("MLFLOW_EXPERIMENT_NAME_LANGGRAPH") or os.environ.get(
-            "MLFLOW_EXPERIMENT_NAME"
-        )
+        experiment = os.environ.get(
+            "MLFLOW_EXPERIMENT_NAME_LANGGRAPH"
+        ) or os.environ.get("MLFLOW_EXPERIMENT_NAME")
         if tracking_uri and experiment:
             mlflow = MLflowTraceClient(tracking_uri, experiment)
 

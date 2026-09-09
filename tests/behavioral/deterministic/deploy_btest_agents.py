@@ -289,7 +289,10 @@ def build_env_map_for(
         # "most recent trace" lookup (RHAIENG-7403). Distinct experiment names
         # per deployment let tracing.py's per-process priority order pick the
         # right one.
-        langgraph_name, crew_name = target.deployment_names[0], target.deployment_names[1]
+        langgraph_name, crew_name = (
+            target.deployment_names[0],
+            target.deployment_names[1],
+        )
         env_map["MLFLOW_EXPERIMENT_NAME_LANGGRAPH"] = f"{namespace}/{langgraph_name}"
         env_map["MLFLOW_EXPERIMENT_NAME_CREWAI"] = f"{namespace}/{crew_name}"
 
