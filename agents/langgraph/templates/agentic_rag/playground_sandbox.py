@@ -243,24 +243,16 @@ async def serve_image(filename: str):
     if _auth_enabled():
         raise HTTPException(status_code=404, detail="Not found")
 
-    # Prevent path traversal (CWE-22) by using only the basename
-    # This removes all directory separators and ".." sequences
+    # Prevent path traversal (CWE-22): instead of constructing a path from
+    # user input, enumerate the allowed directory and match by name.
     from pathlib import PurePosixPath
 
-    safe_filename = PurePosixPath(filename).name
-    if not safe_filename or safe_filename == "." or safe_filename == "..":
+    requested_name = PurePosixPath(filename).name
+    if not requested_name or requested_name in (".", ".."):
         raise HTTPException(status_code=404, detail="Image not found")
 
-    base = _IMAGES_DIR.resolve()
-    file_path = (base / safe_filename).resolve()
+    for entry in _IMAGES_DIR.resolve().iterdir():
+        if entry.is_file() and entry.name == requested_name:
+            return FileResponse(entry)
 
-    # Defense in depth: ensure resolved path is still within base directory
-    try:
-        file_path.relative_to(base)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Image not found")
-
-    if not file_path.is_file():
-        raise HTTPException(status_code=404, detail="Image not found")
-
-    return FileResponse(file_path)
+    raise HTTPException(status_code=404, detail="Image not found")
