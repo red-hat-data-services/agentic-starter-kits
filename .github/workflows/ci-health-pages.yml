@@ -15,6 +15,7 @@ on:
       - Inner Loop Gating
       - "QG1: Cluster Readiness"
       - "QG2: Platform Readiness"
+      - "Quality Gates Pipeline"
       - "QG4: Agent Deployment Integration Tests"
     types: [completed]
   workflow_dispatch:
@@ -71,6 +72,9 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install pyyaml
 
       - name: Generate CI health page
         env:

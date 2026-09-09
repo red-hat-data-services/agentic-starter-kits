@@ -12,7 +12,12 @@ This runbook covers the shared-branch CI Slack alerts for
 | `Inner Loop Gating` | Canonical | `QG7` | `push` on `main` when matching eval/behavioral paths change, `workflow_dispatch` on `main` |
 | `QG1: Cluster Readiness` | Canonical | `QG1` | `schedule`, `workflow_dispatch` on `main` |
 | `QG2: Platform Readiness` | Canonical | `QG2` | `schedule`, `workflow_dispatch` on `main` |
-| `QG4: Agent Deployment Integration Tests` | Canonical | `QG4` | `schedule`, `workflow_dispatch` on `main` |
+| `Quality Gates Pipeline` | Canonical | `QG4` / `QG7` | `schedule`, `workflow_dispatch` on `main` |
+| `QG4: Agent Deployment Integration Tests` | Canonical | `QG4` | `workflow_dispatch` on `main` |
+
+`agent-deployment-test.yaml` is manual-only (no `schedule` trigger) — nightly
+QG4 alerting comes from `Quality Gates Pipeline`. `agent-deployment-test.yaml`
+only alerts when someone runs it by hand on `main`.
 
 ## Routing and Ownership
 

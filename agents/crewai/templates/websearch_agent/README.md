@@ -108,10 +108,10 @@ make run-cli
 To enable MLflow tracing, add the following to your `.env`:
 
 ```ini
-MLFLOW_TRACKING_URI = "http://localhost:5000"
-MLFLOW_EXPERIMENT_NAME = "crewai-websearch-agent"
-MLFLOW_HTTP_REQUEST_TIMEOUT = 2
-MLFLOW_HTTP_REQUEST_MAX_RETRIES = 0
+MLFLOW_TRACKING_URI="http://localhost:5000"
+MLFLOW_EXPERIMENT_NAME="crewai-websearch-agent"
+MLFLOW_HTTP_REQUEST_TIMEOUT=2
+MLFLOW_HTTP_REQUEST_MAX_RETRIES=0
 ```
 
 Then start the MLflow server in a separate terminal:
@@ -143,11 +143,11 @@ To enable tracing and logging with MLflow on your OpenShift cluster, add the fol
 `.env` file:
 
 ```ini
-MLFLOW_TRACKING_URI = "https://<openshift-dashboard-url>/mlflow"
-MLFLOW_TRACKING_TOKEN = "<your-openshift-token>"
-MLFLOW_EXPERIMENT_NAME = "crewai-websearch-agent"
-MLFLOW_TRACKING_INSECURE_TLS = "true"
-MLFLOW_WORKSPACE = "default"
+MLFLOW_TRACKING_URI="https://<openshift-dashboard-url>/mlflow"
+MLFLOW_TRACKING_TOKEN="<your-openshift-token>"
+MLFLOW_EXPERIMENT_NAME="crewai-websearch-agent"
+MLFLOW_TRACKING_INSECURE_TLS="true"
+MLFLOW_WORKSPACE="default"
 ```
 
 **Notes:**
@@ -180,10 +180,10 @@ make init
 Edit `.env` with your model endpoint and container image:
 
 ```ini
-API_KEY = your-api-key-here
-BASE_URL = https://your-model-endpoint.com/v1
-MODEL_ID = llama-3.1-8b-instruct
-CONTAINER_IMAGE = quay.io/your-username/crewai-websearch-agent:latest
+API_KEY=your-api-key-here
+BASE_URL=https://your-model-endpoint.com/v1
+MODEL_ID=llama-3.1-8b-instruct
+CONTAINER_IMAGE=quay.io/your-username/crewai-websearch-agent:latest
 ```
 
 **Notes:**
