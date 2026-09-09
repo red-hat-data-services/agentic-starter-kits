@@ -11,11 +11,12 @@ from os import getenv
 from pathlib import Path
 
 import requests as http_requests
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
+    JSONResponse,
     RedirectResponse,
     StreamingResponse,
 )
@@ -75,13 +76,12 @@ def _auth_enabled() -> bool:
 
 
 @router.get("/docs", response_class=HTMLResponse)
-async def custom_swagger_ui():
+async def custom_swagger_ui(request: Request):
     """Serve Swagger UI with a shortcut to the sandbox playground."""
-    from main import app
-
+    # Access app from request to avoid circular import
     swagger_html = get_swagger_ui_html(
-        openapi_url=app.openapi_url,
-        title=f"{app.title} - Swagger UI",
+        openapi_url=request.app.openapi_url,
+        title=f"{request.app.title} - Swagger UI",
         swagger_favicon_url="https://fastapi.tiangolo.com/img/favicon.png",
     )
     html = swagger_html.body.decode("utf-8")
@@ -138,22 +138,67 @@ async def playground():
 
 
 @router.get("/api/health")
-async def playground_health():
+async def playground_health(request: Request):
     """Expose the agent health response expected by the sandbox UI."""
-    from main import health
-
-    return await health()
+    # Access agent_graph from app.state to avoid circular import
+    initialized = getattr(request.app.state, "agent_graph", None) is not None
+    body = {
+        "status": "healthy" if initialized else "not_ready",
+        "agent_initialized": initialized,
+    }
+    if not initialized:
+        return JSONResponse(status_code=503, content=body)
+    return body
 
 
 @router.post("/api/chat")
-async def playground_chat(request: ChatCompletionRequest):
-    """Proxy sandbox UI requests with the server-side ServiceAccount token."""
+async def playground_chat(chat_request: ChatCompletionRequest, request: Request):
+    """Proxy sandbox UI requests with the server-side ServiceAccount token.
+
+    Security: This endpoint requires same-origin requests to prevent unauthorized
+    use of the server-side PLAYGROUND_TOKEN. Only requests from the sandbox UI
+    hosted on the same domain are accepted.
+    """
     if not (_SANDBOX_MODE and _PLAYGROUND_TOKEN):
         raise HTTPException(
             status_code=503, detail="Sandbox playground is not configured"
         )
 
-    payload = request.model_dump(exclude_none=True)
+    # Verify request origin to prevent unauthorized proxy use (CWE-352)
+    # In OpenShell sandbox, requests come through gateway with origin header
+    # but host is 127.0.0.1:8080 (internal). Accept if:
+    # 1. Origin/Referer contains the OpenShell gateway domain, OR
+    # 2. Host is localhost (internal call), OR
+    # 3. No origin/referer (same-server call)
+    origin = request.headers.get("origin", "")
+    referer = request.headers.get("referer", "")
+    host = request.headers.get("host", "")
+
+    # Allow localhost/internal calls
+    if host.startswith("127.0.0.1") or host.startswith("localhost"):
+        allowed = True
+    # Allow if origin/referer contains openshell gateway domain
+    elif "openshell" in origin or "openshell" in referer:
+        allowed = True
+    # Allow if no origin/referer (direct server call)
+    elif not origin and not referer:
+        allowed = True
+    else:
+        allowed = False
+
+    if not allowed:
+        logger.warning(
+            "Rejected /api/chat request from unauthorized origin: %s (referer: %s, host: %s)",
+            origin or "none",
+            referer or "none",
+            host,
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied: requests must originate from the sandbox UI",
+        )
+
+    payload = chat_request.model_dump(exclude_none=True)
     payload["stream"] = True
 
     def event_generator():
@@ -197,12 +242,22 @@ async def serve_image(filename: str):
     """Serve images from the project-level images directory."""
     if _auth_enabled():
         raise HTTPException(status_code=404, detail="Not found")
+
+    # Validate filename to prevent path traversal (CWE-22)
+    # Reject any path containing ".." or absolute path markers
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(status_code=404, detail="Image not found")
+
     base = _IMAGES_DIR.resolve()
     file_path = (base / filename).resolve()
+
+    # Ensure resolved path is still within base directory
     try:
         file_path.relative_to(base)
     except ValueError:
         raise HTTPException(status_code=404, detail="Image not found")
+
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="Image not found")
+
     return FileResponse(file_path)

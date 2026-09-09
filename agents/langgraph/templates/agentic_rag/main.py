@@ -155,9 +155,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     agent_graph = graph_closure()
 
+    # Store in app.state for access by routes without circular imports
+    app.state.agent_graph = agent_graph
+
     yield
 
     agent_graph = None
+    app.state.agent_graph = None
 
 
 # Create FastAPI app

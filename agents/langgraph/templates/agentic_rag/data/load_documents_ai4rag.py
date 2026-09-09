@@ -84,6 +84,12 @@ def load_and_index_documents(
     print(f"Using MaaS embedding model: {embedding_model_id}")
     print(f"Using Milvus collection: {milvus_collection}")
 
+    # Validate MaaS URL scheme to prevent API key exposure (CWE-319)
+    if not maas_base_url.startswith("https://"):
+        raise ValueError(
+            f"MaaS base URL must use HTTPS to protect API key transmission. Got: {maas_base_url}"
+        )
+
     # Initialize MaaS client
     client = OpenAI(base_url=maas_base_url, api_key=maas_api_key)
 
