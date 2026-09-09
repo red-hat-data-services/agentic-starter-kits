@@ -1,26 +1,27 @@
-import os
 import sys
 from os import getenv
+from pathlib import Path
 from typing import Optional
 
-# Fix sqlite3 version issue for chromadb (required by ai4rag)
-# Must be done BEFORE importing ai4rag
-try:
-    import pysqlite3  # noqa: F401
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-    sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
-except ImportError:
-    pass  # pysqlite3-binary not available, continue with system sqlite3
+from milvus_cert_helper import normalize_milvus_cert
+from sqlite_shim import patch_sqlite3
 
-from ai4rag.rag.embedding.openai_model import (
+patch_sqlite3()
+
+from ai4rag.rag.embedding.openai_model import (  # noqa: E402
     OpenAIEmbeddingModel,
     OpenAIEmbeddingParams,
 )
-from ai4rag.rag.retrieval.retriever import Retriever
-from ai4rag.rag.vector_store import get_vector_store, get_vector_store_config
-from langchain_core.tools import tool
-from openai import OpenAI
-from pydantic import BaseModel, Field
+from ai4rag.rag.retrieval.retriever import Retriever  # noqa: E402
+from ai4rag.rag.vector_store import (  # noqa: E402
+    get_vector_store,
+    get_vector_store_config,
+)
+from langchain_core.tools import tool  # noqa: E402
+from openai import OpenAI  # noqa: E402
+from pydantic import BaseModel, Field  # noqa: E402
 
 try:
     import mlflow
@@ -49,21 +50,8 @@ def _initialize_retriever(
     Returns:
         ai4rag Retriever instance
     """
-    # Handle MILVUS_SERVER_CERT FIRST - convert path to PEM text before anything else
-    milvus_cert = getenv("MILVUS_SERVER_CERT")
-    if milvus_cert and not milvus_cert.startswith("-----BEGIN"):
-        # It's a file path - read the certificate content
-        if os.path.exists(milvus_cert):
-            with open(milvus_cert, "r") as f:
-                cert_content = f.read()
-            os.environ["MILVUS_SERVER_CERT"] = cert_content
-            print(f"✓ Loaded Milvus certificate from {milvus_cert}")
-        else:
-            print(
-                f"⚠ Milvus cert file not found at {milvus_cert} - connection may fail"
-            )
-    elif milvus_cert and milvus_cert.startswith("-----BEGIN"):
-        print("✓ Using Milvus certificate from environment (PEM text)")
+    # Normalize MILVUS_SERVER_CERT (file path → PEM text)
+    normalize_milvus_cert()
 
     # Get configuration from environment if not provided
     if not maas_api_key:

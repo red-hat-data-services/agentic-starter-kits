@@ -26,35 +26,67 @@ _ALLOWED_SA_USERNAME = getenv("ALLOWED_SA_USERNAME", "").strip()
 _K8S_CA_PATH = getenv(
     "K8S_CA_PATH", "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 )
+_K8S_API_INSECURE = getenv("K8S_API_INSECURE", "").strip().lower() == "true"
 _PROTECTED_PATHS = frozenset({"/chat/completions", "/chat/completions/"})
 
 _AUTH_ENABLED = bool(_K8S_API_URL and _K8S_REVIEWER_TOKEN)
 
-_tls_verify: str | bool = _K8S_CA_PATH if Path(_K8S_CA_PATH).is_file() else False
+# Determine TLS verification strategy - FAIL CLOSED by default
+_ca_path_exists = Path(_K8S_CA_PATH).is_file()
+if _ca_path_exists:
+    # Use the K8s CA certificate if available
+    _tls_verify: str | bool = _K8S_CA_PATH
+elif _K8S_API_INSECURE:
+    # Explicit opt-in to insecure mode (e.g., OpenShell sandbox)
+    # This is intentionally verbose to make the security implications clear
+    if _AUTH_ENABLED:
+        log.warning(
+            "K8S_API_INSECURE=true: Using insecure TLS verification (verify=False). "
+            "This is ONLY acceptable in isolated test environments like OpenShell sandbox. "
+            "NEVER use this in production."
+        )
+    _tls_verify: str | bool = False
+else:
+    # FAIL CLOSED: CA certificate not found and no explicit insecure opt-in
+    if _AUTH_ENABLED:
+        raise RuntimeError(
+            f"K8s CA certificate not found at {_K8S_CA_PATH} and K8S_API_INSECURE is not set. "
+            "Either provide a valid CA certificate via K8S_CA_PATH, "
+            "or set K8S_API_INSECURE=true for test environments (NOT production)."
+        )
+    # Auth not enabled, doesn't matter
+    _tls_verify: str | bool = True
+
+
+# Cached HTTP client for connection reuse across token-review calls
+_http_client: httpx.AsyncClient | None = None
+
+
+def _get_http_client() -> httpx.AsyncClient:
+    """Get or create the cached HTTP client for K8s TokenReview calls."""
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(verify=_tls_verify, timeout=10.0)
+    return _http_client
 
 
 async def _validate_k8s_token(token: str) -> bool:
     if not (_K8S_API_URL and _K8S_REVIEWER_TOKEN):
         return False
-    # Security warning: log when TLS verification is disabled
-    if _tls_verify is False:
-        log.warning(
-            "K8s CA certificate unavailable - connecting without TLS verification (insecure)"
-        )
     try:
-        async with httpx.AsyncClient(verify=_tls_verify, timeout=10.0) as client:
-            resp = await client.post(
-                f"{_K8S_API_URL}/apis/authentication.k8s.io/v1/tokenreviews",
-                json={
-                    "apiVersion": "authentication.k8s.io/v1",
-                    "kind": "TokenReview",
-                    "spec": {"token": token},
-                },
-                headers={
-                    "Authorization": f"Bearer {_K8S_REVIEWER_TOKEN}",
-                    "Content-Type": "application/json",
-                },
-            )
+        client = _get_http_client()
+        resp = await client.post(
+            f"{_K8S_API_URL}/apis/authentication.k8s.io/v1/tokenreviews",
+            json={
+                "apiVersion": "authentication.k8s.io/v1",
+                "kind": "TokenReview",
+                "spec": {"token": token},
+            },
+            headers={
+                "Authorization": f"Bearer {_K8S_REVIEWER_TOKEN}",
+                "Content-Type": "application/json",
+            },
+        )
         if resp.status_code == 201:
             status = resp.json().get("status", {})
             if status.get("authenticated"):
@@ -69,8 +101,8 @@ async def _validate_k8s_token(token: str) -> bool:
                 log.info("K8s token authenticated: %s", user)
                 return True
         return False
-    except Exception:
-        log.exception("K8s TokenReview failed")
+    except Exception as e:
+        log.exception("K8s TokenReview failed: %s", str(e))
         return False
 
 

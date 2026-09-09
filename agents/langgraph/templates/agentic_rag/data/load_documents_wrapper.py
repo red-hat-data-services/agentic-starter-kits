@@ -5,17 +5,14 @@ This MUST be the entry point, not load_documents_ai4rag.py directly.
 """
 
 import sys
+from pathlib import Path
 
-# CRITICAL: Do this BEFORE any other imports
-try:
-    import pysqlite3
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-    sys.modules["sqlite3"] = pysqlite3
-    print("✓ Using pysqlite3 instead of system sqlite3")
-except ImportError:
-    print("⚠ pysqlite3-binary not found, using system sqlite3")
+from sqlite_shim import patch_sqlite3
 
-# Now it's safe to import and run the actual loader
+patch_sqlite3()
+
 if __name__ == "__main__":
     from load_documents_ai4rag import load_and_index_documents
 
