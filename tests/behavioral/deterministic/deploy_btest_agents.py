@@ -271,7 +271,7 @@ def build_env_map_for(
     tracking_uri: str,
     token: str,
 ) -> dict[str, str]:
-    return build_env_map(
+    env_map = build_env_map(
         target.agent_dir,
         namespace,
         container_image=container_image_for(agent_name, namespace),
@@ -281,6 +281,19 @@ def build_env_map_for(
         token=token,
         aliases=ENV_SOURCE_ALIASES.get(target.agent_id),
     )
+
+    if target.agent_id == "a2a/templates/langgraph_crewai_agent":
+        # LangGraph and CrewAI are separate processes that would otherwise both
+        # fall back to the shared MLFLOW_EXPERIMENT_NAME, letting the CrewAI
+        # specialist's trace shadow the orchestrator's in get_latest_trace()'s
+        # "most recent trace" lookup (RHAIENG-7403). Distinct experiment names
+        # per deployment let tracing.py's per-process priority order pick the
+        # right one.
+        langgraph_name, crew_name = target.deployment_names[0], target.deployment_names[1]
+        env_map["MLFLOW_EXPERIMENT_NAME_LANGGRAPH"] = f"{namespace}/{langgraph_name}"
+        env_map["MLFLOW_EXPERIMENT_NAME_CREWAI"] = f"{namespace}/{crew_name}"
+
+    return env_map
 
 
 def _probe_flow_import(target: AgentTarget) -> None:
