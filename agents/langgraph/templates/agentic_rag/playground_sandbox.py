@@ -237,27 +237,29 @@ async def playground_chat(chat_request: ChatCompletionRequest, request: Request)
     )
 
 
+def _resolve_safe_image_path(filename: str) -> Path:
+    """Resolve and validate an image path under the configured images directory."""
+    if not filename:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    base = _IMAGES_DIR.resolve()
+    try:
+        candidate = (base / filename).resolve(strict=True)
+        candidate.relative_to(base)
+    except (ValueError, OSError):
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    if not candidate.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    return candidate
+
+
 @router.get("/images/{filename:path}")
 async def serve_image(filename: str):
     """Serve images from the project-level images directory."""
     if _auth_enabled():
         raise HTTPException(status_code=404, detail="Not found")
 
-    # Validate filename to prevent path traversal (CWE-22)
-    # Reject any path containing ".." or absolute path markers
-    if ".." in filename or filename.startswith("/"):
-        raise HTTPException(status_code=404, detail="Image not found")
-
-    base = _IMAGES_DIR.resolve()
-    file_path = (base / filename).resolve()
-
-    # Ensure resolved path is still within base directory
-    try:
-        file_path.relative_to(base)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Image not found")
-
-    if not file_path.is_file():
-        raise HTTPException(status_code=404, detail="Image not found")
-
-    return FileResponse(file_path)
+    file_path = _resolve_safe_image_path(filename)
+    return FileResponse(path=file_path)
