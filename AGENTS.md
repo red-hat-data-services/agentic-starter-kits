@@ -53,6 +53,9 @@ ruff format --check path/to/file.py
 
 ## Pre-commit hooks
 
+Sections below summarize [CONTRIBUTING.md](CONTRIBUTING.md) for AI harnesses that
+read this file first; see that doc for full details.
+
 This repo uses pre-commit hooks (defined in `.pre-commit-config.yaml`). They run
 automatically on `git commit` and enforce:
 
@@ -60,6 +63,7 @@ automatically on `git commit` and enforce:
 - Branch protection (`no-commit-to-branch`) -- blocks direct commits to `main`
 - Python linting and formatting via `ruff`
 - Markdown linting via `markdownlint`
+- GitHub Actions workflow validation via `actionlint`
 - Link checking on markdown files via `lychee`
 - Secret scanning via `gitleaks` (API keys, tokens, passwords -- broader than
   the private-key check)
@@ -125,7 +129,7 @@ Several agents diverge significantly from the standard pattern:
 
 **claude-code** - Claude Code on OpenShift deployment guide. No `src/`, no `pyproject.toml`, no standard Makefile targets. Uses Containerfile with Anthropic's native installer. Do not redistribute built images (proprietary binary). See `agents/claude-code/README.md` for backend configurations (Anthropic API, Vertex AI, vLLM, OGX).
 
-**opencode** - Deployment templates only, no standard agent structure.
+**opencode** - OpenCode on OpenShift (Kustomize deployment, Containerfiles, templates, MLflow/A2A overlays). No standard agent `src/` or Makefile. See `agents/opencode/README.md`.
 
 ## MLflow tracing
 
