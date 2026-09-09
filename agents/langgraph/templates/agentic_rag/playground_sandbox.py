@@ -237,29 +237,30 @@ async def playground_chat(chat_request: ChatCompletionRequest, request: Request)
     )
 
 
-def _resolve_safe_image_path(filename: str) -> Path:
-    """Resolve and validate an image path under the configured images directory."""
-    if not filename:
-        raise HTTPException(status_code=404, detail="Image not found")
-
-    base = _IMAGES_DIR.resolve()
-    try:
-        candidate = (base / filename).resolve(strict=True)
-        candidate.relative_to(base)
-    except (ValueError, OSError):
-        raise HTTPException(status_code=404, detail="Image not found")
-
-    if not candidate.is_file():
-        raise HTTPException(status_code=404, detail="Image not found")
-
-    return candidate
-
-
 @router.get("/images/{filename:path}")
 async def serve_image(filename: str):
     """Serve images from the project-level images directory."""
     if _auth_enabled():
         raise HTTPException(status_code=404, detail="Not found")
 
-    file_path = _resolve_safe_image_path(filename)
-    return FileResponse(path=file_path)
+    # Prevent path traversal (CWE-22) by using only the basename
+    # This removes all directory separators and ".." sequences
+    from pathlib import PurePosixPath
+
+    safe_filename = PurePosixPath(filename).name
+    if not safe_filename or safe_filename == "." or safe_filename == "..":
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    base = _IMAGES_DIR.resolve()
+    file_path = (base / safe_filename).resolve()
+
+    # Defense in depth: ensure resolved path is still within base directory
+    try:
+        file_path.relative_to(base)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    return FileResponse(file_path)
