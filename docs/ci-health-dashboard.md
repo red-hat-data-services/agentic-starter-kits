@@ -1,8 +1,8 @@
 # CI Health Dashboard
 
 Static HTML summary of QG8 in-scope GitHub Actions workflows for `agentic-starter-kits`.
-Published at [https://red-hat-data-services.github.io/agentic-starter-kits/ci-health/](https://red-hat-data-services.github.io/agentic-starter-kits/ci-health/).
-The [starter kit homepage](https://red-hat-data-services.github.io/agentic-starter-kits/) is the Pages root.
+Published on GitHub Pages at `/ci-health/` on the same site as the
+[starter kit homepage](https://red-hat-data-services.github.io/agentic-starter-kits/).
 
 ## Scope
 
