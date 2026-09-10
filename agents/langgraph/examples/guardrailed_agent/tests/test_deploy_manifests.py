@@ -187,6 +187,7 @@ def test_deploy_guardrails_annotates_route_via_helper() -> None:
     assert "annotate_guardrails_route.py" in recipe
     assert "--route-name $(GUARDRAILS_CR_NAME)" in recipe
     assert '--namespace "$(GUARDRAILS_NAMESPACE)"' in recipe
+    assert "$(if $(CI),--required,)" in recipe
     assert "oc annotate route" not in recipe
 
 
