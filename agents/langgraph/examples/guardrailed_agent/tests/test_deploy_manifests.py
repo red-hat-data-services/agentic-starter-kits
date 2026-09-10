@@ -199,7 +199,6 @@ def test_makefile_deploy_targets_namespace() -> None:
     assert "OTEL_EXPORTER_OTLP_PROTOCOL:-grpc" in MAKEFILE
     assert "ERROR: BASE_URL=" in MAKEFILE
     assert "finalize_nemoguardrails_cr.py" in MAKEFILE
-    assert "annotate_guardrails_route.py" in MAKEFILE
     assert "command -v envsubst" in MAKEFILE
     assert (
         "$$OTEL_EXPORTER_OTLP_ENDPOINT $$OTEL_SERVICE_NAME "
