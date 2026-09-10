@@ -15,6 +15,15 @@ POLL_ATTEMPTS = int(os.environ.get("POLL_ATTEMPTS", "12"))
 POLL_INTERVAL_SECONDS = float(os.environ.get("POLL_INTERVAL_SECONDS", "5"))
 
 
+def _route_lookup_failed_operationally(
+    result: subprocess.CompletedProcess[str],
+) -> bool:
+    if result.returncode == 0:
+        return False
+    stderr = result.stderr.lower()
+    return "not found" not in stderr and "notfound" not in stderr
+
+
 def _run_oc(args: list[str]) -> subprocess.CompletedProcess[str] | None:
     try:
         return subprocess.run(
@@ -57,6 +66,10 @@ def main() -> int:
             ]
         )
         if result is None:
+            return 1
+        if _route_lookup_failed_operationally(result):
+            message = result.stderr.strip() or result.stdout.strip() or "unknown error"
+            print(f"ERROR: Failed to look up route: {message}", file=sys.stderr)
             return 1
         host = result.stdout.strip()
         if host:

@@ -93,7 +93,10 @@ def test_optional_missing_route_exits_zero(tmp_path: Path) -> None:
         tmp_path,
         """
 case "$1" in
-get) ;;
+get)
+  echo 'Error from server (NotFound): routes.route.openshift.io "test-route" not found' >&2
+  exit 1
+  ;;
 annotate) exit 0 ;;
 esac
 """,
@@ -109,7 +112,10 @@ def test_required_missing_route_exits_one(tmp_path: Path) -> None:
         tmp_path,
         """
 case "$1" in
-get) ;;
+get)
+  echo 'Error from server (NotFound): routes.route.openshift.io "test-route" not found' >&2
+  exit 1
+  ;;
 annotate) exit 0 ;;
 esac
 """,
@@ -138,6 +144,25 @@ esac
     result = _run_script(oc)
     assert result.returncode == 1
     assert "Failed to annotate route" in result.stderr
+
+
+def test_get_forbidden_fails_fast(tmp_path: Path) -> None:
+    oc = _write_fake_oc(
+        tmp_path,
+        """
+case "$1" in
+get)
+  echo 'Error from server (Forbidden): routes.route.openshift.io "test-route" is forbidden' >&2
+  exit 1
+  ;;
+annotate) exit 0 ;;
+esac
+""",
+    )
+    result = _run_script(oc)
+    assert result.returncode == 1
+    assert "Failed to look up route" in result.stderr
+    assert "Forbidden" in result.stderr
 
 
 def test_oc_timeout_exits_one(tmp_path: Path) -> None:
