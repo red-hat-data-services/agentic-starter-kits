@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import re
@@ -16,8 +15,6 @@ logger = logging.getLogger(__name__)
 
 # Flow ID must contain only alphanumeric characters, hyphens, and underscores
 _FLOW_ID_PATTERN = re.compile(r"[a-zA-Z0-9_-]+")
-_TRANSIENT_HTTP_STATUS_CODES = frozenset({502, 503, 504})
-_TRANSIENT_RETRY_ATTEMPTS = 2
 
 
 def validate_flow_id(flow_id: str) -> None:
@@ -330,44 +327,16 @@ async def run_task(
     headers = config.extra_headers or None
     start = time.monotonic()
     try:
-        for attempt in range(_TRANSIENT_RETRY_ATTEMPTS):
-            try:
-                if not is_langflow and config.stream:
-                    response_data = await _run_streaming(
-                        client, url, payload, config.timeout_seconds, headers=headers
-                    )
-                else:
-                    resp = await client.post(
-                        url,
-                        json=payload,
-                        headers=headers,
-                        timeout=config.timeout_seconds,
-                    )
-                    resp.raise_for_status()
-                    response_data = resp.json()
-                break
-            except httpx.HTTPStatusError as exc:
-                retryable = exc.response.status_code in _TRANSIENT_HTTP_STATUS_CODES
-                if not retryable or attempt == _TRANSIENT_RETRY_ATTEMPTS - 1:
-                    raise
-                logger.warning(
-                    "Transient HTTP %d from %s; retrying attempt %d/%d",
-                    exc.response.status_code,
-                    url,
-                    attempt + 2,
-                    _TRANSIENT_RETRY_ATTEMPTS,
-                )
-                await asyncio.sleep(0.5)
-            except (httpx.TimeoutException, TimeoutError):
-                if attempt == _TRANSIENT_RETRY_ATTEMPTS - 1:
-                    raise
-                logger.warning(
-                    "Transient timeout from %s; retrying attempt %d/%d",
-                    url,
-                    attempt + 2,
-                    _TRANSIENT_RETRY_ATTEMPTS,
-                )
-                await asyncio.sleep(0.5)
+        if not is_langflow and config.stream:
+            response_data = await _run_streaming(
+                client, url, payload, config.timeout_seconds, headers=headers
+            )
+        else:
+            resp = await client.post(
+                url, json=payload, headers=headers, timeout=config.timeout_seconds
+            )
+            resp.raise_for_status()
+            response_data = resp.json()
 
         latency = time.monotonic() - start
 
