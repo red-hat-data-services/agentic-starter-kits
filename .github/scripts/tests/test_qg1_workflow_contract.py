@@ -11,6 +11,7 @@ ACTION_PATH = REPO_ROOT / ".github" / "actions" / "run-qg1" / "action.yml"
 ASSUME_ACTION_PATH = (
     REPO_ROOT / ".github" / "actions" / "assume-service-account" / "action.yml"
 )
+GATE_ACTION_PATH = REPO_ROOT / ".github" / "actions" / "qg1-gate" / "action.yml"
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "qg1-cluster-readiness.yml"
 RBAC_MANIFEST_PATH = REPO_ROOT / ".github" / "cluster" / "qg1-readiness-rbac.yaml"
 
@@ -127,23 +128,50 @@ def test_qg1_workflow_exists():
     assert WORKFLOW_PATH.is_file()
 
 
-def test_qg1_workflow_uses_shared_setup_and_qg1_action():
+def test_qg1_workflow_uses_qg1_gate_action():
+    # Cluster setup, service-account assumption, checker execution, and
+    # results upload live in the qg1-gate composite action (shared with
+    # quality-gates-pipeline.yml's qg1 job) rather than being duplicated
+    # inline in this workflow. See test_qg1_gate_action_* below for
+    # assertions on the gate action's internal composition.
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
     assert workflow["name"] == "QG1: Cluster Readiness"
-    qg1_job = workflow["jobs"]["qg1"]
-    steps = qg1_job["steps"]
-    uses_values = [step.get("uses", "") for step in steps]
-    assert "./.github/actions/setup-cluster" in uses_values
-    assert "./.github/actions/assume-service-account" in uses_values
-    assert "./.github/actions/run-qg1" in uses_values
+    uses_values = [step.get("uses", "") for step in workflow["jobs"]["qg1"]["steps"]]
+    assert "./.github/actions/qg1-gate" in uses_values
 
 
-def test_qg1_workflow_assumes_dedicated_service_account_before_checker():
+def test_run_qg1_gate_step_consumes_resolved_require_gpu_output():
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
-    uses_values = [
-        step.get("uses", "")
+    gate_step = next(
+        step
         for step in workflow["jobs"]["qg1"]["steps"]
-        if "uses" in step
+        if step.get("uses") == "./.github/actions/qg1-gate"
+    )
+    assert (
+        gate_step["with"]["require-gpu"] == "${{ steps.resolve.outputs.require-gpu }}"
+    )
+
+
+def test_qg1_gate_action_exists():
+    assert GATE_ACTION_PATH.is_file()
+
+
+def test_qg1_gate_action_declares_expected_inputs():
+    action = yaml.safe_load(GATE_ACTION_PATH.read_text(encoding="utf-8"))
+    assert action["runs"]["using"] == "composite"
+    assert set(action["inputs"]) == {
+        "oc-token",
+        "cluster-api-url",
+        "cluster-profile",
+        "require-gpu",
+        "required-namespaces",
+    }
+
+
+def test_qg1_gate_action_composes_setup_assume_run_upload_logout_in_order():
+    action = yaml.safe_load(GATE_ACTION_PATH.read_text(encoding="utf-8"))
+    uses_values = [
+        step.get("uses", "") for step in action["runs"]["steps"] if "uses" in step
     ]
     setup_idx = uses_values.index("./.github/actions/setup-cluster")
     assume_idx = uses_values.index("./.github/actions/assume-service-account")
@@ -151,24 +179,51 @@ def test_qg1_workflow_assumes_dedicated_service_account_before_checker():
     assert setup_idx < assume_idx < run_idx
 
 
-def test_run_qg1_step_consumes_resolved_require_gpu_output():
-    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
-    run_qg1_step = next(
+def test_qg1_gate_action_assumes_qg1_readiness_service_account():
+    action = yaml.safe_load(GATE_ACTION_PATH.read_text(encoding="utf-8"))
+    assume_step = next(
         step
-        for step in workflow["jobs"]["qg1"]["steps"]
+        for step in action["runs"]["steps"]
+        if step.get("uses") == "./.github/actions/assume-service-account"
+    )
+    assert assume_step["with"]["service-account"] == "qg1-readiness"
+
+
+def test_qg1_gate_action_forwards_inputs_to_run_qg1():
+    action = yaml.safe_load(GATE_ACTION_PATH.read_text(encoding="utf-8"))
+    run_step = next(
+        step
+        for step in action["runs"]["steps"]
         if step.get("uses") == "./.github/actions/run-qg1"
     )
+    assert run_step["with"]["cluster-profile"] == "${{ inputs.cluster-profile }}"
+    assert run_step["with"]["require-gpu"] == "${{ inputs.require-gpu }}"
     assert (
-        run_qg1_step["with"]["require-gpu"]
-        == "${{ steps.resolve.outputs.require-gpu }}"
+        run_step["with"]["required-namespaces"] == "${{ inputs.required-namespaces }}"
     )
 
 
-def test_qg1_workflow_includes_dispatch_and_schedule():
+def test_qg1_gate_action_upload_and_logout_run_even_on_failure():
+    action = yaml.safe_load(GATE_ACTION_PATH.read_text(encoding="utf-8"))
+    steps_by_name = {step["name"]: step for step in action["runs"]["steps"]}
+    assert steps_by_name["Upload QG1 results"]["if"] == "always()"
+    logout_step = steps_by_name["Logout"]
+    assert logout_step["if"] == "always()"
+    # Composite action run: steps require an explicit shell (no ambient
+    # default the way top-level workflow steps have).
+    assert logout_step["shell"] == "bash"
+
+
+def test_qg1_workflow_is_dispatch_only():
+    # No schedule trigger: the orchestrator (quality-gates-pipeline.yml) owns
+    # the nightly cadence and already runs qg1 as a job. A standalone
+    # schedule here would fire a second, duplicate Slack notification for
+    # the same failure (see agent-deployment-test.yaml, which dropped its
+    # schedule trigger for the same reason once QG4 moved into the
+    # orchestrator). workflow_dispatch is kept for ad-hoc manual runs.
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
     triggers = workflow[True] if True in workflow else workflow["on"]
-    assert "workflow_dispatch" in triggers
-    assert "schedule" in triggers
+    assert set(triggers) == {"workflow_dispatch"}
 
 
 def test_qg1_rbac_manifest_exists():
