@@ -12,7 +12,7 @@ This runbook covers the shared-branch CI Slack alerts for
 | `Inner Loop Gating` | Canonical | `QG7` | `push` on `main` when matching eval/behavioral paths change, `workflow_dispatch` on `main` |
 | `QG1: Cluster Readiness` | Canonical | `QG1` | `schedule`, `workflow_dispatch` on `main` |
 | `QG2: Platform Readiness` | Canonical | `QG2` | `schedule`, `workflow_dispatch` on `main` |
-| `Quality Gates Pipeline` | Canonical | `QG4` / `QG7` | `schedule`, `workflow_dispatch` on `main` |
+| `Quality Gates Pipeline` | Canonical | `QG1` / `QG2` / `QG4` / `QG7` | `schedule`, `workflow_dispatch` on `main` |
 | `QG4: Agent Deployment Integration Tests` | Canonical | `QG4` | `workflow_dispatch` on `main` |
 
 `agent-deployment-test.yaml` is manual-only (no `schedule` trigger) — nightly
@@ -45,8 +45,11 @@ mint `serviceaccounts/token` in `ci-testing`.
 
 - One Slack alert is emitted per qualifying workflow run.
 - The alert is emitted after the workflow conclusion is known.
-- Matrix failures are aggregated into one workflow-level alert with a failed-job list.
-- If the GitHub jobs API lookup fails, the alert still sends without job detail.
+- Matrix failures are aggregated into one workflow-level alert with a failed-job list,
+  except `Quality Gates Pipeline`, which instead shows a QG1/QG2/QG4/QG7 gate-status
+  line plus a per-agent QG4/QG7 pass-fail matrix in place of the generic job list.
+- If the GitHub jobs API lookup fails, the alert still sends without job detail
+  (not applicable to `Quality Gates Pipeline`, which does not query that API).
 
 ## Severity Interpretation
 
@@ -85,7 +88,8 @@ should inspect the GitHub Actions run directly.
 
 1. Open the workflow run link from Slack and confirm the run is a qualifying
    shared-branch failure.
-2. Review the failed-job list in Slack; if it is missing, use the workflow run
+2. Review the failed-job list in Slack (or, for `Quality Gates Pipeline`, the
+   gate-status and per-agent matrix); if it is missing, use the workflow run
    page because the alert may have sent without job detail.
 3. Use the workflow logs to decide whether the failure is transient, already
    known, or a new defect.
