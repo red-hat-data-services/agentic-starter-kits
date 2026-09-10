@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -72,6 +73,47 @@ def test_render_includes_search_and_framework_filters():
     assert "View on GitHub" in html
     assert ".card[hidden]" in html
     assert "display: none" in html
+
+
+def test_gallery_omits_unsupported_product_banner():
+    html = render_gallery(collect_agents(REPO_ROOT))
+    assert "Community starter kits" not in html
+    assert "not a supported Red Hat product" not in html
+
+
+def test_lede_describes_repo_without_catalog_or_version():
+    html = re.sub(r"\s+", " ", render_gallery(collect_agents(REPO_ROOT)))
+    assert "Deployment-ready templates for AI agents on Red Hat OpenShift AI" in html
+    assert "GitHub README for setup and deployment steps" in html
+    assert "Production-ready" not in html
+    assert "3.5" not in html
+    assert "Catalog" not in html
+    assert "AI hub" not in html
+
+
+def test_gallery_omits_kit_count_and_footer():
+    html = render_gallery(collect_agents(REPO_ROOT))
+    assert re.search(r">\d+\s+kits?<", html) is None
+    assert "site-footer" not in html
+    assert "source of truth" not in html
+
+
+def test_search_label_and_input_share_one_row():
+    html = render_gallery(collect_agents(REPO_ROOT))
+    assert 'class="search-row"' in html
+    assert 'for="kit-search">Search</label>' in html
+    assert "Search kits" not in html
+    assert "display: flex" in html
+    assert 'class="filter-row"' in html
+    assert 'class="filter-label">Framework</span>' in html
+
+
+def test_gallery_is_a_single_card_grid():
+    html = render_gallery(collect_agents(REPO_ROOT))
+    assert html.count('class="grid"') == 1
+    assert "data-framework-section" not in html
+    assert "<h2>" not in html
+    assert 'class="vendor"' in html
 
 
 def test_skips_agent_without_display_name(tmp_path):

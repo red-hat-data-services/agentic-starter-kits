@@ -12,7 +12,7 @@ import argparse
 import html
 import re
 import sys
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -66,15 +66,10 @@ body {
 .wrap {
   max-width: 72rem;
   margin: 0 auto;
-  padding: 1.5rem 1.25rem 2.5rem;
+  padding: 1.5rem 1.25rem;
 }
-.banner {
-  margin: 0 0 1rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--rh-color-border);
-  background: var(--rh-color-surface);
-  font-size: 0.9rem;
-}
+.masthead .wrap { padding-bottom: 1rem; }
+#gallery { padding-top: 1.25rem; padding-bottom: 2.5rem; }
 h1 {
   font-family: var(--rh-font-display);
   font-weight: 700;
@@ -82,13 +77,7 @@ h1 {
   line-height: 1.2;
   margin: 0 0 0.75rem;
 }
-h2 {
-  font-family: var(--rh-font-display);
-  font-weight: 500;
-  font-size: 1.25rem;
-  margin: 0 0 0.75rem;
-}
-.lede { max-width: 44rem; margin: 0 0 1rem; }
+.lede { margin: 0 0 1rem; text-wrap: pretty; max-width: 52rem; }
 .meta-links { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin: 0; padding: 0; list-style: none; }
 a { color: var(--rh-color-link); }
 a:hover { color: var(--rh-color-brand-red-dark); }
@@ -96,17 +85,40 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   outline: 2px solid var(--rh-color-brand-red);
   outline-offset: 2px;
 }
-.toolbar { display: grid; gap: 0.75rem; margin: 1.25rem 0 1.5rem; }
-label { font-weight: 500; display: grid; gap: 0.35rem; }
+.toolbar { display: grid; gap: 0.65rem; margin: 1rem 0 0; }
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.search-row label {
+  font-weight: 500;
+  white-space: nowrap;
+  margin: 0;
+}
 input[type="search"] {
   font: inherit;
+  flex: 1;
+  min-width: 12rem;
+  max-width: 28rem;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--rh-color-border);
   background: var(--rh-color-white);
-  max-width: 28rem;
 }
-.chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.chips span { font-size: 0.85rem; color: var(--rh-color-muted); margin-right: 0.25rem; align-self: center; }
+.filter-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.filter-label {
+  flex: 0 0 5.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--rh-color-muted);
+  white-space: nowrap;
+  padding-top: 0.25rem;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 0.4rem; flex: 1; min-width: 0; }
 button.chip {
   font: inherit;
   font-size: 0.9rem;
@@ -115,13 +127,13 @@ button.chip {
   background: var(--rh-color-white);
   color: var(--rh-color-text);
   cursor: pointer;
+  white-space: nowrap;
 }
 button.chip[aria-pressed="true"] {
   border-color: var(--rh-color-text);
   background: var(--rh-color-text);
   color: var(--rh-color-white);
 }
-.section { margin-bottom: 2rem; }
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(16.5rem, 1fr));
@@ -141,12 +153,12 @@ button.chip[aria-pressed="true"] {
   text-decoration: none;
 }
 .card[hidden],
-.section[hidden],
 .empty[hidden] {
   display: none;
 }
 .card:hover { border-color: var(--rh-color-text); }
 .card-top { display: flex; gap: 0.75rem; align-items: flex-start; margin-bottom: 0.5rem; }
+.card-top > div { min-width: 0; flex: 1; }
 .card-top img, .card-fallback {
   width: 2.5rem;
   height: 2.5rem;
@@ -167,6 +179,7 @@ button.chip[aria-pressed="true"] {
   margin: 0;
 }
 .vendor, .kind, .cta { font-size: 0.85rem; color: var(--rh-color-muted); }
+.vendor { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card p { margin: 0.35rem 0 0.75rem; flex: 1; }
 .labels { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0 0 0.75rem; }
 .labels span {
@@ -176,12 +189,6 @@ button.chip[aria-pressed="true"] {
 }
 .cta { margin-top: auto; font-weight: 500; color: var(--rh-color-link); }
 .empty { margin: 1rem 0; }
-.site-footer {
-  border-top: 1px solid var(--rh-color-border);
-  font-size: 0.9rem;
-  color: var(--rh-color-muted);
-}
-.site-footer .wrap { padding-top: 1.25rem; padding-bottom: 1.5rem; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
@@ -191,7 +198,6 @@ JS = """
 (function () {
   const search = document.getElementById("kit-search");
   const cards = Array.from(document.querySelectorAll("[data-card]"));
-  const sections = Array.from(document.querySelectorAll("[data-framework-section]"));
   const chips = Array.from(document.querySelectorAll("[data-filter]"));
   const empty = document.getElementById("empty-state");
   let framework = "all";
@@ -208,17 +214,6 @@ JS = """
       const show = matchQ && matchFw && matchKind;
       card.hidden = !show;
       if (show) visible += 1;
-    }
-    for (const section of sections) {
-      const shown = Array.from(section.querySelectorAll("[data-card]")).filter(function (c) {
-        return !c.hidden;
-      });
-      section.hidden = shown.length === 0;
-      const heading = section.querySelector("h2");
-      const name = section.getAttribute("data-framework") || "";
-      if (heading && shown.length) {
-        heading.textContent = name + " (" + shown.length + ")";
-      }
     }
     empty.hidden = visible > 0;
   }
@@ -366,7 +361,7 @@ def collect_agents(
             )
         )
 
-    records.sort(key=lambda item: (item.framework.lower(), item.display_name.lower()))
+    records.sort(key=lambda item: item.display_name.lower())
     return records
 
 
@@ -420,13 +415,6 @@ def _card_html(agent: AgentRecord) -> str:
 """
 
 
-def _grouped(agents: Iterable[AgentRecord]) -> list[tuple[str, list[AgentRecord]]]:
-    groups: dict[str, list[AgentRecord]] = {}
-    for agent in agents:
-        groups.setdefault(agent.framework, []).append(agent)
-    return sorted(groups.items(), key=lambda item: item[0].lower())
-
-
 def render_gallery(agents: Sequence[AgentRecord]) -> str:
     frameworks = sorted({agent.framework for agent in agents}, key=str.lower)
     framework_chips = [_chip("framework", "all", "All", pressed=True)]
@@ -438,18 +426,7 @@ def render_gallery(agents: Sequence[AgentRecord]) -> str:
         _chip("kind", "template", "Templates", pressed=False),
         _chip("kind", "example", "Examples", pressed=False),
     ]
-    sections = []
-    for framework, group in _grouped(agents):
-        cards = "".join(_card_html(agent) for agent in group)
-        heading = html.escape(framework)
-        count = len(group)
-        sections.append(
-            f'<section class="section" data-framework-section data-framework="{heading}">'
-            f"<h2>{heading} ({count})</h2>"
-            f'<div class="grid">{cards}</div></section>'
-        )
-    count = len(agents)
-    kit_word = "kit" if count == 1 else "kits"
+    cards = "".join(_card_html(agent) for agent in agents)
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -465,46 +442,41 @@ def render_gallery(agents: Sequence[AgentRecord]) -> str:
   <a class="skip-link" href="#gallery">Skip to kits</a>
   <header class="masthead">
     <div class="wrap">
-      <p class="banner">Community starter kits — not a supported Red Hat product.</p>
       <h1>Agentic starter kits</h1>
       <p class="lede">
-        Browse the collection, then open the GitHub README for run, deploy, and
-        maintain steps. Start locally; when you have OpenShift AI 3.5+, the same
-        kits appear under <strong>AI hub → Agents → Catalog</strong>.
-        These examples show how to deploy and operate an agent — they are not a
-        "build your agent" tutorial.
+        Deployment-ready templates for AI agents on Red Hat OpenShift AI. Each kit
+        is self-contained with docs, a container build, and Helm charts so you can
+        run locally and deploy without stitching together boilerplate. Open a kit’s
+        GitHub README for setup and deployment steps.
       </p>
       <ul class="meta-links">
         <li><a href="https://github.com/red-hat-data-services/agentic-starter-kits">GitHub repository</a></li>
         <li><a href="ci-health/">CI health</a></li>
-        <li>{count} {kit_word}</li>
       </ul>
       <div class="toolbar">
-        <label>
-          Search kits
+        <div class="search-row">
+          <label for="kit-search">Search</label>
           <input type="search" id="kit-search" placeholder="Name, framework, or label">
-        </label>
-        <div class="chips" role="group" aria-label="Filter by framework">
-          <span>Framework</span>
-          {"".join(framework_chips)}
         </div>
-        <div class="chips" role="group" aria-label="Filter by type">
-          <span>Type</span>
-          {"".join(kind_chips)}
+        <div class="filter-row">
+          <span class="filter-label">Framework</span>
+          <div class="chips" role="group" aria-label="Filter by framework">
+            {"".join(framework_chips)}
+          </div>
+        </div>
+        <div class="filter-row">
+          <span class="filter-label">Type</span>
+          <div class="chips" role="group" aria-label="Filter by type">
+            {"".join(kind_chips)}
+          </div>
         </div>
       </div>
     </div>
   </header>
   <main class="wrap" id="gallery">
     <p class="empty" id="empty-state" hidden>No kits match. Clear filters.</p>
-    {"".join(sections)}
+    <div class="grid">{cards}</div>
   </main>
-  <footer class="site-footer">
-    <div class="wrap">
-      Same kits ship in OpenShift AI 3.5+ under AI hub → Agents → Catalog.
-      Source of truth is each kit’s GitHub README.
-    </div>
-  </footer>
   <script>{JS}</script>
 </body>
 </html>
