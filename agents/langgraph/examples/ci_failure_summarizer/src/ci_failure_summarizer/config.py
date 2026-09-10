@@ -6,7 +6,7 @@ from dataclasses import dataclass, replace
 from os import getenv
 
 QG4_WORKFLOW_FILE = "agent-deployment-test.yaml"
-CI_DASHBOARD_URL = "https://red-hat-data-services.github.io/agentic-starter-kits/"
+CI_DASHBOARD_URL = "https://red-hat-data-services.github.io/agentic-starter-kits/ci-health/"
 
 
 def normalize_base_url(base_url: str | None) -> str | None:

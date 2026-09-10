@@ -301,5 +301,5 @@ jobs:
           run_id: ${{ github.run_id }}
           repository: ${{ github.repository }}
           run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          dashboard_url: https://red-hat-data-services.github.io/agentic-starter-kits/
+          dashboard_url: https://red-hat-data-services.github.io/agentic-starter-kits/ci-health/
           status: ${{ steps.gate.outputs.status }}
