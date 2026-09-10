@@ -292,6 +292,33 @@ class TestRunTaskLangflow:
         assert result.success is False
         assert result.error is not None and "500" in result.error
 
+    def test_transient_http_error_is_retried(self):
+        """A transient gateway error is retried once before succeeding."""
+        config = TaskConfig(
+            agent_url="http://agent:8080",
+            query="test",
+            api_format="langflow_run",
+            flow_id="f-1",
+        )
+        first = MagicMock()
+        first.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "gateway timeout",
+            request=httpx.Request("POST", "http://agent:8080/api/v1/run/f-1"),
+            response=httpx.Response(504, text="Gateway Timeout"),
+        )
+        second = MagicMock()
+        second.json.return_value = {
+            "outputs": [{"outputs": [{"results": {"message": {"text": "retried"}}}]}]
+        }
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=[first, second])
+
+        result = asyncio.run(run_task(config, client=mock_client))
+
+        assert result.success is True
+        assert result.response == "retried"
+        assert mock_client.post.call_count == 2
+
 
 # ---------------------------------------------------------------------------
 # Regression: chat_completions path unchanged
