@@ -1,0 +1,65 @@
+name: "QG2 Gate"
+description: "Cluster setup, dedicated service-account assumption, QG2 checker execution, and results upload for platform-readiness checks."
+
+inputs:
+  oc-token:
+    description: "OpenShift token used to log in before assuming the QG2 service account"
+    required: true
+  cluster-api-url:
+    description: "OpenShift API server URL"
+    required: true
+  cluster-profile:
+    description: "Logical cluster profile name for reporting and future matrixing"
+    required: true
+  cluster-type:
+    description: "Platform flavor: odh or rhoai"
+    required: false
+    default: "rhoai"
+  require-dsc-ready:
+    description: "Whether DataScienceCluster must be Ready"
+    required: false
+    default: "true"
+  require-kserve:
+    description: "Whether KServe controller health is required"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup cluster tools
+      uses: ./.github/actions/setup-cluster
+      with:
+        oc-token: ${{ inputs.oc-token }}
+        cluster-api-url: ${{ inputs.cluster-api-url }}
+
+    # Bootstrap with the shared ci-testing service account, then mint a
+    # short-lived token for the dedicated QG2 identity before platform
+    # readiness checks run.
+    - name: Assume dedicated QG2 service account
+      uses: ./.github/actions/assume-service-account
+      with:
+        service-account: qg2-readiness
+
+    - name: Run QG2
+      uses: ./.github/actions/run-qg2
+      with:
+        cluster-profile: ${{ inputs.cluster-profile }}
+        cluster-type: ${{ inputs.cluster-type }}
+        require-dsc-ready: ${{ inputs.require-dsc-ready }}
+        require-kserve: ${{ inputs.require-kserve }}
+        summary-json-path: qg2-results/summary.json
+        summary-md-path: qg2-results/summary.md
+
+    - name: Upload QG2 results
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: qg2-results
+        path: qg2-results/**
+        if-no-files-found: warn
+
+    - name: Logout
+      if: always()
+      shell: bash
+      run: oc logout || true

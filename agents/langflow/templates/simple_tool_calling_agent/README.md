@@ -113,10 +113,13 @@ make run
 ### Import the flow
 
 1. Open <http://localhost:7860>
-2. On first launch, Langflow asks you to create a flow — create a **Blank Flow** (this is just to get past the initial
-   screen)
-3. Click the **Langflow icon** (top left) to go to the projects page
-4. Click **Upload Flow** and select `flows/outdoor-activity-agent.json`
+2. On the splash screen, drag and drop `flows/outdoor-activity-agent.json` anywhere on the page
+
+   ![Langflow splash screen with drag-and-drop import area](images/langflow-splash-import.png)
+
+3. Alternatively, from the projects page, click the **+** icon and select the flow JSON to upload
+
+   ![Langflow projects page with upload button](images/langflow-projects-upload.png)
 
 ### Configuration
 
@@ -216,7 +219,7 @@ oc get inferenceservice --all-namespaces
     - **KServe vLLM**: set `api_base` and `model_name`. You can connect through OGX or directly to KServe:
 
       | Option | api_base | model_name |
-            |--------|----------|------------|
+      |--------|----------|------------|
       | Via OGX (external route) | `https://<ogx-route-host>/v1` | vllm//mnt/models |
       | Via OGX (internal) | `http://ogx-service.<namespace>.svc.cluster.local:8321/v1` | vllm//mnt/models |
       | Direct to KServe (internal) | `http://<model>-predictor.<namespace>.svc.cluster.local:8080/v1` | /mnt/models |

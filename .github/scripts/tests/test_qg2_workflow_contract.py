@@ -11,6 +11,7 @@ ACTION_PATH = REPO_ROOT / ".github" / "actions" / "run-qg2" / "action.yml"
 ASSUME_ACTION_PATH = (
     REPO_ROOT / ".github" / "actions" / "assume-service-account" / "action.yml"
 )
+GATE_ACTION_PATH = REPO_ROOT / ".github" / "actions" / "qg2-gate" / "action.yml"
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "qg2-platform-readiness.yml"
 RBAC_MANIFEST_PATH = REPO_ROOT / ".github" / "cluster" / "qg2-readiness-rbac.yaml"
 
@@ -131,26 +132,65 @@ def test_qg2_workflow_exists():
     assert WORKFLOW_PATH.is_file()
 
 
-def test_qg2_workflow_uses_shared_setup_and_qg2_action():
+def test_qg2_workflow_uses_qg2_gate_action():
+    # Cluster setup, service-account assumption, checker execution, and
+    # results upload live in the qg2-gate composite action (shared with
+    # quality-gates-pipeline.yml's qg2 job) rather than being duplicated
+    # inline in this workflow. See test_qg2_gate_action_* below for
+    # assertions on the gate action's internal composition.
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
     assert workflow["name"] == "QG2: Platform Readiness"
-    qg2_job = workflow["jobs"]["qg2"]
-    steps = qg2_job["steps"]
-    uses_values = [step.get("uses", "") for step in steps]
-    assert "./.github/actions/setup-cluster" in uses_values
-    assert "./.github/actions/assume-service-account" in uses_values
-    assert "./.github/actions/run-qg2" in uses_values
-    setup_idx = uses_values.index("./.github/actions/setup-cluster")
-    run_idx = uses_values.index("./.github/actions/run-qg2")
-    assert setup_idx < run_idx
+    uses_values = [step.get("uses", "") for step in workflow["jobs"]["qg2"]["steps"]]
+    assert "./.github/actions/qg2-gate" in uses_values
 
 
-def test_qg2_workflow_assumes_dedicated_service_account_before_checker():
+def test_run_qg2_gate_step_consumes_resolved_require_dsc_ready_output():
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
-    uses_values = [
-        step.get("uses", "")
+    gate_step = next(
+        step
         for step in workflow["jobs"]["qg2"]["steps"]
-        if "uses" in step
+        if step.get("uses") == "./.github/actions/qg2-gate"
+    )
+    assert (
+        gate_step["with"]["require-dsc-ready"]
+        == "${{ steps.resolve.outputs.require-dsc-ready }}"
+    )
+
+
+def test_run_qg2_gate_step_consumes_resolved_require_kserve_output():
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    gate_step = next(
+        step
+        for step in workflow["jobs"]["qg2"]["steps"]
+        if step.get("uses") == "./.github/actions/qg2-gate"
+    )
+    assert (
+        gate_step["with"]["require-kserve"]
+        == "${{ steps.resolve.outputs.require-kserve }}"
+    )
+
+
+def test_qg2_gate_action_exists():
+    assert GATE_ACTION_PATH.is_file()
+
+
+def test_qg2_gate_action_declares_expected_inputs():
+    action = yaml.safe_load(GATE_ACTION_PATH.read_text(encoding="utf-8"))
+    assert action["runs"]["using"] == "composite"
+    assert set(action["inputs"]) == {
+        "oc-token",
+        "cluster-api-url",
+        "cluster-profile",
+        "cluster-type",
+        "require-dsc-ready",
+        "require-kserve",
+    }
+
+
+def test_qg2_gate_action_composes_setup_assume_run_upload_logout_in_order():
+    action = yaml.safe_load(GATE_ACTION_PATH.read_text(encoding="utf-8"))
+    uses_values = [
+        step.get("uses", "") for step in action["runs"]["steps"] if "uses" in step
     ]
     setup_idx = uses_values.index("./.github/actions/setup-cluster")
     assume_idx = uses_values.index("./.github/actions/assume-service-account")
@@ -158,47 +198,48 @@ def test_qg2_workflow_assumes_dedicated_service_account_before_checker():
     assert setup_idx < assume_idx < run_idx
 
 
-def test_qg2_workflow_assumes_qg2_readiness_service_account():
-    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+def test_qg2_gate_action_assumes_qg2_readiness_service_account():
+    action = yaml.safe_load(GATE_ACTION_PATH.read_text(encoding="utf-8"))
     assume_step = next(
         step
-        for step in workflow["jobs"]["qg2"]["steps"]
+        for step in action["runs"]["steps"]
         if step.get("uses") == "./.github/actions/assume-service-account"
     )
     assert assume_step["with"]["service-account"] == "qg2-readiness"
 
 
-def test_run_qg2_step_consumes_resolved_require_dsc_ready_output():
-    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
-    run_qg2_step = next(
+def test_qg2_gate_action_forwards_inputs_to_run_qg2():
+    action = yaml.safe_load(GATE_ACTION_PATH.read_text(encoding="utf-8"))
+    run_step = next(
         step
-        for step in workflow["jobs"]["qg2"]["steps"]
+        for step in action["runs"]["steps"]
         if step.get("uses") == "./.github/actions/run-qg2"
     )
-    assert (
-        run_qg2_step["with"]["require-dsc-ready"]
-        == "${{ steps.resolve.outputs.require-dsc-ready }}"
-    )
+    assert run_step["with"]["cluster-profile"] == "${{ inputs.cluster-profile }}"
+    assert run_step["with"]["cluster-type"] == "${{ inputs.cluster-type }}"
+    assert run_step["with"]["require-dsc-ready"] == "${{ inputs.require-dsc-ready }}"
+    assert run_step["with"]["require-kserve"] == "${{ inputs.require-kserve }}"
 
 
-def test_run_qg2_step_consumes_resolved_require_kserve_output():
-    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
-    run_qg2_step = next(
-        step
-        for step in workflow["jobs"]["qg2"]["steps"]
-        if step.get("uses") == "./.github/actions/run-qg2"
-    )
-    assert (
-        run_qg2_step["with"]["require-kserve"]
-        == "${{ steps.resolve.outputs.require-kserve }}"
-    )
+def test_qg2_gate_action_upload_and_logout_run_even_on_failure():
+    action = yaml.safe_load(GATE_ACTION_PATH.read_text(encoding="utf-8"))
+    steps_by_name = {step["name"]: step for step in action["runs"]["steps"]}
+    assert steps_by_name["Upload QG2 results"]["if"] == "always()"
+    logout_step = steps_by_name["Logout"]
+    assert logout_step["if"] == "always()"
+    assert logout_step["shell"] == "bash"
 
 
-def test_qg2_workflow_includes_dispatch_and_schedule():
+def test_qg2_workflow_is_dispatch_only():
+    # No schedule trigger: the orchestrator (quality-gates-pipeline.yml) owns
+    # the nightly cadence and already runs qg2 as a job. A standalone
+    # schedule here would fire a second, duplicate Slack notification for
+    # the same failure (see agent-deployment-test.yaml, which dropped its
+    # schedule trigger for the same reason once QG4 moved into the
+    # orchestrator). workflow_dispatch is kept for ad-hoc manual runs.
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
     triggers = workflow[True] if True in workflow else workflow["on"]
-    assert "workflow_dispatch" in triggers
-    assert "schedule" in triggers
+    assert set(triggers) == {"workflow_dispatch"}
 
 
 def test_qg2_rbac_manifest_exists():

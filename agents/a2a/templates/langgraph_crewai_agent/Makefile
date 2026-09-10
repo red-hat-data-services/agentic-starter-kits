@@ -168,6 +168,8 @@ deploy: _check-env ## Two-phase Helm deploy (Routes first, then Deployments with
 	  --set-string env.MODEL_ID="$$MODEL_ID" \
 	  $${MLFLOW_TRACKING_URI:+--set-string env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
 	  $${MLFLOW_EXPERIMENT_NAME:+--set-string env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
+	  $${MLFLOW_EXPERIMENT_NAME_LANGGRAPH:+--set-string env.MLFLOW_EXPERIMENT_NAME_LANGGRAPH="$${MLFLOW_EXPERIMENT_NAME_LANGGRAPH}"} \
+	  $${MLFLOW_EXPERIMENT_NAME_CREWAI:+--set-string env.MLFLOW_EXPERIMENT_NAME_CREWAI="$${MLFLOW_EXPERIMENT_NAME_CREWAI}"} \
 	  $${MLFLOW_TRACKING_INSECURE_TLS:+--set-string env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
 	  $${MLFLOW_WORKSPACE:+--set-string env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"} && \
 	echo "=== Waiting for OpenShift Route hostnames ===" && \
@@ -192,6 +194,8 @@ deploy: _check-env ## Two-phase Helm deploy (Routes first, then Deployments with
 	  --set-string langgraphPublicUrl="https://$$LG_HOST" \
 	  $${MLFLOW_TRACKING_URI:+--set-string env.MLFLOW_TRACKING_URI="$${MLFLOW_TRACKING_URI}"} \
 	  $${MLFLOW_EXPERIMENT_NAME:+--set-string env.MLFLOW_EXPERIMENT_NAME="$${MLFLOW_EXPERIMENT_NAME}"} \
+	  $${MLFLOW_EXPERIMENT_NAME_LANGGRAPH:+--set-string env.MLFLOW_EXPERIMENT_NAME_LANGGRAPH="$${MLFLOW_EXPERIMENT_NAME_LANGGRAPH}"} \
+	  $${MLFLOW_EXPERIMENT_NAME_CREWAI:+--set-string env.MLFLOW_EXPERIMENT_NAME_CREWAI="$${MLFLOW_EXPERIMENT_NAME_CREWAI}"} \
 	  $${MLFLOW_TRACKING_INSECURE_TLS:+--set-string env.MLFLOW_TRACKING_INSECURE_TLS="$${MLFLOW_TRACKING_INSECURE_TLS}"} \
 	  $${MLFLOW_WORKSPACE:+--set-string env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"} && \
 	oc rollout status deployment/a2a-crew-agent --timeout=300s && \
