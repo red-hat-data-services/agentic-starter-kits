@@ -331,6 +331,10 @@ deploy-guardrails: _check-guardrails-ns render-guardrails-configmap deploy-guard
 	    -o jsonpath='{.spec.host}' 2>/dev/null || true); \
 	  if [ -n "$$ROUTE" ]; then \
 	    echo "Route URL: https://$$ROUTE"; \
+	    oc annotate route $(GUARDRAILS_CR_NAME) \
+	      -n "$(GUARDRAILS_NAMESPACE)" \
+	      haproxy.router.openshift.io/timeout=120s \
+	      --overwrite; \
 	  fi
 
 undeploy-guardrails: _check-guardrails-ns ## Remove NemoGuardrails CR + ConfigMap + Secret from GUARDRAILS_NAMESPACE
