@@ -113,9 +113,13 @@ make run
 ### Import the flow
 
 1. Open <http://localhost:7860>
-2. On the splash screen, drag and drop `flows/outdoor-activity-agent.json` into the import area — or click the
-   **folder icon** to browse for the file
+2. On the splash screen, drag and drop `flows/outdoor-activity-agent.json` anywhere on the page
+
+   ![Langflow splash screen with drag-and-drop import area](images/langflow-splash-import.png)
+
 3. Alternatively, from the projects page, click the **+** icon and select the flow JSON to upload
+
+   ![Langflow projects page with upload button](images/langflow-projects-upload.png)
 
 ### Configuration
 
