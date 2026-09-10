@@ -29,6 +29,16 @@ on:
 permissions:
   contents: read
 
+env:
+  # Agents that pass QG4 but should not run QG7 behavioral evals. This is
+  # intentionally separate from EXCLUDED_AGENTS in deploy_agents.py — QG4
+  # and QG7 gate different things and may exclude different agents.
+  # Single source of truth for both the collect-qg4 job (which builds QG7's
+  # matrix) and notify-slack's summary script — collect-qg4 doesn't check
+  # out the repo, so this lives here rather than in a checked-in file.
+  QG7_EXCLUDED_AGENTS_JSON: >-
+    ["langgraph/examples/guardrailed_agent", "langgraph/templates/agentic_rag"]
+
 jobs:
   # ── Stage 0a: QG1 — Cluster readiness ──────────────────────────────────
   qg1:
@@ -257,13 +267,9 @@ jobs:
             exit 0
           fi
 
-          # Agents that pass QG4 but should not run QG7 behavioral evals.
-          # This is intentionally separate from EXCLUDED_AGENTS in deploy_agents.py —
-          # QG4 and QG7 gate different things and may exclude different agents.
-          qg7_excluded='[
-            "langgraph/examples/guardrailed_agent",
-            "langgraph/templates/agentic_rag"
-          ]'
+          # See QG7_EXCLUDED_AGENTS_JSON at the top of this workflow file —
+          # shared with build_qg_summary.sh (used by notify-slack).
+          qg7_excluded="${QG7_EXCLUDED_AGENTS_JSON}"
 
           all_passing=$(jq -s '[.[] | select(.status == "success") | {name: .name, qg7_id: (.dir | ltrimstr("agents/"))}]' "${result_files[@]}")
           pass_list=$(echo "${all_passing}" | jq --argjson excluded "${qg7_excluded}" \
@@ -379,6 +385,28 @@ jobs:
           path: btest-results/**
           if-no-files-found: warn
 
+      - name: Record QG7 outcome
+        if: always()
+        shell: bash
+        env:
+          AGENT_NAME: ${{ matrix.agent.name }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          mkdir -p qg7-outcome
+          jq -n \
+            --arg name "${AGENT_NAME}" \
+            --arg status "${JOB_STATUS}" \
+            '{name: $name, status: $status}' \
+            > qg7-outcome/result.json
+
+      - name: Upload QG7 outcome
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: qg7-outcome-${{ matrix.agent.name }}
+          path: qg7-outcome/result.json
+
       - name: Logout
         if: always()
         run: oc logout || true
@@ -401,8 +429,50 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Download QG4 outcome artifacts
+        if: needs.qg4.result != 'skipped'
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: qg4-outcome-*
+          path: qg4-outcomes/
+
+      - name: Download QG7 outcome artifacts
+        if: needs.qg7.result != 'skipped'
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: qg7-outcome-*
+          path: qg7-outcomes/
+
+      # continue-on-error + if: always() so a bug in build_qg_summary.sh (bad
+      # jq input, unexpected artifact contents, etc.) degrades to a bare
+      # alert via the empty summary_text fallback in render_payload.sh,
+      # instead of skipping every step after it and silencing the alert
+      # entirely — the one failure mode this job absolutely cannot have.
+      - name: Build QG summary
+        id: summary
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          QG1_RESULT: ${{ needs.qg1.result }}
+          QG2_RESULT: ${{ needs.qg2.result }}
+          QG4_RESULT: ${{ needs.qg4.result }}
+          QG7_RESULT: ${{ needs.qg7.result }}
+        run: |
+          set -euo pipefail
+          summary_text="$(bash .github/scripts/build_qg_summary.sh)"
+          delimiter="summary-$(openssl rand -hex 8)"
+          {
+            echo "summary_text<<${delimiter}"
+            echo "${summary_text}"
+            echo "${delimiter}"
+          } >> "${GITHUB_OUTPUT}"
+
       - name: Decide notification status
         id: gate
+        if: always()
         env:
           EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
@@ -410,8 +480,15 @@ jobs:
         run: |
           bash .github/actions/notify-slack/should_notify.sh >> "${GITHUB_OUTPUT}"
 
+      # An all-green run still posts a (green) summary when opted in via the
+      # QG_NOTIFY_ON_SUCCESS repo variable — should_notify.sh only ever
+      # fires on failure/timed_out/cancelled by design. Folded into this
+      # step's `if:` directly rather than a separate step re-deriving the
+      # boolean, since should_notify.sh already computes everything else.
       - name: Send Slack notification
-        if: steps.gate.outputs.should_notify == 'true'
+        if: >-
+          steps.gate.outputs.should_notify == 'true' ||
+          (steps.gate.outputs.status == 'success' && vars.QG_NOTIFY_ON_SUCCESS == 'true')
         uses: ./.github/actions/notify-slack
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -425,3 +502,4 @@ jobs:
           run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           dashboard_url: https://red-hat-data-services.github.io/agentic-starter-kits/
           status: ${{ steps.gate.outputs.status }}
+          summary_text: ${{ steps.summary.outputs.summary_text }}

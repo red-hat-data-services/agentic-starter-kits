@@ -105,7 +105,7 @@ marks the remaining signals as non-canonical supporting alerts.
 | `Inner Loop Gating` | `eval-gating.yml` | Canonical | `QG7` | `push` on `main` when matching behavioral/eval paths change, `workflow_dispatch` on `main` | Shared CI route / `@aaet-tooling-experience` |
 | `QG1: Cluster Readiness` | `qg1-cluster-readiness.yml` | Canonical | `QG1` | `schedule`, `workflow_dispatch` on `main` | Shared CI route / `@aaet-tooling-experience` |
 | `QG2: Platform Readiness` | `qg2-platform-readiness.yml` | Canonical | `QG2` | `schedule`, `workflow_dispatch` on `main` | Shared CI route / `@aaet-tooling-experience` |
-| `Quality Gates Pipeline` | `quality-gates-pipeline.yml` | Canonical | `QG4` / `QG7` | `schedule`, `workflow_dispatch` on `main` | Shared CI route / `@aaet-tooling-experience` |
+| `Quality Gates Pipeline` | `quality-gates-pipeline.yml` | Canonical | `QG1` / `QG2` / `QG4` / `QG7` | `schedule`, `workflow_dispatch` on `main` | Shared CI route / `@aaet-tooling-experience` |
 | `QG4: Agent Deployment Integration Tests` | `agent-deployment-test.yaml` | Canonical | `QG4` | `workflow_dispatch` on `main` | Shared CI route / `@aaet-tooling-experience` |
 
 `agent-deployment-test.yaml` no longer has a `schedule` trigger — nightly QG4
