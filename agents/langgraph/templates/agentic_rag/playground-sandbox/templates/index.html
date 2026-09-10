@@ -269,6 +269,12 @@
 
     const conversationHistory = [];
 
+    function getCookie(name) {
+        const prefix = `${name}=`;
+        const cookie = document.cookie.split('; ').find(row => row.startsWith(prefix));
+        return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : '';
+    }
+
     // Check agent health on load
     async function checkHealth() {
         try {
@@ -530,7 +536,10 @@
 
             const response = await fetch('/api/chat', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Playground-CSRF': getCookie('playground_csrf'),
+                },
                 body: JSON.stringify({ messages: conversationHistory, stream: true }),
             });
 

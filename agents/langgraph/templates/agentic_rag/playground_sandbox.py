@@ -5,10 +5,12 @@ Provides routes for the embedded playground UI when running in sandbox mode.
 This module is imported conditionally when K8S_REVIEWER_TOKEN is set.
 """
 
+import hmac
 import json
 import logging
 from os import getenv
 from pathlib import Path
+from secrets import token_urlsafe
 
 import requests as http_requests
 from fastapi import APIRouter, HTTPException, Request
@@ -36,6 +38,9 @@ if not _IMAGES_DIR.is_dir():
 _PLAYGROUND_URL = getenv("PLAYGROUND_URL", "http://localhost:5002").rstrip("/")
 _SANDBOX_MODE = bool(getenv("K8S_REVIEWER_TOKEN", "").strip())
 _PLAYGROUND_TOKEN = getenv("PLAYGROUND_TOKEN", "").strip()
+_PLAYGROUND_CSRF_COOKIE = "playground_csrf"
+_PLAYGROUND_CSRF_HEADER = "x-playground-csrf"
+_PLAYGROUND_CSRF_MAX_AGE = 300
 
 
 class ChatMessage(BaseModel):
@@ -73,6 +78,30 @@ class ChatCompletionRequest(BaseModel):
 
 def _auth_enabled() -> bool:
     return getenv("AUTH_ENABLED", "false").strip().lower() == "true"
+
+
+def _playground_page_response(request: Request) -> FileResponse:
+    """Return the playground page with a short-lived CSRF token cookie."""
+    response = FileResponse(_SANDBOX_PLAYGROUND_HTML)
+    response.set_cookie(
+        key=_PLAYGROUND_CSRF_COOKIE,
+        value=token_urlsafe(32),
+        max_age=_PLAYGROUND_CSRF_MAX_AGE,
+        httponly=False,
+        secure=request.url.scheme == "https",
+        samesite="strict",
+        path="/",
+    )
+    return response
+
+
+def _playground_request_is_authorized(request: Request) -> bool:
+    """Require the browser-held CSRF cookie to be echoed in a custom header."""
+    cookie_token = request.cookies.get(_PLAYGROUND_CSRF_COOKIE, "")
+    header_token = request.headers.get(_PLAYGROUND_CSRF_HEADER, "")
+    if not cookie_token or not header_token:
+        return False
+    return hmac.compare_digest(cookie_token, header_token)
 
 
 @router.get("/docs", response_class=HTMLResponse)
@@ -120,18 +149,19 @@ async def custom_swagger_ui(request: Request):
     ),
     responses={307: {"description": "Redirect to the sandbox playground UI"}},
 )
-async def playground_redirect():
+async def playground_redirect(request: Request):
     """Serve the sandbox playground or redirect to the local fallback UI."""
     if _SANDBOX_MODE:
-        return FileResponse(_SANDBOX_PLAYGROUND_HTML)
+        # The token is required by /api/chat and expires after a short period.
+        return _playground_page_response(request)
     return RedirectResponse(url=_PLAYGROUND_URL)
 
 
 @router.get("/", response_class=HTMLResponse)
-async def playground():
+async def playground(request: Request):
     """Serve the playground chat UI."""
     if _SANDBOX_MODE:
-        return FileResponse(_SANDBOX_PLAYGROUND_HTML)
+        return _playground_page_response(request)
     if _auth_enabled():
         raise HTTPException(status_code=404, detail="Not found")
     return FileResponse(_PLAYGROUND_HTML)
@@ -155,47 +185,23 @@ async def playground_health(request: Request):
 async def playground_chat(chat_request: ChatCompletionRequest, request: Request):
     """Proxy sandbox UI requests with the server-side ServiceAccount token.
 
-    Security: This endpoint requires same-origin requests to prevent unauthorized
-    use of the server-side PLAYGROUND_TOKEN. Only requests from the sandbox UI
-    hosted on the same domain are accepted.
+    Security: This endpoint requires a short-lived CSRF token issued with the
+    sandbox UI. The token must be present in both the browser cookie and a custom
+    request header, so an arbitrary cross-origin client cannot use the proxy with
+    only forged Origin/Referer headers (or by omitting them).
     """
     if not (_SANDBOX_MODE and _PLAYGROUND_TOKEN):
         raise HTTPException(
             status_code=503, detail="Sandbox playground is not configured"
         )
 
-    # Verify request origin to prevent unauthorized proxy use (CWE-352)
-    # In OpenShell sandbox, requests come through gateway with origin header
-    # but host is 127.0.0.1:8080 (internal). Accept if:
-    # 1. Origin/Referer contains the OpenShell gateway domain, OR
-    # 2. Host is localhost (internal call), OR
-    # 3. No origin/referer (same-server call)
-    origin = request.headers.get("origin", "")
-    referer = request.headers.get("referer", "")
-    host = request.headers.get("host", "")
-
-    # Allow localhost/internal calls
-    if host.startswith("127.0.0.1") or host.startswith("localhost"):
-        allowed = True
-    # Allow if origin/referer contains openshell gateway domain
-    elif "openshell" in origin or "openshell" in referer:
-        allowed = True
-    # Allow if no origin/referer (direct server call)
-    elif not origin and not referer:
-        allowed = True
-    else:
-        allowed = False
-
-    if not allowed:
+    if not _playground_request_is_authorized(request):
         logger.warning(
-            "Rejected /api/chat request from unauthorized origin: %s (referer: %s, host: %s)",
-            origin or "none",
-            referer or "none",
-            host,
+            "Rejected /api/chat request without a valid playground CSRF token"
         )
         raise HTTPException(
             status_code=403,
-            detail="Access denied: requests must originate from the sandbox UI",
+            detail="Access denied: missing or invalid playground CSRF token",
         )
 
     payload = chat_request.model_dump(exclude_none=True)
