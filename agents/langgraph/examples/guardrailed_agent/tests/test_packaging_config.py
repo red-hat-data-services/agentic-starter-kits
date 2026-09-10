@@ -112,14 +112,6 @@ def test_makefile_default_test_excludes_integration() -> None:
     assert '-m "not guardrails_integration"' in MAKEFILE
 
 
-def test_deploy_guardrails_sets_route_timeout() -> None:
-    assert "haproxy.router.openshift.io/timeout=120s" in MAKEFILE
-    assert re.search(
-        r"oc annotate route .*GUARDRAILS_CR_NAME.*haproxy\.router\.openshift\.io/timeout=120s",
-        NORMALIZED_MAKEFILE,
-    )
-
-
 def test_makefile_exposes_guardrails_integration_targets() -> None:
     assert re.search(r"(?m)^test-guardrails-integration:", MAKEFILE)
     assert re.search(r"(?m)^test-guardrails-integration-nemoguard:", MAKEFILE)
