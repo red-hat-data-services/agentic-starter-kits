@@ -1,4 +1,4 @@
-"""
+r"""
 Playground UI for the LangGraph Agentic RAG Agent running in openShell sandbox.
 
 A Flask chat interface that proxies requests to the sandbox agent's
@@ -12,7 +12,7 @@ Usage:
     # Or manually specify:
     AGENT_URL=https://rag-sandbox--agent.openshell.apps.example.com \
     AGENT_TOKEN=$(oc get secret agent-client-token -o jsonpath='{.data.token}' | base64 -d) \
-    AGENT_CA_BUNDLE=/path/to/ca.crt \  # optional: enable TLS verification
+    AGENT_CA_BUNDLE=/path/to/ca.crt \
     flask --app playground-sandbox/app run --port 5002
 
 The app will:
