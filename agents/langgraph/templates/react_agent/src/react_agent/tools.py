@@ -9,7 +9,7 @@ _SQL_PATTERNS = re.compile(
     r"""
     \b(?:
         DROP\s+(?:TABLE|DATABASE|INDEX|VIEW|SCHEMA|COLUMN)
-      | SELECT\s+.*\bFROM\b
+      | SELECT\s+(?:\*|[\w]+(?:\s*,\s*[\w]+)+)\s+FROM\b
       | INSERT\s+INTO\b
       | DELETE\s+FROM\b
       | UPDATE\s+\S+\s+SET\b
@@ -28,7 +28,13 @@ _SQL_PATTERNS = re.compile(
 _SHELL_PATTERNS = re.compile(
     r"""
     (?:^|\s)(?:rm\s+-\w*[rf])           # rm with dangerous flags
-  | (?:^|\s)(?:sudo|chmod|chown)\s       # privilege escalation
+  | (?:^|\s)sudo\s+(?:rm|cat|bash|sh|zsh  # sudo + known command
+                    |python|curl|wget
+                    |kill|dd|chmod|chown
+                    |su|mount|mv|cp
+                    |mkdir|ln|exec|tee|nc)\b
+  | (?:^|\s)chmod\s+[0-7+-]               # chmod with mode arg
+  | (?:^|\s)chown\s+\w+[:.]\w*            # chown with user:group
   | (?:^|\s)(?:curl|wget)\s+\S+.*\|\s*   # pipe from network
   | `[^`]+`                              # backtick execution
   | \$\([^)]+\)                          # $(...) subshell
