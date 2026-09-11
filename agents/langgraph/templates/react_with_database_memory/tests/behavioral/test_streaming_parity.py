@@ -64,7 +64,7 @@ async def test_streaming_parity_content(agent_url: str, http_client: Any) -> Non
         "Non-streaming chat completions never expose tool_calls for this agent "
         "(100% reproducible, not model nondeterminism) — see RHAIENG-7429."
     ),
-    strict=False,
+    strict=True,
 )
 async def test_streaming_parity_tool_calls(agent_url: str, http_client: Any) -> None:
     """When tool_calls are available, both modes should report the same tool set."""
