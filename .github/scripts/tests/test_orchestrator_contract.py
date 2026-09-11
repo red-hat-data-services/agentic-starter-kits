@@ -153,3 +153,68 @@ def test_notify_slack_if_condition_matches_simulator_assumption():
         "!cancelled() && github.repository == 'red-hat-data-services/agentic-starter-kits' "
         "&& (github.event_name != 'workflow_dispatch' || github.ref_name == 'main')"
     )
+
+
+def _send_slack_notification_if() -> str:
+    jobs = _load_jobs()
+    step = next(
+        step
+        for step in jobs["notify-slack"]["steps"]
+        if step.get("name") == "Send Slack notification"
+    )
+    return step["if"]
+
+
+def _evaluate_send_notification_if(
+    should_notify: bool, status: str, notify_on_success: str | None
+) -> bool:
+    # Mirrors the exact expression in quality-gates-pipeline.yml so a future
+    # edit that changes the boolean logic fails this test instead of only
+    # being caught by eyeballing the diff. vars.QG_NOTIFY_ON_SUCCESS reads
+    # as an empty string when the repo variable is unset (not 'false').
+    expr = _send_slack_notification_if()
+    expr = expr.replace(
+        "steps.gate.outputs.should_notify == 'true'", str(should_notify)
+    )
+    expr = expr.replace(
+        "steps.gate.outputs.status == 'success'", str(status == "success")
+    )
+    expr = expr.replace(
+        "vars.QG_NOTIFY_ON_SUCCESS == 'true'",
+        str(notify_on_success == "true"),
+    )
+    expr = expr.replace("&&", " and ").replace("||", " or ")
+    return bool(eval(expr, {"__builtins__": {}}, {}))  # noqa: S307
+
+
+def test_send_notification_fires_on_should_notify():
+    assert _evaluate_send_notification_if(
+        should_notify=True, status="failure", notify_on_success=None
+    )
+
+
+def test_send_notification_silent_on_success_by_default():
+    assert not _evaluate_send_notification_if(
+        should_notify=False, status="success", notify_on_success=None
+    )
+
+
+def test_send_notification_silent_on_success_when_var_explicitly_false():
+    assert not _evaluate_send_notification_if(
+        should_notify=False, status="success", notify_on_success="false"
+    )
+
+
+def test_send_notification_fires_on_success_when_opted_in():
+    assert _evaluate_send_notification_if(
+        should_notify=False, status="success", notify_on_success="true"
+    )
+
+
+def test_send_notification_opt_in_var_does_not_fire_on_non_success_status():
+    # QG_NOTIFY_ON_SUCCESS should never cause a *second* notification for a
+    # failure that should_notify.sh already decided not to report (e.g. a
+    # pull_request run) — the override only ever adds success notifications.
+    assert not _evaluate_send_notification_if(
+        should_notify=False, status="failure", notify_on_success="true"
+    )
