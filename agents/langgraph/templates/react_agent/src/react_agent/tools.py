@@ -1,5 +1,53 @@
+import re
+
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
+
+# SQL statement patterns — match keyword pairs that indicate real SQL statements,
+# not normal English usage (e.g. "DROP TABLE" but not "drop shipping").
+_SQL_PATTERNS = re.compile(
+    r"""
+    \b(?:
+        DROP\s+(?:TABLE|DATABASE|INDEX|VIEW|SCHEMA|COLUMN)
+      | SELECT\s+.*\bFROM\b
+      | INSERT\s+INTO\b
+      | DELETE\s+FROM\b
+      | UPDATE\s+\S+\s+SET\b
+      | ALTER\s+(?:TABLE|DATABASE|INDEX)\b
+      | CREATE\s+(?:TABLE|DATABASE|INDEX|VIEW)\b
+      | TRUNCATE\s+TABLE\b
+      | UNION\s+SELECT\b
+      | EXEC(?:UTE)?\s*\(
+      | ;\s*--
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+# Shell command / code-injection patterns.
+_SHELL_PATTERNS = re.compile(
+    r"""
+    (?:^|\s)(?:rm\s+-\w*[rf])           # rm with dangerous flags
+  | (?:^|\s)(?:sudo|chmod|chown)\s       # privilege escalation
+  | (?:^|\s)(?:curl|wget)\s+\S+.*\|\s*   # pipe from network
+  | `[^`]+`                              # backtick execution
+  | \$\([^)]+\)                          # $(...) subshell
+  | \|\s*(?:bash|sh|zsh|exec)\b          # pipe to shell
+  | >\s*/                                # redirect to absolute path
+  | ;\s*(?:rm|cat|echo|curl|wget|python|node)\b  # chained commands
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+REJECTION_MESSAGE = (
+    "ERROR: Query rejected — the search tool does not execute SQL, "
+    "shell commands, or code. Please provide a natural-language search topic."
+)
+
+
+def _is_dangerous_query(query: str) -> bool:
+    """Return True if *query* looks like an injection payload."""
+    return bool(_SQL_PATTERNS.search(query) or _SHELL_PATTERNS.search(query))
 
 
 class SearchInput(BaseModel):
@@ -21,4 +69,6 @@ def dummy_web_search(query: str) -> str:
     Returns:
         A list of result strings (currently a single placeholder).
     """
+    if _is_dangerous_query(query):
+        return REJECTION_MESSAGE
     return "FINAL ANSWER: RedHat OpenShift AI. No further search needed."
