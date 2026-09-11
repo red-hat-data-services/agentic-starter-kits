@@ -23,7 +23,6 @@ from ai4rag.rag.vector_store import get_vector_store, get_vector_store_config
 from dotenv import load_dotenv
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from milvus_cert_helper import normalize_milvus_cert
 from openai import OpenAI
 
 load_dotenv(verbose=True)
@@ -70,7 +69,6 @@ def load_and_index_documents(
         raise ValueError("MILVUS_URI must be set")
 
     # Normalize MILVUS_SERVER_CERT (file path → PEM text)
-    normalize_milvus_cert()
 
     # Set other environment variables for ai4rag
     os.environ["MILVUS_URI"] = milvus_uri

@@ -12,6 +12,7 @@ EMBEDDING_DIMENSION="${6}"
 MILVUS_URI="${7}"
 MILVUS_TOKEN="${8}"
 MILVUS_SERVER_NAME="${9}"
+VECTOR_DB_SECRET_NAME="${10}"
 
 cat <<EOF
 apiVersion: batch/v1
@@ -61,7 +62,10 @@ spec:
         - name: MILVUS_TOKEN
           value: "${MILVUS_TOKEN}"
         - name: MILVUS_SERVER_CERT
-          value: "/sandbox/data/certs/milvus-ca.crt"
+          valueFrom:
+            secretKeyRef:
+              name: "${VECTOR_DB_SECRET_NAME}"
+              key: MILVUS_SERVER_CERT
         - name: MILVUS_SERVER_NAME
           value: "${MILVUS_SERVER_NAME}"
         - name: DOCUMENTS_DIR

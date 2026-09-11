@@ -322,11 +322,23 @@ build-openshell: ## Build openShell sandbox image via OpenShift BuildConfig
 	  echo "Image ready: image-registry.openshift-image-registry.svc:5000/$$NS/$(OPENSHELL_IMAGE):latest" && \
 	  echo "Next: make deploy-openshell"
 
-_openshell-env = . ./.env && export OPENSHELL_GATEWAY_INSECURE=true && \
+_openshell-env = set -a && . ./.env && set +a && export OPENSHELL_GATEWAY_INSECURE=true && \
 	SANDBOX=$${OPENSHELL_SANDBOX_NAME:-rag-sandbox} && \
 	NS=$$(oc project -q) && \
 	IMAGE="image-registry.openshift-image-registry.svc:5000/$$NS/$(OPENSHELL_IMAGE):latest" && \
-	APPS_DOMAIN=$$(oc get ingresses.config cluster -o jsonpath='{.spec.domain}')
+	APPS_DOMAIN=$$(oc get ingresses.config cluster -o jsonpath='{.spec.domain}') && \
+	MAAS_SECRET_NAME=$$(sed -n 's/^[[:space:]]*maas_secret_name:[[:space:]]*"\([^"\]*\)".*/\1/p' values.yaml) && \
+	VECTOR_DB_SECRET_NAME=$${VECTOR_DB_SECRET_NAME:-$$(sed -n 's/^[[:space:]]*vector_db_secret_name:[[:space:]]*"\([^"\]*\)".*/\1/p' values.yaml)} && \
+	secret_value() { oc get secret "$$1" -n "$$NS" -o jsonpath="{.data.$$2}" 2>/dev/null | base64 -d; } && \
+	if [ -n "$$MAAS_SECRET_NAME" ] && [ "$$MAAS_SECRET_NAME" != "__MAAS_SECRET_NAME__" ]; then \
+	  value=$$(secret_value "$$MAAS_SECRET_NAME" MAAS_BASE_URL); [ -z "$$value" ] || MAAS_BASE_URL="$$value"; \
+	  value=$$(secret_value "$$MAAS_SECRET_NAME" MAAS_API_KEY); [ -z "$$value" ] || MAAS_API_KEY="$$value"; \
+	fi && \
+	if [ -n "$$VECTOR_DB_SECRET_NAME" ] && [ "$$VECTOR_DB_SECRET_NAME" != "__VECTOR_DB_SECRET_NAME__" ]; then \
+	  for key in MILVUS_URI MILVUS_TOKEN MILVUS_SERVER_CERT MILVUS_SERVER_NAME PGVECTOR_HOST PGVECTOR_PORT PGVECTOR_DB PGVECTOR_DATABASE PGVECTOR_USER PGVECTOR_PASSWORD; do \
+	    value=$$(secret_value "$$VECTOR_DB_SECRET_NAME" "$$key"); current=$$(printenv "$$key"); [ -n "$$current" ] || [ -z "$$value" ] || export "$$key=$$value"; \
+	  done; \
+	fi && export MAAS_BASE_URL MAAS_API_KEY MILVUS_URI MILVUS_TOKEN MILVUS_SERVER_CERT MILVUS_SERVER_NAME PGVECTOR_HOST PGVECTOR_PORT PGVECTOR_DB PGVECTOR_DATABASE PGVECTOR_USER PGVECTOR_PASSWORD
 
 create-sandbox: ## Delete existing sandbox and create a new one (with 120s timeout)
 	@$(_openshell-env) && \
@@ -341,13 +353,18 @@ create-sandbox: ## Delete existing sandbox and create a new one (with 120s timeo
 	  echo "==> Creating sandbox $$SANDBOX from $$IMAGE..." && \
 	  echo "    (timeout 120s — this may take a minute while the image is pulled)..." && \
 	  openshell sandbox create --name "$$SANDBOX" --from "$$IMAGE" \
-	    --env "BASE_URL=$$BASE_URL" \
-	    --env "MODEL_ID=$$MODEL_ID" \
-	    --env "API_KEY=$$API_KEY" \
-	    --env "MAAS_API_KEY=$$MAAS_API_KEY" \
 	    --env "MAAS_BASE_URL=$$MAAS_BASE_URL" \
-	    --env "EMBEDDING_MODEL=$$EMBEDDING_MODEL" \
-	    --env "EMBEDDING_DIMENSION=$${EMBEDDING_DIMENSION:-1024}" \
+	    --env "CHAT_BASE_URL=$${CHAT_BASE_URL:-$$BASE_URL}" \
+	    --env "MODEL_ID=$$MODEL_ID" \
+	    --env "MAAS_API_KEY=$$MAAS_API_KEY" \
+	    --env "EMBEDDING_MODEL_ID=$$EMBEDDING_MODEL_ID" \
+	    --env "EMBEDDING_DIMENSION=$${EMBEDDING_DIMENSION:-768}" \
+	    --env "PROVIDER_TYPE=$${PROVIDER_TYPE:-milvus}" \
+	    --env "RETRIEVAL_METHOD=$${RETRIEVAL_METHOD:-simple}" \
+	    --env "NUMBER_OF_CHUNKS=$${NUMBER_OF_CHUNKS:-5}" \
+	    --env "SEARCH_MODE=$${SEARCH_MODE:-vector}" \
+	    --env "RANKER_STRATEGY=$$RANKER_STRATEGY" \
+	    --env "RANKER_ALPHA=$$RANKER_ALPHA" \
 	    --env "MILVUS_URI=$$MILVUS_URI" \
 	    --env "MILVUS_TOKEN=$$MILVUS_TOKEN" \
 	    --env "PORT=8080" </dev/null & \
@@ -372,7 +389,7 @@ setup-egress: ## Add MaaS + Milvus egress policies for agent Python binary
 	  echo "==> Using agent Python binary: /usr/bin/python3.12" && \
 	  PYTHON_BIN="/usr/bin/python3.12" && \
 	  echo "==> Adding egress policy for MaaS (chat model)..." && \
-	  MAAS_CHAT_HOST=$$(echo "$$BASE_URL" | sed -E 's|^https?://||;s|/.*||') && \
+	  MAAS_CHAT_HOST=$$(echo "$${CHAT_BASE_URL:-$${BASE_URL:-$$MAAS_BASE_URL}}" | sed -E 's|^https?://||;s|/.*||') && \
 	  openshell policy update "$$SANDBOX" --add-endpoint "$$MAAS_CHAT_HOST:443" --binary "$$PYTHON_BIN" --wait && \
 	  echo "==> Adding egress policy for MaaS (embeddings)..." && \
 	  MAAS_EMB_HOST=$$(echo "$$MAAS_BASE_URL" | sed -E 's|^https?://||;s|/.*||') && \
@@ -396,13 +413,13 @@ check-collection: ## Check if Milvus collection exists and show details
 	@$(_openshell-env) && \
 	  if [ -z "$$MILVUS_COLLECTION_NAME" ]; then echo "ERROR: MILVUS_COLLECTION_NAME not set in .env"; exit 1; fi && \
 	  echo "==> Copying check_collection.py to sandbox..." && \
-	  oc exec -n openshell "default--$$SANDBOX" -- mkdir -p /sandbox/scripts && \
-	  oc cp scripts/check_collection.py openshell/"default--$$SANDBOX":/sandbox/scripts/check_collection.py 2>/dev/null && \
+	  openshell sandbox exec -n "$$SANDBOX" -- mkdir -p /sandbox/scripts && \
+	  openshell sandbox upload "$$SANDBOX" scripts/check_collection.py /sandbox/scripts/check_collection.py --no-git-ignore && \
 	  echo "==> Checking Milvus collection: $$MILVUS_COLLECTION_NAME" && \
-	  oc exec -n openshell "default--$$SANDBOX" -- bash -c '\
+	  openshell sandbox exec -n "$$SANDBOX" -- bash -c '\
 	    export MILVUS_URI="'"$$MILVUS_URI"'" && \
 	    export MILVUS_TOKEN="'"$$MILVUS_TOKEN"'" && \
-	    export MILVUS_SERVER_CERT="/sandbox/data/certs/milvus-ca.crt" && \
+	    export MILVUS_SERVER_CERT="'"$$MILVUS_SERVER_CERT"'" && \
 	    export MILVUS_COLLECTION_NAME="'"$$MILVUS_COLLECTION_NAME"'" && \
 	    export PYTHONPATH=/sandbox/.local/lib/python3.12/site-packages:/sandbox/.local/lib64/python3.12/site-packages:/sandbox && \
 	    cd /sandbox && /usr/bin/python3.12 scripts/check_collection.py' 2>&1 | grep -v "PyMilvusDeprecationWarning"
@@ -420,21 +437,26 @@ start-agent: refresh-certs ## Start agent with external URL access and K8s Servi
 	  K8S_REVIEWER_TOKEN=$$(oc create token openshell-sandbox -n openshell --duration=168h) && \
 	  ALLOWED_SA_USERNAME="system:serviceaccount:$${NS}:agent-client" && \
 	  echo "==> Stopping any running agent..." && \
-	  oc exec -n openshell "default--$$SANDBOX" -- bash -c "pkill -f python3" 2>/dev/null || true && \
+	  openshell sandbox exec -n "$$SANDBOX" -- bash -c "pkill -f '[/]usr/bin/python3.12 -m uvicorn auth_wrapper:app'" 2>/dev/null || true && \
 	  sleep 5 && \
 	  echo "==> Starting agent (collection: $$MILVUS_COLLECTION_NAME, auth: enabled)..." && \
 	  openshell sandbox exec -n "$$SANDBOX" -- bash -c '\
-	    export API_KEY="'"$$API_KEY"'" && \
-	    export BASE_URL="'"$$BASE_URL"'" && \
+	    export MAAS_BASE_URL="'"$$MAAS_BASE_URL"'" && \
+	    export CHAT_BASE_URL="'"$${CHAT_BASE_URL:-$$BASE_URL}"'" && \
 	    export MODEL_ID="'"$$MODEL_ID"'" && \
 	    export MAAS_API_KEY="'"$$MAAS_API_KEY"'" && \
-	    export MAAS_BASE_URL="'"$$MAAS_BASE_URL"'" && \
-	    export EMBEDDING_MODEL="'"$$EMBEDDING_MODEL"'" && \
+	    export EMBEDDING_MODEL_ID="'"$$EMBEDDING_MODEL_ID"'" && \
 	    export EMBEDDING_DIMENSION="'"$$EMBEDDING_DIMENSION"'" && \
+	    export PROVIDER_TYPE="'"$${PROVIDER_TYPE:-milvus}"'" && \
+	    export RETRIEVAL_METHOD="'"$${RETRIEVAL_METHOD:-simple}"'" && \
+	    export NUMBER_OF_CHUNKS="'"$${NUMBER_OF_CHUNKS:-5}"'" && \
+	    export SEARCH_MODE="'"$${SEARCH_MODE:-vector}"'" && \
+	    export RANKER_STRATEGY="'"$$RANKER_STRATEGY"'" && \
+	    export RANKER_ALPHA="'"$$RANKER_ALPHA"'" && \
 	    export MILVUS_URI="'"$$MILVUS_URI"'" && \
 	    export MILVUS_TOKEN="'"$$MILVUS_TOKEN"'" && \
 	    export MILVUS_COLLECTION_NAME="'"$$MILVUS_COLLECTION_NAME"'" && \
-	    export MILVUS_SERVER_CERT="/sandbox/data/certs/milvus-ca.crt" && \
+	    export MILVUS_SERVER_CERT="'"$$MILVUS_SERVER_CERT"'" && \
 	    export MILVUS_SERVER_NAME="'"$$MILVUS_SERVER_NAME"'" && \
 	    export K8S_API_URL="'"$$K8S_API_URL"'" && \
 	    export K8S_REVIEWER_TOKEN="'"$$K8S_REVIEWER_TOKEN"'" && \

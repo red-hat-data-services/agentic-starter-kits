@@ -35,7 +35,7 @@ RUN sed -i '/^\[tool\.uv\.sources\]/,/^\[/{/agent-auth/d}' pyproject.toml && \
 ENV PYTHONPATH="/sandbox/.local/lib/python3.12/site-packages:/sandbox/.local/lib64/python3.12/site-packages:$PYTHONPATH"
 
 # Application code and assets
-COPY --chown=1001:0 main.py auth_wrapper.py sqlite_shim.py milvus_cert_helper.py playground_sandbox.py .
+COPY --chown=1001:0 main.py auth_wrapper.py sqlite_shim.py playground_sandbox.py .
 COPY --chown=1001:0 playground-sandbox/ ./playground-sandbox/
 COPY --chown=1001:0 images/ ./images/
 COPY --chown=1001:0 data/ ./data/

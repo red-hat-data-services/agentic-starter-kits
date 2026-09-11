@@ -2,6 +2,7 @@
 """Check if Milvus collection exists and show basic info."""
 
 import os
+import tempfile
 
 from pymilvus import Collection, connections, utility
 
@@ -24,6 +25,14 @@ host = uri_without_scheme.split(":")[0]
 port = uri_without_scheme.split(":")[-1].split("/")[0]  # Remove any path after port
 user, password = milvus_token.split(":")
 
+cert_path = None
+if milvus_cert:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".pem", delete=False
+    ) as cert_file:
+        cert_file.write(milvus_cert)
+        cert_path = cert_file.name
+
 connections.connect(
     alias="default",
     host=host,
@@ -31,7 +40,7 @@ connections.connect(
     user=user,
     password=password,
     secure=secure,
-    server_pem_path=milvus_cert if secure else None,
+    server_pem_path=cert_path if secure else None,
 )
 
 collections = utility.list_collections()
@@ -61,3 +70,5 @@ else:
     print(f"   Available collections: {len(collections)}")
 
 connections.disconnect("default")
+if cert_path:
+    os.unlink(cert_path)

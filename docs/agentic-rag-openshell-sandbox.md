@@ -12,7 +12,7 @@ All commands run from `agents/langgraph/templates/agentic_rag/`.
 - `openshell` CLI installed - see [OpenShell installation](https://github.com/NVIDIA/OpenShell?tab=readme-ov-file#installation)
 - `helm` v3 installed
 - MaaS endpoints for chat and embeddings, plus in-cluster Milvus
-- A PEM certificate for TLS to Milvus (see `MILVUS_SERVER_CERT` below)
+- A vector DB Secret containing `MILVUS_SERVER_CERT` as PEM text
 - **Red Hat build of Agent Sandbox** operator installed (namespace `agent-sandbox-system`)
 
 ---
@@ -27,26 +27,25 @@ Edit `.env` and fill in:
 
 | Variable | Example | Description |
 |---|---|---|
-| `API_KEY` | `sk-oai-...` | MaaS API key for the chat model |
-| `BASE_URL` | `https://maas.<apps-domain>/<ns>/<model>/v1` | MaaS chat endpoint |
-| `MODEL_ID` | `qwen3-8b-fp8-dynamic` | Chat model id |
-| `MAAS_API_KEY` | `sk-oai-...` | MaaS API key for embeddings (often the same as `API_KEY`) |
-| `MAAS_BASE_URL` | `https://maas.<apps-domain>/<ns>/<embedding-model>/v1` | MaaS embeddings endpoint |
-| `EMBEDDING_MODEL` | `redhataibge-m3` | Embedding model id |
+| `MAAS_API_KEY` | `sk-oai-...` | MaaS API key |
+| `MAAS_BASE_URL` | `https://maas.<apps-domain>/v1` | MaaS OpenAI-compatible endpoint |
+| `MODEL_ID` | `publishers/<org>/models/<model>` | Chat model id |
+| `EMBEDDING_MODEL_ID` | `publishers/<org>/models/<model>` | Embedding model id |
 | `EMBEDDING_DIMENSION` | `1024` | Must match the embedding model |
 | `MILVUS_URI` | `https://milvus-service.milvus.svc.cluster.local:19530` | In-cluster Milvus gRPC endpoint (not a LoadBalancer) |
-| `MILVUS_TOKEN` | `root:<password>` | Milvus user:password |
-| `MILVUS_SERVER_CERT` | `./data/certs/milvus-ca.crt` | Path to a PEM certificate required for TLS to Milvus. Place the file there before `make build-openshell` so it is copied into the image. The cert is gitignored — do not commit it. |
+| `MILVUS_TOKEN` | `root:<password>` | Milvus user:password; `.env` takes precedence over the Secret |
+| `MILVUS_SERVER_CERT` | *(leave empty)* | Loaded as PEM text from the vector DB Secret; do not set a file path |
 | `MILVUS_SERVER_NAME` | `milvus-service.milvus.svc.cluster.local` | TLS server name for Milvus |
+| `VECTOR_DB_SECRET_NAME` | `milvus` | Kubernetes Secret name containing vector DB settings |
 | `MILVUS_COLLECTION_NAME` | *(leave empty)* | Filled by `make load-docs-sandbox`, or set to an existing collection |
 | `CONTAINER_IMAGE` | *(set after Step 3)* | Image used by the load-docs Job |
 | `DOCUMENTS_DIR` | `./data` | Directory with documents to index |
 | `CHUNK_SIZE` | `512` | Chunk size for indexing |
 
-Running the agent in the sandbox requires a PEM certificate for Milvus TLS.
-Set `MILVUS_SERVER_CERT` to its path. Inside the sandbox the same file is
-available at `/sandbox/data/certs/milvus-ca.crt` (copied into the image at
-build time).
+The Makefile loads `MILVUS_SERVER_CERT` from `VECTOR_DB_SECRET_NAME` and
+passes the PEM text to the sandbox. Explicit values in `.env`, such as
+`MILVUS_URI` and `MILVUS_TOKEN`, are preserved and only empty variables are
+filled from the Secret.
 
 ## Step 2 — Install openShell gateway and connect CLI
 
@@ -78,8 +77,8 @@ make build-openshell
 ```
 
 Creates an OpenShift BuildConfig and builds the image using
-`Containerfile.openshell` in-cluster. Takes ~4 minutes. The build copies
-`data/` (documents + the PEM certificate) into the image.
+`Containerfile.openshell` in-cluster. Takes ~4 minutes. Dependencies are
+exported with `uv export --frozen` from the checked-in `uv.lock`.
 
 The final output shows:
 
@@ -114,12 +113,12 @@ This runs `scripts/create-load-docs-job-ai4rag.sh`, which:
 1. Creates an OpenShift Job in the current namespace using `CONTAINER_IMAGE`
 2. Indexes documents from `DOCUMENTS_DIR` (default `./data/sample_knowledge.txt`)
    with ai4rag + MaaS embeddings into in-cluster Milvus
-3. Reads the CA from `/sandbox/data/certs/milvus-ca.crt` inside the image
+3. Injects `MILVUS_SERVER_CERT` directly from the vector DB Secret as PEM text
 4. Writes the new collection name back to `.env` as `MILVUS_COLLECTION_NAME`
 5. Auto-deletes the Job after 10 minutes
 
-Requires: image from Step 3, `CONTAINER_IMAGE` set, PEM certificate baked into that image,
-and egress from the Job namespace to MaaS + Milvus.
+Requires: image from Step 3, `CONTAINER_IMAGE` set, the vector DB Secret with
+`MILVUS_SERVER_CERT`, and egress from the Job namespace to MaaS + Milvus.
 
 Optional check after indexing (sandbox must already exist — run this after Step 5
 if you want to verify from inside the sandbox):
@@ -145,7 +144,7 @@ independently for debugging):
 | `make create-sandbox` | Grants image-pull access, deletes any existing sandbox, creates a new one (120s timeout) with MaaS + Milvus env vars |
 | `make wait-sandbox` | Polls until the sandbox phase is `Ready` (max 150s) |
 | `make setup-egress` | Adds egress for MaaS chat, MaaS embeddings, Kubernetes API, and Milvus gRPC (`tls: skip`) |
-| `make start-agent` | Creates `agent-client` SA, generates token (stored in `agent-client-token` Secret), starts uvicorn with `MILVUS_COLLECTION_NAME` and the baked-in CA path |
+| `make start-agent` | Creates `agent-client` SA, generates token (stored in `agent-client-token` Secret), starts uvicorn with `MILVUS_COLLECTION_NAME` and the PEM from the vector DB Secret |
 | `make expose-agent` | Exposes the service URL and creates an OpenShift Route |
 
 At the end it prints the agent URL and a curl example.
@@ -224,8 +223,8 @@ Swagger UI includes a **Sandbox Playground** shortcut and an instruction at the
 top of the page. In the sandbox image, both the root URL (`/`) and `/playground`
 serve the sandbox Playground directly, using the same public Route as Swagger.
 
-The embedded Playground uses the short-lived ServiceAccount token on the server
-side, so the user does not need to enter a token in the browser.
+The embedded Playground requires the `agent-client` token. Paste the value
+from `agent-client-token` into its API token field; it is sent as `X-Api-Key`.
 
 ---
 
@@ -240,7 +239,7 @@ https://default--rag-sandbox--agent.openshell.<APPS_DOMAIN>/
 
 The Playground:
 
-- Uses the server-side ServiceAccount token automatically
+- Requires the `agent-client` ServiceAccount token in the API token field
 - Provides a chat interface with streaming responses
 - Maintains conversation history across messages
 - Collapses reasoning steps and retrieved context into expandable sections
@@ -255,7 +254,8 @@ The Playground:
 middleware — **no agent source code is modified** (`main.py`, `src/`
 are untouched).
 
-- Only `/chat/completions` is protected; `/health` passes through
+- `/chat/completions` and the playground proxy `/api/chat` are protected;
+  `/health` and `/docs` pass through
 - **K8s SA token**: `make start-agent` creates a `agent-client`
   ServiceAccount, generates a token (7-day TTL), stores it in
   `agent-client-token` Secret. The agent validates tokens via the
@@ -277,9 +277,9 @@ are untouched).
 Clear `MILVUS_COLLECTION_NAME=` in `.env`, run `make load-docs-sandbox`, then restart
 with `make start-agent` and `make expose-agent`. Verify with `make check-collection`.
 
-**TLS errors talking to Milvus**: A PEM certificate is required. Confirm
-`MILVUS_SERVER_CERT` points to a valid PEM file that was present when the
-sandbox image was built, then rebuild and redeploy.
+**TLS errors talking to Milvus**: Confirm the vector DB Secret named by
+`VECTOR_DB_SECRET_NAME` contains a `MILVUS_SERVER_CERT` key with PEM text.
+The certificate is not baked into the sandbox image.
 
 **`ERROR: MILVUS_COLLECTION_NAME not set`**: Run `make load-docs-sandbox` before
 `make deploy-openshell`, or point `.env` at an existing collection.

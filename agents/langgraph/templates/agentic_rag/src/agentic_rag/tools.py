@@ -1,11 +1,9 @@
 import sys
 from os import getenv
 from pathlib import Path
-from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from milvus_cert_helper import normalize_milvus_cert
 from sqlite_shim import patch_sqlite3
 
 patch_sqlite3()
@@ -23,6 +21,8 @@ from langchain_core.tools import tool  # noqa: E402
 from openai import OpenAI  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
+from agentic_rag.config import AgentConfig  # noqa: E402
+
 try:
     import mlflow
     from mlflow.entities import Document as MlflowDocument
@@ -30,189 +30,116 @@ except ImportError:
     mlflow = None
 
 
-def _initialize_retriever(
-    maas_api_key: Optional[str] = None,
-    maas_base_url: Optional[str] = None,
-    embedding_model_id: Optional[str] = None,
-    embedding_dimension: Optional[int] = None,
-    milvus_collection: Optional[str] = None,
-) -> Retriever:
-    """
-    Initialize the ai4rag retriever with MaaS embeddings and Milvus vector store.
+def _initialize_retriever() -> Retriever:
+    """Initialize the retriever from the starter-kit environment."""
 
-    Args:
-        maas_api_key: MaaS API key
-        maas_base_url: MaaS base URL
-        embedding_model_id: Embedding model identifier
-        embedding_dimension: Embedding dimension
-        milvus_collection: Milvus collection name
-
-    Returns:
-        ai4rag Retriever instance
-    """
-    # Normalize MILVUS_SERVER_CERT (file path → PEM text)
-    normalize_milvus_cert()
-
-    # Get configuration from environment if not provided
-    if not maas_api_key:
-        maas_api_key = getenv("MAAS_API_KEY")
-    if not maas_base_url:
-        maas_base_url = getenv("MAAS_BASE_URL")
-    if not embedding_model_id:
-        embedding_model_id = getenv("EMBEDDING_MODEL", "redhataibge-m3")
-    if not embedding_dimension:
-        embedding_dimension = int(getenv("EMBEDDING_DIMENSION", "1024"))
-    if not milvus_collection:
-        milvus_collection = getenv("MILVUS_COLLECTION_NAME")
+    maas_api_key = getenv("MAAS_API_KEY")
+    maas_base_url = getenv("MAAS_BASE_URL")
+    embedding_model_id = getenv("EMBEDDING_MODEL_ID")
+    embedding_dimension = int(getenv("EMBEDDING_DIMENSION", "768"))
+    provider_type = getenv("PROVIDER_TYPE", "milvus").lower()
+    collection_name = getenv(
+        "MILVUS_COLLECTION_NAME"
+        if provider_type == "milvus"
+        else "PGVECTOR_COLLECTION_NAME"
+    )
 
     if not maas_api_key or not maas_base_url:
         raise ValueError("MAAS_API_KEY and MAAS_BASE_URL must be set")
-
-    if not milvus_collection:
-        raise RuntimeError(
-            "MILVUS_COLLECTION_NAME env var is not set. Run load_documents_ai4rag.py first."
-        )
-
-    print(f"Using Milvus collection: {milvus_collection}")
-
-    # Validate MaaS URL scheme to prevent API key exposure (CWE-319)
+    if not embedding_model_id:
+        raise ValueError("EMBEDDING_MODEL_ID must be set")
+    if not collection_name:
+        raise ValueError(f"Collection name for provider {provider_type!r} must be set")
     if not maas_base_url.startswith("https://"):
-        raise ValueError(
-            f"MaaS base URL must use HTTPS to protect API key transmission. Got: {maas_base_url}"
-        )
+        raise ValueError("MAAS_BASE_URL must use HTTPS to protect API key transmission")
 
-    # Initialize MaaS client
     client = OpenAI(base_url=maas_base_url, api_key=maas_api_key)
-
-    # Initialize embedding model
-    params = OpenAIEmbeddingParams(
-        embedding_dimension=embedding_dimension, context_length=1015
-    )
     embedding_model = OpenAIEmbeddingModel(
-        client=client, model_id=embedding_model_id, params=params
+        client=client,
+        model_id=embedding_model_id,
+        params=OpenAIEmbeddingParams(
+            embedding_dimension=embedding_dimension, context_length=1015
+        ),
     )
-
-    # Initialize Milvus vector store
-    provider_type = "milvus"
-    vector_store_config = get_vector_store_config(provider_type)
     vector_store = get_vector_store(
         embedding_model=embedding_model,
-        config=vector_store_config,
-        collection_name=milvus_collection,
+        config=get_vector_store_config(provider_type),
+        collection_name=collection_name,
     )
 
-    # Create retriever with hybrid search
-    retriever = Retriever(
+    ranker_alpha = getenv("RANKER_ALPHA")
+    return Retriever(
         vector_store=vector_store,
-        method="simple",
-        number_of_chunks=5,
-        search_mode="hybrid",
-        ranker_strategy="weighted",
-        ranker_alpha=0.5,
+        method=getenv("RETRIEVAL_METHOD", "simple"),
+        number_of_chunks=int(getenv("NUMBER_OF_CHUNKS", "5")),
+        search_mode=getenv("SEARCH_MODE", "vector"),
+        ranker_strategy=getenv("RANKER_STRATEGY") or None,
+        ranker_alpha=float(ranker_alpha) if ranker_alpha else None,
     )
-
-    return retriever
 
 
 def create_retriever_tool():
-    """Factory function that creates a retriever tool with cached retriever instance."""
-    _retriever_cache = None
+    """Create a retriever tool with a lazily initialized retriever."""
+    retriever_cache = None
 
     class RetrieverInput(BaseModel):
-        """Schema for the retriever tool input."""
-
         query: str = Field(
-            description="The search query describing what information you need to retrieve."
+            description="The search query describing what information to retrieve."
         )
 
     @tool("retriever", args_schema=RetrieverInput)
     def retriever_tool(query: str) -> str:
-        """
-        Search the knowledge base for information relevant to the query.
-
-        Use this tool when you need to find specific information from the knowledge base
-        to answer the user's question accurately.
-
-        Args:
-            query: The search query describing what information you need to retrieve.
-
-        Returns:
-            Retrieved documents containing relevant information.
-        """
-        nonlocal _retriever_cache
-
-        # Handle case where query might be passed as a dict (defensive fix)
+        """Search the knowledge base for information relevant to the query."""
+        nonlocal retriever_cache
         if isinstance(query, dict):
-            # Extract the actual query value from the dict
             query = query.get("value", query.get("query", str(query)))
+        if retriever_cache is None:
+            retriever_cache = _initialize_retriever()
 
-        # Initialize retriever on first call
-        if _retriever_cache is None:
-            _retriever_cache = _initialize_retriever()
-
-        # Retrieve documents
-        retrieved_docs = _retriever_cache.retrieve(query)
-
-        # Format the retrieved documents
-        if not retrieved_docs or len(retrieved_docs) == 0:
+        retrieved_docs = retriever_cache.retrieve(query)
+        if not retrieved_docs:
             return "No relevant information was found in the provided documents for this query."
 
+        config = AgentConfig.from_env()
         formatted_docs = []
         retriever_docs = []
-        for i, doc in enumerate(retrieved_docs, 1):
-            # Skip chunks that are empty or just separators/whitespace
-            # ai4rag returns AI4RAGChunk with .text attribute, not .page_content
-            # Handle None text by treating it as empty string
-            text_content = getattr(doc, "text", getattr(doc, "page_content", None))
-            content = (text_content or "").strip()
+        for doc in retrieved_docs:
+            content = (
+                getattr(doc, "text", getattr(doc, "page_content", "")) or ""
+            ).strip()
             if not content or all(c in "=-_*#|" for c in content):
                 continue
-
-            # Extract source from metadata (handle None metadata)
             metadata = getattr(doc, "metadata", None) or {}
             source = metadata.get("source", "unknown")
-
-            # Extract score if available (ai4rag chunks may have score/similarity)
-            # Handle None and non-numeric scores
             score = getattr(doc, "score", getattr(doc, "similarity", None))
-            if score is not None and isinstance(score, (int, float)):
-                score_str = f"{score:.3f}"
-            else:
-                score_str = "N/A"
-
-            # Format each document with clear separation
-            doc_text = f"--- Document {len(formatted_docs) + 1} ---\n"
-            doc_text += f"Content: {content}\n"
-            doc_text += f"Source: {source}\n"
-            doc_text += f"Score: {score_str}"
-
-            formatted_docs.append(doc_text)
-
+            score_str = f"{score:.3f}" if isinstance(score, (int, float)) else "N/A"
+            formatted_docs.append(
+                f"--- Document {len(formatted_docs) + 1} ---\nContent: {content}\nSource: {source}\nScore: {score_str}"
+            )
             if mlflow:
                 retriever_docs.append(
                     MlflowDocument(
                         page_content=content,
-                        metadata={
-                            "source": source,
-                            "score": getattr(doc, "score", None),
-                        },
+                        metadata={"source": source, "score": score},
                     )
                 )
 
-        # Log RETRIEVER span for MLflow RAG evaluation scorers
         if mlflow and retriever_docs:
             with mlflow.start_span(name="retrieve", span_type="RETRIEVER") as span:
                 span.set_inputs({"query": query})
                 span.set_outputs(retriever_docs)
-
-        # If all chunks were filtered out, return no information message
         if not formatted_docs:
             return "No relevant information was found in the provided documents for this query."
 
-        return "\n\n".join(formatted_docs)
+        context = "\n\n".join(
+            config.context_template.format(document=document, doc_number=index)
+            for index, document in enumerate(formatted_docs, 1)
+        )
+        return config.user_message_template.format(
+            reference_documents=context, question=query
+        )
 
     return retriever_tool
 
 
-# Create the retriever tool instance using closure pattern
 retriever_tool = create_retriever_tool()

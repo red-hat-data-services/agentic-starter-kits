@@ -6,6 +6,12 @@ set -e
 # Read env vars
 source .env
 
+VECTOR_DB_SECRET_NAME="${VECTOR_DB_SECRET_NAME:-$(sed -n 's/^[[:space:]]*vector_db_secret_name:[[:space:]]*"\([^"]*\)".*/\1/p' values.yaml)}"
+if [ -z "$VECTOR_DB_SECRET_NAME" ] || [ "$VECTOR_DB_SECRET_NAME" = "__VECTOR_DB_SECRET_NAME__" ]; then
+  echo "ERROR: VECTOR_DB_SECRET_NAME is not configured"
+  exit 1
+fi
+
 NS=$(oc project -q)
 JOB_NAME="load-docs-ai4rag-$(date +%s)"
 
@@ -33,8 +39,6 @@ spec:
         - |
           set -e
           echo "==> Loading documents with ai4rag"
-          # Read cert as PEM text (ai4rag requires content, not path)
-          export MILVUS_SERVER_CERT=\$(cat /sandbox/data/certs/milvus-ca.crt)
           export PYTHONPATH=/sandbox/.local/lib/python3.12/site-packages:/sandbox/.local/lib64/python3.12/site-packages:/sandbox
           cd /sandbox/data
           /usr/bin/python3.12 load_documents_wrapper.py
@@ -51,6 +55,11 @@ spec:
           value: "${MILVUS_URI}"
         - name: MILVUS_TOKEN
           value: "${MILVUS_TOKEN}"
+        - name: MILVUS_SERVER_CERT
+          valueFrom:
+            secretKeyRef:
+              name: "${VECTOR_DB_SECRET_NAME}"
+              key: MILVUS_SERVER_CERT
         - name: DOCUMENTS_DIR
           value: "/sandbox/data"
         - name: CHUNK_SIZE

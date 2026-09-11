@@ -27,7 +27,17 @@ _K8S_CA_PATH = getenv(
     "K8S_CA_PATH", "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 )
 _K8S_API_INSECURE = getenv("K8S_API_INSECURE", "").strip().lower() == "true"
-_PROTECTED_PATHS = frozenset({"/chat/completions", "/chat/completions/"})
+# The playground proxy must not be usable as an unauthenticated way to spend
+# the server-side PLAYGROUND_TOKEN. Kubernetes token authentication is the
+# actual caller authentication for both direct chat and proxied chat requests.
+_PROTECTED_PATHS = frozenset(
+    {
+        "/chat/completions",
+        "/chat/completions/",
+        "/api/chat",
+        "/api/chat/",
+    }
+)
 
 _AUTH_ENABLED = bool(_K8S_API_URL and _K8S_REVIEWER_TOKEN)
 

@@ -6,7 +6,22 @@ from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph.state import CompiledStateGraph
 
+from .config import AgentConfig, get_chat_base_url
 from .tools import retriever_tool
+
+_DEFAULT_SYSTEM_PROMPT = (
+    "You are a helpful AI assistant with access to a retriever tool for searching a knowledge base.\n\n"
+    "CRITICAL INSTRUCTION: When a user asks ANY question, you MUST respond by calling the 'retriever' tool FIRST. "
+    "Do NOT attempt to answer from your own knowledge until AFTER you have called the retriever tool and seen its results.\n\n"
+    "Process:\n"
+    "1. User asks a question → immediately call retriever tool with relevant search query\n"
+    "2. Receive retriever results → use them to formulate your answer\n"
+    "3. If no relevant information found → then use general knowledge\n"
+    "4. Always cite sources when available\n\n"
+    "Example:\n"
+    "User: 'What are appropriate chunk sizes?'\n"
+    "You: [MUST call retriever tool with query='chunk sizes' or 'appropriate chunk sizes']"
+)
 
 
 def get_graph_closure(
@@ -14,103 +29,52 @@ def get_graph_closure(
     base_url: str | None = None,
     api_key: str | None = None,
 ) -> Callable:
-    """Build and return a LangGraph ReAct agent with the configured LLM and retrieval tool.
+    """Build a LangGraph ReAct agent from the optimized pattern configuration."""
+    api_key = api_key or getenv("MAAS_API_KEY")
+    base_url = base_url or get_chat_base_url()
+    model_id = model_id or getenv("MODEL_ID")
 
-    Creates a ChatOpenAI client, wires a retriever tool based on vector store configuration,
-    and uses create_react_agent to produce a ReAct workflow.
-
-    Args:
-        model_id: LLM model identifier (e.g. for OpenAI-compatible API). Uses MODEL_ID env if omitted.
-        base_url: Base URL for the LLM API. Uses BASE_URL env if omitted.
-        api_key: API key for the LLM. Uses API_KEY env if omitted; required for non-local base_url.
-
-    Returns:
-        A function that creates a CompiledGraph agent accepting {"messages": [...]} and returns updated state.
-    """
-
-    # Get environment variables if not provided
-    if not api_key:
-        api_key = getenv("API_KEY")
     if not base_url:
-        base_url = getenv("BASE_URL")
-    if not model_id:
-        model_id = getenv("MODEL_ID")
-
-    # Check if using local deployment
-    if not base_url:
-        raise ValueError(
-            "BASE_URL is required. Set it via argument or BASE_URL env var."
-        )
+        raise ValueError("CHAT_BASE_URL or BASE_URL is required for the chat model.")
     is_local = any(host in base_url for host in ["localhost", "127.0.0.1"])
-
     if not is_local and not api_key:
-        raise ValueError("API_KEY is required for non-local environments.")
+        raise ValueError("MAAS_API_KEY is required for non-local environments.")
 
-    # Initialize ChatOpenAI
-    #  model_kwargs with tool_choice to force tool usage for Hermes-based models
+    config = AgentConfig.from_env()
     chat = ChatOpenAI(
         model=model_id,
-        temperature=0.0,  # Lower temperature for more consistent reasoning
+        temperature=config.temperature,
+        max_completion_tokens=config.max_completion_tokens,
         api_key=api_key or "not-needed-for-local-development",
         base_url=base_url,
-        model_kwargs={"tool_choice": "auto"},  # Enable tool choice for Hermes parser
+        model_kwargs={"tool_choice": "auto"},
     )
 
-    TOOLS = [retriever_tool]
-
-    # Define system prompt for ReAct agent
-    # CRITICAL: Use explicit instruction for Hermes tool calling parser
-    default_system_prompt = (
-        "You are a helpful AI assistant with access to a retriever tool for searching a knowledge base.\n\n"
-        "CRITICAL INSTRUCTION: When a user asks ANY question, you MUST respond by calling the 'retriever' tool FIRST. "
-        "Do NOT attempt to answer from your own knowledge until AFTER you have called the retriever tool and seen its results.\n\n"
-        "Process:\n"
-        "1. User asks a question → immediately call retriever tool with relevant search query\n"
-        "2. Receive retriever results → use them to formulate your answer\n"
-        "3. If no relevant information found → then use general knowledge\n"
-        "4. Always cite sources when available\n\n"
-        "Example:\n"
-        "User: 'What are appropriate chunk sizes?'\n"
-        "You: [MUST call retriever tool with query='chunk sizes' or 'appropriate chunk sizes']"
-    )
+    system_prompt_text = config.system_message or _DEFAULT_SYSTEM_PROMPT
+    if config.language_name and config.language_name.lower() != "auto":
+        system_prompt_text += f"\n\nRespond in {config.language_name}."
 
     def get_graph(
         instruction_prompt: SystemMessage | None = None,
     ) -> CompiledStateGraph:
-        """Create and compile the ReAct agent graph.
-
-        Args:
-            instruction_prompt: Optional custom system message to override default
-
-        Returns:
-            CompiledGraph: The compiled LangGraph ReAct workflow
-        """
-        # Combine default and custom prompts
-        system_message_text = default_system_prompt
+        system_message_text = system_prompt_text
         if instruction_prompt is not None:
-            # Extract content as string (handle list type from LangChain message content)
             content = instruction_prompt.content
             if isinstance(content, str):
-                system_message_text = default_system_prompt + "\n\n" + content
+                system_message_text += "\n\n" + content
             elif isinstance(content, list):
-                # Extract text from content blocks (list of dicts with 'text' key or plain strings)
                 text_parts = []
                 for item in content:
                     if isinstance(item, dict) and "text" in item:
                         text_parts.append(item["text"])
                     elif isinstance(item, str):
                         text_parts.append(item)
-                system_message_text = (
-                    default_system_prompt + "\n\n" + " ".join(text_parts)
-                )
+                system_message_text += "\n\n" + " ".join(text_parts)
 
-        # Create agent using LangChain's create_agent
-        graph = create_agent(
+        return create_agent(
             model=chat,
-            tools=TOOLS,
+            tools=[retriever_tool],
             system_prompt=system_message_text,
         )
-
-        return graph
 
     return get_graph

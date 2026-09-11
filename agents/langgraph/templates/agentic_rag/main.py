@@ -14,6 +14,7 @@ patch_sqlite3()
 
 import openai  # noqa: E402
 from agentic_rag.agent import get_graph_closure  # noqa: E402
+from agentic_rag.config import get_chat_base_url  # noqa: E402
 from agentic_rag.tracing import enable_tracing  # noqa: E402
 from fastapi import FastAPI, HTTPException  # noqa: E402
 from fastapi.responses import JSONResponse, StreamingResponse  # noqa: E402
@@ -143,7 +144,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     global agent_graph
     enable_tracing()
 
-    base_url = getenv("BASE_URL")
+    base_url = get_chat_base_url()
     model_id = getenv("MODEL_ID")
 
     if base_url and not base_url.endswith("/v1"):
