@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -195,6 +195,18 @@ class TestExtractLangflowToolCalls:
 class TestRunTaskLangflow:
     """Tests for run_task() with api_format='langflow_run'."""
 
+    def test_negative_transient_retries_raises(self):
+        config = TaskConfig(
+            agent_url="http://agent:8080",
+            query="test",
+            api_format="langflow_run",
+            flow_id="f-1",
+            transient_retries=-1,
+        )
+
+        with pytest.raises(ValueError, match="transient_retries must be non-negative"):
+            asyncio.run(run_task(config))
+
     def test_missing_flow_id_raises(self):
         """run_task raises ValueError when flow_id is not set."""
         config = TaskConfig(
@@ -291,6 +303,54 @@ class TestRunTaskLangflow:
 
         assert result.success is False
         assert result.error is not None and "500" in result.error
+
+    def test_opted_in_retry_retries_transient_gateway_error(self):
+        """An explicitly replay-safe task retries a 503 once before succeeding."""
+        config = TaskConfig(
+            agent_url="http://agent:8080",
+            query="test",
+            api_format="langflow_run",
+            flow_id="f-1",
+            transient_retries=1,
+        )
+        transient_error = httpx.HTTPStatusError(
+            "Service Unavailable",
+            request=httpx.Request("POST", "http://agent:8080/api/v1/run/f-1"),
+            response=httpx.Response(503, text="Service Unavailable"),
+        )
+        success_response = MagicMock()
+        success_response.raise_for_status = MagicMock()
+        success_response.json.return_value = {"outputs": []}
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=[transient_error, success_response])
+
+        with patch("harness.runner.asyncio.sleep", new_callable=AsyncMock) as sleep:
+            result = asyncio.run(run_task(config, client=mock_client))
+
+        assert result.success is True
+        assert mock_client.post.await_count == 2
+        sleep.assert_awaited_once_with(0.25)
+
+    def test_default_does_not_retry_transient_gateway_error(self):
+        """Potentially stateful tasks remain single-attempt by default."""
+        config = TaskConfig(
+            agent_url="http://agent:8080",
+            query="test",
+            api_format="langflow_run",
+            flow_id="f-1",
+        )
+        error = httpx.HTTPStatusError(
+            "Service Unavailable",
+            request=httpx.Request("POST", "http://agent:8080/api/v1/run/f-1"),
+            response=httpx.Response(503, text="Service Unavailable"),
+        )
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=error)
+
+        result = asyncio.run(run_task(config, client=mock_client))
+
+        assert result.success is False
+        assert mock_client.post.await_count == 1
 
 
 # ---------------------------------------------------------------------------
