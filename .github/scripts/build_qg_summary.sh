@@ -19,6 +19,9 @@ QG1_RESULT="${QG1_RESULT:?QG1_RESULT is required}"
 QG2_RESULT="${QG2_RESULT:?QG2_RESULT is required}"
 QG4_RESULT="${QG4_RESULT:?QG4_RESULT is required}"
 QG7_RESULT="${QG7_RESULT:?QG7_RESULT is required}"
+COLLECT_QG4_RESULT="${COLLECT_QG4_RESULT:-success}"
+QG4_ARTIFACT_DOWNLOAD_RESULT="${QG4_ARTIFACT_DOWNLOAD_RESULT:-success}"
+QG7_ARTIFACT_DOWNLOAD_RESULT="${QG7_ARTIFACT_DOWNLOAD_RESULT:-success}"
 QG4_OUTCOMES_DIR="${QG4_OUTCOMES_DIR:-qg4-outcomes}"
 QG7_OUTCOMES_DIR="${QG7_OUTCOMES_DIR:-qg7-outcomes}"
 # Slack section blocks cap text at 3000 characters; this is the budget for
@@ -68,7 +71,22 @@ qg2_note=""
 qg4_note=""
 [[ "${QG4_RESULT}" == "skipped" ]] && qg4_note="blocked by QG1/QG2"
 qg7_note=""
-[[ "${QG7_RESULT}" == "skipped" ]] && qg7_note="no agents eligible"
+if [[ "${QG7_RESULT}" == "skipped" ]]; then
+  case "${COLLECT_QG4_RESULT}" in
+    success)
+      if [[ "${QG4_RESULT}" == "skipped" ]]; then
+        qg7_note="QG4 did not run"
+      else
+        qg7_note="no agents eligible"
+      fi
+      ;;
+    skipped) qg7_note="QG4 results not collected" ;;
+    failure) qg7_note="QG4 result collection failed" ;;
+    cancelled) qg7_note="QG4 result collection cancelled" ;;
+    timed_out) qg7_note="QG4 result collection timed out" ;;
+    *) qg7_note="QG4 result collection did not complete" ;;
+  esac
+fi
 
 gate_summary="$(
   {
@@ -100,6 +118,7 @@ agent_status_note() {
     blocked_skip) echo "QG4 skipped" ;;
     excluded) echo "excluded from QG7" ;;
     not_run) echo "QG7 did not run" ;;
+    unavailable) echo "QG7 outcome unavailable" ;;
     cancelled) echo "cancelled" ;;
     timed_out) echo "timed out" ;;
     *) echo "" ;;
@@ -135,13 +154,13 @@ filter_valid_json() {
 # because this function is invoked inside a `$(...)` subshell, so any
 # variables it sets wouldn't be visible back in the caller's scope.
 build_agent_table() {
-  local qg7_json="$1" char_budget="$2"
-  shift 2
+  local qg7_json="$1" qg7_unavailable="$2" char_budget="$3"
+  shift 3
   local -a qg4_files=("$@")
 
   local rows
   rows="$(
-    jq -s --argjson excluded "${QG7_EXCLUDED}" --argjson qg7 "${qg7_json}" '
+    jq -s --argjson excluded "${QG7_EXCLUDED}" --argjson qg7 "${qg7_json}" --arg qg7_unavailable "${qg7_unavailable}" '
       map(
         . as $a
         | ($a.dir | ltrimstr("agents/")) as $qg7_id
@@ -153,6 +172,7 @@ build_agent_table() {
               if $a.status == "skipped" then "blocked_skip"
               elif $a.status != "success" then "blocked_fail"
               elif $is_excluded then "excluded"
+              elif $qg7_unavailable == "true" then "unavailable"
               elif ($qg7 | has($a.name)) then $qg7[$a.name]
               else "not_run"
               end
@@ -238,6 +258,16 @@ fi
 warnings=()
 [[ "${invalid_qg4_count}" -gt 0 ]] && warnings+=("⚠️ ${invalid_qg4_count} QG4 outcome file(s) could not be parsed and were excluded")
 [[ "${invalid_qg7_count}" -gt 0 ]] && warnings+=("⚠️ ${invalid_qg7_count} QG7 outcome file(s) could not be parsed and were excluded")
+qg4_download_failed=false
+if [[ "${QG4_RESULT}" != "skipped" && "${QG4_ARTIFACT_DOWNLOAD_RESULT}" != "success" ]]; then
+  qg4_download_failed=true
+  warnings+=("⚠️ QG4 outcome artifact download failed; agent-level summary is unavailable")
+fi
+qg7_download_failed=false
+if [[ "${QG7_RESULT}" != "skipped" && "${QG7_ARTIFACT_DOWNLOAD_RESULT}" != "success" ]]; then
+  qg7_download_failed=true
+  warnings+=("⚠️ QG7 outcome artifact download failed; agent-level results are unavailable")
+fi
 warnings_text=""
 for warning in "${warnings[@]+"${warnings[@]}"}"; do
   warnings_text="${warnings_text}
@@ -245,18 +275,24 @@ ${warning}"
 done
 
 agent_table=""
-if [[ ${#all_qg4_files[@]} -gt 0 ]]; then
+if [[ "${qg4_download_failed}" == "true" ]]; then
+  agent_table=$'*Agent Results*\n_agent-level summary unavailable (QG4 outcome artifact download failed) — see workflow run for details_'
+  agent_table="${agent_table}${warnings_text}"
+elif [[ ${#all_qg4_files[@]} -gt 0 ]]; then
   if [[ ${#valid_qg4_files[@]} -gt 0 ]]; then
     # Budget the agent table against what's left after the gate summary and
     # any warning lines, since all of it lands in one Slack section block.
     remaining_budget=$(( TOTAL_CHAR_BUDGET - ${#gate_summary} - ${#warnings_text} - 4 ))
     [[ "${remaining_budget}" -lt 200 ]] && remaining_budget=200
-    if ! agent_table="$(build_agent_table "${qg7_json}" "${remaining_budget}" "${valid_qg4_files[@]}")"; then
+    if ! agent_table="$(build_agent_table "${qg7_json}" "${qg7_download_failed}" "${remaining_budget}" "${valid_qg4_files[@]}")"; then
       agent_table=$'*Agent Results*\n_agent-level summary unavailable (unexpected error building the table) — see workflow run for details_'
     fi
   else
     agent_table=$'*Agent Results*\n_agent-level summary unavailable (no readable outcome data) — see workflow run for details_'
   fi
+  agent_table="${agent_table}${warnings_text}"
+elif [[ "${QG4_RESULT}" != "skipped" ]]; then
+  agent_table=$'*Agent Results*\n_agent-level summary unavailable (no outcome artifacts found) — see workflow run for details_'
   agent_table="${agent_table}${warnings_text}"
 fi
 
