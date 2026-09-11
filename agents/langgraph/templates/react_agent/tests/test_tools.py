@@ -108,6 +108,11 @@ class TestBoundaryValidationRejectsInjection:
             "TRUNCATE TABLE logs",
             "1 UNION SELECT username, password FROM users",
             "anything; -- comment injection",
+            "SELECT password FROM users WHERE 1=1",
+            "SELECT users.name, users.email FROM accounts",
+            "SELECT name AS n, email AS e FROM users",
+            "SELECT password FROM users;",
+            "SELECT u.id FROM users JOIN roles ON u.role_id = roles.id",
         ],
         ids=[
             "drop-table",
@@ -121,6 +126,11 @@ class TestBoundaryValidationRejectsInjection:
             "truncate-table",
             "union-select",
             "semicolon-comment",
+            "single-col-where",
+            "dot-qualified-cols",
+            "aliased-cols",
+            "single-col-semicolon",
+            "single-col-join",
         ],
     )
     def test_rejects_sql_injection(self, payload: str) -> None:
