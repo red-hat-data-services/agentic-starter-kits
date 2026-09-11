@@ -9,7 +9,8 @@ _SQL_PATTERNS = re.compile(
     r"""
     \b(?:
         DROP\s+(?:TABLE|DATABASE|INDEX|VIEW|SCHEMA|COLUMN)
-      | SELECT\s+(?:\*|[\w]+(?:\s*,\s*[\w]+)+)\s+FROM\b
+      | SELECT\s+(?:\*|[\w]+(?:\.[\w]+)?(?:\s+AS\s+\w+)?(?:\s*,\s*[\w]+(?:\.[\w]+)?(?:\s+AS\s+\w+)?)+)\s+FROM\b
+      | SELECT\s+[\w]+(?:\.[\w]+)?\s+FROM\s+[\w]+(?:\s*;|\s+(?:WHERE|ORDER|GROUP|HAVING|LIMIT|JOIN|ON|INNER|LEFT|RIGHT|CROSS)\b)
       | INSERT\s+INTO\b
       | DELETE\s+FROM\b
       | UPDATE\s+\S+\s+SET\b
