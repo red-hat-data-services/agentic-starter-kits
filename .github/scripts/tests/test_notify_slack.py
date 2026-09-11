@@ -64,6 +64,65 @@ def test_render_payload_includes_failed_jobs_and_links():
     )
 
 
+def test_render_payload_uses_summary_text_when_provided():
+    env = os.environ.copy()
+    env.update(
+        {
+            "WORKFLOW_NAME": "Quality Gates Pipeline",
+            "EVENT_NAME": "schedule",
+            "REF_NAME": "main",
+            "STATUS": "failure",
+            "RUN_URL": "https://github.com/example/repo/actions/runs/123",
+            "DASHBOARD_URL": "https://red-hat-data-services.github.io/agentic-starter-kits/",
+            "REPOSITORY": "red-hat-data-services/agentic-starter-kits",
+            "FAILED_JOBS_JSON": json.dumps(["QG4: langgraph-hitl-agent"]),
+            "SUMMARY_TEXT": "*Gate Summary*\n✅ QG1: success\n❌ QG4: failure",
+            "TIMESTAMP": "2026-07-09T07:30:00Z",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(RENDER_SCRIPT)],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    payload_text = json.dumps(json.loads(result.stdout))
+    assert "Gate Summary" in payload_text
+    assert "QG4: langgraph-hitl-agent" not in payload_text
+
+
+def test_render_payload_success_status_is_green():
+    env = os.environ.copy()
+    env.update(
+        {
+            "WORKFLOW_NAME": "Quality Gates Pipeline",
+            "EVENT_NAME": "schedule",
+            "REF_NAME": "main",
+            "STATUS": "success",
+            "RUN_URL": "https://github.com/example/repo/actions/runs/123",
+            "DASHBOARD_URL": "https://red-hat-data-services.github.io/agentic-starter-kits/",
+            "REPOSITORY": "red-hat-data-services/agentic-starter-kits",
+            "SUMMARY_TEXT": "*Gate Summary*\n✅ QG1: success",
+            "TIMESTAMP": "2026-07-09T07:30:00Z",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(RENDER_SCRIPT)],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    payload = json.loads(result.stdout)
+    assert payload["attachments"][0]["color"] == "#2eb67d"
+    assert "CI Success" in json.dumps(payload)
+
+
 def test_notify_preview_prints_payload(tmp_path):
     payload_path = tmp_path / "payload.json"
     payload_path.write_text(

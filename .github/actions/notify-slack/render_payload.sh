@@ -17,12 +17,18 @@ REPOSITORY="${REPOSITORY:?REPOSITORY is required}"
 STATUS="${STATUS:-failure}"
 TIMESTAMP="${TIMESTAMP:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 FAILED_JOBS_JSON="${FAILED_JOBS_JSON:-[]}"
+SUMMARY_TEXT="${SUMMARY_TEXT:-}"
 
 if ! jq -e 'type == "array"' <<<"${FAILED_JOBS_JSON}" >/dev/null 2>&1; then
   FAILED_JOBS_JSON='[]'
 fi
 
 case "${STATUS}" in
+  success)
+    COLOR="#2eb67d"
+    TITLE="CI Success: ${WORKFLOW_NAME}"
+    STATUS_LABEL="Passed"
+    ;;
   failure | failed | timed_out)
     COLOR="#d00000"
     TITLE="CI Failure: ${WORKFLOW_NAME}"
@@ -40,19 +46,25 @@ case "${STATUS}" in
     ;;
 esac
 
-FAILED_JOBS_TEXT="$(
-  jq -nr --argjson jobs "${FAILED_JOBS_JSON}" '
-    if ($jobs | length) == 0 then
-      "*Failed jobs*\n- Job details unavailable"
-    elif ($jobs | length) <= 10 then
-      "*Failed jobs*\n" + ($jobs | map("- `" + . + "`") | join("\n"))
-    else
-      "*Failed jobs*\n"
-      + ($jobs[:10] | map("- `" + . + "`") | join("\n"))
-      + "\n- ... and \((($jobs | length) - 10)) more"
-    end
-  '
-)"
+if [[ -n "${SUMMARY_TEXT}" ]]; then
+  # Caller supplied its own rendered summary (e.g. a gate/agent status
+  # breakdown) — use it verbatim instead of the generic failed-jobs list.
+  DETAILS_TEXT="${SUMMARY_TEXT}"
+else
+  DETAILS_TEXT="$(
+    jq -nr --argjson jobs "${FAILED_JOBS_JSON}" '
+      if ($jobs | length) == 0 then
+        "*Failed jobs*\n- Job details unavailable"
+      elif ($jobs | length) <= 10 then
+        "*Failed jobs*\n" + ($jobs | map("- `" + . + "`") | join("\n"))
+      else
+        "*Failed jobs*\n"
+        + ($jobs[:10] | map("- `" + . + "`") | join("\n"))
+        + "\n- ... and \((($jobs | length) - 10)) more"
+      end
+    '
+  )"
+fi
 
 LINKS_TEXT="<${RUN_URL}|View workflow run> | <${DASHBOARD_URL}|View CI dashboard>"
 FALLBACK_TEXT="CI ${STATUS_LABEL}: ${WORKFLOW_NAME} on ${REF_NAME}"
@@ -66,7 +78,7 @@ jq -n \
   --arg ref_name "${REF_NAME}" \
   --arg repository "${REPOSITORY}" \
   --arg timestamp "${TIMESTAMP}" \
-  --arg failed_jobs_text "${FAILED_JOBS_TEXT}" \
+  --arg details_text "${DETAILS_TEXT}" \
   --arg links_text "${LINKS_TEXT}" \
   '{
     text: $fallback_text,
@@ -116,7 +128,7 @@ jq -n \
             type: "section",
             text: {
               type: "mrkdwn",
-              text: $failed_jobs_text
+              text: $details_text
             }
           },
           {
