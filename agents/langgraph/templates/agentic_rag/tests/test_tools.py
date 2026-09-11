@@ -163,7 +163,7 @@ def test_initialize_retriever_initialization(
             "MAAS_API_KEY": "test-maas-key",
             "MAAS_BASE_URL": "https://maas.example.com/v1",
             "MILVUS_COLLECTION_NAME": "test-collection-123",
-            "EMBEDDING_MODEL": "test-embedding-model",
+            "EMBEDDING_MODEL_ID": "test-embedding-model",
             "EMBEDDING_DIMENSION": "1024",
         }.get(key, default)
 
@@ -212,18 +212,22 @@ def test_retriever_tool_caching(mock_initialize_retriever):
 @patch("src.agentic_rag.tools.Retriever")
 @patch("src.agentic_rag.tools.OpenAI")
 @patch("src.agentic_rag.tools.getenv")
-def test_initialize_retriever_with_explicit_params(
+def test_initialize_retriever_uses_environment_params(
     mock_get_env,
     mock_openai_class,
     mock_retriever_class,
     mock_get_config,
     mock_get_store,
 ):
-    """Test that explicit parameters override environment variables."""
+    """Test that retriever configuration is read from environment variables."""
 
     def getenv_side_effect(key, default=None):
         return {
+            "MAAS_API_KEY": "custom-key",
+            "MAAS_BASE_URL": "https://custom.example.com/v1",
             "MILVUS_COLLECTION_NAME": "env-collection",
+            "EMBEDDING_MODEL_ID": "test-embedding-model",
+            "EMBEDDING_DIMENSION": "1024",
         }.get(key, default)
 
     mock_get_env.side_effect = getenv_side_effect
@@ -231,14 +235,9 @@ def test_initialize_retriever_with_explicit_params(
     mock_get_store.return_value = Mock()
     mock_retriever_class.return_value = Mock()
 
-    # Call with explicit parameters
-    result = _initialize_retriever(
-        maas_api_key="custom-key",
-        maas_base_url="https://custom.example.com/v1",
-        milvus_collection="custom-collection",
-    )
+    result = _initialize_retriever()
 
-    # Should use provided parameters
+    # Should use values from the environment
     mock_openai_class.assert_called_once_with(
         base_url="https://custom.example.com/v1", api_key="custom-key"
     )
@@ -247,24 +246,22 @@ def test_initialize_retriever_with_explicit_params(
 
 @patch("src.agentic_rag.tools.getenv")
 def test_initialize_retriever_no_collection(mock_get_env):
-    """Test error handling when MILVUS_COLLECTION_NAME env var is not set."""
+    """Test error handling when the configured collection is not set."""
 
     def getenv_side_effect(key, default=None):
         return {
             "MAAS_API_KEY": "test-key",
             "MAAS_BASE_URL": "https://maas.example.com/v1",
-            "EMBEDDING_MODEL": "test-model",
+            "EMBEDDING_MODEL_ID": "test-model",
             "EMBEDDING_DIMENSION": "1024",
         }.get(key, default)
 
     mock_get_env.side_effect = getenv_side_effect
 
-    # Should raise RuntimeError when MILVUS_COLLECTION_NAME is missing
-    with pytest.raises(RuntimeError) as exc_info:
+    with pytest.raises(ValueError) as exc_info:
         _initialize_retriever()
 
-    assert "MILVUS_COLLECTION_NAME" in str(exc_info.value)
-    assert "load_documents" in str(exc_info.value)
+    assert "Collection name for provider 'milvus' must be set" in str(exc_info.value)
 
 
 if __name__ == "__main__":
