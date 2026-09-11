@@ -181,6 +181,11 @@ class TestBoundaryValidationAllowsLegitimate:
             "how to insert images in PowerPoint",
             "table tennis tournament results",
             "truncate text in CSS",
+            "how to select data from a CSV file",
+            "select items from the store",
+            "what is sudo in linux",
+            "how to use chmod in linux tutorial",
+            "explain chown command syntax",
         ],
         ids=[
             "drop-shipping",
@@ -193,6 +198,11 @@ class TestBoundaryValidationAllowsLegitimate:
             "insert-images",
             "table-tennis",
             "truncate-css",
+            "select-from-csv",
+            "select-items-store",
+            "sudo-explanation",
+            "chmod-tutorial",
+            "chown-explanation",
         ],
     )
     def test_allows_legitimate_search(self, query: str) -> None:
