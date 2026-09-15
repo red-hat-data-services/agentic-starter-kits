@@ -327,11 +327,10 @@ deploy-guardrails: _check-guardrails-ns render-guardrails-configmap deploy-guard
 	  done && \
 	  echo "" && \
 	  echo "In-cluster URL: http://$(GUARDRAILS_CR_NAME).$(GUARDRAILS_NAMESPACE).svc.cluster.local/v1" && \
-	  ROUTE=$$(oc get route $(GUARDRAILS_CR_NAME) -n "$(GUARDRAILS_NAMESPACE)" \
-	    -o jsonpath='{.spec.host}' 2>/dev/null || true); \
-	  if [ -n "$$ROUTE" ]; then \
-	    echo "Route URL: https://$$ROUTE"; \
-	  fi
+	  python3 deploy/scripts/annotate_guardrails_route.py \
+	    --route-name $(GUARDRAILS_CR_NAME) \
+	    --namespace "$(GUARDRAILS_NAMESPACE)" \
+	    $(if $(CI),--required,)
 
 undeploy-guardrails: _check-guardrails-ns ## Remove NemoGuardrails CR + ConfigMap + Secret from GUARDRAILS_NAMESPACE
 	@oc delete nemoguardrails $(GUARDRAILS_CR_NAME) \

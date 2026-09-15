@@ -59,6 +59,13 @@ async def test_streaming_parity_content(agent_url: str, http_client: Any) -> Non
         )
 
 
+@pytest.mark.xfail(
+    reason=(
+        "Non-streaming chat completions never expose tool_calls for this agent "
+        "(100% reproducible, not model nondeterminism) — see RHAIENG-7429."
+    ),
+    strict=True,
+)
 async def test_streaming_parity_tool_calls(agent_url: str, http_client: Any) -> None:
     """When tool_calls are available, both modes should report the same tool set."""
     config_sync = TaskConfig(

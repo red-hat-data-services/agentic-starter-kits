@@ -55,7 +55,30 @@ def test_gate_summary_only_when_qg4_never_ran(tmp_path):
     assert "Gate Summary" in output
     assert "QG1" in output and "failure" in output
     assert "blocked by QG1" in output
+    assert "QG4 did not run" in output
     assert "Agent Results" not in output
+
+
+def test_qg7_skip_reports_qg4_collection_failure(tmp_path):
+    qg4_dir = tmp_path / "qg4-outcomes"
+    qg7_dir = tmp_path / "qg7-outcomes"
+    qg4_dir.mkdir()
+    qg7_dir.mkdir()
+
+    output = run_summary(
+        {
+            "QG1_RESULT": "success",
+            "QG2_RESULT": "success",
+            "QG4_RESULT": "failure",
+            "QG7_RESULT": "skipped",
+            "COLLECT_QG4_RESULT": "failure",
+        },
+        qg4_dir,
+        qg7_dir,
+    )
+
+    assert "QG4 result collection failed" in output
+    assert "no agents eligible" not in output
 
 
 def test_agent_matrix_reflects_qg4_and_qg7_outcomes(tmp_path):
@@ -283,3 +306,57 @@ def test_agent_not_run_when_qg7_outcomes_missing(tmp_path):
     )
 
     assert "QG7 did not run" in output
+
+
+def test_qg4_download_failure_keeps_agent_results_section(tmp_path):
+    qg4_dir = tmp_path / "qg4-outcomes"
+    qg7_dir = tmp_path / "qg7-outcomes"
+    qg4_dir.mkdir()
+    qg7_dir.mkdir()
+
+    output = run_summary(
+        {
+            "QG1_RESULT": "success",
+            "QG2_RESULT": "success",
+            "QG4_RESULT": "failure",
+            "QG7_RESULT": "skipped",
+            "QG4_ARTIFACT_DOWNLOAD_RESULT": "failure",
+        },
+        qg4_dir,
+        qg7_dir,
+    )
+
+    assert "Agent Results" in output
+    assert "QG4 outcome artifact download failed" in output
+
+
+def test_qg7_download_failure_is_visible_in_agent_results(tmp_path):
+    qg4_dir = tmp_path / "qg4-outcomes"
+    qg7_dir = tmp_path / "qg7-outcomes"
+    qg4_dir.mkdir()
+    qg7_dir.mkdir()
+    write_outcome(
+        qg4_dir,
+        "agent-good",
+        {
+            "name": "agent-good",
+            "dir": "agents/langgraph/templates/agent_good",
+            "status": "success",
+        },
+    )
+
+    output = run_summary(
+        {
+            "QG1_RESULT": "success",
+            "QG2_RESULT": "success",
+            "QG4_RESULT": "success",
+            "QG7_RESULT": "failure",
+            "QG7_ARTIFACT_DOWNLOAD_RESULT": "failure",
+        },
+        qg4_dir,
+        qg7_dir,
+    )
+
+    assert "Agent Results" in output
+    assert "QG7 outcome unavailable" in output
+    assert "QG7 outcome artifact download failed" in output

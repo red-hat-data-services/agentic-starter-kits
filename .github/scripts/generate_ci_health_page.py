@@ -507,6 +507,7 @@ def render_page(
       <p class="muted">
         CI health summary for QG8 in-scope workflows on <code>main</code> and
         scheduled runs. Rebuilds when those workflows complete.
+        <a href="../">Starter kit homepage</a>
       </p>
       <p><strong>Repository:</strong> <code>{html.escape(repository)}</code></p>
       <p><strong>Last updated:</strong> {html.escape(generated_at.strftime("%Y-%m-%d %H:%M:%S UTC"))}</p>
@@ -526,7 +527,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("site/index.html"),
+        default=Path("site/ci-health/index.html"),
         help="Path to write the generated HTML file",
     )
     parser.add_argument(

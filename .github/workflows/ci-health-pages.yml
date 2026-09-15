@@ -1,4 +1,4 @@
-# Publish a static CI health dashboard to GitHub Pages.
+# Publish the starter-kit gallery and CI health dashboard to GitHub Pages.
 #
 # Bootstrap:
 #   1. Repo admin enables Settings -> Pages -> Source: GitHub Actions
@@ -29,7 +29,9 @@ on:
     paths:
       - ".github/workflows/ci-health-pages.yml"
       - ".github/scripts/generate_ci_health_page.py"
+      - ".github/scripts/generate_agent_gallery.py"
       - ".github/scripts/fixtures/ci-runs-sample.json"
+      - "agents/**/agent.yaml"
 
 permissions:
   contents: read
@@ -76,6 +78,9 @@ jobs:
       - name: Install dependencies
         run: pip install pyyaml
 
+      - name: Generate agent gallery
+        run: python .github/scripts/generate_agent_gallery.py --repo-root . --output site/index.html
+
       - name: Generate CI health page
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -84,9 +89,9 @@ jobs:
           if [[ "${{ github.event_name == 'workflow_dispatch' && inputs.use_fixture == true }}" == "true" ]]; then
             python .github/scripts/generate_ci_health_page.py \
               --input .github/scripts/fixtures/ci-runs-sample.json \
-              --output site/index.html
+              --output site/ci-health/index.html
           else
-            python .github/scripts/generate_ci_health_page.py --output site/index.html
+            python .github/scripts/generate_ci_health_page.py --output site/ci-health/index.html
           fi
 
       - name: Setup Pages

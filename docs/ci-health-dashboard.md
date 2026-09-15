@@ -1,6 +1,8 @@
 # CI Health Dashboard
 
 Static HTML summary of QG8 in-scope GitHub Actions workflows for `agentic-starter-kits`.
+Published on GitHub Pages at `/ci-health/` on the same site as the
+[starter kit homepage](https://red-hat-data-services.github.io/agentic-starter-kits/).
 
 ## Scope
 
@@ -94,7 +96,7 @@ EVENT_NAME="workflow_dispatch" \
 REF_NAME="main" \
 STATUS="failure" \
 RUN_URL="https://github.com/red-hat-data-services/agentic-starter-kits/actions/runs/123456789" \
-DASHBOARD_URL="https://red-hat-data-services.github.io/agentic-starter-kits/" \
+DASHBOARD_URL="https://red-hat-data-services.github.io/agentic-starter-kits/ci-health/" \
 REPOSITORY="red-hat-data-services/agentic-starter-kits" \
 FAILED_JOBS_JSON='["lint", "type-check"]' \
 TIMESTAMP="2026-07-09T07:30:00Z" \
@@ -134,12 +136,15 @@ Once the PR merges to `main`, each qualifying CI completion keeps the page curre
 ## Local preview
 
 ```bash
+python .github/scripts/generate_agent_gallery.py --repo-root . --output site/index.html
 python .github/scripts/generate_ci_health_page.py \
   --input .github/scripts/fixtures/ci-runs-sample.json \
-  --output site/index.html
+  --output site/ci-health/index.html
 
 python -m http.server 8080 --directory site
 ```
+
+Open `http://127.0.0.1:8080/` for the kit gallery and `http://127.0.0.1:8080/ci-health/` for this dashboard.
 
 Live API mode:
 
@@ -147,7 +152,7 @@ Live API mode:
 export GITHUB_TOKEN="$(gh auth token)"
 python .github/scripts/generate_ci_health_page.py \
   --repository red-hat-data-services/agentic-starter-kits \
-  --output site/index.html
+  --output site/ci-health/index.html
 ```
 
 ## Tests

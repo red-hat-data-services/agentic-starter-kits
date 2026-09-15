@@ -22,6 +22,7 @@ def test_deploy_directory_layout() -> None:
     assert not (DEPLOY_DIR / "manifests" / "kustomization.yaml").is_file()
     assert not (DEPLOY_DIR / "overlays" / "ci-testing" / "kustomization.yaml").is_file()
     assert RENDER_SCRIPT.is_file()
+    assert (DEPLOY_DIR / "scripts" / "annotate_guardrails_route.py").is_file()
 
 
 def test_cluster_env_example_points_at_vllm() -> None:
@@ -169,6 +170,25 @@ def test_nemoguardrails_cr_has_otel_placeholders_not_tracing_flag() -> None:
         e for e in doc["spec"]["env"] if e["name"] == "OTEL_EXPORTER_OTLP_ENDPOINT"
     )
     assert endpoint["value"] == "${OTEL_EXPORTER_OTLP_ENDPOINT}"
+
+
+def _deploy_guardrails_recipe() -> str:
+    match = re.search(
+        r"^deploy-guardrails:.*?(?=^\S|\Z)",
+        MAKEFILE,
+        re.MULTILINE | re.DOTALL,
+    )
+    assert match is not None
+    return match.group(0)
+
+
+def test_deploy_guardrails_annotates_route_via_helper() -> None:
+    recipe = _deploy_guardrails_recipe()
+    assert "annotate_guardrails_route.py" in recipe
+    assert "--route-name $(GUARDRAILS_CR_NAME)" in recipe
+    assert '--namespace "$(GUARDRAILS_NAMESPACE)"' in recipe
+    assert "$(if $(CI),--required,)" in recipe
+    assert "oc annotate route" not in recipe
 
 
 def test_makefile_deploy_targets_namespace() -> None:

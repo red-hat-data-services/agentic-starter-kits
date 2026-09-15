@@ -190,6 +190,8 @@ def test_main_writes_html(tmp_path):
     assert "QG4: Agent Deployment Integration Tests" in content
     assert "QG1: Cluster Readiness" in content
     assert "QG2: Platform Readiness" in content
+    assert "Starter kit homepage" in content
+    assert "../" in content
 
 
 def test_workflow_catalog_names_match_their_source_files_and_trigger_list():

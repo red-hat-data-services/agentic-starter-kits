@@ -67,6 +67,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 Pick an agent from the table above, `cd` into its directory, and follow its README for setup, local development, and deployment to OpenShift.
 
+Browse kits on the [starter kit homepage](https://red-hat-data-services.github.io/agentic-starter-kits/) (cards link back to each README).
+
 - **Local development** — run agents on your machine with Ollama or OGX for model serving. See the [Local Development](./docs/local-development.md) guide.
 - **Production deployment** — containerized deployment on Red Hat OpenShift with Helm charts, monitoring, and production-grade scaling. See the [OpenShift Deployment](./docs/openshift-deployment.md) guide.
 

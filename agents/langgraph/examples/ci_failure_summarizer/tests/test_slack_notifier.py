@@ -45,7 +45,7 @@ def test_build_slack_payload_includes_summary_and_links():
         run=run,
         summary_text="*Likely cause*\n- metadata-only triage",
         failures=failures,
-        dashboard_url="https://red-hat-data-services.github.io/agentic-starter-kits/",
+        dashboard_url="https://red-hat-data-services.github.io/agentic-starter-kits/ci-health/",
     )
 
     text_blob = str(payload)
@@ -53,7 +53,9 @@ def test_build_slack_payload_includes_summary_and_links():
     assert "langgraph-react-agent" in text_blob
     assert "metadata-only triage" in text_blob
     assert "https://github.com/example/repo/actions/runs/123" in text_blob
-    assert "red-hat-data-services.github.io/agentic-starter-kits" in text_blob
+    assert (
+        "red-hat-data-services.github.io/agentic-starter-kits/ci-health/" in text_blob
+    )
 
 
 def test_maybe_post_summary_returns_failure_reason_without_raising():

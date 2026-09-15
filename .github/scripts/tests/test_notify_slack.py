@@ -33,7 +33,7 @@ def test_render_payload_includes_failed_jobs_and_links():
             "REF_NAME": "main",
             "STATUS": "failure",
             "RUN_URL": "https://github.com/example/repo/actions/runs/123",
-            "DASHBOARD_URL": "https://red-hat-data-services.github.io/agentic-starter-kits/",
+            "DASHBOARD_URL": "https://red-hat-data-services.github.io/agentic-starter-kits/ci-health/",
             "REPOSITORY": "red-hat-data-services/agentic-starter-kits",
             "FAILED_JOBS_JSON": json.dumps(["lint", "type-check"]),
             "TIMESTAMP": "2026-07-09T07:30:00Z",
@@ -59,7 +59,8 @@ def test_render_payload_includes_failed_jobs_and_links():
     assert "type-check" in payload_text
     assert "https://github.com/example/repo/actions/runs/123" in payload_text
     assert (
-        "https://red-hat-data-services.github.io/agentic-starter-kits/" in payload_text
+        "https://red-hat-data-services.github.io/agentic-starter-kits/ci-health/"
+        in payload_text
     )
 
 
