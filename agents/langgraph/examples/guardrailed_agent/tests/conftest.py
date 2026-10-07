@@ -12,7 +12,7 @@ GUARDRAILS_BASE_URL = os.environ.get("GUARDRAILS_BASE_URL", "http://localhost:80
 GUARDRAILS_PROFILE = os.environ.get("GUARDRAILS_PROFILE", "local")
 GUARDRAILS_MODEL_ID = os.environ.get("GUARDRAILS_MODEL_ID", "llama3.1:8b")
 
-GUARDRAILS_CHAT_TIMEOUT = float(os.environ.get("GUARDRAILS_CHAT_TIMEOUT", "60"))
+GUARDRAILS_CHAT_TIMEOUT = float(os.environ.get("GUARDRAILS_CHAT_TIMEOUT", "120"))
 
 
 def guardrails_tls_verify(base_url: str) -> bool:
