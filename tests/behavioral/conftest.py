@@ -139,6 +139,7 @@ def run_eval(
         max_tokens_budget: int | None = None,
         model: str | None = None,
         thread_id: str | None = None,
+        transient_retries: int = 0,
     ) -> TaskResult:
         config = TaskConfig(
             agent_url=agent_url,
@@ -149,6 +150,7 @@ def run_eval(
             model=model,
             stream=STREAM,
             thread_id=thread_id,
+            transient_retries=transient_retries,
         )
         return await run_task(config, client=http_client)
 

@@ -20,7 +20,9 @@ async def test_latency_under_threshold(
     """Response latency must stay within the p95 threshold."""
     max_latency = hitl_thresholds["max_latency_p95"]
     query = "Hello, how are you?"
-    result = await run_eval(query)
+    # This stateless probe is safe to replay if the OpenShift route briefly
+    # returns a transient gateway error.
+    result = await run_eval(query, transient_retries=2)
     assert result.success, f"Agent request failed: {result.error}"
 
     score = score_latency(result, max_latency)
