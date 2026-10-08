@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -12,6 +13,11 @@ from typing import Any, Literal
 import httpx
 
 logger = logging.getLogger(__name__)
+
+# Retrying a POST can duplicate agent work, so retries are disabled by default
+# and intentionally limited to transient gateway responses when explicitly enabled.
+_TRANSIENT_STATUS_CODES = frozenset({502, 503, 504})
+_TRANSIENT_RETRY_BACKOFF_SECONDS = 0.25
 
 # Flow ID must contain only alphanumeric characters, hyphens, and underscores
 _FLOW_ID_PATTERN = re.compile(r"[a-zA-Z0-9_-]+")
@@ -49,6 +55,7 @@ class TaskConfig:
     api_format: Literal["chat_completions", "langflow_run"] = "chat_completions"
     flow_id: str | None = None
     extra_headers: dict[str, str] = field(default_factory=dict)
+    transient_retries: int = 0
 
 
 @dataclass
@@ -296,6 +303,9 @@ async def run_task(
     Langflow ``/api/v1/run/<flow_id>``), measures latency, extracts
     tool calls and token usage.
     """
+    if config.transient_retries < 0:
+        raise ValueError("transient_retries must be non-negative")
+
     own_client = client is None
     if own_client:
         client = httpx.AsyncClient()
@@ -327,16 +337,36 @@ async def run_task(
     headers = config.extra_headers or None
     start = time.monotonic()
     try:
-        if not is_langflow and config.stream:
-            response_data = await _run_streaming(
-                client, url, payload, config.timeout_seconds, headers=headers
-            )
-        else:
-            resp = await client.post(
-                url, json=payload, headers=headers, timeout=config.timeout_seconds
-            )
-            resp.raise_for_status()
-            response_data = resp.json()
+        for attempt in range(config.transient_retries + 1):
+            try:
+                if not is_langflow and config.stream:
+                    response_data = await _run_streaming(
+                        client, url, payload, config.timeout_seconds, headers=headers
+                    )
+                else:
+                    resp = await client.post(
+                        url,
+                        json=payload,
+                        headers=headers,
+                        timeout=config.timeout_seconds,
+                    )
+                    resp.raise_for_status()
+                    response_data = resp.json()
+                break
+            except httpx.HTTPStatusError as exc:
+                if (
+                    exc.response.status_code not in _TRANSIENT_STATUS_CODES
+                    or attempt == config.transient_retries
+                ):
+                    raise
+                logger.warning(
+                    "Transient HTTP %d from %s (attempt %d/%d); retrying.",
+                    exc.response.status_code,
+                    url,
+                    attempt + 1,
+                    config.transient_retries + 1,
+                )
+                await asyncio.sleep(_TRANSIENT_RETRY_BACKOFF_SECONDS * (attempt + 1))
 
         latency = time.monotonic() - start
 
