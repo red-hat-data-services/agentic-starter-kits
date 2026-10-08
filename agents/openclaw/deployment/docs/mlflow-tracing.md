@@ -217,7 +217,7 @@ oc port-forward deploy/openclaw 18789:18789 &
 
 Navigate to the `openclaw-tracing` experiment in your workspace to view traces.
 
-> Port-forward is required for the Control UI. The OpenShift Route works for HTTP requests but WebSocket connections flap through HAProxy's reverse proxy.
+> To use the Route instead of a port-forward, see [Access the Control UI](raw-deployment.md#through-the-route).
 
 ---
 
@@ -235,7 +235,7 @@ Navigate to the `openclaw-tracing` experiment in your workspace to view traces.
 
 **Symptom:** The OTel collector logs `Exporting failed. Dropping data. ... error parsing protobuf response: unexpected EOF` for every batch.
 
-**Cause:** MLflow accepts the traces but answers the protobuf request with a JSON body, which the collector cannot parse. The traces are stored; the collector does not retry the batch. Check the MLflow log for `POST /v1/traces HTTP/1.1" 200 OK`.
+**Cause:** MLflow accepts the traces but answers the protobuf request with a JSON body, which the collector cannot parse. The collector retries the batch and then logs it as dropped, but the traces are stored, each once. Check the MLflow log for `POST /v1/traces HTTP/1.1" 200 OK`.
 
 ### Traces rejected with HTTP 400 ("Invalid OpenTelemetry protobuf format")
 
@@ -243,11 +243,11 @@ Navigate to the `openclaw-tracing` experiment in your workspace to view traces.
 
 **Fix:** Keep `compression: none` on the `otlphttp` exporter in `otel-collector-config.yaml`, as the overlay does.
 
-### WebSocket connections flap through the Route
+### Control UI fails through the Route
 
-The OpenShift Route terminates TLS at HAProxy, which disrupts the persistent WebSocket connections used by the Control UI. Symptoms: repeated connect/disconnect cycles (code 1006), prompts never reach the gateway.
+**Symptom:** The Route answers with HTTP 403 (`proxy_attribution_required`), or the Control UI reports `origin not allowed` and keeps reconnecting.
 
-**Fix:** Use `oc port-forward` instead of the Route for the Control UI.
+**Fix:** Use the Route annotation from the current manifests and add the Route to the allowed origins, as described in [Access the Control UI](raw-deployment.md#through-the-route). A port-forward works without either change.
 
 ---
 
@@ -272,4 +272,4 @@ The OpenShift Route terminates TLS at HAProxy, which disrupts the persistent Web
 | OpenClaw Deployment Guide | [raw-deployment.md](raw-deployment.md) |
 | OTel Collector Contrib | <https://github.com/open-telemetry/opentelemetry-collector-contrib> |
 | MLflow OTLP Tracing | <https://mlflow.org/docs/latest/tracing/index.html> |
-| OpenShift Service CA Certificates | <https://docs.openshift.com/container-platform/4.17/security/certificates/service-serving-certificate.html> |
+| OpenShift Service CA Certificates | <https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/security_and_compliance/configuring-certificates> |

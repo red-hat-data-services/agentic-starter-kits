@@ -5,6 +5,7 @@ Common issues and solutions for OpenClaw on OpenShift. Issues are listed from mo
 ## Table of Contents
 
 - [Route returns "Application is not available" (503)](#route-returns-application-is-not-available-503)
+- [Route returns 403 "proxy_attribution_required"](#route-returns-403-proxy_attribution_required)
 - [Gateway uses wrong model / "No API key" errors](#gateway-uses-wrong-model--no-api-key-errors)
 - [Heartbeat flooding the chat UI](#heartbeat-flooding-the-chat-ui)
 - [Device pairing required after SSO login](#device-pairing-required-after-sso-login)
@@ -77,6 +78,31 @@ Expected output:
 oc get route openclaw -n <namespace> -o jsonpath='{.spec.tls.termination}'
 # Should show: edge
 ```
+
+---
+
+## Route returns 403 "proxy_attribution_required"
+
+**Severity:** Blocking: the Control UI does not load through the Route.
+
+**Cause:** The OpenShift router adds `X-Forwarded-For` headers by default. OpenClaw 2026.9 answers requests with forwarded headers from a proxy outside `gateway.trustedProxies` with HTTP 403. Manifests older than the OpenClaw 2026.9 update did not switch these headers off.
+
+**Symptoms:**
+
+```text
+{"error":{"message":"Proxy client attribution is required. ...","type":"proxy_attribution_required"}}
+```
+
+The gateway log shows `observed unattributable proxy-shaped traffic from <address>`.
+
+**Fix:** Apply the current manifests, or annotate the Route:
+
+```bash
+oc annotate route openclaw -n <namespace> \
+  haproxy.router.openshift.io/set-forwarded-headers=never --overwrite
+```
+
+Then add the Route to the allowed origins, as described in [Access the Control UI](raw-deployment.md#through-the-route). Do not list the cluster network in `gateway.trustedProxies`: on OVN-Kubernetes the kubelet's health probes come from the same node addresses, the gateway rejects them with 403, and the pod stops being ready.
 
 ---
 

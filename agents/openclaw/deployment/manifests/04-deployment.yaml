@@ -66,9 +66,9 @@ spec:
         - name: gateway
           # WARNING: This is an upstream community image, not built or validated by Red Hat.
           image: ghcr.io/openclaw/openclaw@sha256:d0ded1dd76939b2bf4d67ef2d13247b8b160aa5666331d4a0b0e58811182cbb8
-          # Explicit gateway command required: the image default doesn't start the gateway on OpenShift.
-          # Passed as args (not command) so the image entrypoint runs `openclaw doctor --fix`
-          # state migrations before it starts the gateway, for example after an image upgrade.
+          # Gateway command passed as args (not command), so the image entrypoint runs
+          # `openclaw doctor --fix` state migrations before it starts the gateway, for example
+          # after an image upgrade.
           args:
             - node
             - /app/dist/index.js

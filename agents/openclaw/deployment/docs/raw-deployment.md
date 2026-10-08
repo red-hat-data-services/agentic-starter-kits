@@ -166,7 +166,9 @@ Expected output:
 
 ### Access the Control UI
 
-Port-forward to access locally:
+The gateway accepts browser connections only from origins it knows. Without further configuration these are `http://localhost:18789` and `http://127.0.0.1:18789`, so a port-forward works right away; the Route needs one configuration change.
+
+#### Through a port-forward
 
 ```bash
 oc port-forward deployment/openclaw 18789:18789 -n my-openclaw
@@ -175,6 +177,28 @@ oc port-forward deployment/openclaw 18789:18789 -n my-openclaw
 Open <http://localhost:18789> in your browser. Paste the gateway token from Step 2 when prompted.
 
 On first connect, device pairing is auto-approved for local connections. You should see the chat interface ready to use.
+
+#### Through the Route
+
+Add the Route's address to the allowed origins:
+
+```bash
+ROUTE_HOST=$(oc get route openclaw -n my-openclaw -o jsonpath='{.spec.host}')
+echo "{\"gateway\": {\"controlUi\": {\"allowedOrigins\": [\"https://${ROUTE_HOST}\"]}}}" | \
+  oc exec -i deployment/openclaw -c gateway -n my-openclaw -- \
+  node /app/dist/index.js config patch --stdin
+```
+
+The change applies without a restart. Open `https://<ROUTE_HOST>` in your browser and paste the gateway token. A browser behind the Route is not a local connection, so the gateway asks you to approve the device. List the pending request and approve it by its request ID (`devices approve --latest` only shows the newest request):
+
+```bash
+oc exec deployment/openclaw -c gateway -n my-openclaw -- node /app/dist/index.js devices list
+oc exec deployment/openclaw -c gateway -n my-openclaw -- node /app/dist/index.js devices approve <request-id>
+```
+
+The Route sets `haproxy.router.openshift.io/set-forwarded-headers: never`, because OpenClaw answers requests with forwarded headers from a proxy outside `gateway.trustedProxies` with HTTP 403 (`proxy_attribution_required`). Do not add the cluster network to `gateway.trustedProxies` instead: on OVN-Kubernetes the kubelet's health probes come from the same node addresses as the router, and the gateway then rejects the probes as well.
+
+> The Route makes the gateway reachable for everyone who can reach the cluster's router. Access still needs the gateway token and an approved device.
 
 ## Update the configuration
 
