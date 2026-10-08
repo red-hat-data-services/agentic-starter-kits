@@ -1,9 +1,27 @@
+import sys
 from os import getenv
-from typing import Any, Dict, Optional
+from pathlib import Path
 
-from langchain_core.tools import tool
-from ogx_client import OgxClient
-from pydantic import BaseModel, Field
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from sqlite_shim import patch_sqlite3
+
+patch_sqlite3()
+
+from ai4rag.rag.embedding.openai_model import (  # noqa: E402
+    OpenAIEmbeddingModel,
+    OpenAIEmbeddingParams,
+)
+from ai4rag.rag.retrieval.retriever import Retriever  # noqa: E402
+from ai4rag.rag.vector_store import (  # noqa: E402
+    get_vector_store,
+    get_vector_store_config,
+)
+from langchain_core.tools import tool  # noqa: E402
+from openai import OpenAI  # noqa: E402
+from pydantic import BaseModel, Field  # noqa: E402
+
+from agentic_rag.config import AgentConfig  # noqa: E402
 
 try:
     import mlflow
@@ -11,143 +29,117 @@ try:
 except ImportError:
     mlflow = None
 
-# Cache to avoid re-initializing on every tool call
-_client_cache = None
-_vector_store_id_cache = None
+
+def _initialize_retriever() -> Retriever:
+    """Initialize the retriever from the starter-kit environment."""
+
+    maas_api_key = getenv("MAAS_API_KEY")
+    maas_base_url = getenv("MAAS_BASE_URL")
+    embedding_model_id = getenv("EMBEDDING_MODEL_ID")
+    embedding_dimension = int(getenv("EMBEDDING_DIMENSION", "768"))
+    provider_type = getenv("PROVIDER_TYPE", "milvus").lower()
+    collection_name = getenv(
+        "MILVUS_COLLECTION_NAME"
+        if provider_type == "milvus"
+        else "PGVECTOR_COLLECTION_NAME"
+    )
+
+    if not maas_api_key or not maas_base_url:
+        raise ValueError("MAAS_API_KEY and MAAS_BASE_URL must be set")
+    if not embedding_model_id:
+        raise ValueError("EMBEDDING_MODEL_ID must be set")
+    if not collection_name:
+        raise ValueError(f"Collection name for provider {provider_type!r} must be set")
+    if not maas_base_url.startswith("https://"):
+        raise ValueError("MAAS_BASE_URL must use HTTPS to protect API key transmission")
+
+    client = OpenAI(base_url=maas_base_url, api_key=maas_api_key)
+    embedding_model = OpenAIEmbeddingModel(
+        client=client,
+        model_id=embedding_model_id,
+        params=OpenAIEmbeddingParams(
+            embedding_dimension=embedding_dimension, context_length=1015
+        ),
+    )
+    vector_store = get_vector_store(
+        embedding_model=embedding_model,
+        config=get_vector_store_config(provider_type),
+        collection_name=collection_name,
+    )
+
+    ranker_alpha = getenv("RANKER_ALPHA")
+    return Retriever(
+        vector_store=vector_store,
+        method=getenv("RETRIEVAL_METHOD", "simple"),
+        number_of_chunks=int(getenv("NUMBER_OF_CHUNKS", "5")),
+        search_mode=getenv("SEARCH_MODE", "vector"),
+        ranker_strategy=getenv("RANKER_STRATEGY") or None,
+        ranker_alpha=float(ranker_alpha) if ranker_alpha else None,
+    )
 
 
-def get_retriever_components(
-    base_url: Optional[str] = None,
-) -> Dict[str, Any]:
-    """
-    Get the OGX client and vector store ID for retrieval.
+def create_retriever_tool():
+    """Create a retriever tool with a lazily initialized retriever."""
+    retriever_cache = None
 
-    Args:
-        base_url: Base URL for the OGX API
-
-    Returns:
-        Dict containing client and vector_store_id
-    """
-    global _client_cache, _vector_store_id_cache
-
-    # Return cached components if they exist
-    if _client_cache is not None and _vector_store_id_cache is not None:
-        return {"client": _client_cache, "vector_store_id": _vector_store_id_cache}
-
-    # Get configuration from environment if not provided
-    if not base_url:
-        base_url = getenv("BASE_URL")
-    vector_store_id = getenv("VECTOR_STORE_ID")
-    if not vector_store_id:
-        raise RuntimeError(
-            "VECTOR_STORE_ID env var is not set. Run load_documents.py first."
-            "or check if you provided right ID"
+    class RetrieverInput(BaseModel):
+        query: str = Field(
+            description="The search query describing what information to retrieve."
         )
 
-    if not base_url:
-        raise ValueError("BASE_URL must be set in environment or passed as argument")
+    @tool("retriever", args_schema=RetrieverInput)
+    def retriever_tool(query: str) -> str:
+        """Search the knowledge base for information relevant to the query."""
+        nonlocal retriever_cache
+        if isinstance(query, dict):
+            query = query.get("value", query.get("query", str(query)))
+        if retriever_cache is None:
+            retriever_cache = _initialize_retriever()
 
-    # OgxClient internally appends /v1, so strip it from base_url if present
-    ogx_base_url = base_url.rstrip("/").removesuffix("/v1")
-    client = OgxClient(
-        base_url=ogx_base_url,
-        api_key=getenv("API_KEY"),
-    )
+        retrieved_docs = retriever_cache.retrieve(query)
+        if not retrieved_docs:
+            return "No relevant information was found in the provided documents for this query."
 
-    print(f"Using vector store: {vector_store_id}")
-
-    # Cache the components
-    _client_cache = client
-    _vector_store_id_cache = vector_store_id
-
-    return {"client": client, "vector_store_id": vector_store_id}
-
-
-class RetrieverInput(BaseModel):
-    """Schema for the retriever tool input."""
-
-    query: str = Field(
-        description="The search query describing what information you need to retrieve."
-    )
-
-
-@tool("retriever", args_schema=RetrieverInput)
-def retriever_tool(query: str) -> str:
-    """
-    Search the knowledge base for information relevant to the query.
-
-    Use this tool when you need to find specific information from the knowledge base
-    to answer the user's question accurately.
-
-    Args:
-        query: The search query describing what information you need to retrieve.
-
-    Returns:
-        Retrieved documents containing relevant information.
-    """
-    # Handle case where query might be passed as a dict (defensive fix)
-    if isinstance(query, dict):
-        # Extract the actual query value from the dict
-        query = query.get("value", query.get("query", str(query)))
-
-    # Get retriever components
-    components = get_retriever_components()
-    client = components["client"]
-    vector_store_id = components["vector_store_id"]
-
-    # Query the vector store using OGX client
-    # The query parameter takes the text string, and the server handles embedding generation
-    response = client.vector_io.query(
-        vector_store_id=vector_store_id,
-        query=query,  # Pass the text query directly
-        params={
-            "max_chunks": 5  # Retrieve only the most relevant document (max_chunks not top_k or K)
-        },
-    )
-
-    # Format the retrieved documents
-    if not response.chunks:
-        return "No relevant information was found in the provided documents for this query."
-
-    formatted_docs = []
-    retriever_docs = []
-    for i, chunk in enumerate(response.chunks, 1):
-        # Skip chunks that are empty or just separators/whitespace
-        content = chunk.content.strip()
-        if not content or all(c in "=-_*#|" for c in content):
-            continue
-
-        # Extract source from chunk metadata (Pydantic object)
-        source = (
-            getattr(chunk.chunk_metadata, "source", "unknown")
-            if hasattr(chunk, "chunk_metadata")
-            else "unknown"
-        )
-
-        # Format each document with clear separation
-        doc_text = f"--- Document {len(formatted_docs) + 1} ---\n"
-        doc_text += f"Content: {content}\n"
-        doc_text += f"Source: {source}\n"
-        doc_text += f"Score: {getattr(chunk, 'score', 'N/A')}"
-
-        formatted_docs.append(doc_text)
-
-        if mlflow:
-            retriever_docs.append(
-                MlflowDocument(
-                    page_content=content,
-                    metadata={"source": source, "score": getattr(chunk, "score", None)},
-                )
+        config = AgentConfig.from_env()
+        formatted_docs = []
+        retriever_docs = []
+        for doc in retrieved_docs:
+            content = (
+                getattr(doc, "text", getattr(doc, "page_content", "")) or ""
+            ).strip()
+            if not content or all(c in "=-_*#|" for c in content):
+                continue
+            metadata = getattr(doc, "metadata", None) or {}
+            source = metadata.get("source", "unknown")
+            score = getattr(doc, "score", getattr(doc, "similarity", None))
+            score_str = f"{score:.3f}" if isinstance(score, (int, float)) else "N/A"
+            formatted_docs.append(
+                f"--- Document {len(formatted_docs) + 1} ---\nContent: {content}\nSource: {source}\nScore: {score_str}"
             )
+            if mlflow:
+                retriever_docs.append(
+                    MlflowDocument(
+                        page_content=content,
+                        metadata={"source": source, "score": score},
+                    )
+                )
 
-    # Log RETRIEVER span for MLflow RAG evaluation scorers
-    if mlflow and retriever_docs:
-        with mlflow.start_span(name="retrieve", span_type="RETRIEVER") as span:
-            span.set_inputs({"query": query})
-            span.set_outputs(retriever_docs)
+        if mlflow and retriever_docs:
+            with mlflow.start_span(name="retrieve", span_type="RETRIEVER") as span:
+                span.set_inputs({"query": query})
+                span.set_outputs(retriever_docs)
+        if not formatted_docs:
+            return "No relevant information was found in the provided documents for this query."
 
-    # If all chunks were filtered out, return no information message
-    if not formatted_docs:
-        return "No relevant information was found in the provided documents for this query."
+        context = "\n\n".join(
+            config.context_template.format(document=document, doc_number=index)
+            for index, document in enumerate(formatted_docs, 1)
+        )
+        return config.user_message_template.format(
+            reference_documents=context, question=query
+        )
 
-    return "\n\n".join(formatted_docs)
+    return retriever_tool
+
+
+retriever_tool = create_retriever_tool()

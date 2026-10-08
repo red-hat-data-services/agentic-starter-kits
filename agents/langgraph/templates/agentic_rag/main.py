@@ -6,23 +6,22 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from os import getenv
-from pathlib import Path
 from typing import Any
 
-import openai
-from agentic_rag.agent import get_graph_closure
-from agentic_rag.tracing import enable_tracing
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import (
-    FileResponse,
-    HTMLResponse,
-    JSONResponse,
-    StreamingResponse,
-)
-from langchain_core.exceptions import OutputParserException
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from langgraph.errors import GraphRecursionError
-from pydantic import BaseModel, Field, ValidationError
+from sqlite_shim import patch_sqlite3
+
+patch_sqlite3()
+
+import openai  # noqa: E402
+from agentic_rag.agent import get_graph_closure  # noqa: E402
+from agentic_rag.config import get_chat_base_url  # noqa: E402
+from agentic_rag.tracing import enable_tracing  # noqa: E402
+from fastapi import FastAPI, HTTPException  # noqa: E402
+from fastapi.responses import JSONResponse, StreamingResponse  # noqa: E402
+from langchain_core.exceptions import OutputParserException  # noqa: E402
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage  # noqa: E402
+from langgraph.errors import GraphRecursionError  # noqa: E402
+from pydantic import BaseModel, Field, ValidationError  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +144,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     global agent_graph
     enable_tracing()
 
-    base_url = getenv("BASE_URL")
+    base_url = get_chat_base_url()
     model_id = getenv("MODEL_ID")
 
     if base_url and not base_url.endswith("/v1"):
@@ -157,19 +156,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     agent_graph = graph_closure()
 
+    # Store in app.state for access by routes without circular imports
+    app.state.agent_graph = agent_graph
+
     yield
 
     agent_graph = None
+    app.state.agent_graph = None
 
 
 # Create FastAPI app
 app = FastAPI(
     title="LangGraph Agentic RAG API",
-    description="FastAPI service for LangGraph Agentic RAG Agent with OpenAI-compatible chat completions API.",
+    description=(
+        "FastAPI service for LangGraph Agentic RAG Agent with "
+        "OpenAI-compatible chat completions API. "
+        "To access the sandbox playground, click "
+        "[Sandbox Playground](/playground)."
+    ),
     lifespan=lifespan,
     openapi_tags=[
-        {"name": "Chat", "description": "Chat completion operations"},
         {"name": "Health", "description": "Service health monitoring"},
+        {"name": "Chat", "description": "Chat completion operations"},
     ],
 )
 
@@ -520,37 +528,13 @@ async def health():
     return body
 
 
-# ── Playground UI ────────────────────────────────────────────────────────────
-_BASE_DIR = Path(__file__).resolve().parent
-_PLAYGROUND_HTML = _BASE_DIR / "playground" / "templates" / "index.html"
-# In Docker the images are copied to /opt/app-root/src/images; locally they live at the repo root
-_IMAGES_DIR = _BASE_DIR / "images"
-if not _IMAGES_DIR.is_dir():
-    _IMAGES_DIR = _BASE_DIR.parent.parent.parent / "images"
+# ── Playground UI (sandbox mode) ─────────────────────────────────────────────
+# Include sandbox playground routes only when K8S_REVIEWER_TOKEN is set
+_SANDBOX_MODE = bool(getenv("K8S_REVIEWER_TOKEN", "").strip())
+if _SANDBOX_MODE:
+    from playground_sandbox import router as sandbox_router
 
-
-@app.get("/", response_class=HTMLResponse, include_in_schema=False)
-async def playground():
-    """Serve the playground chat UI."""
-    if _auth_enabled():
-        raise HTTPException(status_code=404, detail="Not found")
-    return FileResponse(_PLAYGROUND_HTML)
-
-
-@app.get("/images/{filename:path}", include_in_schema=False)
-async def serve_image(filename: str):
-    """Serve images from the project-level images directory."""
-    if _auth_enabled():
-        raise HTTPException(status_code=404, detail="Not found")
-    base = _IMAGES_DIR.resolve()
-    file_path = (base / filename).resolve()
-    try:
-        file_path.relative_to(base)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Image not found")
-    if not file_path.is_file():
-        raise HTTPException(status_code=404, detail="Image not found")
-    return FileResponse(file_path)
+    app.include_router(sandbox_router)
 
 
 if __name__ == "__main__":

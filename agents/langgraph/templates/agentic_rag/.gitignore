@@ -1,0 +1,2 @@
+# Cluster-specific Milvus PEM cert — do not commit
+*.crt

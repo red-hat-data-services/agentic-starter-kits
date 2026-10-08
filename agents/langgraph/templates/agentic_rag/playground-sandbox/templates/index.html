@@ -207,6 +207,31 @@
             gap: 12px;
         }
 
+        .auth-area {
+            padding: 10px 24px 0;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+        .auth-area input {
+            flex: 1;
+            max-width: 520px;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font: inherit;
+        }
+        .auth-help {
+            color: #888;
+        }
+        .auth-help code {
+            color: #555;
+            font-size: 11px;
+        }
+
         .input-area textarea {
             flex: 1;
             padding: 12px 16px;
@@ -255,6 +280,13 @@
     </div>
 </div>
 
+<div class="auth-area">
+    <label for="apiToken">API token</label>
+    <input id="apiToken" type="password" autocomplete="off"
+           placeholder="Paste the agent-client token from oc">
+    <span class="auth-help">Get it with <code>oc get secret agent-client-token -o jsonpath='{.data.token}' | base64 -d</code></span>
+</div>
+
 <div class="input-area">
     <textarea id="input" placeholder="Type your message..." rows="1"
               onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendMessage();}"></textarea>
@@ -266,6 +298,7 @@
     const input = document.getElementById('input');
     const sendBtn = document.getElementById('sendBtn');
     const statusDot = document.getElementById('statusDot');
+    const apiToken = document.getElementById('apiToken');
 
     const conversationHistory = [];
 
@@ -512,7 +545,13 @@
 
     async function sendMessage() {
         const text = input.value.trim();
+        const token = apiToken.value.trim();
         if (!text) return;
+        if (!token) {
+            addMessage('error', 'Enter the API token before sending a message.');
+            apiToken.focus();
+            return;
+        }
 
         input.value = '';
         input.style.height = 'auto';
@@ -530,7 +569,10 @@
 
             const response = await fetch('/api/chat', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Api-Key': token,
+                },
                 body: JSON.stringify({ messages: conversationHistory, stream: true }),
             });
 
