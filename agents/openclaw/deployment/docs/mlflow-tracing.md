@@ -1,6 +1,8 @@
 # MLflow Tracing for OpenClaw
 
-> Tested: 2026-06-17 on OpenShift 4.19 (ROSA) with `ghcr.io/openclaw/openclaw@sha256:037f49ba1595be9502fb345138d727cd0cfaecf1392cbe0cfe053fb4681386cd`, vLLM `gpt-oss-120b`, RHOAI MLflow 3.x
+> Tested: 2026-10-08 on OpenShift 4.22 with `ghcr.io/openclaw/openclaw@sha256:d0ded1dd76939b2bf4d67ef2d13247b8b160aa5666331d4a0b0e58811182cbb8` (2026.9.8), vLLM (Red Hat AI Inference Server 3.3, CPU) serving `Qwen2.5-0.5B-Instruct`, RHOAI 3.3.1 MLflow
+>
+> Previously tested: 2026-06-17 on OpenShift 4.19 (ROSA) with OpenClaw 2026.6.5, vLLM `gpt-oss-120b`, RHOAI MLflow 3.x
 
 OpenClaw natively emits OpenTelemetry (OTLP) traces via its `diagnostics-otel` plugin — no custom instrumentation, no Python hooks, no stop scripts. The [`overlays/mlflow-tracing/`](../overlays/mlflow-tracing/) Kustomize overlay in this repo deploys OpenClaw with an OTel collector sidecar that forwards spans to RHOAI's shared MLflow instance using standard OpenShift authentication and TLS. A multi-turn coding task with 8 model calls and 8 tool executions produced a 19-span trace with full tool names, latencies, request/response sizes, and context window stats — all visible in the MLflow UI.
 
@@ -36,7 +38,7 @@ The collector runs as a sidecar in the OpenClaw pod, receiving spans on localhos
 
 | Component | Image |
 |---|---|
-| OpenClaw | `ghcr.io/openclaw/openclaw@sha256:037f49ba1595be9502fb345138d727cd0cfaecf1392cbe0cfe053fb4681386cd` |
+| OpenClaw (2026.9.8) | `ghcr.io/openclaw/openclaw@sha256:d0ded1dd76939b2bf4d67ef2d13247b8b160aa5666331d4a0b0e58811182cbb8` |
 | OTel Collector (0.120.0) | `ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917` |
 | MLflow | RHOAI-managed (3.x) |
 
@@ -124,7 +126,7 @@ The `openclaw.model.call` spans capture `time_to_first_byte_ms` (40–294ms), `r
 ### Prerequisites
 
 - **RHOAI with MLflow** — the `mlflow` service must be running in `redhat-ods-applications` with `--enable-workspaces`
-- **The `mlflow-integration` ClusterRole** — shipped by the MLflow operator. Run `oc get clusterroles | grep mlflow-integration` to find the exact name (it may be prefixed, e.g. `mlflow-operator-mlflow-integration`). See [RBAC Setup](../../../../docs/mlflow-openshift-auth-and-tls.md#rbac-setup).
+- **The `mlflow-integration` ClusterRole** — shipped by the MLflow operator. Run `oc get clusterroles | grep mlflow-integration` to find the exact name (it may be prefixed, e.g. `mlflow-operator-mlflow-integration`). See [RBAC Setup](../../../../docs/mlflow-openshift-auth-and-tls.md#rbac-setup). RHOAI 3.3.1 does not ship this role; create it from the definition in [RBAC Setup](../../../../docs/mlflow-openshift-auth-and-tls.md#rbac-setup).
 - **OpenShift 4.17+** with namespace-scoped access (`oc login`)
 - **A vLLM-compatible model endpoint** (see [model-compatibility.md](model-compatibility.md))
 
@@ -193,6 +195,15 @@ oc apply -k overlays/my-tracing
 
 Wait for the `openclaw` pod to reach `2/2 Running` (gateway + otel-collector sidecar).
 
+If OpenClaw already runs in this namespace, its init container keeps the existing `openclaw.json` on the PVC, so the overlay's config does not take effect by itself. Patch it into the running config and restart the gateway:
+
+```bash
+yq '.data["openclaw.json"]' overlays/my-tracing/configmap-patch.yaml | \
+  oc exec -i deployment/openclaw -c gateway -n YOUR-NAMESPACE -- \
+  node /app/dist/index.js config patch --stdin
+oc rollout restart deployment/openclaw -n YOUR-NAMESPACE
+```
+
 ### Step 5: Connect
 
 Port-forward OpenClaw:
@@ -219,6 +230,18 @@ Navigate to the `openclaw-tracing` experiment in your workspace to view traces.
 **Root cause:** The experiment ID in `otel-collector-config.yaml` doesn't exist in the target workspace. MLflow returns a 404 with no body, and the collector only logs the status code.
 
 **Fix:** Verify the experiment exists in your workspace. Use the `get-by-name` API from Step 3 to look up the correct ID. Each workspace has its own experiment ID sequence — an experiment that exists in one workspace may not exist in another.
+
+### Collector logs "error parsing protobuf response"
+
+**Symptom:** The OTel collector logs `Exporting failed. Dropping data. ... error parsing protobuf response: unexpected EOF` for every batch.
+
+**Cause:** MLflow accepts the traces but answers the protobuf request with a JSON body, which the collector cannot parse. The traces are stored; the collector does not retry the batch. Check the MLflow log for `POST /v1/traces HTTP/1.1" 200 OK`.
+
+### Traces rejected with HTTP 400 ("Invalid OpenTelemetry protobuf format")
+
+**Cause:** MLflow's `/v1/traces` endpoint does not accept gzip-compressed requests, and gzip is the default of the collector's `otlphttp` exporter.
+
+**Fix:** Keep `compression: none` on the `otlphttp` exporter in `otel-collector-config.yaml`, as the overlay does.
 
 ### WebSocket connections flap through the Route
 

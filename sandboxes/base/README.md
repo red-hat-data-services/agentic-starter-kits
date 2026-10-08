@@ -8,7 +8,7 @@ Shared base image for all agent sandbox flavors. Contains system dependencies, u
 - **System packages**: ca-certificates, curl, git, jq, iproute, nftables, bind-utils, procps-ng, vim-minimal, tar, gzip, ripgrep
 - **Users**: `sandbox` (interactive, GID=0 for OpenShift arbitrary-UID) and `supervisor` (non-login)
 - **Directories**: `/sandbox` (home), `/workspace` (working dir), `/etc/openshell/agents/` (install scripts)
-- **Policy**: default `policy.yaml` at `/etc/openshell/policy.yaml`
+- **Policy**: default `policy.yaml` at `/etc/openshell/policy.yaml`, written in the OpenShell policy schema (`version: 1`). OpenShell 0.1 and later refuse to start a sandbox whose image policy does not parse, so rebuild the base and flavor images after changing it.
 - **Entrypoint**: smart entrypoint that accepts an agent name, installs it if missing, and execs into it
 
 ## What's NOT included

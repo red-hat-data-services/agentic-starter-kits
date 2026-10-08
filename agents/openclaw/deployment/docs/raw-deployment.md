@@ -1,6 +1,8 @@
 # Deploying OpenClaw on OpenShift with Raw Manifests
 
-> Tested: 2026-06-10 on OpenShift 4.19 (ROSA) with OpenClaw 2026.6.5, vLLM via OGX 1.0.2
+> Tested: 2026-10-08 on OpenShift 4.22 with OpenClaw 2026.9.8 (fresh install, and upgrade of a 2026.6.5 deployment), vLLM (Red Hat AI Inference Server 3.3, CPU) serving Qwen2.5-0.5B-Instruct
+>
+> Previously tested: 2026-06-10 on OpenShift 4.19 (ROSA) with OpenClaw 2026.6.5, vLLM via OGX 1.0.2
 
 Deploy [OpenClaw](https://github.com/openclaw/openclaw) on OpenShift using raw Kustomize manifests. This approach gives full control over the deployment configuration without the openclaw-installer abstraction. See [installer-deployment.md](installer-deployment.md).
 
@@ -173,6 +175,46 @@ oc port-forward deployment/openclaw 18789:18789 -n my-openclaw
 Open <http://localhost:18789> in your browser. Paste the gateway token from Step 2 when prompted.
 
 On first connect, device pairing is auto-approved for local connections. You should see the chat interface ready to use.
+
+## Update the configuration
+
+The init container copies `openclaw.json` from the ConfigMap only on the first start. After that, OpenClaw owns the copy on the PVC and keeps its runtime changes there. To change the configuration of a running deployment, send a patch to the OpenClaw CLI in the gateway container. Objects merge, arrays and scalars replace, and `null` deletes a key:
+
+```bash
+echo '{"models": {"providers": {"vllm": {"baseUrl": "https://NEW-ENDPOINT/v1"}}}}' | \
+  oc exec -i deployment/openclaw -c gateway -n my-openclaw -- \
+  node /app/dist/index.js config patch --stdin
+```
+
+OpenClaw validates the patch before it writes it and reports whether the gateway needs a restart. Update the ConfigMap as well, so that a new PVC starts with the same configuration.
+
+## Upgrading an existing deployment
+
+Back up the OpenClaw state first, while no agent run is active:
+
+```bash
+oc exec deployment/openclaw -c gateway -n my-openclaw -- \
+  tar czf - -C /home/node .openclaw > openclaw-backup.tgz
+```
+
+With manifests older than the OpenClaw 2026.9 update, the state lives at the root of the PVC: use `-C /home/node/.openclaw .` instead.
+
+Then apply the updated manifests:
+
+```bash
+oc apply -k manifests/ -n my-openclaw
+```
+
+On the first start after the upgrade:
+
+- The init container moves state that earlier versions of these manifests kept at the root of the PVC into `~/.openclaw`, so that OpenClaw owns its state directory.
+- The image entrypoint runs `openclaw doctor --fix`, which migrates the state to the new OpenClaw version and saves a backup of the state database first. The startup probe allows 5 minutes for this.
+
+Check the gateway log for `Auto-migrated legacy state` and `[gateway] ready`:
+
+```bash
+oc logs deployment/openclaw -c gateway -n my-openclaw | grep -E "migrated|ready"
+```
 
 ## Next: Enable tracing (optional)
 

@@ -9,6 +9,7 @@ Common issues and solutions for OpenClaw on OpenShift. Issues are listed from mo
 - [Heartbeat flooding the chat UI](#heartbeat-flooding-the-chat-ui)
 - [Device pairing required after SSO login](#device-pairing-required-after-sso-login)
 - [Pod stuck in CrashLoopBackOff](#pod-stuck-in-crashloopbackoff)
+- [Gateway fails with "EPERM: operation not permitted, fchmod"](#gateway-fails-with-eperm-operation-not-permitted-fchmod)
 - [Config clobbered on restart](#config-clobbered-on-restart)
 - [Device pairing rate limiter](#device-pairing-rate-limiter)
 - [Diagnostic commands](#diagnostic-commands)
@@ -234,11 +235,29 @@ oc scale deployment/openclaw --replicas=1 -n <namespace>
 
 ---
 
+## Gateway fails with "EPERM: operation not permitted, fchmod"
+
+**Severity:** Blocking: gateway is down, or configuration changes fail.
+
+**Cause:** OpenClaw 2026.9 tightens the permissions of its state directory (`~/.openclaw`) when it starts, migrates state, or writes its configuration, and it needs a writable `~/.cache`. Manifests older than the OpenClaw 2026.9 update mounted the PVC directly at `/home/node/.openclaw`. The state directory was then the volume's mount point, which belongs to root, and `/home/node` belongs to the image's `node` user, so OpenShift's arbitrary UID can change neither.
+
+**Symptoms:**
+
+```text
+Doctor could not complete maintenance. Check the reported service state and resolve the failure.
+EPERM: operation not permitted, fchmod
+Unable to create fallback OpenClaw temp dir: /home/node/.cache/openclaw-<uid> | EACCES: permission denied
+```
+
+**Fix:** Apply the current manifests. They mount the PVC at `/home/node`, and the init container moves existing state into `~/.openclaw` once. See [Upgrading an existing deployment](raw-deployment.md#upgrading-an-existing-deployment).
+
+---
+
 ## Config clobbered on restart
 
 **Severity:** Moderate — settings revert unexpectedly.
 
-**Cause:** OpenClaw's init container copies `openclaw.json` from the ConfigMap to the PVC on every pod start. However, the gateway also writes back to the same file at runtime (model discovery, plugin state). On the next restart, the init container overwrites these runtime changes with the original ConfigMap version. This produces `.clobbered.*` backup files on the PVC.
+**Cause:** Manifests older than the OpenClaw 2026.9 update copied `openclaw.json` from the ConfigMap to the PVC on every pod start. The gateway also writes back to the same file at runtime (model discovery, plugin state), so the next restart overwrote these runtime changes and left `.clobbered.*` backup files on the PVC. OpenClaw 2026.9 additionally refuses such a replaced config and tries to restore its last good copy.
 
 **Symptoms:**
 
@@ -247,18 +266,7 @@ oc exec deployment/openclaw -c gateway -n <namespace> -- ls /home/node/.openclaw
 # Shows: openclaw.json.clobbered.2026-04-15T14-45-55-777Z
 ```
 
-**Fix:** Update the ConfigMap to include any runtime changes you want to preserve:
-
-```bash
-# Export the running config (not the ConfigMap)
-oc exec deployment/openclaw -c gateway -n <namespace> -- \
-  cat /home/node/.openclaw/openclaw.json > /tmp/openclaw-config.json
-
-# Review and apply
-oc create configmap openclaw-config \
-  --from-file=openclaw.json=/tmp/openclaw-config.json \
-  -n <namespace> --dry-run=client -o yaml | oc apply -f -
-```
+**Fix:** Apply the current manifests. Their init container copies the ConfigMap only when no `openclaw.json` exists yet; after that, OpenClaw owns the file. Change the running configuration with `openclaw config patch`, as described in [Update the configuration](raw-deployment.md#update-the-configuration).
 
 ---
 

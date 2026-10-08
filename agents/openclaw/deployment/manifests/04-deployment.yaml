@@ -21,19 +21,38 @@ spec:
       initContainers:
         - name: init-config
           # WARNING: This is an upstream community image, not built or validated by Red Hat.
-          image: ghcr.io/openclaw/openclaw@sha256:037f49ba1595be9502fb345138d727cd0cfaecf1392cbe0cfe053fb4681386cd
+          image: ghcr.io/openclaw/openclaw@sha256:d0ded1dd76939b2bf4d67ef2d13247b8b160aa5666331d4a0b0e58811182cbb8
           command:
             - sh
             - -c
             - |
-              mkdir -p /home/node/.openclaw/workspace
-              cp /config/openclaw.json /home/node/.openclaw/openclaw.json
-              echo "Config initialized"
+              set -e
+              cd /home/node
+              # The PVC is mounted at HOME so that OpenClaw owns its state directory
+              # (~/.openclaw); the volume's mount point itself belongs to root. Earlier
+              # versions of this recipe mounted the PVC at ~/.openclaw: move that state
+              # into ~/.openclaw once.
+              if [ ! -d .openclaw ] && [ -f openclaw.json ]; then
+                mkdir .openclaw
+                find /home/node -mindepth 1 -maxdepth 1 ! -name lost+found ! -name .openclaw \
+                  -exec mv -t /home/node/.openclaw {} +
+                echo "Moved existing state to ~/.openclaw"
+              fi
+              mkdir -p .openclaw/workspace
+              # Seed the config only on first start. OpenClaw owns the PVC copy afterwards
+              # and refuses to start when it was replaced behind its back. To apply ConfigMap
+              # changes later, see "Update the configuration" in docs/raw-deployment.md.
+              if [ -f .openclaw/openclaw.json ]; then
+                echo "Config exists, keeping it"
+              else
+                cp /config/openclaw.json .openclaw/openclaw.json
+                echo "Config initialized"
+              fi
           volumeMounts:
             - name: config
               mountPath: /config
             - name: data
-              mountPath: /home/node/.openclaw
+              mountPath: /home/node
           resources:
             limits:
               memory: 128Mi
@@ -46,9 +65,11 @@ spec:
       containers:
         - name: gateway
           # WARNING: This is an upstream community image, not built or validated by Red Hat.
-          image: ghcr.io/openclaw/openclaw@sha256:037f49ba1595be9502fb345138d727cd0cfaecf1392cbe0cfe053fb4681386cd
-          # Explicit entrypoint required — the image default doesn't start the gateway on OpenShift
-          command:
+          image: ghcr.io/openclaw/openclaw@sha256:d0ded1dd76939b2bf4d67ef2d13247b8b160aa5666331d4a0b0e58811182cbb8
+          # Explicit gateway command required: the image default doesn't start the gateway on OpenShift.
+          # Passed as args (not command) so the image entrypoint runs `openclaw doctor --fix`
+          # state migrations before it starts the gateway, for example after an image upgrade.
+          args:
             - node
             - /app/dist/index.js
             - gateway
@@ -75,26 +96,36 @@ spec:
                   key: VLLM_API_KEY
           volumeMounts:
             - name: data
-              mountPath: /home/node/.openclaw
+              mountPath: /home/node
+          # OpenClaw 2026.9 idles at about 750Mi; CLI commands run with `oc exec` share this limit.
           resources:
             requests:
-              memory: 256Mi
+              memory: 512Mi
               cpu: 250m
             limits:
-              memory: 1Gi
+              memory: 2Gi
               cpu: "1"
+          # Probe the gateway's health endpoints, not /: the Control UI answers unknown
+          # paths with 200. The startup budget (5 minutes) covers the doctor pass after an upgrade.
+          startupProbe:
+            httpGet:
+              path: /startupz
+              port: 18789
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           livenessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: 18789
-            initialDelaySeconds: 15
             periodSeconds: 30
+            timeoutSeconds: 10
           readinessProbe:
             httpGet:
-              path: /
+              path: /startupz
               port: 18789
-            initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 5
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

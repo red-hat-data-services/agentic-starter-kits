@@ -109,29 +109,57 @@ oc apply -k manifests/
 
 ## Running in an OpenShell Sandbox
 
-To run OpenClaw inside an [OpenShell](https://github.com/NVIDIA/OpenShell-Community) sandbox, use the `Containerfile.openshell`. This builds on the shared base image (`sandboxes/base/`) and adds Node.js and the OpenClaw CLI on top.
+To run OpenClaw inside an [OpenShell](https://github.com/NVIDIA/OpenShell) sandbox, use the `Containerfile.openshell`. This builds on the shared base image (`sandboxes/base/`) and adds Node.js and the OpenClaw CLI on top.
 
-### Build the OpenShell-compatible image
+### Build and push the image
+
+Since OpenShell 0.1, `openshell sandbox create --from` takes an image reference only, and a gateway running on a cluster pulls that image from a registry. Build the image and push it to a registry your cluster can pull from:
 
 ```bash
-podman build --platform linux/amd64 -t openclaw-sandbox:latest -f Containerfile.openshell .
+podman build --platform linux/amd64 -t <registry>/<namespace>/openclaw-sandbox:latest -f Containerfile.openshell .
+podman push <registry>/<namespace>/openclaw-sandbox:latest
 ```
 
 ### Create a sandbox
 
+Start the OpenClaw gateway as the sandbox's main process:
+
 ```bash
-openshell sandbox create --from openclaw-sandbox:latest
+openshell sandbox create --name openclaw --detach \
+  --from <registry>/<namespace>/openclaw-sandbox:latest \
+  -- openclaw gateway --bind loopback --auth none --port 18789 --allow-unconfigured
 ```
+
+Forward the gateway port to your machine, then open `http://localhost:18789`:
+
+```bash
+openshell forward start 18789 openclaw --background
+```
+
+### Allow access to the model endpoint
+
+The sandbox policy denies all network egress by default. Allow the Node.js binary that runs OpenClaw to reach your model endpoint:
+
+```bash
+openshell policy update openclaw \
+  --add-endpoint <model-host>:<port> \
+  --binary /usr/local/bin/node \
+  --rule-name model_endpoint --wait
+```
+
+The `--binary` value must be the resolved path of the executable (`/usr/local/bin/node` in this image). OpenShell matches the path the kernel reports for the process, not a symlink.
 
 ### What `Containerfile.openshell` does
 
-Builds on the shared base image (`quay.io/hmoghani/openshell-base`) which provides the `sandbox` user, system packages, and OpenShell entrypoint. This flavor adds:
+Builds on the shared base image (`quay.io/hmoghani/openshell-base`) which provides the `sandbox` user, system packages, and the default sandbox policy. This flavor adds:
 
-- Node.js and npm (from UBI repos)
+- Node.js from the official nodejs.org build (version pinned, checksum verified). OpenClaw 2026.9 needs Node.js 24.16 or newer with a WAL-reset-safe SQLite; the UBI Node.js packages link the system SQLite 3.46.1, which OpenClaw refuses to run on.
 - OpenClaw via npm (version pinned, MIT)
 
 ### Notes
 
-- OpenShell's supervisor takes over as PID 1 and does not automatically start the OpenClaw gateway. Start it manually inside the sandbox: `openclaw gateway --bind loopback --auth none --port 18789 --allow-unconfigured`
+- OpenShell's supervisor runs as PID 1 and ignores the image entrypoint. The command after `--` becomes the sandbox's main process. Without a command, the sandbox starts a shell, and you start the gateway by hand: `openclaw gateway --bind loopback --auth none --port 18789 --allow-unconfigured`
+- On OpenShift, OpenShell runs the sandbox with a UID and GID from the namespace's range. The sandbox works in `/sandbox`; `/workspace` from the base image is not writable there.
+- Sandboxes created with OpenShell 0.0.x must be recreated after an upgrade to 0.1.
 - Build with `--platform linux/amd64` when targeting x86_64 clusters from Apple Silicon machines.
-- Tested on OpenShell v0.0.58, OpenShift 4.21 (June 2026).
+- Tested on OpenShell v0.1.2 (Helm chart 0.1.2), OpenShift 4.22 (October 2026).
