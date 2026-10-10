@@ -2,6 +2,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # Base OpenClaw manifests + RHOAI MLflow tracing resources
+# WARNING: ../../manifests re-applies the base Secret (manifests/01-secret.yaml,
+# placeholder token/key) and PVC (manifests/03-pvc.yaml, gp3-csi). Set real
+# secret values before applying this overlay to a running deployment, and add a
+# storage-class patch here if gp3-csi is not the storage class you want.
 resources:
   - ../../manifests
   - rbac.yaml

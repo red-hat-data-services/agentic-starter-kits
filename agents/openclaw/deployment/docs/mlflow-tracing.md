@@ -212,6 +212,8 @@ oc rollout restart deployment/openclaw -n YOUR-NAMESPACE
 
 > **Note:** patching the whole overlay config replaces the existing model settings, and OpenClaw refuses the patch when it would drop a provider's existing model entries (for example a different model ID). Preview the change first by adding `--dry-run` (`config patch --stdin --dry-run`) to see what would be written, and reconcile any model-ID differences before patching for real.
 
+> **Note:** the overlay's `plugins.allow` is an exclusive allowlist (`["diagnostics-otel"]`), so applying it disables the other bundled plugins, including `device-pair`. The gateway doctor then warns that node onboarding join codes and `openclaw connect` are unavailable. Control UI login and device pairing still work. To keep a bundled plugin, add it to the `allow` list in your overlay's `configmap-patch.yaml`.
+
 ### Step 5: Connect
 
 Port-forward OpenClaw:

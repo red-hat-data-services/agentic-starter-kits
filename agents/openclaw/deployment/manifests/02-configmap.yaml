@@ -34,7 +34,7 @@ data:
           "vllm": {
             "baseUrl": "https://YOUR-VLLM-OR-OGX-ENDPOINT/v1",
             "api": "openai-completions",
-            "apiKey": "not-needed",
+            "apiKey": "${VLLM_API_KEY}",
             "models": [
               {
                 "id": "YOUR-MODEL-ID",

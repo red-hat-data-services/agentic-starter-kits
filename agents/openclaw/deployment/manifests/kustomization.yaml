@@ -9,6 +9,8 @@ resources:
   - 05-service.yaml
   - 06-route.yaml
 
-commonLabels:
-  app.kubernetes.io/name: openclaw
-  app.kubernetes.io/part-of: openclaw-on-openshift
+labels:
+  - pairs:
+      app.kubernetes.io/name: openclaw
+      app.kubernetes.io/part-of: openclaw-on-openshift
+    includeSelectors: true

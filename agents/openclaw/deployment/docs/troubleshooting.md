@@ -126,8 +126,8 @@ model fallback decision: decision=candidate_failed requested=anthropic/claude-so
 ```bash
 # Patch the model provider config on the running gateway.
 # Objects merge, arrays and scalars replace, null deletes a key.
-echo '{"agents": {"defaults": {"model": {"primary": "openai-compat/gpt-oss-20b"}}},
-       "models": {"providers": {"openai-compat": {"baseUrl": "https://YOUR-VLLM-ENDPOINT/v1"}}}}' | \
+echo '{"agents": {"defaults": {"model": {"primary": "vllm/gpt-oss-20b"}}},
+       "models": {"providers": {"vllm": {"baseUrl": "https://YOUR-VLLM-ENDPOINT/v1"}}}}' | \
   oc exec -i deployment/openclaw -c gateway -n <namespace> -- \
   node /app/dist/index.js config patch --stdin
 
@@ -143,7 +143,7 @@ oc logs deployment/openclaw -c gateway -n <namespace> | grep "agent model"
 Expected output:
 
 ```text
-[gateway] agent model: openai-compat/gpt-oss-20b
+[gateway] agent model: vllm/gpt-oss-20b
 ```
 
 **Prevention:** Always check the gateway logs after every rollout to confirm the model matches your intent.

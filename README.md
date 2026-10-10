@@ -48,7 +48,7 @@ Pre-built agents and tools deployed on OpenShift.
 | Framework | Agent | Description |
 |-----------|-------|-------------|
 | **Claude Code** | [Claude Code on OpenShift](./agents/claude-code/) | Deploy Claude Code on OpenShift with multiple backend options (Anthropic API, Vertex AI, vLLM, OGX). Includes deployment manifests and configuration guides. |
-| **OpenClaw** | [OpenClaw on OpenShift](./agents/openclaw/deployment/) | Deploy OpenClaw on OpenShift with vLLM model serving, OAuth SSO, and production-grade security. Kustomize-based deployment using pre-built images. |
+| **OpenClaw** | [OpenClaw on OpenShift](./agents/openclaw/deployment/) | Deploy OpenClaw on OpenShift with vLLM model serving and token-based gateway auth (OAuth SSO available via the optional claw-installer path). Kustomize-based deployment using pre-built images. |
 | **Codex** | [Codex on OpenShift](./agents/codex/deployment/) | Run OpenAI Codex CLI inside an OpenShell sandbox on OpenShift. Containerfile-based deployment. |
 | **OpenCode** | [OpenCode on OpenShift](./agents/opencode/deployment/) | Run OpenCode inside an OpenShell sandbox on OpenShift. Containerfile-based deployment. |
 

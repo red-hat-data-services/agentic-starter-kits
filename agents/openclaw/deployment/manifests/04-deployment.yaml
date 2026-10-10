@@ -5,6 +5,10 @@ metadata:
   labels:
     app: openclaw
 spec:
+  # The gateway keeps its state in SQLite on the PVC, which allows no concurrent
+  # writers, so the recipe runs a single replica with the Recreate strategy (the
+  # old Pod stops before the new one starts). This applies to the raw manifests
+  # as well as the installer path; do not scale the Deployment above 1.
   replicas: 1
   strategy:
     type: Recreate
