@@ -91,6 +91,8 @@ openclaw.message.processed           (turn-level root, 14.6s)
 
 ### Prototype trace data
 
+> The example traces and screenshots below are from an earlier prototype run (vLLM `gpt-oss-120b`), not the 2026-10-08 `Qwen2.5-0.5B-Instruct` test named at the top of this document. They illustrate span shape and attributes; the exact counts, durations, and model name differ from the current setup.
+
 **Cluster:** ROSA `agentic-mcp` | **Namespace:** `opc-on-ocp` | **Model:** `vllm/gpt-oss-120b`
 
 | Trace | Spans | Duration | Description |
@@ -167,8 +169,10 @@ This creates:
 RHOAI MLflow uses workspaces — your namespace maps to a workspace. Create an experiment in your workspace:
 
 ```bash
-MLFLOW_ROUTE=$(oc get route mlflow -n redhat-ods-applications -o jsonpath='{.spec.host}')
-TOKEN=$(oc create token openclaw-tracing)
+# RHOAI 3.3.1 exposes MLflow through an HTTPRoute on the data-science-gateway, not a Route named "mlflow".
+# An `oc get route mlflow` returns NotFound there; read the host from the HTTPRoute instead.
+MLFLOW_ROUTE=$(oc get httproute mlflow -n redhat-ods-applications -o jsonpath='{.spec.hostnames[0]}')
+TOKEN=$(oc create token openclaw-tracing -n YOUR-NAMESPACE)
 
 curl -s -X POST "https://${MLFLOW_ROUTE}/mlflow/api/2.0/mlflow/experiments/create" \
   -H "Authorization: Bearer ${TOKEN}" \
@@ -176,6 +180,8 @@ curl -s -X POST "https://${MLFLOW_ROUTE}/mlflow/api/2.0/mlflow/experiments/creat
   -H "X-MLFLOW-WORKSPACE: YOUR-NAMESPACE" \
   -d '{"name": "openclaw-tracing"}' | python3 -m json.tool
 ```
+
+> **Note (RHOAI 3.3.1):** the `data-science-gateway` fronts MLflow with an OAuth proxy built for browser access, which turns programmatic bearer-token API calls away. If these `curl` commands are rejected at the gateway, create and look up the experiment from the MLflow UI instead (RHOAI dashboard), or run them from inside the cluster against the MLflow service.
 
 Note the `experiment_id` from the response. If the experiment already exists, look it up:
 
@@ -204,6 +210,8 @@ yq '.data["openclaw.json"]' overlays/my-tracing/configmap-patch.yaml | \
 oc rollout restart deployment/openclaw -n YOUR-NAMESPACE
 ```
 
+> **Note:** patching the whole overlay config replaces the existing model settings, and OpenClaw refuses the patch when it would drop a provider's existing model entries (for example a different model ID). Preview the change first by adding `--dry-run` (`config patch --stdin --dry-run`) to see what would be written, and reconcile any model-ID differences before patching for real.
+
 ### Step 5: Connect
 
 Port-forward OpenClaw:
@@ -213,7 +221,7 @@ oc port-forward deploy/openclaw 18789:18789 &
 ```
 
 - **OpenClaw Control UI:** <http://localhost:18789> — paste the gateway token from `01-secret.yaml` when prompted
-- **MLflow UI:** Access via the RHOAI dashboard or `oc get route mlflow -n redhat-ods-applications -o jsonpath='{.spec.host}'`
+- **MLflow UI:** Access via the RHOAI dashboard. On RHOAI 3.3.1 there is no Route named `mlflow`; read the host from the HTTPRoute with `oc get httproute mlflow -n redhat-ods-applications -o jsonpath='{.spec.hostnames[0]}'`
 
 Navigate to the `openclaw-tracing` experiment in your workspace to view traces.
 
@@ -255,11 +263,11 @@ Navigate to the `openclaw-tracing` experiment in your workspace to view traces.
 
 1. **No tool call parameters or results in spans.** `openclaw.tool.execution` captures tool name, source, and latency, but not the input parameters or return values. Tracing what a tool was asked to do and what it returned requires cross-referencing session trajectory files.
 
-2. **No token usage in spans.** `openclaw.model.call` captures request/response byte sizes but not discrete token counts. `llm.usage.input_tokens` / `llm.usage.output_tokens` would align with [OTel Semantic Conventions for GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/) and enable cost tracking.
+2. **Token usage attributes.** OpenClaw 2026.9.8 emits usage attributes: `gen_ai.usage.*` on `openclaw.model.call`, plus an `openclaw.model.usage` span carrying `openclaw.tokens.*` (input, output, cache_read, cache_write, total), which align with the [OTel Semantic Conventions for GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/) and enable cost tracking. These are populated when the provider result carries usage; we have not verified them live against vLLM responses in this setup.
 
 3. **No session ID across traces.** Multi-turn conversations produce separate traces per turn with no shared identifier. Correlating turns into a conversation requires manual timestamp matching in the MLflow UI.
 
-4. **TracerProvider breaks on in-process restart.** The `diagnostics-otel` plugin does not re-initialize its `TracerProvider` / `BatchSpanProcessor` when the gateway receives SIGUSR1. Runtime spans are silently lost until a full pod restart. This overlay avoids the issue by setting the API key via env var interpolation instead of `paste-api-key`, but any config mutation that triggers SIGUSR1 will still break tracing.
+4. **Restart signal and exporter reload.** In OpenClaw 2026.9.8, `SIGUSR1` starts Node's inspector and no longer restarts the gateway; the service-aware restart signal is `SIGUSR2` (prefer `openclaw gateway restart`). Changes to `diagnostics.otel` hot-reload only the exporter service: the previous generation flushes and unsubscribes before the replacement starts, so an in-process restart no longer silently loses tracing. This overlay still sets the API key via env var interpolation instead of `paste-api-key`, which keeps the config stable across restarts.
 
 ---
 

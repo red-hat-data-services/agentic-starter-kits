@@ -14,11 +14,14 @@ filesystem_policy:
     - /sandbox
     - /workspace
     - /tmp
+    - /var/tmp
     - /dev/null
 
 landlock:
   compatibility: best_effort
 
 process:
+  # run_as_user and run_as_group apply only to the Docker and Podman drivers,
+  # and only from the create-time policy. OpenShell ignores them on Kubernetes.
   run_as_user: sandbox
   run_as_group: sandbox

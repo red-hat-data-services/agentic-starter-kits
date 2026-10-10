@@ -110,7 +110,7 @@ Then add the Route to the allowed origins, as described in [Access the Control U
 
 **Severity:** Blocking — agent cannot respond to messages.
 
-**Cause:** OpenClaw auto-generates its config on first start. If the gateway detects a provider (e.g., Anthropic) it will override the ConfigMap settings with its own defaults. This means the ConfigMap says vLLM but the gateway is actually trying to use Anthropic.
+**Cause:** The init container seeds `openclaw.json` onto the PVC only once, and after that OpenClaw owns the file. If the gateway detects a provider (e.g., Anthropic) it records its own defaults in that on-disk config. The ConfigMap may still say vLLM while the running gateway is actually trying to use Anthropic, and editing the ConfigMap no longer changes the running config.
 
 **Symptoms in logs:**
 
@@ -121,22 +121,17 @@ model fallback decision: decision=candidate_failed requested=anthropic/claude-so
 
 **Symptoms in UI:** The model selector in the Control UI shows a model name you did not configure (e.g., `gpt-oss-20b` instead of `gemini-2.5-pro`).
 
-**Fix:** Patch the ConfigMap with the correct model provider config, then restart:
+**Fix:** Patch the running gateway with `openclaw config patch`. Editing the ConfigMap and restarting no longer changes a running deployment, because the init container seeds `openclaw.json` only once:
 
 ```bash
-# Export current config
-oc get configmap openclaw-config -n <namespace> \
-  -o jsonpath='{.data.openclaw\.json}' > /tmp/openclaw-config.json
+# Patch the model provider config on the running gateway.
+# Objects merge, arrays and scalars replace, null deletes a key.
+echo '{"agents": {"defaults": {"model": {"primary": "openai-compat/gpt-oss-20b"}}},
+       "models": {"providers": {"openai-compat": {"baseUrl": "https://YOUR-VLLM-ENDPOINT/v1"}}}}' | \
+  oc exec -i deployment/openclaw -c gateway -n <namespace> -- \
+  node /app/dist/index.js config patch --stdin
 
-# Edit /tmp/openclaw-config.json:
-# - Set agents.defaults.model.primary to "openai-compat/gpt-oss-20b"
-# - Add models.providers.openai-compat with your vLLM endpoint
-
-# Apply and restart
-oc create configmap openclaw-config \
-  --from-file=openclaw.json=/tmp/openclaw-config.json \
-  -n <namespace> --dry-run=client -o yaml | oc apply -f -
-oc rollout restart deployment/openclaw -n <namespace>
+# Update the ConfigMap too, so a fresh PVC starts with the same config.
 ```
 
 **Verification:**
@@ -159,7 +154,7 @@ Expected output:
 
 **Severity:** Moderate — consumes API tokens and clutters the chat history.
 
-**Cause:** OpenClaw's heartbeat scheduler fires every 30 minutes by default, sending `HEARTBEAT_OK` messages to the chat. If the model provider is misconfigured, each heartbeat triggers an error instead, producing dozens of error messages per day.
+**Cause:** OpenClaw's heartbeat scheduler can fire every 30 minutes by default, sending `HEARTBEAT_OK` messages to the chat. If the model provider is misconfigured, each heartbeat triggers an error instead, producing dozens of error messages per day. This applies only to deployments that set a heartbeat target or a resolvable owner. With the recipe's default config (no channels and no owner), ambient heartbeat polls are skipped with `reason=no-route`, so this symptom does not appear.
 
 **Symptoms in UI:** Repeated "HEARTBEAT_OK" messages or "Agent failed before reply" errors every 30 minutes.
 
@@ -178,7 +173,7 @@ oc get configmap openclaw-config -n <namespace> \
 
 # Add to agents.defaults:
 #   "heartbeat": { "every": "0m" }
-# Also add to each agent in agents.list:
+# Also add to each agent in agents.entries:
 #   "heartbeat": { "every": "0m" }
 
 # Apply and restart
@@ -232,7 +227,7 @@ Alternatively, use the **Open** action from the installer's **Instances** tab �
 
 **Severity:** Blocking — gateway is down.
 
-**Cause:** OpenClaw auto-generates config at startup. If the config on the PVC conflicts with the ConfigMap, the gateway detects a change, overwrites the file, and triggers a process restart that kills PID 1.
+**Cause:** With manifests older than the OpenClaw 2026.9 update, `openclaw.json` was copied from the ConfigMap to the PVC on every start. A conflict between that copy and the config the gateway wrote at runtime could make the gateway overwrite the file and trigger a process restart that killed PID 1. Current manifests seed `openclaw.json` onto the PVC only once, but a config left on the PVC by an older deployment can still crash the gateway on startup.
 
 **Diagnostic:**
 
@@ -309,9 +304,9 @@ unauthorized ... reason=device_token_mismatch
 unauthorized ... reason=rate_limited
 ```
 
-**Symptoms in browser:** "Too many failed authentication attempts (retry later)" or the connection silently fails.
+**Symptoms in browser:** "unauthorized: too many failed authentication attempts (retry later)" or the connection silently fails.
 
-**Fix (both steps required):**
+**Fix (all steps required):**
 
 1. **Clear browser site data** for the OpenClaw route URL — this removes the cached stale device token:
    - Chrome: Click lock icon in URL bar → "Site settings" → "Clear data"

@@ -39,5 +39,7 @@ RUN node --version && \
     ! echo "$out" | grep -qi unsupported
 
 USER 1001
+# OpenShell on Kubernetes, Podman, and MicroVM always uses /sandbox, and /workspace
+# is not writable on OpenShift, so this WORKDIR mainly affects other run modes.
 WORKDIR /workspace
 ENV AGENT_NAME=openclaw

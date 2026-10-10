@@ -80,8 +80,6 @@ spec:
           env:
             - name: HOME
               value: /home/node
-            - name: OPENCLAW_CONFIG_DIR
-              value: /home/node/.openclaw
             - name: NODE_ENV
               value: production
             - name: OPENCLAW_GATEWAY_TOKEN
@@ -126,6 +124,9 @@ spec:
               port: 18789
             periodSeconds: 10
             timeoutSeconds: 5
+          # readOnlyRootFilesystem is intentionally not set here: the gateway writes to
+          # its home and state dir. The base recipe also omits a NetworkPolicy and
+          # automated token rotation.
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
