@@ -5,10 +5,12 @@ Common issues and solutions for OpenClaw on OpenShift. Issues are listed from mo
 ## Table of Contents
 
 - [Route returns "Application is not available" (503)](#route-returns-application-is-not-available-503)
+- [Route returns 403 "proxy_attribution_required"](#route-returns-403-proxy_attribution_required)
 - [Gateway uses wrong model / "No API key" errors](#gateway-uses-wrong-model--no-api-key-errors)
 - [Heartbeat flooding the chat UI](#heartbeat-flooding-the-chat-ui)
 - [Device pairing required after SSO login](#device-pairing-required-after-sso-login)
 - [Pod stuck in CrashLoopBackOff](#pod-stuck-in-crashloopbackoff)
+- [Gateway fails with "EPERM: operation not permitted, fchmod"](#gateway-fails-with-eperm-operation-not-permitted-fchmod)
 - [Config clobbered on restart](#config-clobbered-on-restart)
 - [Device pairing rate limiter](#device-pairing-rate-limiter)
 - [Diagnostic commands](#diagnostic-commands)
@@ -79,11 +81,36 @@ oc get route openclaw -n <namespace> -o jsonpath='{.spec.tls.termination}'
 
 ---
 
+## Route returns 403 "proxy_attribution_required"
+
+**Severity:** Blocking: the Control UI does not load through the Route.
+
+**Cause:** The OpenShift router adds `X-Forwarded-For` headers by default. OpenClaw 2026.9 answers requests with forwarded headers from a proxy outside `gateway.trustedProxies` with HTTP 403. Manifests older than the OpenClaw 2026.9 update did not switch these headers off.
+
+**Symptoms:**
+
+```text
+{"error":{"message":"Proxy client attribution is required. ...","type":"proxy_attribution_required"}}
+```
+
+The gateway log shows `observed unattributable proxy-shaped traffic from <address>`.
+
+**Fix:** Apply the current manifests, or annotate the Route:
+
+```bash
+oc annotate route openclaw -n <namespace> \
+  haproxy.router.openshift.io/set-forwarded-headers=never --overwrite
+```
+
+Then add the Route to the allowed origins, as described in [Access the Control UI](raw-deployment.md#through-the-route). Do not list the cluster network in `gateway.trustedProxies`: on OVN-Kubernetes the kubelet's health probes come from the same node addresses, the gateway rejects them with 403, and the pod stops being ready.
+
+---
+
 ## Gateway uses wrong model / "No API key" errors
 
 **Severity:** Blocking — agent cannot respond to messages.
 
-**Cause:** OpenClaw auto-generates its config on first start. If the gateway detects a provider (e.g., Anthropic) it will override the ConfigMap settings with its own defaults. This means the ConfigMap says vLLM but the gateway is actually trying to use Anthropic.
+**Cause:** The init container seeds `openclaw.json` onto the PVC only once, and after that OpenClaw owns the file. If the gateway detects a provider (e.g., Anthropic) it records its own defaults in that on-disk config. The ConfigMap may still say vLLM while the running gateway is actually trying to use Anthropic, and editing the ConfigMap no longer changes the running config.
 
 **Symptoms in logs:**
 
@@ -94,22 +121,17 @@ model fallback decision: decision=candidate_failed requested=anthropic/claude-so
 
 **Symptoms in UI:** The model selector in the Control UI shows a model name you did not configure (e.g., `gpt-oss-20b` instead of `gemini-2.5-pro`).
 
-**Fix:** Patch the ConfigMap with the correct model provider config, then restart:
+**Fix:** Patch the running gateway with `openclaw config patch`. Editing the ConfigMap and restarting no longer changes a running deployment, because the init container seeds `openclaw.json` only once:
 
 ```bash
-# Export current config
-oc get configmap openclaw-config -n <namespace> \
-  -o jsonpath='{.data.openclaw\.json}' > /tmp/openclaw-config.json
+# Patch the model provider config on the running gateway.
+# Objects merge, arrays and scalars replace, null deletes a key.
+echo '{"agents": {"defaults": {"model": {"primary": "vllm/gpt-oss-20b"}}},
+       "models": {"providers": {"vllm": {"baseUrl": "https://YOUR-VLLM-ENDPOINT/v1"}}}}' | \
+  oc exec -i deployment/openclaw -c gateway -n <namespace> -- \
+  node /app/dist/index.js config patch --stdin
 
-# Edit /tmp/openclaw-config.json:
-# - Set agents.defaults.model.primary to "openai-compat/gpt-oss-20b"
-# - Add models.providers.openai-compat with your vLLM endpoint
-
-# Apply and restart
-oc create configmap openclaw-config \
-  --from-file=openclaw.json=/tmp/openclaw-config.json \
-  -n <namespace> --dry-run=client -o yaml | oc apply -f -
-oc rollout restart deployment/openclaw -n <namespace>
+# Update the ConfigMap too, so a fresh PVC starts with the same config.
 ```
 
 **Verification:**
@@ -121,7 +143,7 @@ oc logs deployment/openclaw -c gateway -n <namespace> | grep "agent model"
 Expected output:
 
 ```text
-[gateway] agent model: openai-compat/gpt-oss-20b
+[gateway] agent model: vllm/gpt-oss-20b
 ```
 
 **Prevention:** Always check the gateway logs after every rollout to confirm the model matches your intent.
@@ -132,7 +154,7 @@ Expected output:
 
 **Severity:** Moderate — consumes API tokens and clutters the chat history.
 
-**Cause:** OpenClaw's heartbeat scheduler fires every 30 minutes by default, sending `HEARTBEAT_OK` messages to the chat. If the model provider is misconfigured, each heartbeat triggers an error instead, producing dozens of error messages per day.
+**Cause:** OpenClaw's heartbeat scheduler can fire every 30 minutes by default, sending `HEARTBEAT_OK` messages to the chat. If the model provider is misconfigured, each heartbeat triggers an error instead, producing dozens of error messages per day. This applies only to deployments that set a heartbeat target or a resolvable owner. With the recipe's default config (no channels and no owner), ambient heartbeat polls are skipped with `reason=no-route`, so this symptom does not appear.
 
 **Symptoms in UI:** Repeated "HEARTBEAT_OK" messages or "Agent failed before reply" errors every 30 minutes.
 
@@ -151,7 +173,7 @@ oc get configmap openclaw-config -n <namespace> \
 
 # Add to agents.defaults:
 #   "heartbeat": { "every": "0m" }
-# Also add to each agent in agents.list:
+# Also add to each agent in agents.entries:
 #   "heartbeat": { "every": "0m" }
 
 # Apply and restart
@@ -205,7 +227,7 @@ Alternatively, use the **Open** action from the installer's **Instances** tab �
 
 **Severity:** Blocking — gateway is down.
 
-**Cause:** OpenClaw auto-generates config at startup. If the config on the PVC conflicts with the ConfigMap, the gateway detects a change, overwrites the file, and triggers a process restart that kills PID 1.
+**Cause:** With manifests older than the OpenClaw 2026.9 update, `openclaw.json` was copied from the ConfigMap to the PVC on every start. A conflict between that copy and the config the gateway wrote at runtime could make the gateway overwrite the file and trigger a process restart that killed PID 1. Current manifests seed `openclaw.json` onto the PVC only once, but a config left on the PVC by an older deployment can still crash the gateway on startup.
 
 **Diagnostic:**
 
@@ -234,11 +256,29 @@ oc scale deployment/openclaw --replicas=1 -n <namespace>
 
 ---
 
+## Gateway fails with "EPERM: operation not permitted, fchmod"
+
+**Severity:** Blocking: gateway is down, or configuration changes fail.
+
+**Cause:** OpenClaw 2026.9 tightens the permissions of its state directory (`~/.openclaw`) when it starts, migrates state, or writes its configuration, and it needs a writable `~/.cache`. Manifests older than the OpenClaw 2026.9 update mounted the PVC directly at `/home/node/.openclaw`. The state directory was then the volume's mount point, which belongs to root, and `/home/node` belongs to the image's `node` user, so OpenShift's arbitrary UID can change neither.
+
+**Symptoms:**
+
+```text
+Doctor could not complete maintenance. Check the reported service state and resolve the failure.
+EPERM: operation not permitted, fchmod
+Unable to create fallback OpenClaw temp dir: /home/node/.cache/openclaw-<uid> | EACCES: permission denied
+```
+
+**Fix:** Apply the current manifests. They mount the PVC at `/home/node`, and the init container moves existing state into `~/.openclaw` once. See [Upgrading an existing deployment](raw-deployment.md#upgrading-an-existing-deployment).
+
+---
+
 ## Config clobbered on restart
 
 **Severity:** Moderate — settings revert unexpectedly.
 
-**Cause:** OpenClaw's init container copies `openclaw.json` from the ConfigMap to the PVC on every pod start. However, the gateway also writes back to the same file at runtime (model discovery, plugin state). On the next restart, the init container overwrites these runtime changes with the original ConfigMap version. This produces `.clobbered.*` backup files on the PVC.
+**Cause:** Manifests older than the OpenClaw 2026.9 update copied `openclaw.json` from the ConfigMap to the PVC on every pod start. The gateway also writes back to the same file at runtime (model discovery, plugin state), so the next restart overwrote these runtime changes and left `.clobbered.*` backup files on the PVC. OpenClaw 2026.9 additionally refuses such a replaced config and tries to restore its last good copy.
 
 **Symptoms:**
 
@@ -247,18 +287,7 @@ oc exec deployment/openclaw -c gateway -n <namespace> -- ls /home/node/.openclaw
 # Shows: openclaw.json.clobbered.2026-04-15T14-45-55-777Z
 ```
 
-**Fix:** Update the ConfigMap to include any runtime changes you want to preserve:
-
-```bash
-# Export the running config (not the ConfigMap)
-oc exec deployment/openclaw -c gateway -n <namespace> -- \
-  cat /home/node/.openclaw/openclaw.json > /tmp/openclaw-config.json
-
-# Review and apply
-oc create configmap openclaw-config \
-  --from-file=openclaw.json=/tmp/openclaw-config.json \
-  -n <namespace> --dry-run=client -o yaml | oc apply -f -
-```
+**Fix:** Apply the current manifests. Their init container copies the ConfigMap only when no `openclaw.json` exists yet; after that, OpenClaw owns the file. Change the running configuration with `openclaw config patch`, as described in [Update the configuration](raw-deployment.md#update-the-configuration).
 
 ---
 
@@ -275,9 +304,9 @@ unauthorized ... reason=device_token_mismatch
 unauthorized ... reason=rate_limited
 ```
 
-**Symptoms in browser:** "Too many failed authentication attempts (retry later)" or the connection silently fails.
+**Symptoms in browser:** "unauthorized: too many failed authentication attempts (retry later)" or the connection silently fails.
 
-**Fix (both steps required):**
+**Fix (all steps required):**
 
 1. **Clear browser site data** for the OpenClaw route URL — this removes the cached stale device token:
    - Chrome: Click lock icon in URL bar → "Site settings" → "Clear data"

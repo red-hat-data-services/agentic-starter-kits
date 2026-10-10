@@ -1,22 +1,27 @@
-sandbox:
-  filesystem:
-    landlock:
-      compatibility: best_effort
-    read_only:
-      - /usr
-      - /lib
-      - /proc
-      - /etc
-      - /app
-      - /var/log
-      - /dev/urandom
-    read_write:
-      - /sandbox
-      - /workspace
-      - /tmp
-      - /dev/null
-    include_workdir: true
+version: 1
 
-  process:
-    user: sandbox
-    group: sandbox
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /usr
+    - /lib
+    - /proc
+    - /etc
+    - /app
+    - /var/log
+    - /dev/urandom
+  read_write:
+    - /sandbox
+    - /workspace
+    - /tmp
+    - /var/tmp
+    - /dev/null
+
+landlock:
+  compatibility: best_effort
+
+process:
+  # run_as_user and run_as_group apply only to the Docker and Podman drivers,
+  # and only from the create-time policy. OpenShell ignores them on Kubernetes.
+  run_as_user: sandbox
+  run_as_group: sandbox

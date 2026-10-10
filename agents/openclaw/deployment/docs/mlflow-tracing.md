@@ -1,6 +1,8 @@
 # MLflow Tracing for OpenClaw
 
-> Tested: 2026-06-17 on OpenShift 4.19 (ROSA) with `ghcr.io/openclaw/openclaw@sha256:037f49ba1595be9502fb345138d727cd0cfaecf1392cbe0cfe053fb4681386cd`, vLLM `gpt-oss-120b`, RHOAI MLflow 3.x
+> Tested: 2026-10-08 on OpenShift 4.22 with `ghcr.io/openclaw/openclaw@sha256:d0ded1dd76939b2bf4d67ef2d13247b8b160aa5666331d4a0b0e58811182cbb8` (2026.9.8), vLLM (Red Hat AI Inference Server 3.3, CPU) serving `Qwen2.5-0.5B-Instruct`, RHOAI 3.3.1 MLflow
+>
+> Previously tested: 2026-06-17 on OpenShift 4.19 (ROSA) with OpenClaw 2026.6.5, vLLM `gpt-oss-120b`, RHOAI MLflow 3.x
 
 OpenClaw natively emits OpenTelemetry (OTLP) traces via its `diagnostics-otel` plugin — no custom instrumentation, no Python hooks, no stop scripts. The [`overlays/mlflow-tracing/`](../overlays/mlflow-tracing/) Kustomize overlay in this repo deploys OpenClaw with an OTel collector sidecar that forwards spans to RHOAI's shared MLflow instance using standard OpenShift authentication and TLS. A multi-turn coding task with 8 model calls and 8 tool executions produced a 19-span trace with full tool names, latencies, request/response sizes, and context window stats — all visible in the MLflow UI.
 
@@ -36,7 +38,7 @@ The collector runs as a sidecar in the OpenClaw pod, receiving spans on localhos
 
 | Component | Image |
 |---|---|
-| OpenClaw | `ghcr.io/openclaw/openclaw@sha256:037f49ba1595be9502fb345138d727cd0cfaecf1392cbe0cfe053fb4681386cd` |
+| OpenClaw (2026.9.8) | `ghcr.io/openclaw/openclaw@sha256:d0ded1dd76939b2bf4d67ef2d13247b8b160aa5666331d4a0b0e58811182cbb8` |
 | OTel Collector (0.120.0) | `ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib@sha256:85ac41c2db88d0df9bd6145e608a3cb023f5d8443868adbfbbf66efb51087917` |
 | MLflow | RHOAI-managed (3.x) |
 
@@ -89,6 +91,8 @@ openclaw.message.processed           (turn-level root, 14.6s)
 
 ### Prototype trace data
 
+> The example traces and screenshots below are from an earlier prototype run (vLLM `gpt-oss-120b`), not the 2026-10-08 `Qwen2.5-0.5B-Instruct` test named at the top of this document. They illustrate span shape and attributes; the exact counts, durations, and model name differ from the current setup.
+
 **Cluster:** ROSA `agentic-mcp` | **Namespace:** `opc-on-ocp` | **Model:** `vllm/gpt-oss-120b`
 
 | Trace | Spans | Duration | Description |
@@ -124,7 +128,7 @@ The `openclaw.model.call` spans capture `time_to_first_byte_ms` (40–294ms), `r
 ### Prerequisites
 
 - **RHOAI with MLflow** — the `mlflow` service must be running in `redhat-ods-applications` with `--enable-workspaces`
-- **The `mlflow-integration` ClusterRole** — shipped by the MLflow operator. Run `oc get clusterroles | grep mlflow-integration` to find the exact name (it may be prefixed, e.g. `mlflow-operator-mlflow-integration`). See [RBAC Setup](../../../../docs/mlflow-openshift-auth-and-tls.md#rbac-setup).
+- **The `mlflow-integration` ClusterRole** — shipped by the MLflow operator. Run `oc get clusterroles | grep mlflow-integration` to find the exact name (it may be prefixed, e.g. `mlflow-operator-mlflow-integration`). See [RBAC Setup](../../../../docs/mlflow-openshift-auth-and-tls.md#rbac-setup). RHOAI 3.3.1 does not ship this role; create it from the definition in [RBAC Setup](../../../../docs/mlflow-openshift-auth-and-tls.md#rbac-setup).
 - **OpenShift 4.17+** with namespace-scoped access (`oc login`)
 - **A vLLM-compatible model endpoint** (see [model-compatibility.md](model-compatibility.md))
 
@@ -165,8 +169,10 @@ This creates:
 RHOAI MLflow uses workspaces — your namespace maps to a workspace. Create an experiment in your workspace:
 
 ```bash
-MLFLOW_ROUTE=$(oc get route mlflow -n redhat-ods-applications -o jsonpath='{.spec.host}')
-TOKEN=$(oc create token openclaw-tracing)
+# RHOAI 3.3.1 exposes MLflow through an HTTPRoute on the data-science-gateway, not a Route named "mlflow".
+# An `oc get route mlflow` returns NotFound there; read the host from the HTTPRoute instead.
+MLFLOW_ROUTE=$(oc get httproute mlflow -n redhat-ods-applications -o jsonpath='{.spec.hostnames[0]}')
+TOKEN=$(oc create token openclaw-tracing -n YOUR-NAMESPACE)
 
 curl -s -X POST "https://${MLFLOW_ROUTE}/mlflow/api/2.0/mlflow/experiments/create" \
   -H "Authorization: Bearer ${TOKEN}" \
@@ -174,6 +180,8 @@ curl -s -X POST "https://${MLFLOW_ROUTE}/mlflow/api/2.0/mlflow/experiments/creat
   -H "X-MLFLOW-WORKSPACE: YOUR-NAMESPACE" \
   -d '{"name": "openclaw-tracing"}' | python3 -m json.tool
 ```
+
+> **Note (RHOAI 3.3.1):** the `data-science-gateway` fronts MLflow with an OAuth proxy built for browser access, which turns programmatic bearer-token API calls away. If these `curl` commands are rejected at the gateway, create and look up the experiment from the MLflow UI instead (RHOAI dashboard), or run them from inside the cluster against the MLflow service.
 
 Note the `experiment_id` from the response. If the experiment already exists, look it up:
 
@@ -193,6 +201,19 @@ oc apply -k overlays/my-tracing
 
 Wait for the `openclaw` pod to reach `2/2 Running` (gateway + otel-collector sidecar).
 
+If OpenClaw already runs in this namespace, its init container keeps the existing `openclaw.json` on the PVC, so the overlay's config does not take effect by itself. Patch it into the running config and restart the gateway:
+
+```bash
+yq '.data["openclaw.json"]' overlays/my-tracing/configmap-patch.yaml | \
+  oc exec -i deployment/openclaw -c gateway -n YOUR-NAMESPACE -- \
+  node /app/dist/index.js config patch --stdin
+oc rollout restart deployment/openclaw -n YOUR-NAMESPACE
+```
+
+> **Note:** patching the whole overlay config replaces the existing model settings, and OpenClaw refuses the patch when it would drop a provider's existing model entries (for example a different model ID). Preview the change first by adding `--dry-run` (`config patch --stdin --dry-run`) to see what would be written, and reconcile any model-ID differences before patching for real.
+
+> **Note:** the overlay's `plugins.allow` is an exclusive allowlist (`["diagnostics-otel"]`), so applying it disables the other bundled plugins, including `device-pair`. The gateway doctor then warns that node onboarding join codes and `openclaw connect` are unavailable. Control UI login and device pairing still work. To keep a bundled plugin, add it to the `allow` list in your overlay's `configmap-patch.yaml`.
+
 ### Step 5: Connect
 
 Port-forward OpenClaw:
@@ -202,11 +223,11 @@ oc port-forward deploy/openclaw 18789:18789 &
 ```
 
 - **OpenClaw Control UI:** <http://localhost:18789> — paste the gateway token from `01-secret.yaml` when prompted
-- **MLflow UI:** Access via the RHOAI dashboard or `oc get route mlflow -n redhat-ods-applications -o jsonpath='{.spec.host}'`
+- **MLflow UI:** Access via the RHOAI dashboard. On RHOAI 3.3.1 there is no Route named `mlflow`; read the host from the HTTPRoute with `oc get httproute mlflow -n redhat-ods-applications -o jsonpath='{.spec.hostnames[0]}'`
 
 Navigate to the `openclaw-tracing` experiment in your workspace to view traces.
 
-> Port-forward is required for the Control UI. The OpenShift Route works for HTTP requests but WebSocket connections flap through HAProxy's reverse proxy.
+> To use the Route instead of a port-forward, see [Access the Control UI](raw-deployment.md#through-the-route).
 
 ---
 
@@ -220,11 +241,23 @@ Navigate to the `openclaw-tracing` experiment in your workspace to view traces.
 
 **Fix:** Verify the experiment exists in your workspace. Use the `get-by-name` API from Step 3 to look up the correct ID. Each workspace has its own experiment ID sequence — an experiment that exists in one workspace may not exist in another.
 
-### WebSocket connections flap through the Route
+### Collector logs "error parsing protobuf response"
 
-The OpenShift Route terminates TLS at HAProxy, which disrupts the persistent WebSocket connections used by the Control UI. Symptoms: repeated connect/disconnect cycles (code 1006), prompts never reach the gateway.
+**Symptom:** The OTel collector logs `Exporting failed. Dropping data. ... error parsing protobuf response: unexpected EOF` for every batch.
 
-**Fix:** Use `oc port-forward` instead of the Route for the Control UI.
+**Cause:** MLflow accepts the traces but answers the protobuf request with a JSON body, which the collector cannot parse. The collector retries the batch and then logs it as dropped, but the traces are stored, each once. Check the MLflow log for `POST /v1/traces HTTP/1.1" 200 OK`.
+
+### Traces rejected with HTTP 400 ("Invalid OpenTelemetry protobuf format")
+
+**Cause:** MLflow's `/v1/traces` endpoint does not accept gzip-compressed requests, and gzip is the default of the collector's `otlphttp` exporter.
+
+**Fix:** Keep `compression: none` on the `otlphttp` exporter in `otel-collector-config.yaml`, as the overlay does.
+
+### Control UI fails through the Route
+
+**Symptom:** The Route answers with HTTP 403 (`proxy_attribution_required`), or the Control UI reports `origin not allowed` and keeps reconnecting.
+
+**Fix:** Use the Route annotation from the current manifests and add the Route to the allowed origins, as described in [Access the Control UI](raw-deployment.md#through-the-route). A port-forward works without either change.
 
 ---
 
@@ -232,11 +265,11 @@ The OpenShift Route terminates TLS at HAProxy, which disrupts the persistent Web
 
 1. **No tool call parameters or results in spans.** `openclaw.tool.execution` captures tool name, source, and latency, but not the input parameters or return values. Tracing what a tool was asked to do and what it returned requires cross-referencing session trajectory files.
 
-2. **No token usage in spans.** `openclaw.model.call` captures request/response byte sizes but not discrete token counts. `llm.usage.input_tokens` / `llm.usage.output_tokens` would align with [OTel Semantic Conventions for GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/) and enable cost tracking.
+2. **Token usage attributes.** OpenClaw 2026.9.8 emits usage attributes: `gen_ai.usage.*` on `openclaw.model.call`, plus an `openclaw.model.usage` span carrying `openclaw.tokens.*` (input, output, cache_read, cache_write, total), which align with the [OTel Semantic Conventions for GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/) and enable cost tracking. These are populated when the provider result carries usage; we have not verified them live against vLLM responses in this setup.
 
 3. **No session ID across traces.** Multi-turn conversations produce separate traces per turn with no shared identifier. Correlating turns into a conversation requires manual timestamp matching in the MLflow UI.
 
-4. **TracerProvider breaks on in-process restart.** The `diagnostics-otel` plugin does not re-initialize its `TracerProvider` / `BatchSpanProcessor` when the gateway receives SIGUSR1. Runtime spans are silently lost until a full pod restart. This overlay avoids the issue by setting the API key via env var interpolation instead of `paste-api-key`, but any config mutation that triggers SIGUSR1 will still break tracing.
+4. **Restart signal and exporter reload.** In OpenClaw 2026.9.8, `SIGUSR1` starts Node's inspector and no longer restarts the gateway; the service-aware restart signal is `SIGUSR2` (prefer `openclaw gateway restart`). Changes to `diagnostics.otel` hot-reload only the exporter service: the previous generation flushes and unsubscribes before the replacement starts, so an in-process restart no longer silently loses tracing. This overlay still sets the API key via env var interpolation instead of `paste-api-key`, which keeps the config stable across restarts.
 
 ---
 
@@ -249,4 +282,4 @@ The OpenShift Route terminates TLS at HAProxy, which disrupts the persistent Web
 | OpenClaw Deployment Guide | [raw-deployment.md](raw-deployment.md) |
 | OTel Collector Contrib | <https://github.com/open-telemetry/opentelemetry-collector-contrib> |
 | MLflow OTLP Tracing | <https://mlflow.org/docs/latest/tracing/index.html> |
-| OpenShift Service CA Certificates | <https://docs.openshift.com/container-platform/4.17/security/certificates/service-serving-certificate.html> |
+| OpenShift Service CA Certificates | <https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/security_and_compliance/configuring-certificates> |

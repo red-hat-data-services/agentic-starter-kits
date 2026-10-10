@@ -61,7 +61,7 @@ data:
           "enabled": true,
           "endpoint": "http://localhost:4318",
           "traces": true,
-          "metrics": true,
+          "metrics": false,
           "logs": false
         }
       },

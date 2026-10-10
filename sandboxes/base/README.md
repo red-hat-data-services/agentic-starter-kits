@@ -6,9 +6,9 @@ Shared base image for all agent sandbox flavors. Contains system dependencies, u
 
 - **Base OS**: UBI 10 minimal (`registry.access.redhat.com/ubi10/ubi-minimal:10.1`)
 - **System packages**: ca-certificates, curl, git, jq, iproute, nftables, bind-utils, procps-ng, vim-minimal, tar, gzip, ripgrep
-- **Users**: `sandbox` (interactive, GID=0 for OpenShift arbitrary-UID) and `supervisor` (non-login)
+- **Users**: `sandbox` (interactive, GID=0 for OpenShift arbitrary-UID) and `supervisor` (non-login). The GID 0 design covers the plain OpenShift arbitrary-UID case. Under OpenShell on OpenShift the driver assigns UID and GID from the namespace's uid-range annotation, so it does not apply to the OpenShell sandbox path.
 - **Directories**: `/sandbox` (home), `/workspace` (working dir), `/etc/openshell/agents/` (install scripts)
-- **Policy**: default `policy.yaml` at `/etc/openshell/policy.yaml`
+- **Policy**: default `policy.yaml` at `/etc/openshell/policy.yaml`, written in the OpenShell policy schema (`version: 1`). OpenShell 0.1 and later refuse to start a sandbox whose image policy does not parse, so rebuild the base and flavor images after changing it.
 - **Entrypoint**: smart entrypoint that accepts an agent name, installs it if missing, and execs into it
 
 ## What's NOT included

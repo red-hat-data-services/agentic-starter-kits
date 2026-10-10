@@ -6,6 +6,9 @@ metadata:
     app: openclaw
   annotations:
     haproxy.router.openshift.io/timeout: 30m
+    # Do not add X-Forwarded-* headers: OpenClaw answers requests with forwarded headers from
+    # a proxy outside gateway.trustedProxies with HTTP 403 (proxy_attribution_required).
+    haproxy.router.openshift.io/set-forwarded-headers: never
 spec:
   to:
     kind: Service

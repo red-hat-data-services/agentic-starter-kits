@@ -1,19 +1,28 @@
 # Model Compatibility for OpenClaw Tool-Calling
 
-> Tested: 2026-04-13
+> Last updated: 2026-10-08. The table lists each result's own test date.
 
-OpenClaw relies on models that support structured tool-calling (function calling). Not all models work — some emit raw JSON instead of using the native tool API, and some hallucinate tool results when calls fail silently.
+OpenClaw relies on models that support structured tool-calling (function calling). Not all models work: some emit raw JSON instead of using the native tool API, and some hallucinate tool results when calls fail silently.
+
+**Status legend:**
+
+- **Working**: uses the native tool-calling API reliably with the listed flags.
+- **Partial**: executes tools but with issues (for example, confused by system prompts).
+- **Broken**: does not use the native tool API (emits raw JSON or hallucinates results).
+- **Expected**: not yet tested in this recipe; expected to work from upstream support.
 
 ## Test Results
 
-| Model | Provider | Tool-Calling | Notes |
-|-------|----------|:------------:|-------|
-| **gpt-oss-20b** | vLLM (cluster) | Working | `--tool-call-parser openai --enable-auto-tool-choice` flags required |
-| **qwen2.5:7b** | Ollama (local) | Working | Best local option for 32GB machines (~8GB RAM) |
-| **qwen3.5:27b** | Ollama (local) | Working | Tools work, but 41GB RAM usage makes it impractical locally |
-| **llama3.2:3b** | Ollama (local) | Partial | Executes tools but gets confused by OpenClaw's internal system prompts |
-| **phi4-mini:3.8b** | Ollama (local) | Broken | Emits raw JSON in response body instead of native tool calls |
-| **codex/gpt-5.4** | Codex Harness | Expected | Routes through Codex app-server; requires sidecar deployment |
+| Model | Provider | Tool-Calling | Tested | Notes |
+|-------|----------|:------------:|:------:|-------|
+| **Qwen2.5-0.5B-Instruct** | vLLM (cluster) | Working | 2026-10-08 | `--tool-call-parser hermes --enable-auto-tool-choice` required. Small model used to validate the deployment and tracing path, not a recommendation for production tool-calling quality. |
+| **gpt-oss-120b** | OGX to vLLM | Working | 2026-10-08 | Routed through the OGX gateway; `openai` parser family. |
+| **gpt-oss-20b** | vLLM (cluster) | Working | 2026-04-13 | `--tool-call-parser openai --enable-auto-tool-choice` flags required |
+| **qwen2.5:7b** | Ollama (local) | Working | 2026-04-13 | Best local option for 32GB machines (~8GB RAM) |
+| **qwen3.5:27b** | Ollama (local) | Working | 2026-04-13 | Tools work, but 41GB RAM usage makes it impractical locally |
+| **llama3.2:3b** | Ollama (local) | Partial | 2026-04-13 | Executes tools but gets confused by OpenClaw's internal system prompts |
+| **phi4-mini:3.8b** | Ollama (local) | Broken | 2026-04-13 | Emits raw JSON in response body instead of native tool calls |
+| **codex/gpt-5.4** | Codex Harness | Expected | 2026-04-13 | Routes through Codex app-server; requires sidecar deployment |
 
 ## Critical Warning: Hallucinated Tool Results
 
@@ -27,7 +36,7 @@ OpenClaw supports multiple model providers simultaneously. The model reference p
 
 | Prefix | Route | Harness |
 |--------|-------|---------|
-| `openai-compat/` | Self-hosted vLLM endpoint | OpenClaw PI runtime |
+| `vllm/` | Self-hosted vLLM endpoint | OpenClaw PI runtime |
 | `openai/` | Direct OpenAI API | OpenClaw PI runtime |
 | `codex/` | Codex app-server (sidecar) | Codex harness |
 | `anthropic/` | Anthropic API | OpenClaw PI runtime |

@@ -10,18 +10,36 @@ FROM quay.io/hmoghani/openshell-base:latest
 
 USER 0
 
-# Node.js runtime (from UBI repos)
-RUN microdnf install -y --nodocs nodejs npm && \
-    microdnf clean all && \
-    rm -rf /var/cache/yum
+# Node.js runtime (official nodejs.org build, checksum verified).
+# OpenClaw 2026.9.x requires Node.js 24.16 or newer and a node:sqlite that is
+# WAL-reset-safe (SQLite 3.51.3+, 3.50.7+, or 3.44.6+). The UBI 10 Node.js
+# packages link the system SQLite 3.46.1, which OpenClaw refuses to run on.
+# The official build bundles a current SQLite.
+ARG NODE_VERSION=24.21.0
+RUN ARCH=$(uname -m) && \
+    case "$ARCH" in \
+        x86_64) NODE_ARCH=x64 ;; \
+        aarch64) NODE_ARCH=arm64 ;; \
+        *) echo "Unsupported arch: $ARCH" && exit 1 ;; \
+    esac && \
+    NODE_TGZ="node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.gz" && \
+    curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/${NODE_TGZ}" && \
+    curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt" | grep " ${NODE_TGZ}\$" | sha256sum -c - && \
+    tar -xzf "${NODE_TGZ}" -C /usr/local --strip-components=1 --no-same-owner && \
+    rm -f "${NODE_TGZ}"
 
 # Install OpenClaw (MIT)
-ARG OPENCLAW_VERSION=2026.6.5
+ARG OPENCLAW_VERSION=2026.9.8
 RUN npm install -g openclaw@${OPENCLAW_VERSION}
 
-# Verify
-RUN openclaw --version
+# Verify. `openclaw --version` also runs on an unsupported runtime and then
+# prints a warning, so fail the build when that warning appears.
+RUN node --version && \
+    out="$(openclaw --version 2>&1)" && echo "$out" && \
+    ! echo "$out" | grep -qi unsupported
 
 USER 1001
+# OpenShell on Kubernetes, Podman, and MicroVM always uses /sandbox, and /workspace
+# is not writable on OpenShift, so this WORKDIR mainly affects other run modes.
 WORKDIR /workspace
 ENV AGENT_NAME=openclaw
