@@ -389,4 +389,4 @@ End-user-facing skills — ones that help someone who cloned a starter kit custo
 
 ## Questions?
 
-See the main [README](README.md) or open an issue. You can also contact [wrebisz@redhat.com](mailto:wrebisz@redhat.com) or [tguzik@redhat.com](mailto:tguzik@redhat.com).
+See the main [README](README.md) or open an issue.
