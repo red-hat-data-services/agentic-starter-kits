@@ -46,7 +46,7 @@ jobs:
 
       - name: Install uv
         if: steps.changes.outputs.agents == 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
 
       - name: Run tests
         if: steps.changes.outputs.agents == 'true'
@@ -100,7 +100,7 @@ jobs:
 
       - name: Publish test report
         if: always() && steps.run-tests.outcome != 'skipped'
-        uses: mikepenz/action-junit-report@a9170d5795813c01ab4901ffb045b52bab4ab09d  # v6.5.0
+        uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d  # v6.6.1
         with:
           report_paths: test-results/*.xml
           check_name: Agent Test Results
