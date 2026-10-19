@@ -248,19 +248,16 @@ oc logs deployment/openclaw -c gateway -n my-openclaw | grep -E "migrated|ready"
 
 ## Uninstall
 
-Remove the deployment with the same kustomization you applied. For the base manifests:
+The PVC (`openclaw-state`) is part of the kustomization, so `oc delete -k manifests/` deletes it and its OpenClaw state along with the backing volume. To uninstall while keeping the state, delete the workload resources explicitly and leave the PVC in place:
 
 ```bash
-oc delete -k manifests/ -n my-openclaw
+oc delete deployment/openclaw service/openclaw route/openclaw \
+  configmap/openclaw-config secret/openclaw-secrets -n my-openclaw
 ```
 
-If you deployed through an overlay, delete that overlay instead:
+If you deployed through an overlay that sets only a namespace and storage class (like `overlays/example`), the resource names are the same; point `-n` at the overlay's namespace.
 
-```bash
-oc delete -k overlays/my-env
-```
-
-This leaves the PVC and its OpenClaw state in place. Delete the project with `oc delete project my-openclaw` to remove everything, including the stored state.
+This leaves the PVC and its OpenClaw state in place. To remove everything, including the stored state, delete the project with `oc delete project my-openclaw`, or add `pvc/openclaw-state` to the delete command above.
 
 ## Next: Enable tracing (optional)
 

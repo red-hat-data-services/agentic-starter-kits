@@ -164,24 +164,19 @@ Expected output:
 [heartbeat] started
 ```
 
-**Fix:** Set `heartbeat.every` to `"0m"` in the ConfigMap:
+**Fix:** Patch the running gateway with `openclaw config patch`. On the raw-manifest recipe, editing the ConfigMap and restarting does not change a running deployment, because the init container seeds `openclaw.json` only once:
 
 ```bash
-# Export config
-oc get configmap openclaw-config -n <namespace> \
-  -o jsonpath='{.data.openclaw\.json}' > /tmp/openclaw-config.json
+# Disable the heartbeat on the running gateway.
+echo '{"agents": {"defaults": {"heartbeat": {"every": "0m"}}}}' | \
+  oc exec -i deployment/openclaw -c gateway -n <namespace> -- \
+  node /app/dist/index.js config patch --stdin
 
-# Add to agents.defaults:
-#   "heartbeat": { "every": "0m" }
-# Also add to each agent in agents.entries:
-#   "heartbeat": { "every": "0m" }
-
-# Apply and restart
-oc create configmap openclaw-config \
-  --from-file=openclaw.json=/tmp/openclaw-config.json \
-  -n <namespace> --dry-run=client -o yaml | oc apply -f -
-oc rollout restart deployment/openclaw -n <namespace>
+# If you defined agents under agents.entries, add the same heartbeat key to each.
+# Update the ConfigMap too, so a fresh PVC starts with the heartbeat off.
 ```
+
+On the installer-managed path, where the installer re-applies config on each deploy, set `heartbeat.every` to `"0m"` in the ConfigMap and restart instead.
 
 **Verification:**
 
