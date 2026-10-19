@@ -64,7 +64,8 @@ openshell service expose adk-agent 8080 web-ui
 ```
 
 This prints a service URL like:
-```
+
+```text
 https://adk-agent--<workspace>--web-ui.<services-domain>/
 ```
 
@@ -79,8 +80,8 @@ Open it in a browser to access the playground chat UI.
 openshell sandbox exec adk-agent -- curl -s http://localhost:8080/health
 # Expected: {"status":"healthy","agent_initialized":true}
 
-# Chat completion via Route
-curl -sk -X POST https://<service-url>/chat/completions \
+# Chat completion via Route (use the URL from openshell service expose)
+curl -sk -X POST <service-url>/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"messages":[{"role":"user","content":"What is OpenShift?"}],"stream":false}'
 ```
@@ -131,6 +132,7 @@ To access the web UI via a browser (not just `--forward`), the gateway needs:
 1. **Wildcard SAN** in `pkiInitJob.serverDnsNames`: `*.openshell-svc.apps.cluster.example.com`
 2. **Wildcard Route**: `wildcardPolicy: Subdomain` pointing to the gateway service
 3. **WildcardsAllowed** on the ingress controller:
+
    ```bash
    oc patch ingresscontroller default -n openshift-ingress-operator \
      --type merge -p '{"spec":{"routeAdmission":{"wildcardPolicy":"WildcardsAllowed"}}}'

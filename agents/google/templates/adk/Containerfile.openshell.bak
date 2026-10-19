@@ -1,0 +1,50 @@
+# Google ADK agent for NVIDIA OpenShell sandbox
+#
+# BYOC (Bring Your Own Container) image following the OpenShell pattern:
+# https://github.com/NVIDIA/OpenShell/tree/main/examples/bring-your-own-container
+#
+# Build (copy repo-level images/ into context first):
+#   cp -r ../../../../images ./images && trap 'rm -rf ./images' EXIT
+#   podman build --platform linux/amd64 -t adk-sandbox:latest -f Containerfile.openshell .
+#
+# Run (OpenShell replaces CMD -- pass the start command after --):
+#   openshell sandbox create --from adk-sandbox:latest --forward 8080 \
+#     -e API_KEY=<key> -e BASE_URL=<url> -e MODEL_ID=<model> \
+#     -- uvicorn main:app --host 0.0.0.0 --port 8080
+
+FROM registry.access.redhat.com/ubi9/python-312@sha256:e95978812895b9abb2bdc109b501078da2a47c8dbb9fa23758af40ed50ab6023
+
+USER 0
+
+# iproute: required by OpenShell for network namespace management
+# nftables: optional, enables bypass detection (log + reject for direct connections)
+RUN dnf install -y --nodocs iproute nftables && dnf clean all && rm -rf /var/cache/dnf
+
+# uv for fast dependency installation
+COPY --from=ghcr.io/astral-sh/uv@sha256:fc93e9ecd7218e9ec8fba117af89348eef8fd2463c50c13347478769aaedd0ce /uv /usr/local/bin/uv
+
+# Application directory (OpenShell convention: /sandbox)
+RUN install -d -o 1001 -g 0 -m 775 /sandbox
+WORKDIR /sandbox
+
+# Install Python dependencies using the image's Python 3.12
+COPY --chown=1001:0 pyproject.toml .
+COPY --chown=1001:0 src/ ./src/
+RUN uv pip install --python /opt/app-root/bin/python3 --no-cache ".[tracing]"
+
+# Application code and assets
+COPY --chown=1001:0 main.py .
+COPY --chown=1001:0 playground/ ./playground/
+COPY --chown=1001:0 images/ ./images/
+
+USER 1001
+
+ENV PORT=8080 \
+    PYTHONPATH=/sandbox \
+    PATH="/opt/app-root/bin:${PATH}"
+
+EXPOSE 8080
+
+# NOTE: OpenShell's sandbox supervisor replaces CMD at runtime.
+# Pass the start command explicitly on the CLI after --.
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

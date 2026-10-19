@@ -46,8 +46,9 @@ def get_agent(
             "BASE_URL is required. Set it via argument or BASE_URL env var."
         )
 
-    if not base_url.endswith("/v1"):
-        base_url = base_url.rstrip("/") + "/v1"
+    base_url = base_url.rstrip("/")
+    if not base_url.endswith(("/v1", "/v1beta/openai")):
+        base_url += "/v1"
 
     is_local = any(host in base_url for host in ["localhost", "127.0.0.1"])
     if not is_local and not api_key:
