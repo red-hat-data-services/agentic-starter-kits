@@ -26,6 +26,8 @@ _SQL_PATTERNS = re.compile(
 )
 
 # Shell command / code-injection patterns.
+# Note: \S++ is a possessive quantifier (Python 3.11+) — it prevents the
+# quadratic backtracking \S+ would cause when no '|' follows a long URL.
 _SHELL_PATTERNS = re.compile(
     r"""
     (?:^|\s)(?:rm\s+-\w*[rf])           # rm with dangerous flags
@@ -36,7 +38,7 @@ _SHELL_PATTERNS = re.compile(
                     |mkdir|ln|exec|tee|nc)\b
   | (?:^|\s)chmod\s+[0-7+-]               # chmod with mode arg
   | (?:^|\s)chown\s+\w+[:.]\w*            # chown with user:group
-  | (?:^|\s)(?:curl|wget)\s+\S+.*\|\s*   # pipe from network
+  | (?:^|\s)(?:curl|wget)\s+\S++.*\|\s*   # pipe from network
   | `[^`]+`                              # backtick execution
   | \$\([^)]+\)                          # $(...) subshell
   | \|\s*(?:bash|sh|zsh|exec)\b          # pipe to shell
