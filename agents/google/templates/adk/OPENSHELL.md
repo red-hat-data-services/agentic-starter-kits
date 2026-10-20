@@ -30,7 +30,7 @@ Ensure the registry is public so the cluster can pull without imagePullSecrets.
 
 ### 1. Import the provider profile and create the provider
 
-The provider profile tells OpenShell how to manage the API key. The agent reads `API_KEY` from its environment; OpenShell injects it at runtime so the agent process never sees the raw key value.
+The provider profile tells OpenShell how to manage the API key. OpenShell injects `API_KEY` into the sandbox environment at runtime. The agent process reads it and copies it to `OPENAI_API_KEY` for LiteLLM. The key is not stored on disk or in Kubernetes Secrets visible to the sandbox.
 
 ```bash
 openshell profile import -f openshell-provider.yaml --global
@@ -81,7 +81,8 @@ openshell sandbox exec adk-agent -- curl -s http://localhost:8080/health
 # Expected: {"status":"healthy","agent_initialized":true}
 
 # Chat completion via Route (use the URL from openshell service expose)
-curl -sk -X POST <service-url>/chat/completions \
+SERVICE_URL="<paste-service-url-here>"
+curl -sk -X POST "${SERVICE_URL%/}/chat/completions" \
   -H "Content-Type: application/json" \
   -d '{"messages":[{"role":"user","content":"What is OpenShift?"}],"stream":false}'
 ```
