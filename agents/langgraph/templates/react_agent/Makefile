@@ -5,6 +5,7 @@ CHART_DIR      := ../../deployment
 VALUES_FILE    := values.yaml
 CONTAINER_CLI  := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 MODEL          ?= llama3.1:8b
+ROUTE_TIMEOUT  ?= 120s
 
 .PHONY: init re-init env ollama ogx-server run-app run-app-fresh run-cli build push build-openshift deploy undeploy test test-integration test-auth-integration eval dry-run help
 
@@ -159,6 +160,8 @@ deploy: _check-env ## Deploy to OpenShift/K8s via Helm
 	    $${MLFLOW_TRACKING_SERVER_CERT_PATH:+--set env.MLFLOW_TRACKING_SERVER_CERT_PATH="$${MLFLOW_TRACKING_SERVER_CERT_PATH}"} \
 	    $${MLFLOW_WORKSPACE:+--set env.MLFLOW_WORKSPACE="$${MLFLOW_WORKSPACE}"} && \
 	  if command -v oc >/dev/null 2>&1; then \
+	    echo "Setting Route timeout to $(ROUTE_TIMEOUT)..." && \
+	    oc annotate route/$(AGENT_NAME) "haproxy.router.openshift.io/timeout=$(ROUTE_TIMEOUT)" --overwrite && \
 	    echo "" && echo "Waiting for rollout to complete..." && \
 	    if oc rollout status deployment/$(AGENT_NAME) --timeout=120s; then \
 	      ROUTE=$$(oc get route $(AGENT_NAME) -o jsonpath='{.spec.host}' 2>/dev/null || true); \
