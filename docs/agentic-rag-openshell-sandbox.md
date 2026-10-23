@@ -11,7 +11,8 @@ All commands run from `agents/langgraph/templates/agentic_rag/`.
 - OpenShift cluster with admin access (`oc` logged in)
 - `openshell` CLI installed - see [OpenShell installation](https://github.com/NVIDIA/OpenShell?tab=readme-ov-file#installation)
 - `helm` v3 installed
-- OGX instance with API key, embedding model, and vector store configured
+- MaaS endpoints for chat and embeddings, plus in-cluster Milvus
+- A vector DB Secret containing `MILVUS_SERVER_CERT` as PEM text
 - **Red Hat build of Agent Sandbox** operator installed (namespace `agent-sandbox-system`)
 
 ---
@@ -26,11 +27,25 @@ Edit `.env` and fill in:
 
 | Variable | Example | Description |
 |---|---|---|
-| `API_KEY` | `eyJhbG...` | OGX API key (JWT from Keycloak) |
-| `BASE_URL` | `https://server-ogx.<apps-domain>/v1` | OGX endpoint |
-| `MODEL_ID` | `maas-llm/qwen3-8b-fp8-dynamic` | LLM model |
-| `EMBEDDING_MODEL` | `maas-embedding/redhataibge-m3` | Embedding model (must be in OGX `allowed_models`) |
-| `VECTOR_STORE_PROVIDER` | `milvus` | Vector store backend (must match OGX provider config) |
+| `MAAS_API_KEY` | `sk-oai-...` | MaaS API key |
+| `MAAS_BASE_URL` | `https://maas.<apps-domain>/v1` | MaaS OpenAI-compatible endpoint |
+| `MODEL_ID` | `publishers/<org>/models/<model>` | Chat model id |
+| `EMBEDDING_MODEL_ID` | `publishers/<org>/models/<model>` | Embedding model id |
+| `EMBEDDING_DIMENSION` | `1024` | Must match the embedding model |
+| `MILVUS_URI` | `https://milvus-service.milvus.svc.cluster.local:19530` | In-cluster Milvus gRPC endpoint (not a LoadBalancer) |
+| `MILVUS_TOKEN` | `root:<password>` | Milvus user:password; `.env` takes precedence over the Secret |
+| `MILVUS_SERVER_CERT` | *(leave empty)* | Loaded as PEM text from the vector DB Secret; do not set a file path |
+| `MILVUS_SERVER_NAME` | `milvus-service.milvus.svc.cluster.local` | TLS server name for Milvus |
+| `VECTOR_DB_SECRET_NAME` | `milvus` | Kubernetes Secret name containing vector DB settings |
+| `MILVUS_COLLECTION_NAME` | *(leave empty)* | Filled by `make load-docs-sandbox`, or set to an existing collection |
+| `CONTAINER_IMAGE` | *(set after Step 3)* | Image used by the load-docs Job |
+| `DOCUMENTS_DIR` | `./data` | Directory with documents to index |
+| `CHUNK_SIZE` | `512` | Chunk size for indexing |
+
+The Makefile loads `MILVUS_SERVER_CERT` from `VECTOR_DB_SECRET_NAME` and
+passes the PEM text to the sandbox. Explicit values in `.env`, such as
+`MILVUS_URI` and `MILVUS_TOKEN`, are preserved and only empty variables are
+filled from the Secret.
 
 ## Step 2 — Install openShell gateway and connect CLI
 
@@ -62,13 +77,20 @@ make build-openshell
 ```
 
 Creates an OpenShift BuildConfig and builds the image using
-`Containerfile.openshell` in-cluster. Takes ~2 minutes.
+`Containerfile.openshell` in-cluster. Takes ~4 minutes. Dependencies are
+exported with `uv export --frozen` from the checked-in `uv.lock`.
 
 The final output shows:
 
 ```bash
 # Image ready: image-registry.openshift-image-registry.svc:5000/example-namespace/openshell-agentic-rag:latest
 # Next: make deploy-openshell
+```
+
+Set `CONTAINER_IMAGE` in `.env` to that image URL (needed by `make load-docs-sandbox`):
+
+```ini
+CONTAINER_IMAGE=image-registry.openshift-image-registry.svc:5000/<namespace>/openshell-agentic-rag:latest
 ```
 
 **Verify the build:**
@@ -78,7 +100,37 @@ The final output shows:
 # openshell-agentic-rag-1   Source   Docker   Complete   2m
 ```
 
-## Step 4 — Deploy
+## Step 4 — Load documents into Milvus (optional)
+
+***NOTE***: Skip this step if `.env` already has a valid `MILVUS_COLLECTION_NAME`.
+
+```bash
+make load-docs-sandbox
+```
+
+This runs `scripts/create-load-docs-job-ai4rag.sh`, which:
+
+1. Creates an OpenShift Job in the current namespace using `CONTAINER_IMAGE`
+2. Indexes documents from `DOCUMENTS_DIR` (default `./data/sample_knowledge.txt`)
+   with ai4rag + MaaS embeddings into in-cluster Milvus
+3. Injects `MILVUS_SERVER_CERT` directly from the vector DB Secret as PEM text
+4. Writes the new collection name back to `.env` as `MILVUS_COLLECTION_NAME`
+5. Auto-deletes the Job after 10 minutes
+
+Requires: image from Step 3, `CONTAINER_IMAGE` set, the vector DB Secret with
+`MILVUS_SERVER_CERT`, and egress from the Job namespace to MaaS + Milvus.
+
+Optional check after indexing (sandbox must already exist — run this after Step 5
+if you want to verify from inside the sandbox):
+
+```bash
+make check-collection  # run after step 5 to check collection
+```
+
+## Step 5 — Deploy
+
+`MILVUS_COLLECTION_NAME` must be set in `.env` before this step
+(`make start-agent` fails without it).
 
 ```bash
 make deploy-openshell
@@ -89,11 +141,11 @@ independently for debugging):
 
 | Sub-target | What it does |
 |---|---|
-| `make create-sandbox` | Grants image-pull access, deletes any existing sandbox, creates a new one (120s timeout) |
+| `make create-sandbox` | Grants image-pull access, deletes any existing sandbox, creates a new one (120s timeout) with MaaS + Milvus env vars |
 | `make wait-sandbox` | Polls until the sandbox phase is `Ready` (max 150s) |
-| `make setup-egress` | Resolves the python binary path inside the sandbox, adds egress policy for OGX and K8s API |
-| `make load-docs-sandbox` | Loads documents into a new vector store, updates `VECTOR_STORE_ID` in `.env` |
-| `make start-agent` | Creates `agent-client` SA, generates token (stored in `agent-client-token` Secret), starts uvicorn, exposes the service URL, creates an OpenShift Route |
+| `make setup-egress` | Adds egress for MaaS chat, MaaS embeddings, Kubernetes API, and Milvus gRPC (`tls: skip`) |
+| `make start-agent` | Creates `agent-client` SA, generates token (stored in `agent-client-token` Secret), starts uvicorn with `MILVUS_COLLECTION_NAME` and the PEM from the vector DB Secret |
+| `make expose-agent` | Exposes the service URL and creates an OpenShift Route |
 
 At the end it prints the agent URL and a curl example.
 Total time: ~3 minutes.
@@ -109,7 +161,7 @@ Check the route:
 # openshell-rag-agent   default--rag-sandbox--agent.openshell.apps.rosa.example.com         openshell   8080   passthrough   None
 ```
 
-## Step 5 — Test
+## Step 6 — Test
 
 ```bash
 AGENT_URL="https://default--rag-sandbox--agent.openshell.$(oc get ingresses.config cluster -o jsonpath='{.spec.domain}')"
@@ -167,32 +219,32 @@ https://default--rag-sandbox--agent.openshell.<APPS_DOMAIN>/docs
 The `/docs` and `/health` endpoints are unauthenticated — only
 `/chat/completions` requires an API key.
 
+Swagger UI includes a **Sandbox Playground** shortcut and an instruction at the
+top of the page. In the sandbox image, both the root URL (`/`) and `/playground`
+serve the sandbox Playground directly, using the same public Route as Swagger.
+
+The embedded Playground requires the `agent-client` token. Paste the value
+from `agent-client-token` into its API token field; it is sent as `X-Api-Key`.
+
 ---
 
-## Step 6 — Interactive Playground (Optional)
+## Step 7 — Interactive Playground
 
-For a better experience, use the web-based playground UI instead of curl:
+`make deploy-openshell` starts the agent and exposes both Swagger UI and the
+sandbox Playground through the same Route. After deployment, open:
 
-```bash
-make playground-sandbox
+```text
+https://default--rag-sandbox--agent.openshell.<APPS_DOMAIN>/
 ```
 
-This starts a Flask web UI on <http://localhost:5002> that:
+The Playground:
 
-- Auto-fetches the agent URL from the OpenShift Route
-- Auto-fetches the SA token from the `agent-client-token` Secret
+- Requires the `agent-client` ServiceAccount token in the API token field
 - Provides a chat interface with streaming responses
 - Maintains conversation history across messages
 - Collapses reasoning steps and retrieved context into expandable sections
 
 ![Sandbox Playground](../images/sandbox_playground.png)
-
-**Requirements:**
-
-- `oc` CLI logged into OpenShift with access to `openshell` namespace
-- Flask (already in dependencies)
-
-To override auto-detection, set `AGENT_URL` and `AGENT_TOKEN` environment variables before running.
 
 ---
 
@@ -202,7 +254,8 @@ To override auto-detection, set `AGENT_URL` and `AGENT_TOKEN` environment variab
 middleware — **no agent source code is modified** (`main.py`, `src/`
 are untouched).
 
-- Only `/chat/completions` is protected; `/health` passes through
+- `/chat/completions` and the playground proxy `/api/chat` are protected;
+  `/health` and `/docs` pass through
 - **K8s SA token**: `make start-agent` creates a `agent-client`
   ServiceAccount, generates a token (7-day TTL), stores it in
   `agent-client-token` Secret. The agent validates tokens via the
@@ -214,17 +267,33 @@ are untouched).
   instead, `auth_wrapper.py` inside the sandbox validates K8s SA tokens
   on a per-endpoint basis.
 - The agent process runs in the background without a supervisor (`&`).
-  If it crashes, re-run `make start-agent`. For production deployments,
-  consider adding a process supervisor or relying on Kubernetes restart
-  policies.
+  If it crashes, re-run `make start-agent` then `make expose-agent`.
+  For production deployments, consider adding a process supervisor or relying
+  on Kubernetes restart policies.
 
 ## Troubleshooting
 
-**Agent returns `null` responses**: Vector store ID doesn't exist or is stale. Clear `VECTOR_STORE_ID=` in `.env`, run `make load-docs-sandbox` to create a new vector store, then restart agent with `make start-agent`.
+**Agent returns `null` responses / empty retrieval**: Collection is missing or stale.
+Clear `MILVUS_COLLECTION_NAME=` in `.env`, run `make load-docs-sandbox`, then restart
+with `make start-agent` and `make expose-agent`. Verify with `make check-collection`.
+
+**TLS errors talking to Milvus**: Confirm the vector DB Secret named by
+`VECTOR_DB_SECRET_NAME` contains a `MILVUS_SERVER_CERT` key with PEM text.
+The certificate is not baked into the sandbox image.
+
+**`ERROR: MILVUS_COLLECTION_NAME not set`**: Run `make load-docs-sandbox` before
+`make deploy-openshell`, or point `.env` at an existing collection.
 
 **Backend returns 401 Unauthorized**: Model backend ServiceAccount token may have expired. Check backend logs and regenerate SA token if needed.
 
 **Embedding model not in allowed list**: Model provider configuration may have empty allowed models list. Verify provider config includes the model name.
+
+**openShell CLI connection issues**: If `openshell` commands fail with TLS errors, refresh client certificates with `make refresh-certs`.
+
+**Playground is not available at `/`**: The embedded Playground requires a
+recent sandbox image. Rebuild and redeploy with `make build-openshell` and
+`make deploy-openshell`. As a temporary fallback for an older image, run
+`make playground-sandbox` locally.
 
 ## Cleanup
 
