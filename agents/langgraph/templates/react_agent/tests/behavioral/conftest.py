@@ -115,8 +115,9 @@ def run_eval(
     async def _run(
         query: str,
         expected_tools: list[str] | None = None,
-        # QG7 requests can exceed 30s under shared-vLLM load.
-        timeout_seconds: float = 60.0,
+        # QG7 requests can exceed 30s under shared-vLLM load; override with
+        # QG7_TIMEOUT_SECONDS without editing code.
+        timeout_seconds: float = float(os.environ.get("QG7_TIMEOUT_SECONDS", "60")),
         max_tokens_budget: int | None = None,
         model: str | None = None,
         enrich: bool = True,

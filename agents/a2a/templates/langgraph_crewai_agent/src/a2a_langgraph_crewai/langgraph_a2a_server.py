@@ -40,6 +40,7 @@ from starlette.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.routing import Route
 
 from .a2a_reply import send_a2a_text_message
+from .prompts import INJECTION_RESISTANCE_CLAUSE
 from .tracing import enable_tracing_langgraph
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,7 @@ def _build_graph() -> CompiledStateGraph:
     system_prompt = (
         "You are the orchestrator. Answer simple questions yourself. "
         "For deeper or specialized questions, call ask_crew_specialist once, "
-        "then summarize the final answer for the user."
+        f"then summarize the final answer for the user. {INJECTION_RESISTANCE_CLAUSE}"
     )
     return create_agent(
         model=chat,
