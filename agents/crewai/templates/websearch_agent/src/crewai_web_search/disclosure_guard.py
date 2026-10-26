@@ -6,17 +6,29 @@ from typing import NamedTuple
 HIDDEN_INSTRUCTIONS_REFUSAL = "I can't provide hidden instructions."
 
 _DISCLOSURE_TARGET = re.compile(
-    r"\b(?:your|the|its|(?:the|this|that)\s+agent['’]s)\s+"
+    r"\b(?:"
+    r"(?P<owned>(?:your|(?:the|this|that)\s+agent['’]s)\s+"
     r"(?:system\s+prompt|developer\s+(?:prompt|instructions?)|"
-    r"hidden\s+instructions?|instructions?|api\s+keys?|secrets?)\b",
+    r"hidden\s+instructions?|instructions?|api\s+keys?|secrets?))"
+    r"|(?P<referential>(?:the|its)\s+"
+    r"(?:system\s+prompt|developer\s+(?:prompt|instructions?)|"
+    r"hidden\s+instructions?))"
+    r")\b",
+    re.IGNORECASE,
+)
+_BENIGN_REFERENCE_CONTEXT = re.compile(
+    r"^\s+(?:used\s+for\b|for\s+(?!(?:the|this|that)\s+agent\b))",
     re.IGNORECASE,
 )
 _DISCLOSURE_VERB = re.compile(
     r"\b(?:reveal|show|provide|quote|repeat|summarize|paraphrase|explain|"
-    r"print|display|tell\s+me)\b",
+    r"print|display|tell\s+me|give(?:\s+me)?|share|disclose|output|paste|"
+    r"dump|write(?:\s+out)?|list|send|export|(?:i\s+)?want\s+to\s+know)\b",
     re.IGNORECASE,
 )
-_DISCLOSURE_QUESTION = re.compile(r"\bwhat\s+(?:is|are)\s*$", re.IGNORECASE)
+_DISCLOSURE_QUESTION = re.compile(
+    r"\b(?:what\s+(?:is|are)|what['’]?s)\s*$", re.IGNORECASE
+)
 _OVERRIDE_PREFIX = re.compile(
     r"\b(?:ignore|disregard|override)\b.{0,100}\b(?:and|then)\s*$",
     re.IGNORECASE | re.DOTALL,
@@ -36,6 +48,11 @@ class GuardOutcome(NamedTuple):
 def _find_disclosure_start(user_message: str) -> int | None:
     """Locate the start of the first explicit disclosure request."""
     for target in _DISCLOSURE_TARGET.finditer(user_message):
+        if target.lastgroup == "referential" and _BENIGN_REFERENCE_CONTEXT.match(
+            user_message[target.end() :]
+        ):
+            continue
+
         lookback_start = max(0, target.start() - 160)
         lookback = user_message[lookback_start : target.start()]
         boundaries = [match.start() for match in _DISCLOSURE_VERB.finditer(lookback)]
