@@ -242,7 +242,7 @@ stack are not part of them (`OTEL_METRICS_EXPORTER=none`). On OpenShift, per-rai
 metrics come from an `OpenTelemetryCollector` (Red Hat build of OpenTelemetry)
 whose [spanmetrics connector](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector)
 derives them and exposes them for scraping by
-[user workload monitoring](https://docs.openshift.com/container-platform/latest/observability/monitoring/enabling-monitoring-for-user-defined-projects.html)
+[user workload monitoring](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/monitoring/about-ocp-monitoring)
 (UWM).
 
 To enable the metrics path:
