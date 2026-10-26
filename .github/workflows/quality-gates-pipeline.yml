@@ -346,6 +346,7 @@ jobs:
       VECTOR_STORE_ID: ${{ vars.VECTOR_STORE_ID }}
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
         agent: ${{ fromJson(needs.collect-qg4.outputs.pass_list) }}
     steps:
