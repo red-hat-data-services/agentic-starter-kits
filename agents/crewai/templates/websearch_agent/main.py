@@ -129,7 +129,8 @@ _REACT_NOISE = re.compile(
 _CREWAI_PROMPT_MARKER = "\n\n\nYou ONLY have access to"
 _HIDDEN_INSTRUCTIONS_REFUSAL = "I can't provide hidden instructions."
 _DISCLOSURE_TARGET = re.compile(
-    r"\byour\s+(?:system\s+prompt|developer\s+(?:prompt|instructions?)|"
+    r"\b(?:your|the|its|(?:the|this|that)\s+agent['’]s)\s+"
+    r"(?:system\s+prompt|developer\s+(?:prompt|instructions?)|"
     r"hidden\s+instructions?|instructions?|api\s+keys?|secrets?)\b",
     re.IGNORECASE,
 )
@@ -184,12 +185,12 @@ def _guard_instruction_disclosure(user_message: str) -> tuple[str, bool]:
         lookback_start = max(0, target.start() - 160)
         lookback = user_message[lookback_start : target.start()]
         verbs = list(_DISCLOSURE_VERB.finditer(lookback))
-        if verbs:
-            disclosure_start = lookback_start + verbs[-1].start()
-        else:
-            question = _DISCLOSURE_QUESTION.search(lookback)
-            if question is not None:
-                disclosure_start = lookback_start + question.start()
+        question = _DISCLOSURE_QUESTION.search(lookback)
+        boundaries = [match.start() for match in verbs]
+        if question is not None:
+            boundaries.append(question.start())
+        if boundaries:
+            disclosure_start = lookback_start + max(boundaries)
 
         if disclosure_start is not None:
             override = _OVERRIDE_PREFIX.search(user_message[:disclosure_start])

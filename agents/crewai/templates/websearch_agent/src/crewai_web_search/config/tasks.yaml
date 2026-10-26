@@ -9,5 +9,5 @@ generate_response_task:
     knowledge and say "Based on my knowledge".
     For greetings or casual messages, respond directly without tools.
   expected_output: >
-    A concise, helpful, and polite response to: {user_prompt}
+    A concise, helpful, and polite response to the user request.
   agent: ai_assistant
