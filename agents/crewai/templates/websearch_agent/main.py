@@ -12,6 +12,10 @@ from typing import Any
 
 from crewai import LLM
 from crewai_web_search.crew import AssistanceAgents
+from crewai_web_search.disclosure_guard import (
+    HIDDEN_INSTRUCTIONS_REFUSAL,
+    guard_instruction_disclosure,
+)
 from crewai_web_search.tracing import enable_tracing
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import (
@@ -127,29 +131,6 @@ _REACT_NOISE = re.compile(
     re.DOTALL,
 )
 _CREWAI_PROMPT_MARKER = "\n\n\nYou ONLY have access to"
-_HIDDEN_INSTRUCTIONS_REFUSAL = "I can't provide hidden instructions."
-_DISCLOSURE_TARGET = re.compile(
-    r"\b(?:your|the|its|(?:the|this|that)\s+agent['’]s)\s+"
-    r"(?:system\s+prompt|developer\s+(?:prompt|instructions?)|"
-    r"hidden\s+instructions?|instructions?|api\s+keys?|secrets?)\b",
-    re.IGNORECASE,
-)
-_DISCLOSURE_VERB = re.compile(
-    r"\b(?:reveal|show|provide|quote|repeat|summarize|paraphrase|explain|"
-    r"print|display|tell\s+me)\b",
-    re.IGNORECASE,
-)
-_DISCLOSURE_QUESTION = re.compile(
-    r"\bwhat\s+(?:is|are)\s*$",
-    re.IGNORECASE,
-)
-_OVERRIDE_PREFIX = re.compile(
-    r"\b(?:ignore|disregard|override)\b.{0,100}\b(?:and|then)\s*$",
-    re.IGNORECASE | re.DOTALL,
-)
-_TRAILING_MIXED_REQUEST_CONNECTOR = re.compile(
-    r"(?:,\s*)?\b(?:also|and|but)\b[\s,:;-]*$", re.IGNORECASE
-)
 
 
 def _clean_content(text: str) -> str:
@@ -173,48 +154,78 @@ def _build_user_message(messages: list[ChatMessage]) -> str:
     raise ValueError("No user message found in messages list")
 
 
-def _guard_instruction_disclosure(user_message: str) -> tuple[str, bool]:
-    """Remove an explicit instruction-disclosure clause before model invocation.
-
-    Prompt rules alone are insufficient for smaller models because the model sees
-    the attack before deciding whether to follow it. For mixed requests, retain a
-    preceding legitimate clause; for disclosure-only requests, invoke no model.
-    """
-    disclosure_start = None
-    for target in _DISCLOSURE_TARGET.finditer(user_message):
-        lookback_start = max(0, target.start() - 160)
-        lookback = user_message[lookback_start : target.start()]
-        verbs = list(_DISCLOSURE_VERB.finditer(lookback))
-        question = _DISCLOSURE_QUESTION.search(lookback)
-        boundaries = [match.start() for match in verbs]
-        if question is not None:
-            boundaries.append(question.start())
-        if boundaries:
-            disclosure_start = lookback_start + max(boundaries)
-
-        if disclosure_start is not None:
-            override = _OVERRIDE_PREFIX.search(user_message[:disclosure_start])
-            if override is not None:
-                disclosure_start = override.start()
-            break
-
-    if disclosure_start is None:
-        return user_message, False
-
-    prefix = user_message[:disclosure_start].rstrip()
-    connector = _TRAILING_MIXED_REQUEST_CONNECTOR.search(prefix)
-    if connector is not None:
-        prefix = prefix[: connector.start()].rstrip()
-    elif not re.search(r"[.!?]\s*$", prefix):
-        # Without a clear sentence or conjunction boundary, conservatively
-        # refuse the whole request rather than send a fragment to the model.
-        prefix = ""
-
-    return prefix, True
-
-
 def _make_completion_id() -> str:
     return f"chatcmpl-{uuid.uuid4().hex[:12]}"
+
+
+def _completion_response(content: str, model_id: str) -> dict[str, Any]:
+    """Build an OpenAI-compatible non-streaming completion response."""
+    return {
+        "id": _make_completion_id(),
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": model_id,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": None,
+    }
+
+
+def _sse_chunk(
+    completion_id: str,
+    created: int,
+    model_id: str,
+    *,
+    content: str | None = None,
+    finish_reason: str | None = None,
+) -> str:
+    """Build one OpenAI-compatible SSE completion chunk."""
+    delta = {"content": content} if content is not None else {}
+    data = {
+        "id": completion_id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": model_id,
+        "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}],
+    }
+    return f"data: {json.dumps(data)}\n\n"
+
+
+def _refusal_stream(model_id: str) -> StreamingResponse:
+    """Return a complete refusal without invoking the model."""
+    completion_id = _make_completion_id()
+    created = int(time.time())
+
+    async def event_generator() -> AsyncIterator[str]:
+        yield _sse_chunk(
+            completion_id,
+            created,
+            model_id,
+            content=HIDDEN_INSTRUCTIONS_REFUSAL,
+        )
+        yield _sse_chunk(
+            completion_id,
+            created,
+            model_id,
+            finish_reason="stop",
+        )
+        yield "data: [DONE]\n\n"
+
+    return _streaming_response(event_generator())
+
+
+def _streaming_response(events: AsyncIterator[str]) -> StreamingResponse:
+    """Wrap an event iterator with the service's standard SSE headers."""
+    return StreamingResponse(
+        events,
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @asynccontextmanager
@@ -267,21 +278,25 @@ async def chat_completions(request: ChatCompletionRequest):
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
     user_message = _build_user_message(request.messages)
-    safe_user_message, refused_disclosure = _guard_instruction_disclosure(user_message)
+    guard_outcome = guard_instruction_disclosure(user_message)
     model_id = request.model or getenv("MODEL_ID") or "model"
+
+    if guard_outcome.refused and not guard_outcome.prefix:
+        if request.stream:
+            return _refusal_stream(model_id)
+        return _completion_response(HIDDEN_INSTRUCTIONS_REFUSAL, model_id)
 
     if request.stream:
         return await _handle_stream(
-            safe_user_message,
+            guard_outcome.prefix,
             model_id,
-            append_refusal=refused_disclosure,
+            append_refusal=guard_outcome.refused,
         )
-    else:
-        return await _handle_chat(
-            safe_user_message,
-            model_id,
-            append_refusal=refused_disclosure,
-        )
+    return await _handle_chat(
+        guard_outcome.prefix,
+        model_id,
+        append_refusal=guard_outcome.refused,
+    )
 
 
 async def _handle_chat(
@@ -291,31 +306,27 @@ async def _handle_chat(
     global llm
 
     try:
+        inputs = {
+            "user_prompt": user_message,
+            "custom_instruction": "",
+        }
+
+        crew = AssistanceAgents(llm=llm).crew()
+        result = await asyncio.to_thread(crew.kickoff, inputs=inputs)
+        assistant_content = _clean_content(str(result))
+
         usage = None
-        if user_message:
-            inputs = {
-                "user_prompt": user_message,
-                "custom_instruction": "",
+        token_usage = getattr(result, "token_usage", None)
+        if token_usage:
+            usage = {
+                "prompt_tokens": getattr(token_usage, "prompt_tokens", 0) or 0,
+                "completion_tokens": getattr(token_usage, "completion_tokens", 0) or 0,
+                "total_tokens": getattr(token_usage, "total_tokens", 0) or 0,
             }
-
-            crew = AssistanceAgents(llm=llm).crew()
-            result = await asyncio.to_thread(crew.kickoff, inputs=inputs)
-            assistant_content = _clean_content(str(result))
-
-            token_usage = getattr(result, "token_usage", None)
-            if token_usage:
-                usage = {
-                    "prompt_tokens": getattr(token_usage, "prompt_tokens", 0) or 0,
-                    "completion_tokens": getattr(token_usage, "completion_tokens", 0)
-                    or 0,
-                    "total_tokens": getattr(token_usage, "total_tokens", 0) or 0,
-                }
-        else:
-            assistant_content = ""
 
         if append_refusal:
             separator = "\n\n" if assistant_content else ""
-            assistant_content += separator + _HIDDEN_INSTRUCTIONS_REFUSAL
+            assistant_content += separator + HIDDEN_INSTRUCTIONS_REFUSAL
 
         return {
             "id": _make_completion_id(),
@@ -352,38 +363,6 @@ async def _handle_stream(
 
     async def event_generator() -> AsyncIterator[str]:
         try:
-            if not user_message:
-                data = {
-                    "id": completion_id,
-                    "object": "chat.completion.chunk",
-                    "created": created,
-                    "model": model_id,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {"content": _HIDDEN_INSTRUCTIONS_REFUSAL},
-                            "finish_reason": None,
-                        }
-                    ],
-                }
-                yield f"data: {json.dumps(data)}\n\n"
-                final_data = {
-                    "id": completion_id,
-                    "object": "chat.completion.chunk",
-                    "created": created,
-                    "model": model_id,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {},
-                            "finish_reason": "stop",
-                        }
-                    ],
-                }
-                yield f"data: {json.dumps(final_data)}\n\n"
-                yield "data: [DONE]\n\n"
-                return
-
             inputs = {
                 "user_prompt": user_message,
                 "custom_instruction": "",
@@ -396,26 +375,17 @@ async def _handle_stream(
             # that is internal ReAct reasoning (Thought/Action/Observation).
             buffer = ""
             emitting = False
+            emitted_content = False
 
             async for chunk in streaming_output:
                 if chunk.chunk_type.value != "text" or not chunk.content:
                     continue
 
                 if emitting:
-                    data = {
-                        "id": completion_id,
-                        "object": "chat.completion.chunk",
-                        "created": created,
-                        "model": model_id,
-                        "choices": [
-                            {
-                                "index": 0,
-                                "delta": {"content": chunk.content},
-                                "finish_reason": None,
-                            }
-                        ],
-                    }
-                    yield f"data: {json.dumps(data)}\n\n"
+                    emitted_content = True
+                    yield _sse_chunk(
+                        completion_id, created, model_id, content=chunk.content
+                    )
 
                 else:
                     buffer += chunk.content
@@ -425,71 +395,32 @@ async def _handle_stream(
                         emitting = True
                         remainder = buffer[idx + len(marker) :]
                         if remainder.strip():
-                            data = {
-                                "id": completion_id,
-                                "object": "chat.completion.chunk",
-                                "created": created,
-                                "model": model_id,
-                                "choices": [
-                                    {
-                                        "index": 0,
-                                        "delta": {"content": remainder.lstrip()},
-                                        "finish_reason": None,
-                                    }
-                                ],
-                            }
-                            yield f"data: {json.dumps(data)}\n\n"
+                            emitted_content = True
+                            yield _sse_chunk(
+                                completion_id,
+                                created,
+                                model_id,
+                                content=remainder.lstrip(),
+                            )
 
             # If no "Final Answer:" was found, send the cleaned full buffer
             if not emitting and buffer.strip():
                 cleaned = _clean_content(buffer)
                 if cleaned:
-                    data = {
-                        "id": completion_id,
-                        "object": "chat.completion.chunk",
-                        "created": created,
-                        "model": model_id,
-                        "choices": [
-                            {
-                                "index": 0,
-                                "delta": {"content": cleaned},
-                                "finish_reason": None,
-                            }
-                        ],
-                    }
-                    yield f"data: {json.dumps(data)}\n\n"
+                    emitted_content = True
+                    yield _sse_chunk(completion_id, created, model_id, content=cleaned)
 
             if append_refusal:
-                data = {
-                    "id": completion_id,
-                    "object": "chat.completion.chunk",
-                    "created": created,
-                    "model": model_id,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {"content": f"\n\n{_HIDDEN_INSTRUCTIONS_REFUSAL}"},
-                            "finish_reason": None,
-                        }
-                    ],
-                }
-                yield f"data: {json.dumps(data)}\n\n"
+                separator = "\n\n" if emitted_content else ""
+                yield _sse_chunk(
+                    completion_id,
+                    created,
+                    model_id,
+                    content=separator + HIDDEN_INSTRUCTIONS_REFUSAL,
+                )
 
             # Send final chunk with finish_reason
-            final_data = {
-                "id": completion_id,
-                "object": "chat.completion.chunk",
-                "created": created,
-                "model": model_id,
-                "choices": [
-                    {
-                        "index": 0,
-                        "delta": {},
-                        "finish_reason": "stop",
-                    }
-                ],
-            }
-            yield f"data: {json.dumps(final_data)}\n\n"
+            yield _sse_chunk(completion_id, created, model_id, finish_reason="stop")
             yield "data: [DONE]\n\n"
 
         except Exception:
@@ -502,11 +433,7 @@ async def _handle_stream(
             }
             yield f"data: {json.dumps(error_data)}\n\n"
 
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return _streaming_response(event_generator())
 
 
 @app.get(
