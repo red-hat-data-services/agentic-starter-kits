@@ -10,69 +10,34 @@ Requires the `guardrails` extra (`uv run --extra guardrails pytest ...`);
 skipped automatically if nemoguardrails isn't installed.
 """
 
-import importlib.util
-import shutil
-from pathlib import Path
-
 import pytest
 import yaml
+from guardrails_profiles import build_profile, clear_guardrails_env
 
 nemoguardrails = pytest.importorskip("nemoguardrails")
 from nemoguardrails import LLMRails, RailsConfig  # noqa: E402
 
-AGENT_DIR = Path(__file__).resolve().parents[1]
-GUARDRAILS_DIR = AGENT_DIR / "guardrails"
-CONFIG_DIR = GUARDRAILS_DIR / "config"
-SCRIPT_PATH = GUARDRAILS_DIR / "generate_config.py"
 PROFILES = ("local", "nemoguard")
-
-
-def _load_generate_config_module():
-    spec = importlib.util.spec_from_file_location("generate_config", SCRIPT_PATH)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-generate_config = _load_generate_config_module()
-
-_ROLE_ENV_VARS = [
-    f"{prefix}_{suffix}"
-    for prefix in generate_config._ROLE_ENV_PREFIX.values()
-    for suffix in ("MODEL_ID", "LLM_BASE_URL", "API_KEY", "MODEL_ENGINE")
-]
 
 
 @pytest.fixture(autouse=True)
 def _clean_guardrails_env(monkeypatch):
-    for var in _ROLE_ENV_VARS + [
-        "MODEL_ID",
-        "LLM_BASE_URL",
-        "API_KEY",
-        "TOPIC_CONTROL_CUSTOM_POLICY",
-        "GUARDRAILS_TRACING_ENABLED",
-    ]:
-        monkeypatch.delenv(var, raising=False)
+    clear_guardrails_env(monkeypatch)
 
 
 @pytest.fixture()
 def built_profile_dir(tmp_path, monkeypatch):
-    """Copies a profile dir to tmp, generates config.yaml from the example
-    template with fixed test env, and returns the tmp profile dir path."""
+    """Returns a builder: profile name -> tmp profile dir with a generated
+    config.yaml (fixed local-Ollama test env)."""
 
-    def _build(profile: str) -> Path:
-        src_dir = CONFIG_DIR / profile
-        dst_dir = tmp_path / profile
-        shutil.copytree(src_dir, dst_dir)
-
-        config_path = dst_dir / "config.yaml"
-        shutil.copy(dst_dir / "config.yaml.example", config_path)
-
-        monkeypatch.setenv("MODEL_ID", "llama3.1:8b")
-        monkeypatch.setenv("LLM_BASE_URL", "http://localhost:11434/v1")
-        monkeypatch.setenv("API_KEY", "not-needed")
-        generate_config.generate_config(str(config_path))
-        return dst_dir
+    def _build(profile: str):
+        return build_profile(
+            tmp_path,
+            profile,
+            monkeypatch,
+            model_id="llama3.1:8b",
+            base_url="http://localhost:11434/v1",
+        )
 
     return _build
 

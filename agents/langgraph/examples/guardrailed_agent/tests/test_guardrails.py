@@ -5,12 +5,10 @@ the standalone ``/v1/checks`` endpoint (not the LangGraph agent) so
 ``guardrails.config_id`` and rail outcomes can be asserted without the agent
 stripping proxy metadata.
 
-Output-rail testing strategy (not implemented here): harmful LLM output is best
-validated with a mock LLM backend that returns fixed unsafe content, then
-asserting the output rail blocks or rewrites it. That keeps tests deterministic
-without depending on a real model occasionally generating unsafe text. A future
-harness can point the guardrails ``main`` model at a stub HTTP server returning
-canned completions while rail classifiers stay on the real stack.
+Output rails are not tested here: a real model rarely generates unsafe text on
+demand. ``tests/test_output_rails.py`` covers them deterministically in
+``make test`` by pointing the nemoguard profile's models at a stub server that
+returns canned completions and classifier verdicts.
 """
 
 from __future__ import annotations
