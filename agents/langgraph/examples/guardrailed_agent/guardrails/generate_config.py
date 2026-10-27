@@ -40,19 +40,18 @@ config.yaml is rewired to use the `topic policy check input` flow
 (topic_policy.co / actions.py) instead of the built-in one.
 
 Caveat for the "main" role specifically (verified against
-nemoguardrails==0.21.0's server/api.py): the NeMo Guardrails server itself
-overrides the "main" model's id/engine on *every* request from the OpenAI
-`model` field the client sends — and this agent always sends
-`model=MODEL_ID`. So MAIN_MODEL_ID has no effect once real traffic is
-flowing through the proxy; it only affects the model id baked into the
-static config.yaml (relevant if something hits the guardrails server
-directly with a model name matching that baked value). MAIN_LLM_BASE_URL
-and MAIN_API_KEY still take effect, since NeMo's override never touches
-`api_key` and only touches `base_url` via its own separate
-MAIN_MODEL_BASE_URL env var (which we don't set). MAIN_MODEL_ENGINE also
-takes effect, but only because NeMo Guardrails' server happens to read
-that exact env var name itself for the same purpose — not because this
-script wires it through.
+nemoguardrails==0.24.0's server/api.py): the NeMo Guardrails server itself
+overrides the "main" model's id on *every* request from the OpenAI `model`
+field the client sends — and this agent always sends `model=MODEL_ID`. So
+MAIN_MODEL_ID has no effect once real traffic is flowing through the
+proxy; it only affects the model id baked into the static config.yaml
+(relevant if something hits the guardrails server directly with a model
+name matching that baked value). The server keeps the configured main
+model's other fields, so MAIN_LLM_BASE_URL and MAIN_API_KEY still take
+effect (NeMo only replaces `base_url` via its own separate
+MAIN_MODEL_BASE_URL env var, which we don't set). MAIN_MODEL_ENGINE also
+takes effect; NeMo Guardrails' server reads that exact env var name itself
+and prefers it over the configured engine.
 
 Invoked by `make guardrails-server-{local,nemoguard}` after the profile's
 config.yaml.example has been copied to config.yaml.

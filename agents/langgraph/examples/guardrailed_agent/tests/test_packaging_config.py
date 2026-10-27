@@ -79,12 +79,12 @@ def test_dockerfile_installs_auth_extra_from_staged_component() -> None:
 
 
 def test_pyproject_pins_nemoguardrails_version() -> None:
-    # Pinned to match the nemoguardrails version shipped in the RHOAI container,
-    # so local behavior mirrors the cluster. 0.21.0 already supports the full
-    # tracing config block (span_format, enable_content_capture).
+    # Pinned to match the nemoguardrails version shipped in the RHOAI 3.6
+    # container (0.24.0.dev0), so local behavior mirrors the cluster: same
+    # RailOutcome action API and the same /v1/checks endpoint.
     guardrails_deps = PYPROJECT["project"]["optional-dependencies"]["guardrails"]
     assert any(
-        "nemoguardrails[server]" in d and "==0.21.0" in d for d in guardrails_deps
+        "nemoguardrails[server]" in d and "==0.24.0" in d for d in guardrails_deps
     )
 
 

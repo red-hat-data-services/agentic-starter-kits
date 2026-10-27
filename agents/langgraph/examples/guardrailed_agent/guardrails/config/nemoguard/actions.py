@@ -1,8 +1,15 @@
-"""Custom topic-policy check action for models that speak the "custom policy" /
-"User Safety: safe|unsafe" convention (e.g. nvidia/nemotron-3.5-content-safety),
-instead of the strict "on-topic"/"off-topic" convention that NeMo Guardrails'
-built-in `topic_safety_check_input` action expects from
-nvidia/llama-3.1-nemoguard-8b-topic-control.
+"""Custom NeMo Guardrails actions for the nemoguard profile.
+
+Two rails live here:
+
+- ``topic_policy_check_input``: a topic-policy check for models that speak the
+  "custom policy" / "User Safety: safe|unsafe" convention (e.g.
+  nvidia/nemotron-3.5-content-safety), instead of the strict
+  "on-topic"/"off-topic" convention that NeMo Guardrails' built-in
+  `topic_safety_check_input` action expects from
+  nvidia/llama-3.1-nemoguard-8b-topic-control.
+- ``content_safety_check_input`` / ``content_safety_check_output``: wrappers
+  around the library content-safety actions (see below).
 
 The banking topic policy is passed on every NIM call via
 `chat_template_kwargs.custom_policy` (see generate_config.py). The same text is
@@ -13,9 +20,15 @@ parameters from config at LLM init time.
 Auto-loaded by NeMo Guardrails from this config directory; invoked via the
 `topic policy check input $model` flow in topic_policy.co.
 
+The content-safety wrappers add a demo account-id PII carve-out and fail
+closed on an unparseable verdict. NeMo 0.24 library actions return a
+``RailOutcome`` (the Colang flows read ``$response.is_blocked``), so the
+wrappers return one too. Any import error here makes the server skip this
+whole file, silently dropping both rails; tests/test_generate_config.py
+imports it to catch that.
+
 This module stays LangChain-free so it loads on RHOAI NeMo 0.24 servers
-that dropped LangChain, while still accepting 0.21 LangChain LLM objects
-when those are injected into ``llms``.
+that dropped LangChain.
 """
 
 import logging
@@ -25,15 +38,13 @@ from typing import Any, Dict, Optional
 
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.library.content_safety.actions import (
     content_safety_check_input as _library_content_safety_check_input,
 )
 from nemoguardrails.library.content_safety.actions import (
     content_safety_check_output as _library_content_safety_check_output,
-)
-from nemoguardrails.library.content_safety.actions import (
-    content_safety_check_output_mapping,
 )
 from nemoguardrails.logging.explain import LLMCallInfo
 
@@ -110,10 +121,10 @@ def _is_output_demo_noise(violation: str) -> bool:
     return _is_pii_or_privacy(violation) or "needs caution" in violation
 
 
-def _allow_banking_account_pii(
-    user_text: str, result: dict, *, for_output: bool = False
-) -> dict:
-    """Allow a demo account-id banking lookup through content-safety PII.
+def _is_banking_pii_false_positive(
+    user_text: str, violations: list[str], *, for_output: bool
+) -> bool:
+    """Return True when a content-safety block is a demo account-id false positive.
 
     The safety classifier treats identifiers such as ACCT-12345 as PII and
     would otherwise block the demo's legitimate balance queries. The carve-out
@@ -123,32 +134,57 @@ def _allow_banking_account_pii(
     hit. Output rails may also waive a Needs Caution tag that accompanies
     PII on a balance disclosure; S3/S5 and other categories stay blocked.
     """
-    if result.get("allowed", True):
-        return result
-    violations = [str(v).lower() for v in (result.get("policy_violations") or [])]
-    if not violations:
-        return result
-    user_text = user_text or ""
-    if _JAILBREAK_PHRASING_RE.search(user_text):
-        return result
+    violations = [str(v).lower() for v in violations]
+    if not violations or _JAILBREAK_PHRASING_RE.search(user_text):
+        return False
     if not _ACCOUNT_ID_RE.search(user_text):
-        return result
-    residual_text = _ACCOUNT_ID_RE.sub(" ", user_text)
-    if _SENSITIVE_PII_RE.search(residual_text):
-        return result
+        return False
+    if _SENSITIVE_PII_RE.search(_ACCOUNT_ID_RE.sub(" ", user_text)):
+        return False
     if for_output:
-        if any(_is_pii_or_privacy(v) for v in violations) and all(
-            _is_output_demo_noise(v) for v in violations
-        ):
-            log.info(
-                "Allowing output-rail demo-account false positives on a banking lookup"
-            )
-            return {"allowed": True, "policy_violations": []}
-        return result
-    if all(_is_pii_or_privacy(v) for v in violations):
-        log.info("Allowing content-safety PII/Privacy hit on a banking account lookup")
-        return {"allowed": True, "policy_violations": []}
-    return result
+        return any(map(_is_pii_or_privacy, violations)) and all(
+            map(_is_output_demo_noise, violations)
+        )
+    return all(map(_is_pii_or_privacy, violations))
+
+
+# NeMo 0.24's content-safety parser raises ValueError with this message on a
+# classifier response it cannot parse (llm/output_parsers.py). The library
+# actions raise ValueError for config errors too, which must stay loud.
+_UNPARSEABLE_VERDICT_MESSAGE = "Failed to parse content safety model response"
+
+
+async def _guarded_content_safety_check(
+    library_check, *, for_output: bool, context: Optional[dict], **kwargs
+) -> RailOutcome:
+    """Run a library content-safety check with the demo's two adjustments.
+
+    1. Fail closed on an unparseable verdict. NeMo 0.21 treated one as unsafe;
+       0.24 raises, which fails the action with "an internal error has
+       occurred" instead of a recognizable block.
+    2. Lift a block that is a demo account-id PII false positive.
+    """
+    try:
+        outcome = await library_check(context=context, **kwargs)
+    except ValueError as exc:
+        if str(exc) != _UNPARSEABLE_VERDICT_MESSAGE:
+            raise
+        log.warning("Content safety verdict unparseable; failing closed: %s", exc)
+        # Not RailOutcome.failure(): public 0.24.0 has it, the RHOAI 3.6 fork
+        # (0.24.0.dev0) does not.
+        return RailOutcome.block(
+            reason="unparseable content safety verdict",
+            metadata={"policy_violations": []},
+        )
+
+    user_text = (context or {}).get("user_message") or ""
+    violations = outcome.metadata.get("policy_violations") or []
+    if outcome.is_blocked and _is_banking_pii_false_positive(
+        user_text, violations, for_output=for_output
+    ):
+        log.info("Allowing content-safety demo account-id false positive")
+        return RailOutcome.allow(metadata={"policy_violations": []})
+    return outcome
 
 
 def _chat_template_from_mapping(source: Any) -> Optional[dict[str, Any]]:
@@ -165,13 +201,11 @@ def _resolve_chat_template_kwargs(llm: Any) -> dict[str, Any]:
     """Return chat_template_kwargs for custom-policy topic classifiers.
 
     NeMo 0.24's default (LangChain-free) OpenAIChatModel stores extra
-    parameters on ``_default_kwargs``. 0.21 LangChain models use
-    ``model_kwargs``; the 0.24 LangChain adapter exposes the wrapped model
-    as ``raw_llm``.
+    parameters on ``_default_kwargs``; its LangChain adapter (e.g. engine=nim)
+    exposes the wrapped model, and its ``model_kwargs``, as ``raw_llm``.
     """
     for source in (
         getattr(llm, "_default_kwargs", None),
-        getattr(llm, "model_kwargs", None),
         getattr(getattr(llm, "raw_llm", None), "model_kwargs", None),
     ):
         from_config = _chat_template_from_mapping(source)
@@ -183,16 +217,6 @@ def _resolve_chat_template_kwargs(llm: Any) -> dict[str, Any]:
         return {"custom_policy": explicit, "enable_thinking": False}
 
     return {"custom_policy": _DEFAULT_TOPIC_POLICY, "enable_thinking": False}
-
-
-def _llm_response_text(result: Any) -> str:
-    """Normalize ``llm_call`` output across NeMo 0.21 (str) and 0.24 (LLMResponse)."""
-    if result is None:
-        return ""
-    content = getattr(result, "content", result)
-    if content is None:
-        return ""
-    return content if isinstance(content, str) else str(content)
 
 
 @action()
@@ -235,7 +259,7 @@ async def topic_policy_check_input(
         messages,
         llm_params=llm_params,
     )
-    verdict_text = _llm_response_text(result)
+    verdict_text = result.content or ""
 
     on_topic = _parse_user_safety_verdict(verdict_text)
     log.debug(
@@ -255,20 +279,20 @@ async def content_safety_check_input(
     context: Optional[dict] = None,
     model_caches: Optional[dict] = None,
     **kwargs,
-) -> dict:
-    result = await _library_content_safety_check_input(
-        llms,
-        llm_task_manager,
+) -> RailOutcome:
+    return await _guarded_content_safety_check(
+        _library_content_safety_check_input,
+        for_output=False,
+        llms=llms,
+        llm_task_manager=llm_task_manager,
         model_name=model_name,
         context=context,
         model_caches=model_caches,
         **kwargs,
     )
-    user_input = (context or {}).get("user_message", "")
-    return _allow_banking_account_pii(user_input, result)
 
 
-@action(output_mapping=content_safety_check_output_mapping)
+@action()
 async def content_safety_check_output(
     llms: Dict[str, Any],
     llm_task_manager: Any,
@@ -276,14 +300,14 @@ async def content_safety_check_output(
     context: Optional[dict] = None,
     model_caches: Optional[dict] = None,
     **kwargs,
-) -> dict:
-    result = await _library_content_safety_check_output(
-        llms,
-        llm_task_manager,
+) -> RailOutcome:
+    return await _guarded_content_safety_check(
+        _library_content_safety_check_output,
+        for_output=True,
+        llms=llms,
+        llm_task_manager=llm_task_manager,
         model_name=model_name,
         context=context,
         model_caches=model_caches,
         **kwargs,
     )
-    user_input = (context or {}).get("user_message", "")
-    return _allow_banking_account_pii(user_input, result, for_output=True)
