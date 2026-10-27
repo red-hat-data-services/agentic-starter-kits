@@ -28,7 +28,7 @@ Key features:
 
 - [uv](https://docs.astral.sh/uv/) -- Python package manager
 - [Podman](https://podman.io/) or [Docker](https://www.docker.com/) -- for local container builds (Option A)
-- [oc](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) -- for
+- [oc](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/cli_tools/openshift-cli-oc#cli-getting-started) -- for
   OpenShift deployment
 - [Helm](https://helm.sh/) -- for deploying to Kubernetes/OpenShift
 - [GNU Make](https://www.gnu.org/software/make/) and a bash-compatible shell -- on Windows,
@@ -231,7 +231,7 @@ POSTGRES_PASSWORD = your_db_password
   - GHCR: `ghcr.io/your-org/langgraph-db-memory-agent:latest`
 
   > **Note:** OpenShift must be able to pull the container image. Make the image **public**, or configure
-  an [image pull secret](https://docs.openshift.com/container-platform/latest/openshift_images/managing_images/using-image-pull-secrets.html)
+  an [image pull secret](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/images/managing-images#using-image-pull-secrets)
   for private registries.
 
 - `POSTGRES_HOST` - PostgreSQL database hostname (must be accessible from the cluster)

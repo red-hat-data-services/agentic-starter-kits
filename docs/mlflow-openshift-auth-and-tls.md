@@ -28,7 +28,7 @@ For how the Python agents in this repo set up MLflow tracing, see [tracing.md](.
 |---|---|---|
 | **URL pattern** | `https://mlflow-<ns>.apps.<cluster>/mlflow` | `https://mlflow.<ns>.svc:8443/mlflow` |
 | **TLS terminated by** | OpenShift router (re-encrypts to pod) | MLflow pod directly |
-| **Certificate signed by** | Cluster-dependent (public CA on ROSA, may be custom CA on other clusters) | [OpenShift service CA](https://docs.openshift.com/container-platform/4.17/security/certificates/service-serving-certificate.html) (cluster-internal) |
+| **Certificate signed by** | Cluster-dependent (public CA on ROSA, may be custom CA on other clusters) | [OpenShift service CA](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/security_and_compliance/configuring-certificates#add-service-serving) (cluster-internal) |
 | **System CA bundle covers it?** | Depends on cluster — check with your admin | No — requires the service CA cert at `/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt` |
 | **When to use** | Local dev (workstation to cluster) | In-pod (faster, no router hop) |
 

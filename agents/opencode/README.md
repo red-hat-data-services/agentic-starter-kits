@@ -177,7 +177,7 @@ This section walks through installing an OpenShell gateway on OpenShift via Helm
 
 - OpenShift 4.17+ cluster with `oc` CLI authenticated
 - [Helm](https://helm.sh/) 3+ installed locally
-- [OpenShell CLI](https://docs.nvidia.com/openshell/get-started/quickstart) installed locally (`openshell --version` should print `0.0.58` or later)
+- [OpenShell CLI](https://docs.nvidia.com/openshell/about/installation) installed locally (`openshell --version` should print `0.0.58` or later)
 - The Kubernetes Agent Sandbox CRD must be installed on the cluster. Verify with `oc get crd sandboxes.agents.x-k8s.io`. If not installed, follow the [upstream k8s sandbox operator](https://github.com/kubernetes-sigs/agent-sandbox) installation instructions
 - A vLLM model serving endpoint reachable from within the cluster
 

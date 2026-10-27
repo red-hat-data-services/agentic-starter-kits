@@ -4,7 +4,7 @@ This guide covers deploying any agent from this repository to an OpenShift clust
 
 ## Prerequisites
 
-- [oc CLI](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) installed
+- [oc CLI](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/cli_tools/openshift-cli-oc#cli-getting-started) installed
 - [Helm 3](https://helm.sh/docs/intro/install/) installed
 - [Podman](https://podman.io/) installed (recommended) or Docker — only needed for Option A below
 - Access to a container registry (e.g., Quay.io) — only needed for Option A below

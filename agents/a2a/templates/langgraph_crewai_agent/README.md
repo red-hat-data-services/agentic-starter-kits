@@ -20,7 +20,7 @@ An **A2A (Agent-to-Agent)** example: a **CrewAI** pod exposes an A2A JSON-RPC se
 
 - [uv](https://docs.astral.sh/uv/) — Python package manager
 - [Podman](https://podman.io/) or [Docker](https://www.docker.com/) — for local container builds (`Makefile` uses whichever is on `PATH`)
-- [oc](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) — for OpenShift deployment
+- [oc](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/cli_tools/openshift-cli-oc#cli-getting-started) — for OpenShift deployment
 - [Helm](https://helm.sh/) — for deploying to Kubernetes/OpenShift
 - [GNU Make](https://www.gnu.org/software/make/) and a bash-compatible shell — on Windows, use [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) (recommended) or [Git Bash](https://git-scm.com/install/)
 
@@ -252,7 +252,7 @@ CONTAINER_IMAGE_LANGGRAPH=quay.io/your-username/a2a-langgraph:latest
 
   Examples (stem style): Quay.io `quay.io/your-username/a2a-langgraph-crewai:latest`, Docker Hub, GHCR — same pattern as `template.env`.
 
-  > **Note:** OpenShift must be able to pull **both** image refs. Make them **public**, or configure an [image pull secret](https://docs.openshift.com/container-platform/latest/openshift_images/managing_images/using-image-pull-secrets.html) for private registries.
+  > **Note:** OpenShift must be able to pull **both** image refs. Make them **public**, or configure an [image pull secret](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/images/managing-images#using-image-pull-secrets) for private registries.
 
 ### Building the container image
 
