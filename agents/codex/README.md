@@ -699,7 +699,7 @@ Codex CLI uses TOML for all configuration (`config.toml`). There is no JSON sett
 ### Prerequisites
 
 - [Helm](https://helm.sh/) 3+ installed locally
-- [OpenShell CLI](https://docs.nvidia.com/openshell/get-started/quickstart) installed locally (`openshell --version` should print `0.0.58` or later)
+- [OpenShell CLI](https://docs.nvidia.com/openshell/about/installation) installed locally (`openshell --version` should print `0.0.58` or later)
 - The Kubernetes Agent Sandbox CRD must be installed: `oc get crd sandboxes.agents.x-k8s.io`
 - A vLLM endpoint reachable from within the cluster
 
