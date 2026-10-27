@@ -21,7 +21,7 @@ llm-d is a **routing and orchestration layer**, not a model-sharding tool. Each 
 | **Red Hat Connectivity Link** | Provides Kuadrant/Authorino for auth — required by RHOAI 3.4 MaaS. Install from OperatorHub. |
 | **Authorino TLS configured** | Authorino must have TLS enabled with a valid certificate. See [RHOAI documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4). |
 | **PostgreSQL database** | MaaS controller requires a `maas-db-config` secret in `redhat-ods-applications` with a `DB_CONNECTION_URL` key pointing to a PostgreSQL instance. See [RHOAI documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4). |
-| **User Workload Monitoring** | Must be enabled on the cluster for MaaS metrics. See [OpenShift monitoring documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/monitoring/about-ocp-monitoring). |
+| **User Workload Monitoring** | Must be enabled on the cluster for MaaS metrics. See [OpenShift monitoring documentation](https://docs.redhat.com/en/documentation/monitoring_stack_for_red_hat_openshift/latest/html/configuring_user_workload_monitoring/preparing-to-configure-the-monitoring-stack-uwm#enabling-monitoring-for-user-defined-projects_preparing-to-configure-the-monitoring-stack-uwm). |
 | **Models-as-a-Service enabled** | Must be enabled in the DataScienceCluster (see below) |
 | **Red Hat registry pull secret** | Access to `registry.redhat.io` for vLLM images |
 
