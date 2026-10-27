@@ -608,12 +608,21 @@ class TestBankingPiiFalsePositive:
         )
 
 
-def _run_wrapper(actions, monkeypatch, *, for_output, user_text, library):
+def _run_wrapper(
+    actions, monkeypatch, *, for_output, user_text, library, user_message=None
+):
     """Run a content-safety wrapper with the library action replaced by ``library``."""
     name = "output" if for_output else "input"
     monkeypatch.setattr(actions, f"_library_content_safety_check_{name}", library)
     wrapper = getattr(actions, f"content_safety_check_{name}")
-    return asyncio.run(wrapper({}, None, context={"user_message": user_text}))
+    return asyncio.run(
+        wrapper(
+            {},
+            None,
+            context={"user_message": user_text},
+            user_message=user_message,
+        )
+    )
 
 
 def _returning(outcome):
@@ -655,6 +664,39 @@ class TestGuardedContentSafetyCheck:
                 library=_returning(outcome),
             )
             assert result is outcome
+
+    @pytest.mark.parametrize("for_output", [False, True])
+    def test_explicit_user_message_kwarg_sets_carve_out_text(
+        self, monkeypatch, for_output
+    ):
+        """The carve-out resolves user text like the library action does.
+
+        An explicit ``user_message`` argument wins over ``context``, so the
+        carve-out must key off the same text the classifier saw.
+        """
+        actions = _load_actions_module()
+        block = actions.RailOutcome.block(metadata={"policy_violations": [_PII]})
+        # Explicit kwarg carries the account id; context does not.
+        result = _run_wrapper(
+            actions,
+            monkeypatch,
+            for_output=for_output,
+            user_text="What is my balance?",
+            user_message=_BALANCE_LOOKUP,
+            library=_returning(block),
+        )
+        assert result.is_blocked is False
+        assert result.metadata["policy_violations"] == []
+        # And the reverse: context alone cannot earn the carve-out.
+        result = _run_wrapper(
+            actions,
+            monkeypatch,
+            for_output=for_output,
+            user_text=_BALANCE_LOOKUP,
+            user_message="What is my balance?",
+            library=_returning(block),
+        )
+        assert result.is_blocked is True
 
     @pytest.mark.parametrize("for_output", [False, True])
     def test_unparseable_verdict_fails_closed(self, monkeypatch, for_output):

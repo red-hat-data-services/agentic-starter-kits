@@ -177,7 +177,9 @@ async def _guarded_content_safety_check(
             metadata={"policy_violations": []},
         )
 
-    user_text = (context or {}).get("user_message") or ""
+    # Resolve user text with the same precedence as the library action we
+    # wrap: an explicit ``user_message`` argument wins over ``context``.
+    user_text = kwargs.get("user_message") or (context or {}).get("user_message") or ""
     violations = outcome.metadata.get("policy_violations") or []
     if outcome.is_blocked and _is_banking_pii_false_positive(
         user_text, violations, for_output=for_output

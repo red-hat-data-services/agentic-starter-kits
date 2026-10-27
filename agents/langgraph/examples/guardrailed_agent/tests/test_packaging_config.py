@@ -79,9 +79,11 @@ def test_dockerfile_installs_auth_extra_from_staged_component() -> None:
 
 
 def test_pyproject_pins_nemoguardrails_version() -> None:
-    # Pinned to match the nemoguardrails version shipped in the RHOAI 3.6
-    # container (0.24.0.dev0), so local behavior mirrors the cluster: same
-    # RailOutcome action API and the same /v1/checks endpoint.
+    # Pinned to the closest public release to the nemoguardrails version
+    # shipped in the RHOAI 3.6 container (0.24.0.dev0). The two are not
+    # API-identical, so passing local tests doesn't prove the custom actions
+    # load on the cluster; run the registration check from the example
+    # README's Verify section after deploying.
     guardrails_deps = PYPROJECT["project"]["optional-dependencies"]["guardrails"]
     assert any(
         "nemoguardrails[server]" in d and "==0.24.0" in d for d in guardrails_deps

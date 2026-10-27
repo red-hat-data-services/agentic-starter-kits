@@ -31,7 +31,7 @@ dev = [
     "pyyaml>=6.0",
 ]
 guardrails = [
-    "nemoguardrails[server]==0.24.0",  # pinned to match RHOAI 3.6 container (0.24.0.dev0)
+    "nemoguardrails[server]==0.24.0",  # closest public release to the RHOAI 3.6 container's build (0.24.0.dev0); the two are not API-identical, so verify custom actions on the cluster
     "langchain-community>=0.2,<0.4",  # >=0.4 drops GoogleSearchAPIWrapper, breaks nemoguardrails imports
     "langchain-nvidia-ai-endpoints>=1.4.3",  # required for engine=nim (NVIDIA NemoGuard NIM models)
     "opentelemetry-distro>=0.65b0",  # provides the `opentelemetry-instrument` zero-code SDK wrapper
