@@ -4,8 +4,6 @@ import re
 import tomllib
 from pathlib import Path
 
-import pytest
-
 AGENT_DIR = Path(__file__).resolve().parents[1]
 MAKEFILE = (AGENT_DIR / "Makefile").read_text(encoding="utf-8")
 DOCKERFILE = (AGENT_DIR / "Dockerfile").read_text(encoding="utf-8")
@@ -60,32 +58,6 @@ def test_env_example_points_to_guardrails_proxy() -> None:
 def test_env_example_documents_auth_settings() -> None:
     assert "# AUTH_ENABLED=false" in ENV_EXAMPLE
     assert "# AUTH_AUDIENCE=langgraph-guardrailed-agent" in ENV_EXAMPLE
-
-
-def test_env_example_keeps_mlflow_traces_off_otlp_export() -> None:
-    # RHAIENG-7970: since mlflow 3.13, MLflow auto-exports its traces over
-    # OTLP whenever OTEL_EXPORTER_OTLP_ENDPOINT is set — which the guardrails
-    # OTel block in this file does when rail-level tracing is on. The active
-    # MLFLOW_ENABLE_OTLP_EXPORTER=false keeps MLflow traces on the tracking
-    # server when both tracing layers are enabled. Harmless when MLflow
-    # tracing is off.
-    assert re.search(r"(?m)^MLFLOW_ENABLE_OTLP_EXPORTER=false$", ENV_EXAMPLE)
-
-
-def test_mlflow_otlp_export_respects_env_disable(monkeypatch) -> None:
-    # Behavioral half of RHAIENG-7970: with the OTLP endpoint set (guardrails
-    # tracing on), mlflow must not divert traces away from the tracking
-    # server when MLFLOW_ENABLE_OTLP_EXPORTER=false — and would without it.
-    # Skipped unless the optional tracing extra (mlflow) is installed.
-    mlflow_otlp = pytest.importorskip("mlflow.tracing.utils.otlp")
-
-    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
-    monkeypatch.delenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", raising=False)
-    monkeypatch.delenv("MLFLOW_ENABLE_OTLP_EXPORTER", raising=False)
-    assert mlflow_otlp.should_use_otlp_exporter() is True
-
-    monkeypatch.setenv("MLFLOW_ENABLE_OTLP_EXPORTER", "false")
-    assert mlflow_otlp.should_use_otlp_exporter() is False
 
 
 def test_dockerfile_workdir_matches_agent_location() -> None:

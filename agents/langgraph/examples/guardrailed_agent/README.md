@@ -244,7 +244,7 @@ This agent has two complementary tracing layers — enable either, both, or neit
 - **Agent-level (MLflow)** — the repo-standard tracing shared by every langgraph agent. Captures the LangGraph request and its LLM calls. MLflow sees NeMo Guardrails as a regular ChatOpenAI endpoint, so guardrails internals (which rail fired, classification results) are **not** visible here.
 - **Rail-level (OpenTelemetry)** — new in this agent. The guardrails proxy emits per-rail span data — request flow, LLM latency, and each rail's execution time — which is exactly what MLflow cannot see.
 
-The layers report to separate backends, but they interact locally: since mlflow 3.13, MLflow auto-exports its traces over OTLP whenever `OTEL_EXPORTER_OTLP_ENDPOINT` is set — which enabling the rail-level layer does. Without a guard, agent traces would be silently diverted to the guardrails collector instead of the MLflow server. [`.env.example`](.env.example) therefore ships an active `MLFLOW_ENABLE_OTLP_EXPORTER=false` to keep the two layers independent; don't remove that line when enabling both.
+The layers report to separate backends. mlflow >= 3.13 would otherwise follow the rail-level layer's `OTEL_EXPORTER_OTLP_ENDPOINT` and send agent traces to the guardrails collector, so the agent defaults `MLFLOW_ENABLE_OTLP_EXPORTER=false` (set it to `true` to opt in).
 
 #### Agent-level tracing (MLflow)
 
