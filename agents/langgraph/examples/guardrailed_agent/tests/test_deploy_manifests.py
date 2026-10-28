@@ -57,7 +57,15 @@ def test_makefile_exposes_rhoai_deploy_targets() -> None:
         assert re.search(rf"(?m)^{target}:", MAKEFILE)
 
 
-def test_render_guardrails_configmap_produces_required_keys(tmp_path) -> None:
+def test_render_guardrails_configmap_produces_required_keys(
+    tmp_path, monkeypatch
+) -> None:
+    # Importing main.py (e.g. from test_api_contract) runs load_dotenv(), so a
+    # developer's local .env with GUARDRAILS_TRACING_ENABLED=true can leak into
+    # this subprocess and flip tracing on in the rendered config. Scrub it so
+    # the tracing-off assertions below are hermetic (same guard as the
+    # finalize_cr tests).
+    monkeypatch.delenv("GUARDRAILS_TRACING_ENABLED", raising=False)
     sentinel_key = "nvapi-test-sentinel"
     openai_sentinel = "sk-test-sentinel"
     cluster_env = tmp_path / "cluster.env"
