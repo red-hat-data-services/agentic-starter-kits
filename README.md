@@ -149,7 +149,7 @@ See `tests/behavioral/` for full details.
 - [OpenShift Deployment](./docs/openshift-deployment.md) — Helm-based deployment guide
 - [Adding a New Agent](./docs/adding-a-new-agent.md) — How to contribute a new agent template
 - [Adding Behavioral Tests](./docs/adding-behavioral-tests.md) — How to add test coverage for an agent
-- [Guardrails](./docs/guardrails.md) — Adding safety rails to agents (NeMo Guardrails vs Guardrails Orchestrator)
+- [Guardrails](./docs/guardrails.md) — Adding safety rails to agents with NeMo Guardrails
 - [llm-d Deployment](./docs/llm-d-deployment.md) — Deploy llm-d for intelligent LLM inference routing on OpenShift AI
 
 ## Claude Code Skills

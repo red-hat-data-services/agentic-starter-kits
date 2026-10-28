@@ -19,6 +19,7 @@ GUARDRAILS_MODEL_ID = _mod.GUARDRAILS_MODEL_ID
 GUARDRAILS_PROFILE = _mod.GUARDRAILS_PROFILE
 guardrails_tls_verify = _mod.guardrails_tls_verify
 guardrails_chat = _mod.guardrails_chat
+guardrails_check = _mod.guardrails_check
 is_allowed_response = _mod.is_allowed_response
 is_blocked_response = _mod.is_blocked_response
 
@@ -28,6 +29,7 @@ __all__ = [
     "GUARDRAILS_PROFILE",
     "guardrails_tls_verify",
     "guardrails_chat",
+    "guardrails_check",
     "is_allowed_response",
     "is_blocked_response",
 ]

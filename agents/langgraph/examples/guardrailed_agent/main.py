@@ -59,9 +59,11 @@ _GRACEFUL_EXCEPTIONS = (
 
 
 def _is_guardrails_block(exc: Exception) -> bool:
-    """NeMo Guardrails v0.21.0 has no typed exception for rail blocks.
-    It raises openai.APIError with 'Blocked by ... rails' in the message.
-    This coupling is version-specific and may need updating for newer NeMo."""
+    """NeMo Guardrails (0.24) has no typed exception for rail blocks.
+    Blocked input comes back as a normal 200 refusal; a streaming output-rail
+    block ends the stream with a 'Blocked by <flow> rails.' error chunk, which
+    the OpenAI client raises as openai.APIError. This coupling is
+    version-specific and may need updating for newer NeMo."""
     return (
         isinstance(exc, OpenAIAPIError)
         and "Blocked by" in str(exc)
