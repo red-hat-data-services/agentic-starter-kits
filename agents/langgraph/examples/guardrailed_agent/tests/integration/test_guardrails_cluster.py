@@ -131,3 +131,41 @@ def test_checks_unknown_config_rejected(
         model_id=_CLUSTER_MODEL_ID,
     )
     assert status == 422, data
+
+
+def _registered_actions(logs: str) -> str:
+    """Return the ``Registered Actions [...]`` list from a NeMo server log.
+
+    Rich wraps the list at spaces only, so quoted action names stay intact.
+    """
+    start = logs.find("Registered Actions")
+    assert start != -1, "No 'Registered Actions' line in guardrails pod log"
+    return logs[start : logs.find("]", start)]
+
+
+# NeMo logs "Failed to register ..." and keeps serving when actions.py fails to
+# import, so every behavior test above can pass on a broken deploy
+# (RHAIENG-7849). Read the pod log to prove the file actually registered.
+def test_nemoguard_actions_registered(
+    guardrails_cluster_server, guardrails_integration_url, read_guardrails_log
+):
+    # Configs load lazily on the first request; trigger it so test order
+    # doesn't matter. Only the status is deterministic here.
+    status, data = guardrails_check(
+        [{"role": "user", "content": "Hello"}],
+        profile="nemoguard",
+        base_url=guardrails_integration_url,
+        model_id=_CLUSTER_MODEL_ID,
+    )
+    assert status == 200, data
+
+    logs = read_guardrails_log(until="Registered Actions")
+
+    # Only nemoguard ships an actions.py, so any failure here is ours.
+    failures = [line for line in logs.splitlines() if "Failed to register" in line]
+    assert not failures, "nemoguard actions failed to register:\n" + "\n".join(failures)
+
+    registered = _registered_actions(logs)
+    # Content-safety action names also exist in the NeMo library, so only a
+    # name unique to our actions.py proves the file loaded.
+    assert "'topic_policy_check_input'" in registered, registered

@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib.util
 import logging
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,7 @@ from integration.utils import (
     MakeTargetError,
     RouteNotFoundError,
     get_guardrails_service_url,
+    get_logs,
     get_route,
     run_make,
 )
@@ -40,6 +42,7 @@ repo_root = _mod.repo_root
 
 logger = logging.getLogger(__name__)
 GUARDRAILS_CR_NAME = "langgraph-guardrailed-agent-guardrails"
+GUARDRAILS_CONTAINER = "nemo-guardrails"
 _AGENT_DIR = Path(__file__).resolve().parents[2]
 
 
@@ -98,10 +101,40 @@ def guardrails_integration_url(cluster_auth, deployed_guardrails):
         return deployed_guardrails.removesuffix("/v1")
 
 
+@pytest.fixture
+def read_guardrails_log(cluster_auth):
+    """Return a reader for the guardrails container log.
+
+    The reader polls until ``until`` appears (log output can lag the request
+    that produced it) and returns the last log read either way.
+    """
+    namespace = cluster_auth["namespace"]
+
+    def read(until: str) -> str:
+        for _ in range(10):
+            try:
+                logs = get_logs(
+                    f"deploy/{GUARDRAILS_CR_NAME}",
+                    namespace,
+                    container=GUARDRAILS_CONTAINER,
+                )
+            except RuntimeError as exc:
+                pytest.fail(
+                    f"{exc}\nThe test identity needs `get pods/log` in {namespace}."
+                )
+            if until in logs:
+                break
+            time.sleep(3)
+        return logs
+
+    return read
+
+
 __all__ = [
     "cluster_auth",
     "repo_root",
     "deployed_guardrails",
     "guardrails_integration_url",
+    "read_guardrails_log",
     "GUARDRAILS_CR_NAME",
 ]
