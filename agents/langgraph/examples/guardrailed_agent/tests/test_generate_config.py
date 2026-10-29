@@ -632,30 +632,54 @@ def _returning(outcome):
     return _library
 
 
-class TestGuardedContentSafetyCheck:
-    """The content-safety wrappers around the NeMo 0.24 library actions."""
+def _rail_outcome(allowed: bool, violations: list[str]):
+    from nemoguardrails.actions.rail_outcome import RailOutcome
 
+    factory = RailOutcome.allow if allowed else RailOutcome.block
+    return factory(metadata={"policy_violations": violations})
+
+
+def _fork_verdict(allowed: bool, violations: list[str]) -> dict:
+    return {"allowed": allowed, "policy_violations": violations}
+
+
+def _verdict(result) -> tuple[bool, list[str]]:
+    """(is_blocked, violations), checking the result kept the library's shape."""
+    if isinstance(result, dict):
+        assert set(result) == {"allowed", "policy_violations"}
+        return not result["allowed"], result["policy_violations"]
+    return result.is_blocked, result.metadata["policy_violations"]
+
+
+# Public NeMo 0.24.0 returns a RailOutcome; the RHOAI 3.6 fork returns the
+# 0.21 dict, and its Colang flow reads ["allowed"].
+_LIBRARY_SHAPES = pytest.mark.parametrize(
+    "make", [_rail_outcome, _fork_verdict], ids=["rail-outcome", "fork-dict"]
+)
+
+
+class TestGuardedContentSafetyCheck:
+    """The content-safety wrappers around the library content-safety actions."""
+
+    @_LIBRARY_SHAPES
     @pytest.mark.parametrize("for_output", [False, True])
-    def test_false_positive_block_is_allowed(self, monkeypatch, for_output):
+    def test_false_positive_block_is_allowed(self, monkeypatch, for_output, make):
         actions = _load_actions_module()
-        block = actions.RailOutcome.block(metadata={"policy_violations": [_PII]})
         result = _run_wrapper(
             actions,
             monkeypatch,
             for_output=for_output,
             user_text=_BALANCE_LOOKUP,
-            library=_returning(block),
+            library=_returning(make(False, [_PII])),
         )
-        assert result.is_blocked is False
-        assert result.metadata["policy_violations"] == []
+        assert type(result) is type(make(True, []))
+        assert _verdict(result) == (False, [])
 
+    @_LIBRARY_SHAPES
     @pytest.mark.parametrize("for_output", [False, True])
-    def test_other_outcomes_pass_through(self, monkeypatch, for_output):
+    def test_other_outcomes_pass_through(self, monkeypatch, for_output, make):
         actions = _load_actions_module()
-        for outcome in (
-            actions.RailOutcome.block(metadata={"policy_violations": ["Violence"]}),
-            actions.RailOutcome.allow(metadata={"policy_violations": []}),
-        ):
+        for outcome in (make(False, ["Violence"]), make(True, [])):
             result = _run_wrapper(
                 actions,
                 monkeypatch,
@@ -665,9 +689,10 @@ class TestGuardedContentSafetyCheck:
             )
             assert result is outcome
 
+    @_LIBRARY_SHAPES
     @pytest.mark.parametrize("for_output", [False, True])
     def test_explicit_user_message_kwarg_sets_carve_out_text(
-        self, monkeypatch, for_output
+        self, monkeypatch, for_output, make
     ):
         """The carve-out resolves user text like the library action does.
 
@@ -675,7 +700,7 @@ class TestGuardedContentSafetyCheck:
         carve-out must key off the same text the classifier saw.
         """
         actions = _load_actions_module()
-        block = actions.RailOutcome.block(metadata={"policy_violations": [_PII]})
+        block = make(False, [_PII])
         # Explicit kwarg carries the account id; context does not.
         result = _run_wrapper(
             actions,
@@ -685,8 +710,7 @@ class TestGuardedContentSafetyCheck:
             user_message=_BALANCE_LOOKUP,
             library=_returning(block),
         )
-        assert result.is_blocked is False
-        assert result.metadata["policy_violations"] == []
+        assert _verdict(result) == (False, [])
         # And the reverse: context alone cannot earn the carve-out.
         result = _run_wrapper(
             actions,
@@ -696,7 +720,7 @@ class TestGuardedContentSafetyCheck:
             user_message="What is my balance?",
             library=_returning(block),
         )
-        assert result.is_blocked is True
+        assert result is block
 
     @pytest.mark.parametrize("for_output", [False, True])
     def test_unparseable_verdict_fails_closed(self, monkeypatch, for_output):
