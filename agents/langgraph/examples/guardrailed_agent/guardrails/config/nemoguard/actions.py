@@ -37,7 +37,7 @@ that dropped LangChain.
 import logging
 import os
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TypedDict
 
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
@@ -157,9 +157,19 @@ def _is_banking_pii_false_positive(
 _UNPARSEABLE_VERDICT_MESSAGE = "Failed to parse content safety model response"
 
 
+class ForkVerdict(TypedDict):
+    """Content-safety result on the RHOAI 3.6 fork (0.24.0.dev0): the 0.21 shape.
+
+    Drop this, and the dict branch below, once the fork returns RailOutcome.
+    """
+
+    allowed: bool
+    policy_violations: list[str]
+
+
 async def _guarded_content_safety_check(
     library_check, *, for_output: bool, context: Optional[dict], **kwargs
-) -> RailOutcome | dict:
+) -> RailOutcome | ForkVerdict:
     """Run a library content-safety check with the demo's two adjustments.
 
     1. Fail closed on an unparseable verdict. NeMo 0.21 and the RHOAI fork
@@ -175,8 +185,9 @@ async def _guarded_content_safety_check(
         if str(exc) != _UNPARSEABLE_VERDICT_MESSAGE:
             raise
         log.warning("Content safety verdict unparseable; failing closed: %s", exc)
-        # Not RailOutcome.failure(): public 0.24.0 has it, the RHOAI 3.6 fork
-        # (0.24.0.dev0) does not.
+        # Always a RailOutcome: only public 0.24 raises here; the fork (dict
+        # shape) still parses an unparseable verdict as unsafe, like 0.21.
+        # Not RailOutcome.failure(): public 0.24.0 has it, the fork does not.
         return RailOutcome.block(
             reason="unparseable content safety verdict",
             metadata={"policy_violations": []},
@@ -185,19 +196,19 @@ async def _guarded_content_safety_check(
     # Resolve user text with the same precedence as the library action we
     # wrap: an explicit ``user_message`` argument wins over ``context``.
     user_text = kwargs.get("user_message") or (context or {}).get("user_message") or ""
-    if isinstance(outcome, dict):
+    if isinstance(outcome, dict):  # RHOAI fork: ForkVerdict
         is_blocked = not outcome.get("allowed", True)
         violations = outcome.get("policy_violations") or []
+        lifted: RailOutcome | ForkVerdict = {"allowed": True, "policy_violations": []}
     else:
         is_blocked = outcome.is_blocked
         violations = outcome.metadata.get("policy_violations") or []
+        lifted = RailOutcome.allow(metadata={"policy_violations": []})
     if is_blocked and _is_banking_pii_false_positive(
         user_text, violations, for_output=for_output
     ):
         log.info("Allowing content-safety demo account-id false positive")
-        if isinstance(outcome, dict):
-            return {"allowed": True, "policy_violations": []}
-        return RailOutcome.allow(metadata={"policy_violations": []})
+        return lifted
     return outcome
 
 
@@ -293,7 +304,7 @@ async def content_safety_check_input(
     context: Optional[dict] = None,
     model_caches: Optional[dict] = None,
     **kwargs,
-) -> RailOutcome | dict:
+) -> RailOutcome | ForkVerdict:
     return await _guarded_content_safety_check(
         _library_content_safety_check_input,
         for_output=False,
@@ -314,7 +325,7 @@ async def content_safety_check_output(
     context: Optional[dict] = None,
     model_caches: Optional[dict] = None,
     **kwargs,
-) -> RailOutcome | dict:
+) -> RailOutcome | ForkVerdict:
     return await _guarded_content_safety_check(
         _library_content_safety_check_output,
         for_output=True,

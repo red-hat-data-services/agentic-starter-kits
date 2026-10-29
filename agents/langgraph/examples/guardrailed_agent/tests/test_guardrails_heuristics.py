@@ -42,6 +42,11 @@ class TestIsBlockedResponse:
     ) -> None:
         assert is_blocked_response(_completion(content), http_status=200) is False
 
+    def test_rail_internal_error_not_blocked(self) -> None:
+        """A failed rail is not a refusal, so block assertions fail loudly too."""
+        payload = _completion("I'm sorry, an internal error has occurred.")
+        assert is_blocked_response(payload, http_status=200) is False
+
     def test_http_4xx_is_blocked(self) -> None:
         assert is_blocked_response({}, http_status=422) is True
 
