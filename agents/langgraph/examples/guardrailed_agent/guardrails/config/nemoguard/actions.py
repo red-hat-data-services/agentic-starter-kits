@@ -21,9 +21,12 @@ Auto-loaded by NeMo Guardrails from this config directory; invoked via the
 `topic policy check input $model` flow in topic_policy.co.
 
 The content-safety wrappers add a demo account-id PII carve-out and fail
-closed on an unparseable verdict. NeMo 0.24 library actions return a
-``RailOutcome`` (the Colang flows read ``$response.is_blocked``), so the
-wrappers return one too. Any import error here makes the server skip this
+closed on an unparseable verdict. They return the same shape as the library
+action they wrap, because the server's own Colang flow reads the result:
+public NeMo 0.24.0 returns a ``RailOutcome`` (flow reads
+``$response.is_blocked``), while the RHOAI 3.6 fork (0.24.0.dev0) still
+returns the 0.21 ``{"allowed", "policy_violations"}`` dict (flow reads
+``$response["allowed"]``). Any import error here makes the server skip this
 whole file, silently dropping both rails; tests/test_generate_config.py
 imports it to catch that.
 
@@ -156,13 +159,15 @@ _UNPARSEABLE_VERDICT_MESSAGE = "Failed to parse content safety model response"
 
 async def _guarded_content_safety_check(
     library_check, *, for_output: bool, context: Optional[dict], **kwargs
-) -> RailOutcome:
+) -> RailOutcome | dict:
     """Run a library content-safety check with the demo's two adjustments.
 
-    1. Fail closed on an unparseable verdict. NeMo 0.21 treated one as unsafe;
-       0.24 raises, which fails the action with "an internal error has
-       occurred" instead of a recognizable block.
+    1. Fail closed on an unparseable verdict. NeMo 0.21 and the RHOAI fork
+       treat one as unsafe; public 0.24 raises, which fails the action with
+       "an internal error has occurred" instead of a recognizable block.
     2. Lift a block that is a demo account-id PII false positive.
+
+    The result keeps the library's shape (see the module docstring).
     """
     try:
         outcome = await library_check(context=context, **kwargs)
@@ -180,11 +185,18 @@ async def _guarded_content_safety_check(
     # Resolve user text with the same precedence as the library action we
     # wrap: an explicit ``user_message`` argument wins over ``context``.
     user_text = kwargs.get("user_message") or (context or {}).get("user_message") or ""
-    violations = outcome.metadata.get("policy_violations") or []
-    if outcome.is_blocked and _is_banking_pii_false_positive(
+    if isinstance(outcome, dict):
+        is_blocked = not outcome.get("allowed", True)
+        violations = outcome.get("policy_violations") or []
+    else:
+        is_blocked = outcome.is_blocked
+        violations = outcome.metadata.get("policy_violations") or []
+    if is_blocked and _is_banking_pii_false_positive(
         user_text, violations, for_output=for_output
     ):
         log.info("Allowing content-safety demo account-id false positive")
+        if isinstance(outcome, dict):
+            return {"allowed": True, "policy_violations": []}
         return RailOutcome.allow(metadata={"policy_violations": []})
     return outcome
 
@@ -281,7 +293,7 @@ async def content_safety_check_input(
     context: Optional[dict] = None,
     model_caches: Optional[dict] = None,
     **kwargs,
-) -> RailOutcome:
+) -> RailOutcome | dict:
     return await _guarded_content_safety_check(
         _library_content_safety_check_input,
         for_output=False,
@@ -302,7 +314,7 @@ async def content_safety_check_output(
     context: Optional[dict] = None,
     model_caches: Optional[dict] = None,
     **kwargs,
-) -> RailOutcome:
+) -> RailOutcome | dict:
     return await _guarded_content_safety_check(
         _library_content_safety_check_output,
         for_output=True,

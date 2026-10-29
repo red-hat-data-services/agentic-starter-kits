@@ -38,6 +38,8 @@ _RAIL_BLOCK_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
+_INTERNAL_ERROR_PATTERN = re.compile(r"an internal error has occurred", re.IGNORECASE)
+
 
 def _extract_content(data: dict) -> str:
     """Return assistant message text from an OpenAI-style chat completion dict."""
@@ -68,6 +70,10 @@ def is_allowed_response(data: dict, *, http_status: int | None = None) -> bool:
         return False
     content = _extract_content(data).strip()
     if len(content) <= 10:
+        return False
+    # NeMo's reply when a rail action raises: the request failed, it was not
+    # answered (RHAIENG-7986).
+    if _INTERNAL_ERROR_PATTERN.search(content):
         return False
     return not is_blocked_response(data, http_status=http_status)
 

@@ -57,3 +57,7 @@ class TestIsAllowedResponse:
 
     def test_too_short_not_allowed(self) -> None:
         assert is_allowed_response(_completion("Yes."), http_status=200) is False
+
+    def test_rail_internal_error_not_allowed(self) -> None:
+        payload = _completion("I'm sorry, an internal error has occurred.")
+        assert is_allowed_response(payload, http_status=200) is False

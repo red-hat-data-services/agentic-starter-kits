@@ -666,6 +666,35 @@ class TestGuardedContentSafetyCheck:
             assert result is outcome
 
     @pytest.mark.parametrize("for_output", [False, True])
+    def test_fork_dict_false_positive_block_is_allowed(self, monkeypatch, for_output):
+        """The RHOAI 3.6 fork returns the 0.21 dict; its flow reads ["allowed"]."""
+        actions = _load_actions_module()
+        result = _run_wrapper(
+            actions,
+            monkeypatch,
+            for_output=for_output,
+            user_text=_BALANCE_LOOKUP,
+            library=_returning({"allowed": False, "policy_violations": [_PII]}),
+        )
+        assert result == {"allowed": True, "policy_violations": []}
+
+    @pytest.mark.parametrize("for_output", [False, True])
+    def test_fork_dict_other_outcomes_pass_through(self, monkeypatch, for_output):
+        actions = _load_actions_module()
+        for outcome in (
+            {"allowed": False, "policy_violations": ["Violence"]},
+            {"allowed": True, "policy_violations": []},
+        ):
+            result = _run_wrapper(
+                actions,
+                monkeypatch,
+                for_output=for_output,
+                user_text=_BALANCE_LOOKUP,
+                library=_returning(outcome),
+            )
+            assert result is outcome
+
+    @pytest.mark.parametrize("for_output", [False, True])
     def test_explicit_user_message_kwarg_sets_carve_out_text(
         self, monkeypatch, for_output
     ):
