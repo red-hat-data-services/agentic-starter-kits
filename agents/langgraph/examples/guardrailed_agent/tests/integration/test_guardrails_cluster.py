@@ -7,7 +7,6 @@ Requires a deployed NemoGuardrails CR (``deployed_guardrails`` fixture) or
 from __future__ import annotations
 
 import os
-import time
 
 import httpx
 import pytest
@@ -17,15 +16,10 @@ from guardrails_client import (
     guardrails_tls_verify,
     is_allowed_response,
 )
-from integration.utils import _run_oc_command
 
 pytestmark = pytest.mark.integration
 
 _CLUSTER_MODEL_ID = os.environ.get("GUARDRAILS_MODEL_ID", "qwen2-5-7b-instruct")
-# Same as GUARDRAILS_CR_NAME in this directory's conftest.py; `from conftest`
-# would resolve to tests/conftest.py via pythonpath.
-_GUARDRAILS_CR_NAME = "langgraph-guardrailed-agent-guardrails"
-_GUARDRAILS_CONTAINER = "nemo-guardrails"
 
 
 def _assert_nemoguard_refusal(status: int, data: dict) -> None:
@@ -139,13 +133,22 @@ def test_checks_unknown_config_rejected(
     assert status == 422, data
 
 
+def _registered_actions(logs: str) -> str:
+    """Return the ``Registered Actions [...]`` list from a NeMo server log.
+
+    Rich wraps the list at spaces only, so quoted action names stay intact.
+    """
+    start = logs.find("Registered Actions")
+    assert start != -1, "No 'Registered Actions' line in guardrails pod log"
+    return logs[start : logs.find("]", start)]
+
+
 # NeMo logs "Failed to register ..." and keeps serving when actions.py fails to
 # import, so every behavior test above can pass on a broken deploy
 # (RHAIENG-7849). Read the pod log to prove the file actually registered.
 def test_nemoguard_actions_registered(
-    guardrails_cluster_server, guardrails_integration_url, cluster_auth
+    guardrails_cluster_server, guardrails_integration_url, read_guardrails_log
 ):
-    namespace = cluster_auth["namespace"]
     # Configs load lazily on the first request; trigger it so test order
     # doesn't matter. Only the status is deterministic here.
     status, data = guardrails_check(
@@ -156,46 +159,13 @@ def test_nemoguard_actions_registered(
     )
     assert status == 200, data
 
-    pods = _run_oc_command(
-        [
-            "get",
-            "pods",
-            "-n",
-            namespace,
-            "-l",
-            f"app.kubernetes.io/instance={_GUARDRAILS_CR_NAME}",
-            "--field-selector=status.phase=Running",
-            "-o",
-            "name",
-        ]
-    ).stdout.split()
-    assert len(pods) == 1, f"Expected one running guardrails pod, got {pods}"
+    logs = read_guardrails_log(until="Registered Actions")
 
-    logs = ""
-    deadline = time.monotonic() + 30
-    while True:
-        result = _run_oc_command(
-            ["logs", pods[0], "-c", _GUARDRAILS_CONTAINER, "-n", namespace],
-            check=False,
-        )
-        if result.returncode != 0:
-            pytest.fail(
-                f"oc logs {pods[0]} failed ({result.returncode}): "
-                f"{result.stderr.strip()}\n"
-                "The test identity needs `get pods/log` in the namespace."
-            )
-        logs = result.stdout
-        if "Registered Actions" in logs or time.monotonic() > deadline:
-            break
-        time.sleep(3)
-
+    # Only nemoguard ships an actions.py, so any failure here is ours.
     failures = [line for line in logs.splitlines() if "Failed to register" in line]
     assert not failures, "nemoguard actions failed to register:\n" + "\n".join(failures)
 
-    start = logs.find("Registered Actions")
-    assert start != -1, "No 'Registered Actions' line in guardrails pod log"
-    registered = logs[start : logs.find("]", start)]
+    registered = _registered_actions(logs)
     # Content-safety action names also exist in the NeMo library, so only a
-    # name unique to our actions.py proves the file loaded. Rich wraps the
-    # list at spaces only, so the quoted name stays intact.
+    # name unique to our actions.py proves the file loaded.
     assert "'topic_policy_check_input'" in registered, registered

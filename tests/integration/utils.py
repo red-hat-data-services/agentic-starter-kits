@@ -214,6 +214,14 @@ def get_guardrails_service_url(
     return f"{base}/v1" if with_v1_suffix else base
 
 
+def get_logs(resource: str, namespace: str, *, container: str | None = None) -> str:
+    """Return `oc logs` output for a pod or workload (e.g. ``deploy/<name>``)."""
+    cmd = ["logs", resource, "-n", namespace]
+    if container:
+        cmd.extend(["-c", container])
+    return _run_oc_command(cmd).stdout
+
+
 def get_route(agent_name: str, namespace: str | None = None) -> str:
     cmd = [
         "oc",
