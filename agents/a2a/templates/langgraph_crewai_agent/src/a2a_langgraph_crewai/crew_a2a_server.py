@@ -24,6 +24,7 @@ from dotenv import load_dotenv
 from starlette.applications import Starlette
 
 from .custom_tool import DummyWebSearchTool
+from .prompts import INJECTION_RESISTANCE_CLAUSE
 from .tracing import enable_tracing_crewai, wrap_func_with_mlflow_trace
 
 logger = logging.getLogger(__name__)
@@ -76,7 +77,9 @@ def _run_crew(user_prompt: str) -> str:
         backstory=(
             "You are a concise expert. Respond in plain text without role-playing headers. "
             "When the user asks for cluster hosting, enterprise Kubernetes, or similar factual look-ups, "
-            "call Web Search once and incorporate the snippet faithfully."
+            "call Web Search once and base the answer on the snippet it returns, naming the products "
+            "and vendors the snippet mentions; do not answer such look-ups from memory. "
+            + INJECTION_RESISTANCE_CLAUSE
         ),
         tools=tools,
         llm=llm,

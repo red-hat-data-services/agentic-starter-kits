@@ -88,6 +88,28 @@ agent_env_var()   { echo "$1" | cut -d'|' -f2; }
 agent_deploy()    { echo "$1" | cut -d'|' -f3; }
 agent_ns()        { local ns; ns=$(echo "$1" | cut -d'|' -f4); echo "${ns:-${NAMESPACE}}"; }
 
+is_flow_import() {
+  local path="$1"
+  local agent_yaml="${REPO_ROOT}/agents/${path}/agent.yaml"
+  [[ -f "$agent_yaml" ]] && grep -qE '^\s*deploymentModel:\s*flow-import' "$agent_yaml"
+}
+
+# Trims whitespace from LANGFLOW_AGENT_URL and echoes it only if non-empty and
+# https://; otherwise echoes nothing so callers fall back to route lookup.
+# Mirrors the validation in resolve_langflow_url()/_probe_flow_import().
+resolved_langflow_url() {
+  local url="${LANGFLOW_AGENT_URL:-}"
+  url="${url#"${url%%[![:space:]]*}"}"
+  url="${url%"${url##*[![:space:]]}"}"
+  if [[ -z "$url" ]]; then
+    return
+  fi
+  if [[ "$url" != https://* ]]; then
+    die "LANGFLOW_AGENT_URL must use https:// (got: ${url})"
+  fi
+  echo "$url"
+}
+
 validate_agent_url_map_sync() {
   local agent_tuples=("$@")
   if [[ ${#agent_tuples[@]} -eq 0 ]]; then
@@ -218,6 +240,37 @@ preflight() {
     local path
     path=$(agent_path "$agent_tuple")
 
+    # Flow-import agents have no Kubernetes Deployment; check health endpoint instead
+    if is_flow_import "$path"; then
+      local health_url="" source_desc=""
+      local langflow_url
+      langflow_url=$(resolved_langflow_url)
+      if [[ -n "$langflow_url" ]]; then
+        health_url="${langflow_url%/}"
+        health_url="${health_url%/health_check}/health_check"
+        source_desc="LANGFLOW_AGENT_URL"
+      else
+        local route_host
+        route_host=$(timeout 30 oc get route "${deploy}" -n "${ns}" \
+          -o jsonpath='{.spec.host}' 2>/dev/null || true)
+        if [[ -z "$route_host" ]]; then
+          fail "Route '${deploy}' not found for flow-import agent '${path}' (namespace: ${ns})"
+          all_healthy=false
+          continue
+        fi
+        health_url="https://${route_host}/health_check"
+        source_desc="route '${deploy}'"
+      fi
+
+      if curl -fsSk --connect-timeout 10 --max-time 30 "${health_url}" >/dev/null 2>&1; then
+        ok "${source_desc} (flow-import) — healthy"
+      else
+        warn "${source_desc} (flow-import) — health check failed or endpoint unreachable"
+        all_healthy=false
+      fi
+      continue
+    fi
+
     if ! timeout 30 oc get deployment "${deploy}" -n "${ns}" >/dev/null 2>&1; then
       fail "Deployment '${deploy}' not found for agent '${path}' (namespace: ${ns})"
       all_healthy=false
@@ -255,9 +308,16 @@ detect_mlflow_config() {
   # Use the first available agent deployment to extract MLflow env vars
   local deploy_json=""
   for agent_tuple in "${AGENTS[@]}"; do
-    local deploy ns
+    local deploy ns path
     deploy=$(agent_deploy "$agent_tuple")
     ns=$(agent_ns "$agent_tuple")
+    path=$(agent_path "$agent_tuple")
+
+    # Skip flow-import agents (they use Langfuse, not MLflow)
+    if is_flow_import "$path"; then
+      continue
+    fi
+
     deploy_json=$(timeout 30 oc get deployment "${deploy}" -n "${ns}" -o json 2>/dev/null || true)
     if [[ -n "$deploy_json" ]]; then
       log "Using deployment '${deploy}' for MLflow config detection"
@@ -266,6 +326,18 @@ detect_mlflow_config() {
   done
 
   if [[ -z "$deploy_json" ]]; then
+    # All selected agents may be flow-import (Langfuse-only); MLflow is not needed
+    local has_standard=false
+    for agent_tuple in "${AGENTS[@]}"; do
+      if ! is_flow_import "$(agent_path "$agent_tuple")"; then
+        has_standard=true
+        break
+      fi
+    done
+    if [[ "$has_standard" == "false" ]]; then
+      warn "All selected agents are flow-import (Langfuse-only). Skipping MLflow detection."
+      return 0
+    fi
     die "No agent deployments found. Cannot detect MLflow configuration."
   fi
 
@@ -325,17 +397,29 @@ run_tests() {
     deploy=$(agent_deploy "$agent_tuple")
     ns=$(agent_ns "$agent_tuple")
 
-    local route_host
-    route_host=$(timeout 30 oc get route "${deploy}" -n "${ns}" \
-      -o jsonpath='{.spec.host}' 2>/dev/null || true)
+    local agent_url=""
 
-    if [[ -z "$route_host" ]]; then
-      warn "No route found for '${deploy}'. Skipping ${path}."
-      echo "NO_ROUTE" > "${RESULTS_DIR}/$(echo "$path" | tr '/' '_').exit"
-      continue
+    # Flow-import agents (Langflow) use a pre-deployed instance whose URL
+    # comes from an env var; fall back to oc get route only if unset.
+    local langflow_url=""
+    if is_flow_import "$path"; then
+      langflow_url=$(resolved_langflow_url)
     fi
+    if [[ -n "$langflow_url" ]]; then
+      agent_url="${langflow_url%/}"
+      agent_url="${agent_url%/health_check}"
+    else
+      local route_host
+      route_host=$(timeout 30 oc get route "${deploy}" -n "${ns}" \
+        -o jsonpath='{.spec.host}' 2>/dev/null || true)
 
-    local agent_url="https://${route_host}"
+      if [[ -z "$route_host" ]]; then
+        warn "No route found for '${deploy}'. Skipping ${path}."
+        echo "NO_ROUTE" > "${RESULTS_DIR}/$(echo "$path" | tr '/' '_').exit"
+        continue
+      fi
+      agent_url="https://${route_host}"
+    fi
     local test_path
     test_path=$(resolve_test_path "$path")
 
@@ -352,10 +436,12 @@ run_tests() {
 
     log "Launching: ${BOLD}${path}${RESET} -> ${logfile}"
 
-    # Detect per-agent experiment name from its deployment
+    # Detect per-agent experiment name from its deployment (skip for flow-import agents)
     local agent_experiment
-    agent_experiment=$(timeout 30 oc get deployment "${deploy}" -n "${ns}" \
-      -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="MLFLOW_EXPERIMENT_NAME")].value}' 2>/dev/null || true)
+    if ! is_flow_import "$path"; then
+      agent_experiment=$(timeout 30 oc get deployment "${deploy}" -n "${ns}" \
+        -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="MLFLOW_EXPERIMENT_NAME")].value}' 2>/dev/null || true)
+    fi
     agent_experiment="${agent_experiment:-${MLFLOW_EXPERIMENT_NAME:-}}"
 
     # Langflow needs the flow ID discovered from its API

@@ -1,4 +1,4 @@
-# Publish a static CI health dashboard to GitHub Pages.
+# Publish the starter-kit gallery and CI health dashboard to GitHub Pages.
 #
 # Bootstrap:
 #   1. Repo admin enables Settings -> Pages -> Source: GitHub Actions
@@ -15,6 +15,7 @@ on:
       - Inner Loop Gating
       - "QG1: Cluster Readiness"
       - "QG2: Platform Readiness"
+      - "Quality Gates Pipeline"
       - "QG4: Agent Deployment Integration Tests"
     types: [completed]
   workflow_dispatch:
@@ -28,7 +29,9 @@ on:
     paths:
       - ".github/workflows/ci-health-pages.yml"
       - ".github/scripts/generate_ci_health_page.py"
+      - ".github/scripts/generate_agent_gallery.py"
       - ".github/scripts/fixtures/ci-runs-sample.json"
+      - "agents/**/agent.yaml"
 
 permissions:
   contents: read
@@ -68,9 +71,15 @@ jobs:
           persist-credentials: false
 
       - name: Setup Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Generate agent gallery
+        run: python .github/scripts/generate_agent_gallery.py --repo-root . --output site/index.html
 
       - name: Generate CI health page
         env:
@@ -80,9 +89,9 @@ jobs:
           if [[ "${{ github.event_name == 'workflow_dispatch' && inputs.use_fixture == true }}" == "true" ]]; then
             python .github/scripts/generate_ci_health_page.py \
               --input .github/scripts/fixtures/ci-runs-sample.json \
-              --output site/index.html
+              --output site/ci-health/index.html
           else
-            python .github/scripts/generate_ci_health_page.py --output site/index.html
+            python .github/scripts/generate_ci_health_page.py --output site/ci-health/index.html
           fi
 
       - name: Setup Pages
@@ -95,4 +104,4 @@ jobs:
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128  # v4.0.5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346  # v4.0.5

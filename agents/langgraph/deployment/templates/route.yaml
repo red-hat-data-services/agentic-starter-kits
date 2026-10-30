@@ -5,6 +5,10 @@ metadata:
   name: {{ include "agent.fullname" . }}
   labels:
     {{- include "agent.labels" . | nindent 4 }}
+  {{- with .Values.openshift.route.timeout }}
+  annotations:
+    haproxy.router.openshift.io/timeout: {{ . | quote }}
+  {{- end }}
 spec:
   to:
     kind: Service

@@ -1,0 +1,38 @@
+# Golden queries for MLflow GenAI evaluation.
+#
+# Add your test queries below. Each query is sent to the running agent,
+# and the resulting trace is scored by the configured scorers.
+#
+# Fields:
+#   inputs:       Dict with the user query (required)
+#   expectations: Dict with ground truth (required for Correctness scorer)
+#     expected_facts:    List of facts the response should contain
+#     expected_response: Reference response text
+#
+# Trace-based scorers (ToolCallCorrectness, ToolCallEfficiency)
+# extract data from MLflow traces automatically — no expected tools needed here.
+#
+# Keep queries single-turn — each query starts a fresh conversation thread,
+# so there is no prior context for the agent's database-backed memory to draw on.
+
+queries:
+  # Example: query that requires a tool call
+  # - inputs:
+  #     question: "Your test question here"
+  #   expectations:
+  #     expected_facts:
+  #       - "Expected fact 1"
+  #       - "Expected fact 2"
+
+  # Example: query that should NOT trigger a tool call
+  # - inputs:
+  #     question: "A simple greeting or general question"
+  #   expectations:
+  #     expected_response: "A friendly response without using any tools"
+
+  # Example: edge case
+  # - inputs:
+  #     question: "A query that tests error handling or boundaries"
+  #   expectations:
+  #     expected_facts:
+  #       - "Expected behavior description"

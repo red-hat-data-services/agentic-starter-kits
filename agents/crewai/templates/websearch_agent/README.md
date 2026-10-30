@@ -21,7 +21,7 @@ questions. Use with any OpenAI-compatible API.
 
 - [uv](https://docs.astral.sh/uv/) — Python package manager
 - [Podman](https://podman.io/) or [Docker](https://www.docker.com/) — for local container builds (Option A)
-- [oc](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) — for
+- [oc](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/cli_tools/openshift-cli-oc#cli-getting-started) — for
   OpenShift deployment
 - [Helm](https://helm.sh/) — for deploying to Kubernetes/OpenShift
 - [GNU Make](https://www.gnu.org/software/make/) and a bash-compatible shell — on Windows,
@@ -108,10 +108,10 @@ make run-cli
 To enable MLflow tracing, add the following to your `.env`:
 
 ```ini
-MLFLOW_TRACKING_URI = "http://localhost:5000"
-MLFLOW_EXPERIMENT_NAME = "crewai-websearch-agent"
-MLFLOW_HTTP_REQUEST_TIMEOUT = 2
-MLFLOW_HTTP_REQUEST_MAX_RETRIES = 0
+MLFLOW_TRACKING_URI="http://localhost:5000"
+MLFLOW_EXPERIMENT_NAME="crewai-websearch-agent"
+MLFLOW_HTTP_REQUEST_TIMEOUT=2
+MLFLOW_HTTP_REQUEST_MAX_RETRIES=0
 ```
 
 Then start the MLflow server in a separate terminal:
@@ -143,11 +143,11 @@ To enable tracing and logging with MLflow on your OpenShift cluster, add the fol
 `.env` file:
 
 ```ini
-MLFLOW_TRACKING_URI = "https://<openshift-dashboard-url>/mlflow"
-MLFLOW_TRACKING_TOKEN = "<your-openshift-token>"
-MLFLOW_EXPERIMENT_NAME = "crewai-websearch-agent"
-MLFLOW_TRACKING_INSECURE_TLS = "true"
-MLFLOW_WORKSPACE = "default"
+MLFLOW_TRACKING_URI="https://<openshift-dashboard-url>/mlflow"
+MLFLOW_TRACKING_TOKEN="<your-openshift-token>"
+MLFLOW_EXPERIMENT_NAME="crewai-websearch-agent"
+MLFLOW_TRACKING_INSECURE_TLS="true"
+MLFLOW_WORKSPACE="default"
 ```
 
 **Notes:**
@@ -180,10 +180,10 @@ make init
 Edit `.env` with your model endpoint and container image:
 
 ```ini
-API_KEY = your-api-key-here
-BASE_URL = https://your-model-endpoint.com/v1
-MODEL_ID = llama-3.1-8b-instruct
-CONTAINER_IMAGE = quay.io/your-username/crewai-websearch-agent:latest
+API_KEY=your-api-key-here
+BASE_URL=https://your-model-endpoint.com/v1
+MODEL_ID=llama-3.1-8b-instruct
+CONTAINER_IMAGE=quay.io/your-username/crewai-websearch-agent:latest
 ```
 
 **Notes:**
@@ -205,7 +205,7 @@ CONTAINER_IMAGE = quay.io/your-username/crewai-websearch-agent:latest
   - GHCR: `ghcr.io/your-org/crewai-websearch-agent:latest`
 
   > **Note:** OpenShift must be able to pull the container image. Make the image **public**, or configure
-  an [image pull secret](https://docs.openshift.com/container-platform/latest/openshift_images/managing_images/using-image-pull-secrets.html)
+  an [image pull secret](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/images/managing-images#using-image-pull-secrets)
   for private registries.
 
 ### Building the Container Image

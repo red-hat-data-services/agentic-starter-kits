@@ -12,7 +12,7 @@ GUARDRAILS_BASE_URL = os.environ.get("GUARDRAILS_BASE_URL", "http://localhost:80
 GUARDRAILS_PROFILE = os.environ.get("GUARDRAILS_PROFILE", "local")
 GUARDRAILS_MODEL_ID = os.environ.get("GUARDRAILS_MODEL_ID", "llama3.1:8b")
 
-GUARDRAILS_CHAT_TIMEOUT = float(os.environ.get("GUARDRAILS_CHAT_TIMEOUT", "60"))
+GUARDRAILS_CHAT_TIMEOUT = float(os.environ.get("GUARDRAILS_CHAT_TIMEOUT", "120"))
 
 
 def guardrails_tls_verify(base_url: str) -> bool:
@@ -37,6 +37,8 @@ _RAIL_BLOCK_PATTERNS = re.compile(
     ),
     re.IGNORECASE,
 )
+
+_INTERNAL_ERROR_PATTERN = re.compile(r"an internal error has occurred", re.IGNORECASE)
 
 
 def _extract_content(data: dict) -> str:
@@ -69,7 +71,45 @@ def is_allowed_response(data: dict, *, http_status: int | None = None) -> bool:
     content = _extract_content(data).strip()
     if len(content) <= 10:
         return False
+    # NeMo's reply when a rail action raises: the request failed, it was not
+    # answered (RHAIENG-7986).
+    if _INTERNAL_ERROR_PATTERN.search(content):
+        return False
     return not is_blocked_response(data, http_status=http_status)
+
+
+def _post_guardrails(
+    path: str,
+    messages: list[dict[str, str]],
+    *,
+    profile: str | None,
+    base_url: str | None,
+    model_id: str | None,
+    verify: bool | None,
+    guardrails: dict | None = None,
+    **extra_body,
+) -> tuple[int, dict]:
+    """POST an OpenAI-style request with a ``guardrails`` block to the proxy."""
+    base = (base_url or GUARDRAILS_BASE_URL).rstrip("/")
+    tls_verify = verify if verify is not None else guardrails_tls_verify(base)
+    guardrails = dict(guardrails or {})
+    config_id = profile if profile is not None else GUARDRAILS_PROFILE
+    if config_id:
+        guardrails["config_id"] = config_id
+    body: dict = {
+        "model": model_id or GUARDRAILS_MODEL_ID,
+        "messages": messages,
+        **extra_body,
+    }
+    if guardrails:
+        body["guardrails"] = guardrails
+
+    with httpx.Client(timeout=GUARDRAILS_CHAT_TIMEOUT, verify=tls_verify) as client:
+        response = client.post(f"{base}{path}", json=body)
+    try:
+        return response.status_code, response.json()
+    except ValueError:
+        return response.status_code, {"error": response.text}
 
 
 def guardrails_chat(
@@ -81,24 +121,39 @@ def guardrails_chat(
     verify: bool | None = None,
 ) -> tuple[int, dict]:
     """POST to the NeMo Guardrails proxy OpenAI-compatible chat endpoint."""
-    base = (base_url or GUARDRAILS_BASE_URL).rstrip("/")
-    tls_verify = verify if verify is not None else guardrails_tls_verify(base)
-    body: dict = {
-        "model": model_id or GUARDRAILS_MODEL_ID,
-        "messages": messages,
-        "stream": False,
-    }
-    config_id = profile if profile is not None else GUARDRAILS_PROFILE
-    if config_id:
-        body["guardrails"] = {"config_id": config_id}
+    return _post_guardrails(
+        "/v1/chat/completions",
+        messages,
+        profile=profile,
+        base_url=base_url,
+        model_id=model_id,
+        verify=verify,
+        stream=False,
+    )
 
-    with httpx.Client(timeout=GUARDRAILS_CHAT_TIMEOUT, verify=tls_verify) as client:
-        response = client.post(f"{base}/v1/chat/completions", json=body)
-        try:
-            data = response.json()
-        except ValueError:
-            data = {"error": response.text}
-        return response.status_code, data
+
+def guardrails_check(
+    messages: list[dict[str, str]],
+    *,
+    profile: str | None = None,
+    base_url: str | None = None,
+    model_id: str | None = None,
+    rail_types: list[str] | None = None,
+    verify: bool | None = None,
+) -> tuple[int, dict]:
+    """POST to the NeMo Guardrails standalone ``/v1/checks`` endpoint.
+
+    A 200 body is ``{"status": "passed"|"blocked", "content": ..., "rail": ...}``.
+    """
+    return _post_guardrails(
+        "/v1/checks",
+        messages,
+        profile=profile,
+        base_url=base_url,
+        model_id=model_id,
+        verify=verify,
+        guardrails=None if rail_types is None else {"rail_types": rail_types},
+    )
 
 
 @pytest.fixture(scope="session")

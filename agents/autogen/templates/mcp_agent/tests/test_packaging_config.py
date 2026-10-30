@@ -65,5 +65,5 @@ def test_dockerfile_consumes_staged_auth_component() -> None:
         r"COPY components/auth/ \./components/auth/", NORMALIZED_DOCKERFILE
     )
     assert re.search(
-        r"RUN uv pip install --no-cache \./components/auth", NORMALIZED_DOCKERFILE
+        r"uv pip install --no-cache \./components/auth", NORMALIZED_DOCKERFILE
     )

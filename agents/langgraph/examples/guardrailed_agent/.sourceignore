@@ -1,0 +1,7 @@
+.venv/
+.env
+.helm-secrets.yaml
+deploy/overlays/ci-testing/cluster.env
+guardrails/config/local/config.yaml
+guardrails/config/nemoguard/config.yaml
+results.xml

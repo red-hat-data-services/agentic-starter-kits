@@ -43,6 +43,13 @@ rules = { invalid-assignment = "ignore" }
 include = ["agents/langgraph/templates/agentic_rag/src/agentic_rag/agent.py"]
 rules = { invalid-return-type = "ignore" }
 
+# mlflow is an optional dependency here (RETRIEVER span logging degrades
+# gracefully when tracing extras aren't installed); the try/except import
+# fallback trips ty's module-vs-None assignment check.
+[[overrides]]
+include = ["agents/langgraph/templates/agentic_rag/src/agentic_rag/tools.py"]
+rules = { invalid-assignment = "ignore" }
+
 # Monkey-patching methods with mlflow trace wrappers — intentional
 # signature mismatch (wrapper uses broader *args/**kwargs).
 [[overrides]]

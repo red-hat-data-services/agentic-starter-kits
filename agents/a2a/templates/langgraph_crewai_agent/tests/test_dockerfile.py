@@ -13,10 +13,8 @@ EXPECTED_UV_COPY_LINE = (
     "fc93e9ecd7218e9ec8fba117af89348eef8fd2463c50c13347478769aaedd0ce "
     "/uv /usr/local/bin/uv"
 )
-EXPECTED_INSTALL_LINE = 'RUN uv pip install --no-cache ".[tracing]"'
-EXPECTED_SQLITE_INSTALL_LINE = (
-    'RUN uv pip install --no-cache ".[tracing]" pysqlite3-binary \\'
-)
+EXPECTED_INSTALL_LINE = "RUN uv sync --frozen --no-dev --extra tracing"
+EXPECTED_SQLITE_INSTALL_LINE = "RUN uv sync --frozen --no-dev --extra tracing \\"
 EXPECTED_SQLITE_SHIM = 'sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")'
 
 

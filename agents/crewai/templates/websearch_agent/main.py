@@ -12,6 +12,10 @@ from typing import Any
 
 from crewai import LLM
 from crewai_web_search.crew import AssistanceAgents
+from crewai_web_search.disclosure_guard import (
+    HIDDEN_INSTRUCTIONS_REFUSAL,
+    guard_instruction_disclosure,
+)
 from crewai_web_search.tracing import enable_tracing
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import (
@@ -154,6 +158,76 @@ def _make_completion_id() -> str:
     return f"chatcmpl-{uuid.uuid4().hex[:12]}"
 
 
+def _completion_response(content: str, model_id: str) -> dict[str, Any]:
+    """Build an OpenAI-compatible non-streaming completion response."""
+    return {
+        "id": _make_completion_id(),
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": model_id,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": None,
+    }
+
+
+def _sse_chunk(
+    completion_id: str,
+    created: int,
+    model_id: str,
+    *,
+    content: str | None = None,
+    finish_reason: str | None = None,
+) -> str:
+    """Build one OpenAI-compatible SSE completion chunk."""
+    delta = {"content": content} if content is not None else {}
+    data = {
+        "id": completion_id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": model_id,
+        "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}],
+    }
+    return f"data: {json.dumps(data)}\n\n"
+
+
+def _refusal_stream(model_id: str) -> StreamingResponse:
+    """Return a complete refusal without invoking the model."""
+    completion_id = _make_completion_id()
+    created = int(time.time())
+
+    async def event_generator() -> AsyncIterator[str]:
+        yield _sse_chunk(
+            completion_id,
+            created,
+            model_id,
+            content=HIDDEN_INSTRUCTIONS_REFUSAL,
+        )
+        yield _sse_chunk(
+            completion_id,
+            created,
+            model_id,
+            finish_reason="stop",
+        )
+        yield "data: [DONE]\n\n"
+
+    return _streaming_response(event_generator())
+
+
+def _streaming_response(events: AsyncIterator[str]) -> StreamingResponse:
+    """Wrap an event iterator with the service's standard SSE headers."""
+    return StreamingResponse(
+        events,
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize the CrewAI LLM on startup."""
@@ -204,15 +278,30 @@ async def chat_completions(request: ChatCompletionRequest):
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
     user_message = _build_user_message(request.messages)
+    guard_outcome = guard_instruction_disclosure(user_message)
     model_id = request.model or getenv("MODEL_ID") or "model"
 
+    if guard_outcome.refused and not guard_outcome.prefix:
+        if request.stream:
+            return _refusal_stream(model_id)
+        return _completion_response(HIDDEN_INSTRUCTIONS_REFUSAL, model_id)
+
     if request.stream:
-        return await _handle_stream(user_message, model_id)
-    else:
-        return await _handle_chat(user_message, model_id)
+        return await _handle_stream(
+            guard_outcome.prefix,
+            model_id,
+            append_refusal=guard_outcome.refused,
+        )
+    return await _handle_chat(
+        guard_outcome.prefix,
+        model_id,
+        append_refusal=guard_outcome.refused,
+    )
 
 
-async def _handle_chat(user_message: str, model_id: str) -> dict[str, Any]:
+async def _handle_chat(
+    user_message: str, model_id: str, *, append_refusal: bool = False
+) -> dict[str, Any]:
     """Handle non-streaming chat completion."""
     global llm
 
@@ -224,7 +313,6 @@ async def _handle_chat(user_message: str, model_id: str) -> dict[str, Any]:
 
         crew = AssistanceAgents(llm=llm).crew()
         result = await asyncio.to_thread(crew.kickoff, inputs=inputs)
-
         assistant_content = _clean_content(str(result))
 
         usage = None
@@ -235,6 +323,10 @@ async def _handle_chat(user_message: str, model_id: str) -> dict[str, Any]:
                 "completion_tokens": getattr(token_usage, "completion_tokens", 0) or 0,
                 "total_tokens": getattr(token_usage, "total_tokens", 0) or 0,
             }
+
+        if append_refusal:
+            separator = "\n\n" if assistant_content else ""
+            assistant_content += separator + HIDDEN_INSTRUCTIONS_REFUSAL
 
         return {
             "id": _make_completion_id(),
@@ -260,7 +352,9 @@ async def _handle_chat(user_message: str, model_id: str) -> dict[str, Any]:
         )
 
 
-async def _handle_stream(user_message: str, model_id: str) -> StreamingResponse:
+async def _handle_stream(
+    user_message: str, model_id: str, *, append_refusal: bool = False
+) -> StreamingResponse:
     """Handle streaming chat completion with OpenAI-compatible SSE chunks."""
     global llm
 
@@ -281,26 +375,18 @@ async def _handle_stream(user_message: str, model_id: str) -> StreamingResponse:
             # that is internal ReAct reasoning (Thought/Action/Observation).
             buffer = ""
             emitting = False
+            emitted_content = False
 
             async for chunk in streaming_output:
                 if chunk.chunk_type.value != "text" or not chunk.content:
                     continue
 
                 if emitting:
-                    data = {
-                        "id": completion_id,
-                        "object": "chat.completion.chunk",
-                        "created": created,
-                        "model": model_id,
-                        "choices": [
-                            {
-                                "index": 0,
-                                "delta": {"content": chunk.content},
-                                "finish_reason": None,
-                            }
-                        ],
-                    }
-                    yield f"data: {json.dumps(data)}\n\n"
+                    emitted_content = True
+                    yield _sse_chunk(
+                        completion_id, created, model_id, content=chunk.content
+                    )
+
                 else:
                     buffer += chunk.content
                     marker = "Final Answer:"
@@ -309,55 +395,32 @@ async def _handle_stream(user_message: str, model_id: str) -> StreamingResponse:
                         emitting = True
                         remainder = buffer[idx + len(marker) :]
                         if remainder.strip():
-                            data = {
-                                "id": completion_id,
-                                "object": "chat.completion.chunk",
-                                "created": created,
-                                "model": model_id,
-                                "choices": [
-                                    {
-                                        "index": 0,
-                                        "delta": {"content": remainder.lstrip()},
-                                        "finish_reason": None,
-                                    }
-                                ],
-                            }
-                            yield f"data: {json.dumps(data)}\n\n"
+                            emitted_content = True
+                            yield _sse_chunk(
+                                completion_id,
+                                created,
+                                model_id,
+                                content=remainder.lstrip(),
+                            )
 
             # If no "Final Answer:" was found, send the cleaned full buffer
             if not emitting and buffer.strip():
                 cleaned = _clean_content(buffer)
                 if cleaned:
-                    data = {
-                        "id": completion_id,
-                        "object": "chat.completion.chunk",
-                        "created": created,
-                        "model": model_id,
-                        "choices": [
-                            {
-                                "index": 0,
-                                "delta": {"content": cleaned},
-                                "finish_reason": None,
-                            }
-                        ],
-                    }
-                    yield f"data: {json.dumps(data)}\n\n"
+                    emitted_content = True
+                    yield _sse_chunk(completion_id, created, model_id, content=cleaned)
+
+            if append_refusal:
+                separator = "\n\n" if emitted_content else ""
+                yield _sse_chunk(
+                    completion_id,
+                    created,
+                    model_id,
+                    content=separator + HIDDEN_INSTRUCTIONS_REFUSAL,
+                )
 
             # Send final chunk with finish_reason
-            final_data = {
-                "id": completion_id,
-                "object": "chat.completion.chunk",
-                "created": created,
-                "model": model_id,
-                "choices": [
-                    {
-                        "index": 0,
-                        "delta": {},
-                        "finish_reason": "stop",
-                    }
-                ],
-            }
-            yield f"data: {json.dumps(final_data)}\n\n"
+            yield _sse_chunk(completion_id, created, model_id, finish_reason="stop")
             yield "data: [DONE]\n\n"
 
         except Exception:
@@ -370,11 +433,7 @@ async def _handle_stream(user_message: str, model_id: str) -> StreamingResponse:
             }
             yield f"data: {json.dumps(error_data)}\n\n"
 
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return _streaming_response(event_generator())
 
 
 @app.get(

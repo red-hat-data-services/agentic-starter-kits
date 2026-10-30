@@ -127,6 +127,12 @@ def enable_tracing() -> None:
         logger.info("[Tracing] MLFLOW_TRACKING_URI not set. Tracing is disabled.")
         return
 
+    # mlflow >= 3.13 auto-exports traces over OTLP whenever
+    # OTEL_EXPORTER_OTLP_ENDPOINT is set, which rail-level guardrails tracing
+    # does in local dev (RHAIENG-7970). Default the export off so MLflow traces
+    # stay on the tracking server; set MLFLOW_ENABLE_OTLP_EXPORTER=true to opt in.
+    os.environ.setdefault("MLFLOW_ENABLE_OTLP_EXPORTER", "false")
+
     try:
         import mlflow
         import mlflow.langchain

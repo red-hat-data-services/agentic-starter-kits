@@ -48,6 +48,7 @@ _REDACT_PATTERNS = [
     re.compile(r'(--set\s+secrets\.postgresPassword=")[^"]*"'),
     re.compile(r"(--set\s+secrets\.postgresPassword=)\S+"),
     re.compile(r"(POSTGRES_USER=)\S+"),
+    re.compile(r"(MLFLOW_TRACKING_TOKEN=)\S+"),
 ]
 
 
@@ -211,6 +212,14 @@ def get_guardrails_service_url(
 ) -> str:
     base = f"http://{cr_name}.{namespace}.svc.cluster.local"
     return f"{base}/v1" if with_v1_suffix else base
+
+
+def get_logs(resource: str, namespace: str, *, container: str | None = None) -> str:
+    """Return `oc logs` output for a pod or workload (e.g. ``deploy/<name>``)."""
+    cmd = ["logs", resource, "-n", namespace]
+    if container:
+        cmd.extend(["-c", container])
+    return _run_oc_command(cmd).stdout
 
 
 def get_route(agent_name: str, namespace: str | None = None) -> str:

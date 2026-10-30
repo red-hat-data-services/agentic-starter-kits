@@ -131,6 +131,7 @@ def run_eval(
         model: str | None = None,
         approval: str | None = None,
         enrich: bool = True,
+        transient_retries: int = 0,
     ) -> TaskResult:
         config = TaskConfig(
             agent_url=agent_url,
@@ -140,6 +141,7 @@ def run_eval(
             max_tokens_budget=max_tokens_budget,
             model=model,
             stream=STREAM,
+            transient_retries=transient_retries,
         )
         request_start_ms = int(time.time() * 1000)
         result = await run_task(config, client=http_client)

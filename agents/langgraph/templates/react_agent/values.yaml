@@ -1,5 +1,9 @@
 nameOverride: "langgraph-react-agent"
 
+openshift:
+  route:
+    timeout: "120s"
+
 env:
   MODEL_ID: ""
   BASE_URL: ""

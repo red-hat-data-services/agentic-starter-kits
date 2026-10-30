@@ -9,7 +9,7 @@ MODEL          ?= llama3.1:8b
 STAGE_BUILD_CONTEXT = \
 	BUILD_CONTEXT=$$(mktemp -d ./.build-context.XXXXXX) && \
 	trap 'rm -rf "$$BUILD_CONTEXT"' EXIT && \
-	cp Dockerfile pyproject.toml main.py "$$BUILD_CONTEXT"/ && \
+	cp Dockerfile pyproject.toml uv.lock main.py "$$BUILD_CONTEXT"/ && \
 	cp -r src playground "$$BUILD_CONTEXT"/ && \
 	cp -r ../../../../images "$$BUILD_CONTEXT"/images && \
 	if [ -d ./images ]; then cp -r ./images/. "$$BUILD_CONTEXT"/images/; fi && \

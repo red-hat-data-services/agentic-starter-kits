@@ -59,9 +59,11 @@ _GRACEFUL_EXCEPTIONS = (
 
 
 def _is_guardrails_block(exc: Exception) -> bool:
-    """NeMo Guardrails v0.21.0 has no typed exception for rail blocks.
-    It raises openai.APIError with 'Blocked by ... rails' in the message.
-    This coupling is version-specific and may need updating for newer NeMo."""
+    """NeMo Guardrails (0.24) has no typed exception for rail blocks.
+    Blocked input comes back as a normal 200 refusal; a streaming output-rail
+    block ends the stream with a 'Blocked by <flow> rails.' error chunk, which
+    the OpenAI client raises as openai.APIError. This coupling is
+    version-specific and may need updating for newer NeMo."""
     return (
         isinstance(exc, OpenAIAPIError)
         and "Blocked by" in str(exc)
@@ -440,6 +442,7 @@ async def _handle_stream(
     created = int(time.time())
 
     async def event_generator() -> AsyncIterator[str]:
+        streamed_content = False
         try:
             async for event in agent_graph.astream_events(
                 {"messages": messages},
@@ -452,6 +455,7 @@ async def _handle_stream(
                 if kind == "on_chat_model_stream":
                     chunk = event["data"]["chunk"]
                     if chunk.content:
+                        streamed_content = True
                         data = {
                             "id": completion_id,
                             "object": "chat.completion.chunk",
@@ -467,7 +471,8 @@ async def _handle_stream(
                         }
                         yield f"data: {json.dumps(data)}\n\n"
 
-                # Tool calls (after LLM finishes generating the call)
+                # Tool calls (after LLM finishes generating the call), or
+                # full content when the proxy forbids streamed tool calls.
                 elif kind == "on_chat_model_end":
                     message = event["data"]["output"]
                     if hasattr(message, "tool_calls") and message.tool_calls:
@@ -500,6 +505,22 @@ async def _handle_stream(
                             ],
                         }
                         yield f"data: {json.dumps(data)}\n\n"
+                    elif (not streamed_content) and getattr(message, "content", None):
+                        data = {
+                            "id": completion_id,
+                            "object": "chat.completion.chunk",
+                            "created": created,
+                            "model": model_id,
+                            "choices": [
+                                {
+                                    "index": 0,
+                                    "delta": {"content": message.content},
+                                    "finish_reason": None,
+                                }
+                            ],
+                        }
+                        yield f"data: {json.dumps(data)}\n\n"
+                    streamed_content = False
 
                 # Tool execution results
                 elif kind == "on_tool_end":
@@ -592,6 +613,7 @@ async def _handle_stream(
                     }
                 }
                 yield f"data: {json.dumps(error_data)}\n\n"
+                yield "data: [DONE]\n\n"
 
     return StreamingResponse(
         event_generator(),
