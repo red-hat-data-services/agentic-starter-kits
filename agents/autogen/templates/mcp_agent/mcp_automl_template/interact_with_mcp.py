@@ -9,7 +9,7 @@ from mcp import ClientSession
 from mcp.client.sse import sse_client
 from utils import get_chat_from_env
 
-# LLM from .env: BASE_URL, MODEL_ID, API_KEY (see repo template.env; Ollama example there)
+# LLM from .env: BASE_URL, MODEL_ID, API_KEY (see the parent .env.example)
 chat_openai = get_chat_from_env()
 
 # Dictionary of predefined questions with descriptions
