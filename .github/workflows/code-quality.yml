@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, 'rhoai-*']
   workflow_dispatch:
 
 permissions: {}
@@ -154,6 +154,7 @@ jobs:
 
       - name: Gitleaks
         env:
+          PR_BASE_REF: ${{ github.base_ref }}
           GITLEAKS_VERSION: "8.30.1"
           GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
         run: |
@@ -161,7 +162,7 @@ jobs:
           echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
           tar -xzf gitleaks.tar.gz gitleaks
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            ./gitleaks detect --source . --config .gitleaks.toml --log-opts="origin/main..HEAD" --verbose --redact
+            ./gitleaks detect --source . --config .gitleaks.toml --log-opts="origin/${PR_BASE_REF}..HEAD" --verbose --redact
           else
             ./gitleaks detect --source . --config .gitleaks.toml --verbose --redact
           fi
