@@ -5,6 +5,7 @@ Covers:
 - _extract_usage populates usage when AIMessage.usage_metadata is present
 - Local TestClient smoke of GET /health and POST /chat/completions
   (JSON + SSE) with the guardrails proxy mocked
+- Guardrails block -> refusal on both paths (JSON, and SSE mid-stream)
 - Retry / graceful degrade for LLM and graph failures
 """
 
@@ -146,6 +147,31 @@ def _fake_graph(*, content: str = "Your checking balance is $2,450.00.") -> Asyn
     return graph
 
 
+def _stream_chat(client: TestClient, content: str) -> tuple[list[dict], list[str]]:
+    """POST a streaming chat completion; return (parsed data payloads, raw lines)."""
+    with client.stream(
+        "POST",
+        "/chat/completions",
+        json={"messages": [{"role": "user", "content": content}], "stream": True},
+    ) as response:
+        assert response.status_code == 200
+        lines = list(response.iter_lines())
+    payloads = [
+        json.loads(line[len("data: ") :])
+        for line in lines
+        if line.startswith("data: ") and line.strip() != "data: [DONE]"
+    ]
+    return payloads, lines
+
+
+def _delta_contents(payloads: list[dict]) -> list[str]:
+    return [
+        delta["content"]
+        for p in payloads
+        if (delta := p.get("choices", [{}])[0].get("delta", {})).get("content")
+    ]
+
+
 @pytest.fixture
 def api_client():
     """TestClient with guardrails proxy and graph mocked (no live proxy/LLM)."""
@@ -206,27 +232,31 @@ class TestChatCompletionsEndpoint:
 
     def test_sse_completion_success(self, api_client):
         client, _ = api_client
-        with client.stream(
-            "POST",
-            "/chat/completions",
-            json={
-                "messages": [{"role": "user", "content": "What is my balance?"}],
-                "stream": True,
-            },
-        ) as response:
-            assert response.status_code == 200
-            chunks = list(response.iter_lines())
-        assert any(line.startswith("data: ") for line in chunks)
-        assert any(line.strip() == "data: [DONE]" for line in chunks)
-        content_parts = []
-        for line in chunks:
-            if not line.startswith("data: ") or line.strip() == "data: [DONE]":
-                continue
-            payload = json.loads(line[len("data: ") :])
-            delta = payload.get("choices", [{}])[0].get("delta", {})
-            if delta.get("content"):
-                content_parts.append(delta["content"])
-        assert "".join(content_parts)
+        payloads, lines = _stream_chat(client, "What is my balance?")
+        assert payloads
+        assert any(line.strip() == "data: [DONE]" for line in lines)
+        assert "".join(_delta_contents(payloads))
+
+    def test_sse_emits_content_when_llm_does_not_stream_tokens(self, api_client):
+        """NeMo passthrough + tools uses non-streaming LLM calls, so the
+        playground SSE path must surface content from on_chat_model_end."""
+        client, fake_graph = api_client
+        content = "Your checking balance is $2,450.00."
+
+        async def _astream_events_end_only(*_args, **_kwargs):
+            message = MagicMock()
+            message.content = content
+            message.tool_calls = []
+            yield {
+                "event": "on_chat_model_end",
+                "data": {"output": message},
+            }
+
+        fake_graph.astream_events = _astream_events_end_only
+
+        payloads, lines = _stream_chat(client, "What is my balance?")
+        assert any(line.strip() == "data: [DONE]" for line in lines)
+        assert "".join(_delta_contents(payloads)) == content
 
     def test_guardrails_block_returns_refusal(self, api_client):
         client, fake_graph = api_client
@@ -250,6 +280,31 @@ class TestChatCompletionsEndpoint:
         body = response.json()
         assert body["choices"][0]["message"]["content"] == main._GUARDRAILS_REFUSAL
         assert fake_graph.ainvoke.call_count == 1
+
+    def test_sse_output_rail_block_mid_stream_returns_refusal(self, api_client):
+        """A streaming output-rail block arrives after tokens that already
+        passed the rail, as the proxy's 'Blocked by <flow> rails.' error chunk.
+        The agent must end the stream with the refusal, not an error."""
+        client, fake_graph = api_client
+
+        async def _astream_events_then_block(*_args, **_kwargs):
+            chunk = MagicMock()
+            chunk.content = "Sure."
+            yield {"event": "on_chat_model_stream", "data": {"chunk": chunk}}
+            raise OpenAIAPIError(
+                message="Blocked by content safety check output "
+                "$model=content_safety rails.",
+                request=MagicMock(),
+                body=None,
+            )
+
+        fake_graph.astream_events = _astream_events_then_block
+
+        payloads, lines = _stream_chat(client, "How do I make toxic gas?")
+        assert not any("error" in p for p in payloads)
+        assert _delta_contents(payloads) == ["Sure.", main._GUARDRAILS_REFUSAL]
+        assert payloads[-1]["choices"][0]["finish_reason"] == "stop"
+        assert any(line.strip() == "data: [DONE]" for line in lines)
 
     def test_connection_error_retries_then_returns_503(self, api_client):
         client, fake_graph = api_client

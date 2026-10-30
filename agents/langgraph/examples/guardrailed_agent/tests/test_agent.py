@@ -170,6 +170,7 @@ class TestGetGraphClosureHttpClients:
             )
 
         kwargs = mock_chat.call_args.kwargs
+        assert kwargs["disable_streaming"] is True
         assert isinstance(kwargs["http_client"], httpx.Client)
         assert isinstance(kwargs["http_async_client"], httpx.AsyncClient)
         prompt = mock_create.call_args.kwargs["system_prompt"]

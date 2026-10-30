@@ -45,6 +45,9 @@ data:
     exporters:
       otlphttp:
         endpoint: "https://mlflow.redhat-ods-applications.svc.cluster.local:8443"
+        # MLflow's /v1/traces rejects gzip-compressed requests ("Invalid OpenTelemetry
+        # protobuf format"), and gzip is the exporter's default.
+        compression: none
         tls:
           ca_file: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
         headers:

@@ -2,6 +2,9 @@ from os import getenv
 
 from _interactive_chat import InteractiveChat
 from ai_service import ai_stream_service
+from crewai_web_search.tracing import enable_tracing
+
+enable_tracing()
 
 
 class SimpleContext:

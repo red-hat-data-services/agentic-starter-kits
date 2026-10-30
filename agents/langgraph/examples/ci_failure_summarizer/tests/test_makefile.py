@@ -1,4 +1,4 @@
-"""Tests for deploy-time helper scripts in the template Makefile."""
+"""Tests for deploy-time helper scripts in the example Makefile."""
 
 from __future__ import annotations
 

@@ -25,38 +25,79 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import yaml
+
 API_ROOT = "https://api.github.com"
-WORKFLOWS = (
+WORKFLOWS_DIR = Path(__file__).resolve().parent.parent / "workflows"
+
+
+class GHWorkflowLoader(yaml.SafeLoader):
+    """YAML loader for GitHub Actions workflow files.
+
+    Disables implicit bool resolution so a bare `on:` key (YAML 1.1 treats
+    on/off/yes/no as booleans) round-trips as the string "on" instead of
+    silently becoming the key `True`.
+    """
+
+
+GHWorkflowLoader.yaml_implicit_resolvers = {
+    key: [(tag, regexp) for tag, regexp in resolvers if tag != "tag:yaml.org,2002:bool"]
+    for key, resolvers in GHWorkflowLoader.yaml_implicit_resolvers.items()
+}
+
+
+def load_workflow_yaml(path: Path) -> dict:
+    return yaml.load(path.read_text(encoding="utf-8"), Loader=GHWorkflowLoader)
+
+
+def _workflow_display_name(file: str) -> str:
+    path = WORKFLOWS_DIR / file
+    name = load_workflow_yaml(path).get("name")
+    if not name:
+        raise ValueError(f"{path} has no top-level 'name:' field")
+    return name
+
+
+_WORKFLOW_SPECS = (
     {
         "file": "code-quality.yml",
-        "name": "Code Quality",
         "description": "Lint, format, and markdown checks on main and PRs.",
     },
     {
         "file": "agent-tests.yml",
-        "name": "Agent Tests",
         "description": "Unit tests for agent templates.",
     },
     {
         "file": "eval-gating.yml",
-        "name": "Inner Loop Gating",
         "description": "Behavioral pytest gating on selected paths.",
     },
     {
         "file": "qg1-cluster-readiness.yml",
-        "name": "QG1: Cluster Readiness",
         "description": "Cluster API, GPU, and namespace readiness checks before downstream gates.",
     },
     {
         "file": "qg2-platform-readiness.yml",
-        "name": "QG2: Platform Readiness",
         "description": "Operator, DataScienceCluster, and KServe platform readiness checks.",
     },
     {
-        "file": "agent-deployment-test.yaml",
-        "name": "QG4: Agent Deployment Integration Tests",
-        "description": "Nightly OpenShift deploy, /health checks, and teardown.",
+        "file": "quality-gates-pipeline.yml",
+        "description": "Nightly QG4 deploy/health checks fanning out into QG7 behavioral evals.",
     },
+    {
+        "file": "agent-deployment-test.yaml",
+        "description": (
+            "Ad hoc, manual-only QG4 deploy/health check — not the nightly "
+            "QG4 signal (see Quality Gates Pipeline)."
+        ),
+    },
+)
+
+# Each entry's display name is read from its own workflow file's `name:`
+# field rather than duplicated as a literal here, so it can't drift from
+# what GitHub actually uses to match the workflow_run trigger in
+# ci-health-pages.yml.
+WORKFLOWS = tuple(
+    {**spec, "name": _workflow_display_name(spec["file"])} for spec in _WORKFLOW_SPECS
 )
 RELEVANT_EVENTS = frozenset({"push", "schedule", "workflow_dispatch"})
 
@@ -466,6 +507,7 @@ def render_page(
       <p class="muted">
         CI health summary for QG8 in-scope workflows on <code>main</code> and
         scheduled runs. Rebuilds when those workflows complete.
+        <a href="../">Starter kit homepage</a>
       </p>
       <p><strong>Repository:</strong> <code>{html.escape(repository)}</code></p>
       <p><strong>Last updated:</strong> {html.escape(generated_at.strftime("%Y-%m-%d %H:%M:%S UTC"))}</p>
@@ -485,7 +527,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("site/index.html"),
+        default=Path("site/ci-health/index.html"),
         help="Path to write the generated HTML file",
     )
     parser.add_argument(

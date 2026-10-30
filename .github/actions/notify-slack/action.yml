@@ -29,6 +29,10 @@ inputs:
   status:
     description: "Notification status label, for example failure or cancelled"
     required: true
+  summary_text:
+    description: "Pre-rendered mrkdwn summary to show instead of the generic failed-jobs list"
+    required: false
+    default: ""
   preview:
     description: "If true, print the payload instead of sending it"
     required: false
@@ -39,6 +43,7 @@ runs:
   steps:
     - name: Collect failed jobs
       id: collect-failed-jobs
+      if: inputs.summary_text == ''
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
@@ -83,6 +88,7 @@ runs:
         DASHBOARD_URL: ${{ inputs.dashboard_url }}
         REPOSITORY: ${{ inputs.repository }}
         FAILED_JOBS_JSON: ${{ steps.collect-failed-jobs.outputs.failed_jobs_json }}
+        SUMMARY_TEXT: ${{ inputs.summary_text }}
       run: |
         set -euo pipefail
 

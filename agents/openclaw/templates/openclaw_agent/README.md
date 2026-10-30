@@ -2,7 +2,7 @@
 
 ## What this agent does
 
-Open-source AI coding assistant built on [OpenClaw](https://github.com/openclaw/openclaw) with gateway-based model routing. Provides a web-based interface for code generation, editing, and debugging, routing requests through a built-in gateway to any OpenAI-compatible model endpoint.
+Open-source AI assistant built on [OpenClaw](https://github.com/openclaw/openclaw) with gateway-based model routing. Provides a web-based interface, routing requests through a built-in gateway to any OpenAI-compatible model endpoint.
 
 ## Supported backends
 
@@ -13,7 +13,7 @@ Open-source AI coding assistant built on [OpenClaw](https://github.com/openclaw/
 
 ## Key features
 
-- Web-based coding assistant with built-in gateway (port 18789)
+- Web-based AI assistant with built-in gateway (port 18789)
 - Gateway-based model routing to any OpenAI-compatible endpoint
 - Persistent storage for session and workspace data
 - Config-driven deployment via kustomize overlays

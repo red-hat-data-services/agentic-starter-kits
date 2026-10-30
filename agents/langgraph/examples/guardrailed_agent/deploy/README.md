@@ -1,6 +1,6 @@
 # Deploying Guardrailed Agent on RHOAI
 
-This directory deploys the **nemoguard** NeMo Guardrails profile to OpenShift via the
+This directory deploys the **nemoguard** NeMo Guardrails profile to OpenShift AI via the
 `NemoGuardrails` CRD (TrustyAI operator), then wires the agent's `BASE_URL` to that
 in-cluster guardrails Service — not directly to vLLM.
 

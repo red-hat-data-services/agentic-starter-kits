@@ -82,10 +82,10 @@
       "run_started_at": "2026-07-05T01:15:18Z"
     }
   ],
-  "agent-deployment-test.yaml": [
+  "quality-gates-pipeline.yml": [
     {
       "id": 10031,
-      "name": "QG4: Agent Deployment Integration Tests",
+      "name": "Quality Gates Pipeline",
       "event": "schedule",
       "head_branch": "main",
       "status": "completed",
@@ -97,7 +97,7 @@
     },
     {
       "id": 10030,
-      "name": "QG4: Agent Deployment Integration Tests",
+      "name": "Quality Gates Pipeline",
       "event": "schedule",
       "head_branch": "main",
       "status": "completed",
@@ -106,6 +106,20 @@
       "created_at": "2026-07-04T03:04:44Z",
       "updated_at": "2026-07-04T03:58:12Z",
       "run_started_at": "2026-07-04T03:04:52Z"
+    }
+  ],
+  "agent-deployment-test.yaml": [
+    {
+      "id": 10032,
+      "name": "QG4: Agent Deployment Integration Tests",
+      "event": "workflow_dispatch",
+      "head_branch": "main",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/red-hat-data-services/agentic-starter-kits/actions/runs/10032",
+      "created_at": "2026-07-05T09:12:00Z",
+      "updated_at": "2026-07-05T10:01:33Z",
+      "run_started_at": "2026-07-05T09:12:08Z"
     }
   ]
 }
