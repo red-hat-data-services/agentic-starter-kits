@@ -365,7 +365,6 @@ This project uses [Claude Code](https://code.claude.com/docs) skills to automate
 | `verify-traces` | Code review + live trace testing |
 | `review-tracing-code` | Static code review of tracing implementation |
 | `test-tracing` | Live end-to-end trace testing |
-| `kagenti-deploy` | Deploy A2A-compliant agents to OpenShift with kagenti integration |
 | `deploy-agents` | Deploy agents to OpenShift with auto-detected cluster config and MLflow token refresh |
 | `fit-check` | Validate whether a new agent belongs in the repo (idea mode or existing code) |
 | `add-behavioral-tests` | Scaffold behavioral testing (pytest) for an agent |
