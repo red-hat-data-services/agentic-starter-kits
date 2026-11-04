@@ -50,6 +50,10 @@ def register_tools(monkeypatch: pytest.MonkeyPatch):
     for var in ("DEPLOYMENT_URL", "DEPLOYMENT_TOKEN", "DEPLOYMENT_CA_BUNDLE"):
         monkeypatch.delenv(var, raising=False)
     module = importlib.import_module("register_tools")
+    # utils.load_dotenv() runs at import time and re-populates os.environ from a
+    # developer's .env — scrub again so unit tests never hit a real deployment.
+    for var in ("DEPLOYMENT_URL", "DEPLOYMENT_TOKEN", "DEPLOYMENT_CA_BUNDLE"):
+        monkeypatch.delenv(var, raising=False)
     yield module
     for name in ("utils", "register_tools"):
         sys.modules.pop(name, None)
