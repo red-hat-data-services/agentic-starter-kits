@@ -77,7 +77,7 @@ mcp_automl_template/
 
    - `DEPLOYMENT_URL` – prediction endpoint URL (`<inference endpoint>/v1/models/<deployment-name>:predict`)
    - `DEPLOYMENT_TOKEN` – (optional) Bearer token for that endpoint; leave empty if token auth is off
-   - `DEPLOYMENT_CA_BUNDLE` – (optional) CA bundle used to verify the endpoint's TLS certificate (see [AUTOML_DEPLOYMENT.md](AUTOML_DEPLOYMENT.md#53-tls-for-in-cluster-https-endpoints))
+   - `DEPLOYMENT_CA_BUNDLE` – (optional) additional CA bundle used to verify the endpoint's TLS certificate; HTTPX's default trust store (including `SSL_CERT_FILE` / `SSL_CERT_DIR` overrides) is preserved (see [AUTOML_DEPLOYMENT.md](AUTOML_DEPLOYMENT.md#53-tls-for-in-cluster-https-endpoints))
    - `BASE_URL` – LLM base URL (for `interact_with_mcp.py` via `get_chat_from_env()`)
    - `API_KEY` – LLM API key
    - `MODEL_ID` – model identifier (e.g. `llama-3.1-8b-instruct`)

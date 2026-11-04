@@ -26,13 +26,12 @@ def _resolve_schema_path(schema_path: str, config_dir: Path) -> Path:
 
 
 def _tls_verify() -> ssl.SSLContext | bool:
-    """
-    TLS verification for the deployment call: the CA bundle in DEPLOYMENT_CA_BUNDLE
-    (e.g. the OpenShift service CA for in-cluster endpoints), else the system trust store.
-    """
+    """Add DEPLOYMENT_CA_BUNDLE certificates to HTTPX's configured trust store."""
     ca_bundle = getenv("DEPLOYMENT_CA_BUNDLE")
     if ca_bundle:
-        return ssl.create_default_context(cafile=ca_bundle)
+        context = httpx.create_ssl_context()
+        context.load_verify_locations(cafile=ca_bundle)
+        return context
     return True
 
 

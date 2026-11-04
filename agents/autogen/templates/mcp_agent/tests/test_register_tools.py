@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import importlib
+import os
 import ssl
+import subprocess
 import sys
-import types
 from pathlib import Path
 from typing import Any
 
@@ -29,34 +30,12 @@ class FakeMCP:
         return decorator
 
 
-def _record_cafile(module, monkeypatch: pytest.MonkeyPatch, seen: list[str]) -> None:
-    """Record the cafile passed to ssl.create_default_context without reading it."""
-    real = ssl.create_default_context
-    monkeypatch.setattr(
-        module.ssl,
-        "create_default_context",
-        lambda cafile: seen.append(cafile) or real(),
-    )
-
-
 @pytest.fixture
 def register_tools(monkeypatch: pytest.MonkeyPatch):
-    # The template uses bare imports (``from utils import ...``) and utils imports
-    # pandas, which the agent venv does not ship; stub it for the import only.
     monkeypatch.syspath_prepend(str(TEMPLATE_DIR))
-    monkeypatch.setitem(sys.modules, "pandas", types.ModuleType("pandas"))
-    for name in ("utils", "register_tools"):
-        monkeypatch.delitem(sys.modules, name, raising=False)
     for var in ("DEPLOYMENT_URL", "DEPLOYMENT_TOKEN", "DEPLOYMENT_CA_BUNDLE"):
         monkeypatch.delenv(var, raising=False)
-    module = importlib.import_module("register_tools")
-    # utils.load_dotenv() runs at import time and re-populates os.environ from a
-    # developer's .env — scrub again so unit tests never hit a real deployment.
-    for var in ("DEPLOYMENT_URL", "DEPLOYMENT_TOKEN", "DEPLOYMENT_CA_BUNDLE"):
-        monkeypatch.delenv(var, raising=False)
-    yield module
-    for name in ("utils", "register_tools"):
-        sys.modules.pop(name, None)
+    return importlib.import_module("register_tools")
 
 
 @pytest.fixture
@@ -144,23 +123,40 @@ def test_response_without_predictions_is_returned_verbatim(
     assert invoke_churn(**CHURN_INPUT) == "{'error': 'unexpected'}"
 
 
-def test_ca_bundle_env_is_passed_as_verify(
-    invoke_churn, captured_post, register_tools, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("custom_default", [False, True])
+def test_ca_bundle_extends_httpx_trust(
+    invoke_churn,
+    captured_post,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    custom_default: bool,
 ) -> None:
-    seen: list[str] = []
-    _record_cafile(register_tools, monkeypatch, seen)
+    certificates = httpx.create_ssl_context(trust_env=False).get_ca_certs(
+        binary_form=True
+    )
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    monkeypatch.delenv("SSL_CERT_DIR", raising=False)
+    if custom_default:
+        default_bundle = tmp_path / "default-ca.pem"
+        default_bundle.write_text(ssl.DER_cert_to_PEM_cert(certificates[0]))
+        monkeypatch.setenv("SSL_CERT_FILE", str(default_bundle))
+    default_roots = set(httpx.create_ssl_context().get_ca_certs(binary_form=True))
+    additional_bundle = tmp_path / "additional-ca.pem"
+    additional_bundle.write_text(ssl.DER_cert_to_PEM_cert(certificates[1]))
     monkeypatch.setenv(
         "DEPLOYMENT_URL", "https://m-predictor.ns.svc:8443/v1/models/m:predict"
     )
-    monkeypatch.setenv(
-        "DEPLOYMENT_CA_BUNDLE",
-        "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt",
-    )
+    monkeypatch.setenv("DEPLOYMENT_CA_BUNDLE", str(additional_bundle))
 
     invoke_churn(**CHURN_INPUT)
 
-    assert seen == ["/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"]
-    assert isinstance(captured_post["verify"], ssl.SSLContext)
+    context = captured_post["verify"]
+    assert isinstance(context, ssl.SSLContext)
+    trusted_roots = set(context.get_ca_certs(binary_form=True))
+    assert default_roots <= trusted_roots
+    assert certificates[1] in trusted_roots
+    assert context.check_hostname
+    assert context.verify_mode == ssl.CERT_REQUIRED
 
 
 def test_without_ca_bundle_uses_system_trust(
@@ -173,3 +169,32 @@ def test_without_ca_bundle_uses_system_trust(
     invoke_churn(**CHURN_INPUT)
 
     assert captured_post["verify"] is True
+
+
+def test_import_does_not_load_dotenv_or_pandas(tmp_path: Path) -> None:
+    (tmp_path / ".env").write_text(
+        "DEPLOYMENT_URL=https://model.example.com/predict\n"
+        "DEPLOYMENT_TOKEN=unit-test-token\n"
+        "AUTOML_IMPORT_MARKER=loaded\n"
+    )
+    env = os.environ.copy()
+    for var in ("DEPLOYMENT_URL", "DEPLOYMENT_TOKEN", "AUTOML_IMPORT_MARKER"):
+        env.pop(var, None)
+    env["PYTHONPATH"] = str(TEMPLATE_DIR)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import os, sys\n"
+            "before = dict(os.environ)\n"
+            "import register_tools\n"
+            "assert dict(os.environ) == before\n"
+            "assert 'pandas' not in sys.modules\n",
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
