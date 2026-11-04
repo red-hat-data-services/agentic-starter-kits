@@ -59,7 +59,7 @@ spec:
 ```
 
 > On 3.6 GA the operator defaults the managed-pipelines image. On early-access (EA) builds it pointed at an upstream image instead — there, set `managedPipelines.image` to the DSPO's `RELATED_IMAGE_ODH_PIPELINES_COMPONENTS_IMAGE` and list the pipelines explicitly (`autogluon-tabular-training-pipeline`, `autogluon-timeseries-training-pipeline`).
-
+>
 > The pipeline server can report `ManagedPipelineValid=False` ("Managed pipelines not configured or no explicit pipeline list") even when the pipelines are loaded and the AutoML UI works. If the AutoML page lists runs without an error, the pipelines are available.
 
 ---
