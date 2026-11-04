@@ -12,7 +12,8 @@ holds cluster env values (QG4 name); it is not the deploy namespace.
 ## Architecture
 
 ```text
-Agent (Helm)  →  NemoGuardrails Service :80/v1  →  vLLM + NVIDIA NIM classifiers
+Agent (Helm)  →  NemoGuardrails Service :80/v1  →  vLLM (main LLM + topic-control classifier)
+                                             ↘  NVIDIA NIM (content-safety classifier)
 ```
 
 The ConfigMap is a **single monolithic map** per RHOAI constraints (config.yaml,
@@ -27,13 +28,56 @@ prompts.yml, rails.co, actions.py, topic_policy.co) sourced from
   `$(brew --prefix gettext)/bin` to `PATH` (keg-only)
 - TrustyAI operator with `NemoGuardrails` CRD installed
 - In-cluster LLM at `vllm-svc.llama-serving.svc.cluster.local:8000` (default)
-- **NVIDIA NIM API key** for nemoguard safety classifiers
+- **Topic-control classifier** deployed via `make deploy-model` (see the next
+  section) — NVIDIA removed the hosted NIM function for
+  `nvidia/nemotron-3.5-content-safety` (RHAIENG-8048), so it runs in-cluster
+- **NVIDIA NIM API key** for the content-safety classifier
+
+## Topic-control classifier (self-hosted vLLM)
+
+The nemoguard profile's topic-control rail uses `nvidia/nemotron-3.5-content-safety`.
+NVIDIA removed the hosted NIM function for that model (every topic-policy call
+404'd; surfaced by the guardrails proxy as "Internal server error" — RHAIENG-8048),
+so the classifier is served in-cluster by the manifests in `deploy/model-serving/`.
+
+```bash
+# Base — bf16-capable GPUs (A10G and newer; the CI cluster layout)
+make deploy-model                                    # into llama-serving (MODEL_SERVING_NAMESPACE)
+
+# T4 / sm75 overlay — the config validated on the dev cluster (fp16 + attention
+# backend overrides; see overlays/t4/kustomization.yaml comments)
+make deploy-model-t4
+
+# Teardown (keeps the PVC with the ~8.6 GB of weights for fast redeploys)
+make undeploy-model
+```
+
+First boot downloads the weights into PVC `nemotron-model-storage` (~8.6 GB,
+several minutes); readiness gates on vLLM's `/health`. The Service is
+`nemotron-3-5-content-safety-svc.llama-serving.svc.cluster.local:8080/v1` —
+that URL is baked into `cluster.env.example` as `TOPIC_CONTROL_LLM_BASE_URL`.
+
+Two invariants a unit test enforces (`tests/test_deploy_manifests.py`):
+
+- `--served-model-name` must equal `TOPIC_CONTROL_MODEL_ID` exactly (vLLM 404s
+  unknown names; the proxy always sends that id)
+- the id must keep containing `nemotron-3.5-content-safety` — custom-policy
+  mode in `guardrails/generate_config.py` keys off a substring match of it
+
+**Ordering for CI clusters**: deploy the classifier *before* merging/applying a
+`cluster.env` that sets `TOPIC_CONTROL_MODEL_ENGINE=openai`. Once the config
+switches, every topic-policy rail call depends on that Service answering.
+Rollback is config-first too: restore `TOPIC_CONTROL_MODEL_ENGINE=nim` (or
+point `TOPIC_CONTROL_LLM_BASE_URL` elsewhere) and re-run `make deploy-guardrails`.
 
 ## Quick start
 
 ```bash
 cd agents/langgraph/examples/guardrailed_agent
 NS=$(oc project -q)
+
+# 0. Topic-control classifier (once per cluster — see section above)
+make deploy-model       # or deploy-model-t4 on T4-class GPUs
 
 # 1. Cluster env (nemoguard profile values)
 cp deploy/overlays/ci-testing/cluster.env.example deploy/overlays/ci-testing/cluster.env
@@ -101,6 +145,9 @@ curl -s "https://${ROUTE}/health" | jq .
 | `make deploy-rhoai` | `deploy-guardrails` then `make deploy` (requires matching `BASE_URL`) |
 | `make undeploy-rhoai` | `undeploy` + `undeploy-guardrails` |
 | `make deploy-rhoai-dry-run` | Preview substituted CR + ConfigMap for `GUARDRAILS_NAMESPACE` |
+| `make deploy-model` | Deploy topic-control classifier (vLLM) into `MODEL_SERVING_NAMESPACE` (bf16 GPU) |
+| `make deploy-model-t4` | Same, T4/sm75 overlay (fp16 + attention/sampler overrides) |
+| `make undeploy-model` | Delete classifier Deployment/Service/SA (keeps the weights PVC) |
 
 ## Integration tests
 
@@ -127,7 +174,10 @@ from a pod or another process already running inside the cluster network.
 Edit `deploy/overlays/ci-testing/cluster.env` to change:
 
 - `LLM_BASE_URL` / `MODEL_ID` — main LLM backend (vLLM or OGX)
-- `CONTENT_SAFETY_*` / `TOPIC_CONTROL_*` — NIM classifier models
-- `NVIDIA_API_KEY` — NIM classifier API key (Secret `nvidia-api-key` → pod env `NVIDIA_API_KEY`)
+- `CONTENT_SAFETY_*` — NIM classifier model (still NVIDIA-hosted)
+- `TOPIC_CONTROL_*` — topic-control classifier: `MODEL_ENGINE=openai` +
+  `LLM_BASE_URL` pointing at `nemotron-3-5-content-safety-svc` (keep
+  `MODEL_ID` exactly as shipped — see the classifier section above)
+- `NVIDIA_API_KEY` — content-safety NIM key (Secret `nvidia-api-key` → pod env `NVIDIA_API_KEY`)
 
 Re-run `make deploy-guardrails` after changes to regenerate the ConfigMap and roll out.

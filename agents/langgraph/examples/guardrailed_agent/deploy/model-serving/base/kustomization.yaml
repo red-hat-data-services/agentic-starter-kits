@@ -1,0 +1,19 @@
+# Self-hosted topic-control classifier for the nemoguard profile (RHAIENG-8048).
+#
+# Serves nvidia/Nemotron-3.5-Content-Safety on in-cluster vLLM. The base here
+# targets GPUs with bf16 support (A10G and newer — the CI cluster layout).
+# For T4/sm75 GPUs use the validated overlay: overlays/t4/.
+#
+# Apply with:
+#   make deploy-model                       # base (bf16-capable GPU)
+#   make deploy-model-t4                    # T4/sm75 overlay
+#   oc apply -k deploy/model-serving -n llama-serving   # direct
+#
+# --served-model-name MUST equal TOPIC_CONTROL_MODEL_ID in
+# deploy/overlays/ci-testing/cluster.env.example — the guardrails proxy sends
+# that id as the request model field and vLLM 404s unknown names. A unit test
+# (tests/test_deploy_manifests.py) enforces the invariant.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - nemotron-vllm.yaml

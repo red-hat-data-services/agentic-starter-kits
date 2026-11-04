@@ -38,7 +38,14 @@ _RAIL_BLOCK_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
-_INTERNAL_ERROR_PATTERN = re.compile(r"an internal error has occurred", re.IGNORECASE)
+# NeMo's reply when a rail action raises. Two observed spellings: the bare
+# exception text ("Internal server error" — the NeMo fork's generic wrapper,
+# seen when a classifier endpoint 404s, RHAIENG-8048) and the sentence form
+# ("an internal error has occurred", RHAIENG-7986).
+_INTERNAL_ERROR_PATTERN = re.compile(
+    r"an internal error has occurred|internal server error",
+    re.IGNORECASE,
+)
 
 
 def _extract_content(data: dict) -> str:

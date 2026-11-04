@@ -47,6 +47,11 @@ class TestIsBlockedResponse:
         payload = _completion("I'm sorry, an internal error has occurred.")
         assert is_blocked_response(payload, http_status=200) is False
 
+    def test_rail_internal_server_error_not_blocked(self) -> None:
+        """NeMo fork's wrapper for a dead classifier call (RHAIENG-8048)."""
+        payload = _completion("Internal server error")
+        assert is_blocked_response(payload, http_status=200) is False
+
     def test_http_4xx_is_blocked(self) -> None:
         assert is_blocked_response({}, http_status=422) is True
 
@@ -65,4 +70,9 @@ class TestIsAllowedResponse:
 
     def test_rail_internal_error_not_allowed(self) -> None:
         payload = _completion("I'm sorry, an internal error has occurred.")
+        assert is_allowed_response(payload, http_status=200) is False
+
+    def test_rail_internal_server_error_not_allowed(self) -> None:
+        """The exact failure signature of RHAIENG-8048: dead topic-control NIM."""
+        payload = _completion("Internal server error")
         assert is_allowed_response(payload, http_status=200) is False

@@ -10,8 +10,10 @@ GUARDRAILS_NAMESPACE   ?= $(shell oc project -q 2>/dev/null)
 CLUSTER_ENV            := deploy/overlays/ci-testing/cluster.env
 CLUSTER_ENV_EXAMPLE    := deploy/overlays/ci-testing/cluster.env.example
 TRACING_COMPOSE        := guardrails/tracing/compose.yaml
+MODEL_SERVING_DIR      := deploy/model-serving
+MODEL_SERVING_NAMESPACE ?= llama-serving
 
-.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test test-guardrails-integration test-guardrails-integration-nemoguard test-integration dry-run help guardrails-server-local guardrails-server-nemoguard guardrails-tracing-up guardrails-tracing-down render-guardrails-configmap deploy-guardrails-secrets deploy-guardrails undeploy-guardrails deploy-rhoai undeploy-rhoai deploy-rhoai-dry-run _check-guardrails-ns
+.PHONY: init re-init env ollama run-app run-app-fresh build push build-openshift deploy undeploy test test-guardrails-integration test-guardrails-integration-nemoguard test-integration dry-run help guardrails-server-local guardrails-server-nemoguard guardrails-tracing-up guardrails-tracing-down render-guardrails-configmap deploy-guardrails-secrets deploy-guardrails undeploy-guardrails deploy-rhoai undeploy-rhoai deploy-rhoai-dry-run _check-guardrails-ns deploy-model deploy-model-t4 undeploy-model
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-32s %s\n", $$1, $$2}'
@@ -331,6 +333,28 @@ deploy-guardrails: _check-guardrails-ns render-guardrails-configmap deploy-guard
 	    --route-name $(GUARDRAILS_CR_NAME) \
 	    --namespace "$(GUARDRAILS_NAMESPACE)" \
 	    $(if $(CI),--required,)
+
+deploy-model: ## Deploy self-hosted topic-control classifier (vLLM; bf16-capable GPU, e.g. A10G)
+	@oc adm policy add-scc-to-user anyuid -z nemotron-vllm -n $(MODEL_SERVING_NAMESPACE) 2>/dev/null || \
+	  echo "NOTE: could not grant anyuid to nemotron-vllm (need cluster-admin) — retry if the pod fails on SCC" && \
+	oc apply -k $(MODEL_SERVING_DIR)/base -n $(MODEL_SERVING_NAMESPACE) && \
+	  echo "" && echo "Topic-control classifier deploying into $(MODEL_SERVING_NAMESPACE)." && \
+	  echo "First boot downloads ~8.6 GB of weights; watch with:" && \
+	  echo "  oc -n $(MODEL_SERVING_NAMESPACE) logs -f deploy/nemotron-3-5-content-safety -c vllm"
+
+deploy-model-t4: ## Deploy topic-control classifier tuned for T4/sm75 (fp16; validated on aaet)
+	@oc adm policy add-scc-to-user anyuid -z nemotron-vllm -n $(MODEL_SERVING_NAMESPACE) 2>/dev/null || \
+	  echo "NOTE: could not grant anyuid to nemotron-vllm (need cluster-admin) — retry if the pod fails on SCC" && \
+	oc apply -k $(MODEL_SERVING_DIR)/overlays/t4 -n $(MODEL_SERVING_NAMESPACE) && \
+	  echo "" && echo "T4 topic-control classifier deploying into $(MODEL_SERVING_NAMESPACE)."
+
+undeploy-model: ## Remove the topic-control classifier stack (keeps the PVC with weights)
+	oc -n $(MODEL_SERVING_NAMESPACE) delete --ignore-not-found \
+	  deploy/nemotron-3-5-content-safety \
+	  svc/nemotron-3-5-content-safety-svc \
+	  sa/nemotron-vllm && \
+	  echo "PVC nemotron-model-storage kept (weights for fast redeploys). Delete with:" && \
+	  echo "  oc -n $(MODEL_SERVING_NAMESPACE) delete pvc nemotron-model-storage"
 
 undeploy-guardrails: _check-guardrails-ns ## Remove NemoGuardrails CR + ConfigMap + Secret from GUARDRAILS_NAMESPACE
 	@oc delete nemoguardrails $(GUARDRAILS_CR_NAME) \
