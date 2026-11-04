@@ -17,8 +17,7 @@ COPY pyproject.toml uv.lock ./
 COPY src ./src
 # Install from the lockfile so builds are reproducible (--frozen fails if
 # uv.lock is stale relative to pyproject.toml).
-# Always install MLflow tracing deps for container images (Kagenti auto-configures
-# MLflow tracing when deployed to MLflow operator from RHOAI)
+# Always install MLflow tracing deps for container images
 # pysqlite3-binary (installed inline) provides SQLite >= 3.35 for ChromaDB on UBI9
 ENV UV_PROJECT_ENVIRONMENT=/opt/app-root
 RUN uv sync --frozen --no-dev --extra tracing \

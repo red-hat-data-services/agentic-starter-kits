@@ -38,8 +38,8 @@ jobs:
         run: ruff format --check .
 
       - name: Markdownlint
-        # v24.2.0 bundles markdownlint-cli2 0.23.2; pre-commit stays at 0.23.1 (Node 25 install issue)
-        uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff  # v24.2.0
+        # v25.0.0 bundles markdownlint-cli2 0.24.0; pre-commit stays in sync at v0.24.0
+        uses: DavidAnson/markdownlint-cli2-action@696eb3f2509270d7b882d2aa68347bc676e7af34  # v25.0.0
         with:
           globs: "**/*.md"
 
@@ -119,7 +119,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           version: "0.11.21"  # Keep in sync with uv-pre-commit rev in .pre-commit-config.yaml
 
@@ -184,7 +184,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           version: "0.11.21"
           enable-cache: true
@@ -253,7 +253,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           version: "0.11.21"
 
