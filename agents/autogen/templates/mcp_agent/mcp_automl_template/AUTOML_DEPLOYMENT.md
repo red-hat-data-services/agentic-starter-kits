@@ -47,30 +47,20 @@ In the project, create two **S3 compatible object storage** connections:
 
 1. Open the project's **Pipelines** tab and choose **Configure pipeline server**.
 2. Select the **results** connection for object storage, and choose the default or an external database.
-3. **Enable the AutoML managed pipelines.** The AutoML UI looks for the managed `autogluon-tabular-training-pipeline` and refuses to start runs without it ("required managed pipelines not found in namespace").
+3. Enable the AutoML managed pipelines (the form sets `managedPipelines.enabled: true` on the pipeline server). The AutoML UI refuses to start runs without them ("required managed pipelines not found in namespace").
 
-If you create the pipeline server from YAML, add the managed pipelines to the `DataSciencePipelinesApplication`:
+Creating the pipeline server from YAML only needs the same flag:
 
 ```yaml
 spec:
   apiServer:
     managedPipelines:
-      # RELATED_IMAGE_ODH_PIPELINES_COMPONENTS_IMAGE on the
-      # data-science-pipelines-operator-controller-manager deployment
-      image: registry.redhat.io/rhoai/odh-pipelines-components-rhel9@sha256:<digest>
-      pipelines:
-        - name: autogluon-tabular-training-pipeline
-        - name: autogluon-timeseries-training-pipeline
+      enabled: true
 ```
 
-Get the image for your cluster with:
+> On 3.6 GA the operator defaults the managed-pipelines image. On early-access (EA) builds it pointed at an upstream image instead — there, set `managedPipelines.image` to the DSPO's `RELATED_IMAGE_ODH_PIPELINES_COMPONENTS_IMAGE` and list the pipelines explicitly (`autogluon-tabular-training-pipeline`, `autogluon-timeseries-training-pipeline`).
 
-```bash
-oc get deploy data-science-pipelines-operator-controller-manager -n redhat-ods-applications \
-  -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="RELATED_IMAGE_ODH_PIPELINES_COMPONENTS_IMAGE")].value}'
-```
-
-> On 3.6 EA builds, the pipeline server can report `ManagedPipelineValid=False` with a registry `UNAUTHORIZED` message even after the pipelines load. If the AutoML UI lists runs without an error, the pipelines are available.
+> The pipeline server can report `ManagedPipelineValid=False` ("Managed pipelines not configured or no explicit pipeline list") even when the pipelines are loaded and the AutoML UI works. If the AutoML page lists runs without an error, the pipelines are available.
 
 ---
 
@@ -139,7 +129,7 @@ The MCP server POSTs the validated tool input to `DEPLOYMENT_URL` in the KServe 
 }
 ```
 
-Every property in `churn_schema.json` is sent. Optional properties the caller omits go as `null`. The tool returns the first entry of the response's `predictions` array, or the whole response body if it has no `predictions`.
+Every property in `churn_schema.json` is sent, and that matters: **the AutoGluon server requires all 19 training columns** and rejects partial rows with a "required columns are missing" error. Optional properties the caller omits go as `null`, which the server accepts as missing values. The response's `predictions` array contains the predicted label only (e.g. `{"predictions":["Yes"]}`); the tool returns the first entry, or the whole response body if there is no `predictions`. (The serving runtime also accepts a `PREDICT_PROBA=true` model environment variable that returns per-class probabilities instead of labels — e.g. `{"predictions":[{"No":0.36,"Yes":0.64}]}` — but the tool's label parsing expects the default.)
 
 ### 5.1 Choose the URL
 
@@ -149,7 +139,7 @@ The deployment's **Inference endpoints** (deployment details) list an internal U
 <endpoint>/v1/models/<deployment-resource-name>:predict
 ```
 
-- **MCP server in the same cluster** (`make deploy-mcp`): use the **internal** endpoint (`*.svc.cluster.local`). Traffic stays in the cluster and you don't need an external route.
+- **MCP server in the same cluster** (`make deploy-mcp`): use the **internal** endpoint. With token authentication on, it is `https://<name>-predictor.<project>.svc.cluster.local:8443` (plain `http://…:8080` when auth is off). Get it from the deployment's **Inference endpoints** or with `oc get isvc <name> -o jsonpath='{.status.address.url}'`.
 - **MCP server on your laptop** (`make run-mcp`): use the **external** route URL.
 
 ### 5.2 Token (only if token authentication is on)
@@ -165,6 +155,8 @@ To get the token:
   oc get secrets -n <project> | grep <deployment-resource-name>
   oc get secret <token-secret-name> -n <project> -o jsonpath='{.data.token}' | base64 -d
   ```
+
+In-cluster callers need one extra thing: the auth proxy in front of the model checks that the token's service account can `get` the InferenceService in the project. Bind a Role granting it (`apiGroups: ["serving.kserve.io"], resources: ["inferenceservices"], verbs: ["get"]`, optionally restricted to the deployment's resource name) to the service account the MCP server runs as, and create a token secret for that service account.
 
 ### 5.3 TLS for in-cluster HTTPS endpoints
 

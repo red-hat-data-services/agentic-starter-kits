@@ -238,7 +238,23 @@ Calling `invoke_churn` over MCP with `{"tenure": 2, "Contract": "Month-to-month"
   }
   ```
 
-- **With `DEPLOYMENT_URL`** pointing at the deployed churn model, the tool returns the first element of the response's `predictions` array as a string (the predicted `Churn` label, e.g. `Yes`). If the response has no `predictions`, it returns the full response body.
+- **With `DEPLOYMENT_URL`** pointing at the deployed churn model, the tool returns the predicted `Churn` label — the first element of the response's `predictions` array. Captured from a live run on RHOAI 3.6 (AutoML-trained churn model, tool call made through the AutoGen agent):
+
+  ```json
+  {
+    "name": "invoke_churn",
+    "arguments": {
+      "tenure": 2,
+      "Contract": "Month-to-month",
+      "MonthlyCharges": 95.0,
+      "InternetService": "Fiber optic"
+    },
+    "result": "[{\"type\": \"text\", \"text\": \"Yes\", \"annotations\": null}]",
+    "is_error": false
+  }
+  ```
+
+  The model answers `{"predictions":["Yes"]}` and the tool surfaces the first prediction. If the response has no `predictions`, the tool returns the full response body.
 
 ## Adding a new tool
 
