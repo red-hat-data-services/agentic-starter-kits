@@ -12,6 +12,7 @@ CLUSTER_ENV_EXAMPLE    := deploy/overlays/ci-testing/cluster.env.example
 TRACING_COMPOSE        := guardrails/tracing/compose.yaml
 MODEL_SERVING_DIR      := deploy/model-serving
 MODEL_SERVING_NAMESPACE ?= llama-serving
+MODEL_SERVING_OVERLAY  ?= base
 # Optional pull secret for the vllm/vllm-openai Docker Hub image, linked to the
 # nemotron-vllm SA on clusters whose global pull secret lacks Docker Hub
 # (e.g. the e2e CI cluster). Best-effort: skipped when the secret is absent.
@@ -339,22 +340,18 @@ deploy-guardrails: _check-guardrails-ns render-guardrails-configmap deploy-guard
 	    $(if $(CI),--required,)
 
 deploy-model: ## Deploy self-hosted topic-control classifier (vLLM; bf16-capable GPU, e.g. A10G)
+	@oc apply -f $(MODEL_SERVING_DIR)/base/serviceaccount.yaml -n $(MODEL_SERVING_NAMESPACE)
 	@oc adm policy add-scc-to-user anyuid -z nemotron-vllm -n $(MODEL_SERVING_NAMESPACE) 2>/dev/null || \
-	  echo "NOTE: could not grant anyuid to nemotron-vllm (need cluster-admin) — retry if the pod fails on SCC" && \
-	oc -n $(MODEL_SERVING_NAMESPACE) secrets link nemotron-vllm $(MODEL_SERVING_PULL_SECRET) --for=pull 2>/dev/null || \
-	  echo "NOTE: pull secret $(MODEL_SERVING_PULL_SECRET) not linked (absent or no access) — image pulls from Docker Hub may fail" ; \
-	oc apply -k $(MODEL_SERVING_DIR)/base -n $(MODEL_SERVING_NAMESPACE) && \
+	  echo "NOTE: could not grant anyuid to nemotron-vllm (need cluster-admin) — retry if the pod fails on SCC"
+	@oc -n $(MODEL_SERVING_NAMESPACE) secrets link nemotron-vllm $(MODEL_SERVING_PULL_SECRET) --for=pull 2>/dev/null || \
+	  echo "NOTE: pull secret $(MODEL_SERVING_PULL_SECRET) not linked (absent or no access) — image pulls from Docker Hub may fail"
+	@oc apply -k $(MODEL_SERVING_DIR)/$(MODEL_SERVING_OVERLAY) -n $(MODEL_SERVING_NAMESPACE) && \
 	  echo "" && echo "Topic-control classifier deploying into $(MODEL_SERVING_NAMESPACE)." && \
 	  echo "First boot downloads ~8.6 GB of weights; watch with:" && \
 	  echo "  oc -n $(MODEL_SERVING_NAMESPACE) logs -f deploy/nemotron-3-5-content-safety -c vllm"
 
 deploy-model-t4: ## Deploy topic-control classifier tuned for T4/sm75 (fp16; validated on aaet)
-	@oc adm policy add-scc-to-user anyuid -z nemotron-vllm -n $(MODEL_SERVING_NAMESPACE) 2>/dev/null || \
-	  echo "NOTE: could not grant anyuid to nemotron-vllm (need cluster-admin) — retry if the pod fails on SCC" && \
-	oc -n $(MODEL_SERVING_NAMESPACE) secrets link nemotron-vllm $(MODEL_SERVING_PULL_SECRET) --for=pull 2>/dev/null || \
-	  echo "NOTE: pull secret $(MODEL_SERVING_PULL_SECRET) not linked (absent or no access) — image pulls from Docker Hub may fail" ; \
-	oc apply -k $(MODEL_SERVING_DIR)/overlays/t4 -n $(MODEL_SERVING_NAMESPACE) && \
-	  echo "" && echo "T4 topic-control classifier deploying into $(MODEL_SERVING_NAMESPACE)."
+	@$(MAKE) deploy-model MODEL_SERVING_OVERLAY=overlays/t4
 
 undeploy-model: ## Remove the topic-control classifier stack (keeps the PVC with weights)
 	oc -n $(MODEL_SERVING_NAMESPACE) delete --ignore-not-found \

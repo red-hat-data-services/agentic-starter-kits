@@ -1,14 +1,6 @@
 # Topic-control classifier: nvidia/Nemotron-3.5-Content-Safety on vLLM.
 # Base targets bf16-capable GPUs (A10G+). For T4 see overlays/t4/.
 apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: nemotron-vllm
-  labels:
-    app.kubernetes.io/name: nemotron-3-5-content-safety
-    app.kubernetes.io/component: model-serving
----
-apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: nemotron-model-storage
@@ -30,6 +22,10 @@ metadata:
     app.kubernetes.io/component: model-serving
 spec:
   replicas: 1
+  # Release the GPU and RWO volume before scheduling the replacement pod.
+  strategy:
+    type: Recreate
+    rollingUpdate: null
   selector:
     matchLabels:
       app.kubernetes.io/name: nemotron-3-5-content-safety
@@ -57,7 +53,7 @@ spec:
           args:
             - |
               set -e
-              if [ -f /mnt/models/config.json ]; then echo "model present, skipping"; exit 0; fi
+              if [ -f /mnt/models/.download-complete ]; then echo "model present, skipping"; exit 0; fi
               pip install --quiet huggingface_hub
               python -c "
               from huggingface_hub import snapshot_download
@@ -65,6 +61,7 @@ spec:
                                 local_dir='/mnt/models',
                                 ignore_patterns=['*.pt','*.bin','*.gguf'])
               print('download complete')"
+              touch /mnt/models/.download-complete
           volumeMounts:
             - name: model-storage
               mountPath: /mnt/models

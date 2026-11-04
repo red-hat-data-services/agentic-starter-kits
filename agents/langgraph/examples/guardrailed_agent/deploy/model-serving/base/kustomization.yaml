@@ -7,13 +7,14 @@
 # Apply with:
 #   make deploy-model                       # base (bf16-capable GPU)
 #   make deploy-model-t4                    # T4/sm75 overlay
-#   oc apply -k deploy/model-serving -n llama-serving   # direct
+#   oc apply -k deploy/model-serving/base -n llama-serving   # direct
 #
 # --served-model-name MUST equal TOPIC_CONTROL_MODEL_ID in
 # deploy/overlays/ci-testing/cluster.env.example — the guardrails proxy sends
 # that id as the request model field and vLLM 404s unknown names. A unit test
-# (tests/test_deploy_manifests.py) enforces the invariant.
+# (tests/test_model_serving.py) enforces the invariant.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - serviceaccount.yaml
   - nemotron-vllm.yaml

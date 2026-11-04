@@ -55,7 +55,12 @@ make undeploy-model
 First boot downloads the weights into PVC `nemotron-model-storage` (~8.6 GB,
 several minutes); readiness gates on vLLM's `/health`. To pre-warm the PVC on a
 busy cluster, run the same download once from any CPU pod — the Deployment's
-init container skips the download when `/mnt/models/config.json` exists.
+init container writes `/mnt/models/.download-complete` only after the entire
+download succeeds. An interrupted download resumes on the next attempt;
+subsequent starts skip completed downloads. Existing caches without this marker
+are checked once by the downloader. Updates use `Recreate` to release the GPU
+and volume before starting a replacement, so the classifier is unavailable
+while its replacement starts.
 
 **Prerequisites on the target cluster:**
 
@@ -71,25 +76,29 @@ init container skips the download when `/mnt/models/config.json` exists.
 - A Docker Hub pull secret on clusters whose global pull secret lacks it (the
   vLLM image is `vllm/vllm-openai`). `make deploy-model` best-effort links
   `$(MODEL_SERVING_PULL_SECRET)` (default `dockerhub`) to the `nemotron-vllm`
-  SA; override or pre-link with
+  SA before creating the workload; override or link after SA creation with
   `oc -n <ns> secrets link nemotron-vllm <secret> --for=pull`.
 
 The Service is
 `nemotron-3-5-content-safety-svc.llama-serving.svc.cluster.local:8080/v1` —
 that URL is baked into `cluster.env.example` as `TOPIC_CONTROL_LLM_BASE_URL`.
 
-Two invariants a unit test enforces (`tests/test_deploy_manifests.py`):
+Two invariants the rendered-manifest tests enforce (`tests/test_model_serving.py`):
 
 - `--served-model-name` must equal `TOPIC_CONTROL_MODEL_ID` exactly (vLLM 404s
   unknown names; the proxy always sends that id)
 - the id must keep containing `nemotron-3.5-content-safety` — custom-policy
   mode in `guardrails/generate_config.py` keys off a substring match of it
 
+These tests render both variants using `oc kustomize` or `kubectl kustomize`;
+they skip when neither CLI is installed.
+
 **Ordering for CI clusters**: deploy the classifier *before* merging/applying a
 `cluster.env` that sets `TOPIC_CONTROL_MODEL_ENGINE=openai`. Once the config
 switches, every topic-policy rail call depends on that Service answering.
-Rollback is config-first too: restore `TOPIC_CONTROL_MODEL_ENGINE=nim` (or
-point `TOPIC_CONTROL_LLM_BASE_URL` elsewhere) and re-run `make deploy-guardrails`.
+Rollback is config-first too: point `TOPIC_CONTROL_LLM_BASE_URL` at a working
+replacement and re-run `make deploy-guardrails` before removing this classifier.
+Switching back to `nim` does not restore the removed hosted endpoint.
 
 ## Quick start
 

@@ -57,105 +57,6 @@ def test_makefile_exposes_rhoai_deploy_targets() -> None:
         assert re.search(rf"(?m)^{target}:", MAKEFILE)
 
 
-def _cluster_env_values() -> dict[str, str]:
-    values: dict[str, str] = {}
-    for line in CLUSTER_ENV_EXAMPLE.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            key, _, value = line.partition("=")
-            values[key.strip()] = value.strip()
-    return values
-
-
-def _model_serving_deployment() -> dict:
-    docs = yaml.safe_load_all(
-        (DEPLOY_DIR / "model-serving" / "base" / "nemotron-vllm.yaml").read_text(
-            encoding="utf-8"
-        )
-    )
-    return next(d for d in docs if d and d["kind"] == "Deployment")
-
-
-def _model_serving_args() -> list:
-    return _model_serving_deployment()["spec"]["template"]["spec"]["containers"][0][
-        "args"
-    ]
-
-
-def test_cluster_env_example_topic_control_self_hosted() -> None:
-    """Topic control points at the in-cluster vLLM, not the removed NIM."""
-    values = _cluster_env_values()
-    assert values["TOPIC_CONTROL_MODEL_ENGINE"] == "openai"
-    assert values["TOPIC_CONTROL_LLM_BASE_URL"].startswith(
-        "http://nemotron-3-5-content-safety-svc."
-    )
-    assert values["TOPIC_CONTROL_LLM_BASE_URL"].endswith(":8080/v1")
-
-
-def test_model_serving_layout() -> None:
-    assert (DEPLOY_DIR / "model-serving" / "base" / "kustomization.yaml").is_file()
-    assert (DEPLOY_DIR / "model-serving" / "base" / "nemotron-vllm.yaml").is_file()
-    assert (
-        DEPLOY_DIR / "model-serving" / "overlays" / "t4" / "kustomization.yaml"
-    ).is_file()
-
-
-def test_model_serving_served_name_matches_topic_control_model_id() -> None:
-    """vLLM 404s unknown model names; the guardrails proxy always sends
-    TOPIC_CONTROL_MODEL_ID, so --served-model-name must equal it exactly."""
-    args = _model_serving_args()
-    served = args[args.index("--served-model-name") + 1]
-    assert served == _cluster_env_values()["TOPIC_CONTROL_MODEL_ID"]
-
-
-def test_model_serving_t4_overlay_keeps_served_name_and_flips_dtype() -> None:
-    """Hermetic simulation of the T4 JSON patches: the overlay must only flip
-    dtype/util and add env + --hf-overrides, never touch the served name."""
-    args = list(_model_serving_args())
-    overlay = yaml.safe_load(
-        (
-            DEPLOY_DIR / "model-serving" / "overlays" / "t4" / "kustomization.yaml"
-        ).read_text(encoding="utf-8")
-    )
-    ops_text = ""
-    for patch in overlay["patches"]:
-        ops = yaml.safe_load(patch["patch"])
-        ops_text += str(ops)
-        for op in ops:
-            path = op["path"]
-            if op["op"] == "replace" and path.startswith(
-                "/spec/template/spec/containers/0/args/"
-            ):
-                args[int(path.rsplit("/", 1)[1])] = op["value"]
-            elif (
-                op["op"] == "add" and path == "/spec/template/spec/containers/0/args/-"
-            ):
-                args.append(op["value"])
-            else:
-                assert path == "/spec/template/spec/containers/0/env", op
-    served = args[args.index("--served-model-name") + 1]
-    assert served == _cluster_env_values()["TOPIC_CONTROL_MODEL_ID"]
-    assert args[args.index("--dtype") + 1] == "half"
-    assert args[args.index("--hf-overrides") + 1] == (
-        '{"model_type":"nemotron35-content-safety"}'
-    )
-    for env_name in ("VLLM_USE_FLASHINFER_SAMPLER", "VLLM_ATTENTION_BACKEND"):
-        assert env_name in ops_text
-    assert "TRITON_ATTN" in ops_text
-
-
-def test_makefile_exposes_model_serving_targets() -> None:
-    for target in ("deploy-model", "deploy-model-t4", "undeploy-model"):
-        assert re.search(rf"(?m)^{target}:", MAKEFILE)
-    assert "oc apply -k $(MODEL_SERVING_DIR)/base" in MAKEFILE
-    assert "oc apply -k $(MODEL_SERVING_DIR)/overlays/t4" in MAKEFILE
-    assert "MODEL_SERVING_NAMESPACE ?= llama-serving" in MAKEFILE
-    # Docker Hub pull secret best-effort link (global pull secrets rarely
-    # include Docker Hub; the vLLM image lives there)
-    assert "secrets link nemotron-vllm $(MODEL_SERVING_PULL_SECRET)" in MAKEFILE
-    assert "MODEL_SERVING_PULL_SECRET ?= dockerhub" in MAKEFILE
-
-
 def test_render_guardrails_configmap_produces_required_keys(
     tmp_path, monkeypatch
 ) -> None:
@@ -221,7 +122,7 @@ def test_render_guardrails_configmap_produces_required_keys(
     )
     # Custom-policy mode keys off a substring of the model id — the id and the
     # vLLM --served-model-name must stay in lockstep (see
-    # tests/test_deploy_manifests.py::test_model_serving_served_name_matches).
+    # tests/test_model_serving.py::test_model_serving_contract).
     assert "custom_policy" in topic["parameters"]["chat_template_kwargs"]
     assert topic["parameters"]["chat_template_kwargs"]["enable_thinking"] is False
     content = next(m for m in config["models"] if m["type"] == "content_safety")
