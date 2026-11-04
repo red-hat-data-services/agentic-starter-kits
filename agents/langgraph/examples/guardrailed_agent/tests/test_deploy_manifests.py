@@ -150,6 +150,10 @@ def test_makefile_exposes_model_serving_targets() -> None:
     assert "oc apply -k $(MODEL_SERVING_DIR)/base" in MAKEFILE
     assert "oc apply -k $(MODEL_SERVING_DIR)/overlays/t4" in MAKEFILE
     assert "MODEL_SERVING_NAMESPACE ?= llama-serving" in MAKEFILE
+    # Docker Hub pull secret best-effort link (global pull secrets rarely
+    # include Docker Hub; the vLLM image lives there)
+    assert "secrets link nemotron-vllm $(MODEL_SERVING_PULL_SECRET)" in MAKEFILE
+    assert "MODEL_SERVING_PULL_SECRET ?= dockerhub" in MAKEFILE
 
 
 def test_render_guardrails_configmap_produces_required_keys(

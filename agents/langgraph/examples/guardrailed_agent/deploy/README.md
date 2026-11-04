@@ -53,7 +53,28 @@ make undeploy-model
 ```
 
 First boot downloads the weights into PVC `nemotron-model-storage` (~8.6 GB,
-several minutes); readiness gates on vLLM's `/health`. The Service is
+several minutes); readiness gates on vLLM's `/health`. To pre-warm the PVC on a
+busy cluster, run the same download once from any CPU pod — the Deployment's
+init container skips the download when `/mnt/models/config.json` exists.
+
+**Prerequisites on the target cluster:**
+
+- A free GPU the pod can claim. On clusters where all GPUs are occupied, the
+  pod stays `Pending` on `Insufficient nvidia.com/gpu`. On the e2e CI cluster
+  the GPU machine pool autoscales (min=1/max=2) and brought up a second
+  g5.2xlarge by itself for the pending pod (it carries the taint toleration);
+  clusters without autoscaling need the node added manually. Note the A10G
+  (24 GB) cannot host both this classifier (~10–12 GB) and the 7B main model
+  (~15 GB weights, 0.9 default memory util) on one card.
+- `cluster-admin` (or a pre-granted `anyuid`) for the init container's
+  `runAsUser: 0` weight download — `make deploy-model` attempts the SCC grant.
+- A Docker Hub pull secret on clusters whose global pull secret lacks it (the
+  vLLM image is `vllm/vllm-openai`). `make deploy-model` best-effort links
+  `$(MODEL_SERVING_PULL_SECRET)` (default `dockerhub`) to the `nemotron-vllm`
+  SA; override or pre-link with
+  `oc -n <ns> secrets link nemotron-vllm <secret> --for=pull`.
+
+The Service is
 `nemotron-3-5-content-safety-svc.llama-serving.svc.cluster.local:8080/v1` —
 that URL is baked into `cluster.env.example` as `TOPIC_CONTROL_LLM_BASE_URL`.
 
