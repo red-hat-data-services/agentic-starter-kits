@@ -32,9 +32,12 @@ patches:
         path: /spec/template/spec/containers/0/args/-
         value: '{"model_type":"nemotron35-content-safety"}'
       - op: add
-        path: /spec/template/spec/containers/0/env
+        path: /spec/template/spec/containers/0/env/-
         value:
-          - name: VLLM_USE_FLASHINFER_SAMPLER
-            value: "0"
-          - name: VLLM_ATTENTION_BACKEND
-            value: TRITON_ATTN
+          name: VLLM_USE_FLASHINFER_SAMPLER
+          value: "0"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: VLLM_ATTENTION_BACKEND
+          value: TRITON_ATTN

@@ -53,6 +53,26 @@ def test_model_serving_contract(overlay: str) -> None:
         "http://nemotron-3-5-content-safety-svc.llama-serving.svc.cluster.local:8080/v1"
     )
     assert deployment["spec"]["strategy"]["type"] == "Recreate"
+    # Rollout budget covers autoscaler node scale-up + first weight download.
+    assert deployment["spec"]["progressDeadlineSeconds"] == 1800
+    # Non-root, restricted-SCC-compatible pod — no anyuid grant required.
+    pod_spec = deployment["spec"]["template"]["spec"]
+    pod_security = pod_spec["securityContext"]
+    assert pod_security["runAsNonRoot"] is True
+    assert pod_security["runAsUser"] == 1001
+    assert pod_security["fsGroup"] == 1001
+    init = pod_spec["initContainers"][0]
+    main = pod_spec["containers"][0]
+    for container in (init, main):
+        security = container["securityContext"]
+        assert security["allowPrivilegeEscalation"] is False
+        assert security["capabilities"]["drop"] == ["ALL"]
+    # Supply chain pinned: immutable images, pinned library, pinned revision.
+    assert init["image"].startswith("registry.access.redhat.com/ubi9/python-311@")
+    assert main["image"].startswith("vllm/vllm-openai:v0.11.0@sha256:")
+    download_script = init["args"][0]
+    assert "huggingface_hub==" in download_script
+    assert "revision='" in download_script
 
 
 def test_model_serving_t4_settings() -> None:
@@ -68,6 +88,9 @@ def test_model_serving_t4_settings() -> None:
     env = {item["name"]: item["value"] for item in container["env"]}
     assert env["VLLM_USE_FLASHINFER_SAMPLER"] == "0"
     assert env["VLLM_ATTENTION_BACKEND"] == "TRITON_ATTN"
+    # The overlay appends to (not replaces) the base env: HOME=/tmp from the
+    # base non-root security setup must survive.
+    assert env["HOME"] == "/tmp"
 
 
 @pytest.fixture
@@ -113,6 +136,7 @@ def _deploy_model(target: str) -> subprocess.CompletedProcess:
             "REPO_ROOT=unused",
             "GUARDRAILS_NAMESPACE=review",
             "MODEL_SERVING_NAMESPACE=review",
+            "MODEL_SERVING_ROLLOUT_TIMEOUT=20m",
         ],
         cwd=AGENT_DIR,
         capture_output=True,
@@ -141,7 +165,17 @@ def test_fresh_deployment_links_credentials_before_workload(
         "-n",
         "review",
     ]
-    assert calls[-2] == [
+    assert calls[1] == [
+        "adm",
+        "policy",
+        "add-scc-to-user",
+        "nonroot-v2",
+        "-z",
+        "nemotron-vllm",
+        "-n",
+        "review",
+    ]
+    assert calls[2] == [
         "-n",
         "review",
         "secrets",
@@ -150,13 +184,23 @@ def test_fresh_deployment_links_credentials_before_workload(
         "dockerhub",
         "--for=pull",
     ]
-    assert calls[-1] == [
+    assert calls[3] == [
         "apply",
         "-k",
         f"deploy/model-serving/{overlay}",
         "-n",
         "review",
     ]
+    assert calls[4] == [
+        "-n",
+        "review",
+        "rollout",
+        "status",
+        "deploy/nemotron-3-5-content-safety",
+        "--timeout=20m",
+    ]
+    # Only the narrow nonroot-v2 grant — never anyuid; the pod runs non-root.
+    assert not any("anyuid" in " ".join(call) for call in calls)
 
 
 def test_missing_optional_pull_secret_still_deploys(model_deploy_cli, monkeypatch):
@@ -165,7 +209,59 @@ def test_missing_optional_pull_secret_still_deploys(model_deploy_cli, monkeypatc
     assert result.returncode == 0, result.stderr
     assert "not linked" in result.stdout
     calls = (model_deploy_cli / "calls.jsonl").read_text().splitlines()
-    assert json.loads(calls[-1])[:2] == ["apply", "-k"]
+    parsed = [json.loads(line) for line in calls]
+    assert any(call[:2] == ["apply", "-k"] for call in parsed)
+    # The Ready wait still runs even when the pull secret is absent.
+    assert parsed[-1] == [
+        "-n",
+        "review",
+        "rollout",
+        "status",
+        "deploy/nemotron-3-5-content-safety",
+        "--timeout=20m",
+    ]
+
+
+def test_undeploy_model_revokes_scc_and_deletes_stack(model_deploy_cli):
+    result = _deploy_model("undeploy-model")
+    assert result.returncode == 0, result.stderr
+    calls = [
+        json.loads(line)
+        for line in (model_deploy_cli / "calls.jsonl").read_text().splitlines()
+    ]
+    # SCC bindings are revoked (nonroot-v2 from this flow, plus any anyuid
+    # left behind by older revisions) before the ServiceAccount is deleted.
+    assert calls[0] == [
+        "adm",
+        "policy",
+        "remove-scc-from-user",
+        "nonroot-v2",
+        "-z",
+        "nemotron-vllm",
+        "-n",
+        "review",
+    ]
+    assert calls[1] == [
+        "adm",
+        "policy",
+        "remove-scc-from-user",
+        "anyuid",
+        "-z",
+        "nemotron-vllm",
+        "-n",
+        "review",
+    ]
+    assert calls[2] == [
+        "-n",
+        "review",
+        "delete",
+        "--ignore-not-found",
+        "deploy/nemotron-3-5-content-safety",
+        "svc/nemotron-3-5-content-safety-svc",
+        "sa/nemotron-vllm",
+    ]
+    # The weights PVC is intentionally not deleted.
+    assert not any("pvc" in " ".join(call) for call in calls)
 
 
 def test_serviceaccount_failure_stops_deployment(model_deploy_cli, monkeypatch):

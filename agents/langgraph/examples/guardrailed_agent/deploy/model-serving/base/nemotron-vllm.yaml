@@ -26,6 +26,10 @@ spec:
   strategy:
     type: Recreate
     rollingUpdate: null
+  # Generous enough to cover a cluster-autoscaler GPU node scale-up on
+  # first deploy (~10 min) plus the ~8.6 GB weight download; make
+  # deploy-model's rollout-status wait uses the same 20m budget.
+  progressDeadlineSeconds: 1800
   selector:
     matchLabels:
       app.kubernetes.io/name: nemotron-3-5-content-safety
@@ -36,6 +40,15 @@ spec:
         app.kubernetes.io/component: model-serving
     spec:
       serviceAccountName: nemotron-vllm
+      # Runs fully non-root (restricted SCC): fsGroup makes the PVC writable
+      # for the downloader, no anyuid grant is required.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
       # GPU nodes commonly carry this taint when GPU sharing is configured;
       # harmless where the taint is absent.
       tolerations:
@@ -44,20 +57,26 @@ spec:
           effect: NoSchedule
       initContainers:
         - name: download-model
-          # Plain UID under the restricted SCC cannot write to the fresh PVC;
-          # the ServiceAccount is granted anyuid by `make deploy-model`.
+          # ubi9/python-311 declares USER 1001; pip installs user-scoped under
+          # HOME=/tmp (the image default HOME is not writable for this uid).
+          image: registry.access.redhat.com/ubi9/python-311@sha256:a0bdb55576fc5b8d6704279307817828ef027e1065533ceba133fe9516003a6c
           securityContext:
-            runAsUser: 0
-          image: registry.access.redhat.com/ubi9/python-311:latest
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: HOME
+              value: /tmp
           command: ["/bin/bash", "-c"]
           args:
             - |
               set -e
               if [ -f /mnt/models/.download-complete ]; then echo "model present, skipping"; exit 0; fi
-              pip install --quiet huggingface_hub
+              pip install --quiet 'huggingface_hub==2.4.0'
               python -c "
               from huggingface_hub import snapshot_download
               snapshot_download(repo_id='nvidia/Nemotron-3.5-Content-Safety',
+                                revision='35645ed3543b7e7ffaed2e788699e57a5051497c',
                                 local_dir='/mnt/models',
                                 ignore_patterns=['*.pt','*.bin','*.gguf'])
               print('download complete')"
@@ -67,7 +86,15 @@ spec:
               mountPath: /mnt/models
       containers:
         - name: vllm
-          image: vllm/vllm-openai:v0.11.0
+          image: vllm/vllm-openai:v0.11.0@sha256:014a95f21c9edf6abe0aea6b07353f96baa4ec291c427bb1176dc7c93a85845c
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          # Non-root: point cache/computation scratch at writable /tmp.
+          env:
+            - name: HOME
+              value: /tmp
           args:
             - --model
             - /mnt/models

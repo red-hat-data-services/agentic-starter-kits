@@ -70,14 +70,44 @@ while its replacement starts.
   g5.2xlarge by itself for the pending pod (it carries the taint toleration);
   clusters without autoscaling need the node added manually. Note the A10G
   (24 GB) cannot host both this classifier (~10–12 GB) and the 7B main model
-  (~15 GB weights, 0.9 default memory util) on one card.
-- `cluster-admin` (or a pre-granted `anyuid`) for the init container's
-  `runAsUser: 0` weight download — `make deploy-model` attempts the SCC grant.
+  (~15 GB weights, 0.9 default memory util) on one card. The base config
+  assumes a bf16-capable GPU; on **mixed** T4+A10G pools the pod may land on a
+  T4 and fail — use `deploy-model-t4` or add a node selector for the base.
+- The pod runs fully **non-root** (`runAsUser`/`fsGroup` 1001, no privilege
+  escalation, all capabilities dropped, `seccomp: RuntimeDefault`). OpenShift
+  namespaces carry an SCC-assigned UID range that usually does not include
+  1001, so `make deploy-model` best-effort grants the SA the narrow
+  **`nonroot-v2`** SCC (arbitrary non-root UID/fsGroup — no root pods
+  possible), and `make undeploy-model` revokes it (plus any legacy `anyuid`
+  binding from older revisions of these manifests). No grant is needed at all
+  when the namespace's assigned range happens to cover UID 1001.
 - A Docker Hub pull secret on clusters whose global pull secret lacks it (the
   vLLM image is `vllm/vllm-openai`). `make deploy-model` best-effort links
   `$(MODEL_SERVING_PULL_SECRET)` (default `dockerhub`) to the `nemotron-vllm`
   SA before creating the workload; override or link after SA creation with
   `oc -n <ns> secrets link nemotron-vllm <secret> --for=pull`.
+
+`make deploy-model` **waits for the pod to be Ready** (`oc rollout status`,
+20 min timeout — first boot downloads the weights). Once it returns, the
+Service answers; there is no apply/ready race on the documented path.
+
+**Namespace coupling**: the Service URL baked into `cluster.env.example` as
+`TOPIC_CONTROL_LLM_BASE_URL` embeds the namespace
+(`…svc.llama-serving.svc…`). Deploying with a non-default
+`MODEL_SERVING_NAMESPACE` requires updating that URL to match, or the
+guardrails proxy will call a Service that does not exist in the new namespace.
+
+**Supply-chain pins**: the init image (`ubi9/python-311`), the vLLM image
+(`vllm-openai:v0.11.0`), the `huggingface_hub` version, and the model
+revision (HF commit SHA) are all pinned in `deploy/model-serving/base/`, so
+verdict behavior cannot drift without a manifest diff. To upgrade any of
+them, change the pin in the manifest — the rendered-manifest tests fail until
+the new value keeps the required invariants.
+
+**Residual risk (accepted for this example)**: the classifier Service is
+ClusterIP-only and unauthenticated. Any pod in the cluster can reach it and
+burn GPU capacity; on multi-tenant clusters consider a NetworkPolicy
+allowlist and/or vLLM `--api-key`.
 
 The Service is
 `nemotron-3-5-content-safety-svc.llama-serving.svc.cluster.local:8080/v1` —
@@ -106,7 +136,8 @@ Switching back to `nim` does not restore the removed hosted endpoint.
 cd agents/langgraph/examples/guardrailed_agent
 NS=$(oc project -q)
 
-# 0. Topic-control classifier (once per cluster — see section above)
+# 0. Topic-control classifier (once per cluster — see section above).
+#    Blocks until the pod is Ready (first boot downloads ~8.6 GB of weights).
 make deploy-model       # or deploy-model-t4 on T4-class GPUs
 
 # 1. Cluster env (nemoguard profile values)
