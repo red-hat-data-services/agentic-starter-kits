@@ -99,14 +99,17 @@ Verified working against NVIDIA's hosted NIM catalog (`https://integrate.api.nvi
 
 **`topic_control` on a NIM model** — NVIDIA's dedicated `nvidia/llama-3.1-nemoguard-8b-topic-control` model was the intended pairing for this role, but as of testing on 2026-07-30 it was returning `500` errors (TensorRT-LLM CUDA crash) on NVIDIA's hosted free tier — a server-side issue on NVIDIA's end, not a config problem. Its would-be unified successor, `nvidia/nemotron-content-safety-reasoning-4b`, reached end-of-life the same day.
 
-Instead, this repo wires `topic_control` to **`nvidia/nemotron-3.5-content-safety`**, which classifies against a free-text policy (passed via `chat_template_kwargs.custom_policy`) rather than a fixed taxonomy, and returns a `"User Safety: safe|unsafe"` verdict — different enough from NeMo Guardrails' built-in on-topic/off-topic prompt that it needs its own action/flow (`guardrails/config/nemoguard/actions.py` + `topic_policy.co`) instead of the library's `topic_safety_check_input`. `generate_config.py` auto-detects this model id (or any set via `TOPIC_CONTROL_CUSTOM_POLICY`), injects the topic-boundary policy into the model's `chat_template_kwargs`, and swaps the `topic_control` input rail flow accordingly — no manual `config.yaml` edits needed:
+Instead, this repo wires `topic_control` to **`nvidia/nemotron-3.5-content-safety`**, which classifies against a free-text policy (passed via `chat_template_kwargs.custom_policy`) rather than a fixed taxonomy, and returns a `"User Safety: safe|unsafe"` verdict — different enough from NeMo Guardrails' built-in on-topic/off-topic prompt that it needs its own action/flow (`guardrails/config/nemoguard/actions.py` + `topic_policy.co`) instead of the library's `topic_safety_check_input`. `generate_config.py` auto-detects this model id (or any set via `TOPIC_CONTROL_CUSTOM_POLICY`), injects the topic-boundary policy into the model's `chat_template_kwargs`, and swaps the `topic_control` input rail flow accordingly — no manual `config.yaml` edits needed.
+
+NVIDIA removed the hosted NIM function for this model on 2026-10-31 (RHAIENG-8048: every topic-policy rail call 404'd, surfaced by the guardrails proxy as "Internal server error"), so the cluster deployment now **self-hosts it on in-cluster vLLM** — `make deploy-model` stands up `deploy/model-serving/` (see [deploy/README.md](deploy/README.md)). The config switch is two lines; the model id must not change (custom-policy detection and vLLM's `--served-model-name` both key off it):
 
 ```ini
 TOPIC_CONTROL_MODEL_ID=nvidia/nemotron-3.5-content-safety
-TOPIC_CONTROL_MODEL_ENGINE=nim
+TOPIC_CONTROL_MODEL_ENGINE=openai
+TOPIC_CONTROL_LLM_BASE_URL=http://nemotron-3-5-content-safety-svc.llama-serving.svc.cluster.local:8080/v1
 ```
 
-Verified end-to-end on 2026-07-30: correctly passes banking questions and blocks off-topic ones (e.g. recipe requests) using the default policy text baked into `generate_config.py`. Override the policy text with `TOPIC_CONTROL_CUSTOM_POLICY` in `.env`.
+Verified end-to-end: against NVIDIA's hosted NIM on 2026-07-30 (before its removal), and self-hosted on in-cluster vLLM on 2026-11-02 — verdict matrix 15/15 ×3 (fp16 on a T4) and the full cluster integration suite 8/8. Correctly passes banking questions and blocks off-topic ones (e.g. recipe requests) using the default policy text baked into `generate_config.py`. Override the policy text with `TOPIC_CONTROL_CUSTOM_POLICY` in `.env`.
 
 > **Note:** if you edit `guardrails/config/nemoguard/actions.py`, verify it on the cluster, not just locally. If the file fails to import, the NeMo Guardrails server logs `Failed to register actions.py`, skips the whole file, and keeps serving without the custom topic-policy rail and the account-id PII carve-out. No request fails, so it's easy to miss. Local runs use the public `nemoguardrails==0.24.0` package, while RHOAI 3.6 runs its own `0.24.0.dev0` build, and some APIs differ (for example, `RailOutcome.failure()` exists only in the public package). After deploying, run the registration check in [Verify](#verify).
 

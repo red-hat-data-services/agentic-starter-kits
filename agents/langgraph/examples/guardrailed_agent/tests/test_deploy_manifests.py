@@ -110,11 +110,21 @@ def test_render_guardrails_configmap_produces_required_keys(
     flows = config["rails"]["input"]["flows"]
     assert "topic policy check input $model=topic_control" in flows
     topic = next(m for m in config["models"] if m["type"] == "topic_control")
-    assert topic["engine"] == "nim"
+    # Self-hosted on in-cluster vLLM (RHAIENG-8048): NVIDIA removed the hosted
+    # NIM function for this model, so the classifier runs beside the main LLM.
+    assert topic["engine"] == "openai"
     assert "nemotron-3.5-content-safety" in topic["model"]
     assert "api_key" not in topic["parameters"]
-    assert topic["api_key_env_var"] == "NVIDIA_API_KEY"
-    assert "base_url" not in topic["parameters"]
+    assert topic["api_key_env_var"] == "OPENAI_API_KEY"
+    assert (
+        "nemotron-3-5-content-safety-svc.llama-serving.svc.cluster.local:8080/v1"
+        in topic["parameters"]["base_url"]
+    )
+    # Custom-policy mode keys off a substring of the model id — the id and the
+    # vLLM --served-model-name must stay in lockstep (see
+    # tests/test_model_serving.py::test_model_serving_contract).
+    assert "custom_policy" in topic["parameters"]["chat_template_kwargs"]
+    assert topic["parameters"]["chat_template_kwargs"]["enable_thinking"] is False
     content = next(m for m in config["models"] if m["type"] == "content_safety")
     assert content["engine"] == "nim"
     assert "api_key" not in content["parameters"]

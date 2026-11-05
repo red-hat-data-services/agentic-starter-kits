@@ -1,0 +1,43 @@
+# T4 (sm75) variant of the topic-control classifier — validated end-to-end on
+# adonheis-aaet (RHAIENG-8048, 2026-11-02): verdict matrix 15/15 x3, QG4 8/8.
+#
+# Differences vs the base, all forced by the T4:
+#   - --dtype half: no bf16 on sm75; vLLM hard-refuses fp16 for model_type
+#     gemma3, so the override below renames model_type past the guard (the
+#     config class is already resolved by then; only the dtype check reads it).
+#   - VLLM_ATTENTION_BACKEND=TRITON_ATTN: FlexAttention's Triton kernel needs
+#     more shared memory than the T4's 64 KB at gemma3's head_dim 256.
+#   - VLLM_USE_FLASHINFER_SAMPLER=0: flashinfer's arch check crashes on sm75.
+#   - --gpu-memory-utilization 0.70 when sharing the 16 GB T4 with another pod
+#     (raise toward 0.85 when the GPU is otherwise idle).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - target:
+      kind: Deployment
+      name: nemotron-3-5-content-safety
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args/7
+        value: half
+      - op: replace
+        path: /spec/template/spec/containers/0/args/15
+        value: "0.70"
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --hf-overrides
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: '{"model_type":"nemotron35-content-safety"}'
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: VLLM_USE_FLASHINFER_SAMPLER
+          value: "0"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: VLLM_ATTENTION_BACKEND
+          value: TRITON_ATTN
