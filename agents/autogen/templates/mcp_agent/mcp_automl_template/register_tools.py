@@ -7,6 +7,7 @@ optionally deployment_url_env and deployment_token_env for HTTP deployment.
 
 import inspect
 import json
+import ssl
 from os import getenv
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,16 @@ def _resolve_schema_path(schema_path: str, config_dir: Path) -> Path:
     if not p.is_absolute():
         p = config_dir / p
     return p.resolve()
+
+
+def _tls_verify() -> ssl.SSLContext | bool:
+    """Add DEPLOYMENT_CA_BUNDLE certificates to HTTPX's configured trust store."""
+    ca_bundle = getenv("DEPLOYMENT_CA_BUNDLE")
+    if ca_bundle:
+        context = httpx.create_ssl_context()
+        context.load_verify_locations(cafile=ca_bundle)
+        return context
+    return True
 
 
 def _coerce_null_in_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -75,31 +86,32 @@ def _make_tool_handler_flat(
         # All model fields: use provided value or None when not required / not provided
         valid: dict[str, Any] = {name: cleaned.get(name) for name in fields}
         instance = model_class(**valid)
-        if deployment_url_env and deployment_token_env:
-            url = getenv(deployment_url_env)
-            token = getenv(deployment_token_env)
-            if url and token:
-                payload = instance.model_dump()
-                # KServe-compatible format: each value wrapped in a list
-                data = {"instances": [{key: [val] for key, val in payload.items()}]}
-                try:
-                    res = httpx.post(
-                        url,
-                        json=data,
-                        verify=True,
-                        follow_redirects=True,
-                        headers={"Authorization": f"Bearer {token}"},
-                        timeout=30.0,
-                    )
-                    res.raise_for_status()
-                    out = res.json()
-                except httpx.RequestError as e:
-                    return f"Deployment request failed: {e}"
-                except httpx.HTTPStatusError as e:
-                    return f"Deployment returned HTTP {e.response.status_code}: {e.response.text[:500]}"
-                if "predictions" in out and out["predictions"]:
-                    return str(out["predictions"][0])
-                return str(out)
+        url = getenv(deployment_url_env) if deployment_url_env else None
+        if url:
+            token = getenv(deployment_token_env) if deployment_token_env else None
+            # Token is optional: deployments without token auth accept anonymous calls
+            headers = {"Authorization": f"Bearer {token}"} if token else {}
+            payload = instance.model_dump()
+            # KServe-compatible format: each value wrapped in a list
+            data = {"instances": [{key: [val] for key, val in payload.items()}]}
+            try:
+                res = httpx.post(
+                    url,
+                    json=data,
+                    verify=_tls_verify(),
+                    follow_redirects=True,
+                    headers=headers,
+                    timeout=30.0,
+                )
+                res.raise_for_status()
+                out = res.json()
+            except httpx.RequestError as e:
+                return f"Deployment request failed: {e}"
+            except httpx.HTTPStatusError as e:
+                return f"Deployment returned HTTP {e.response.status_code}: {e.response.text[:500]}"
+            if "predictions" in out and out["predictions"]:
+                return str(out["predictions"][0])
+            return str(out)
         return instance.model_dump()
 
     handler.__annotations__ = flat_annotations

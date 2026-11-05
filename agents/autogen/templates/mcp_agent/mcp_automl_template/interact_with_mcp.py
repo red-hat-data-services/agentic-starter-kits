@@ -3,13 +3,15 @@ import textwrap
 from os import getenv
 from typing import Any
 
+from dotenv import load_dotenv
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langgraph.prebuilt import create_react_agent
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from utils import get_chat_from_env
 
-# LLM from .env: BASE_URL, MODEL_ID, API_KEY (see repo template.env; Ollama example there)
+# LLM from .env: BASE_URL, MODEL_ID, API_KEY (see the parent .env.example)
+load_dotenv()
 chat_openai = get_chat_from_env()
 
 # Dictionary of predefined questions with descriptions
