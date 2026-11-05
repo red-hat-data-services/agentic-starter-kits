@@ -121,15 +121,19 @@ unless you encounter host-header mismatch errors.
 
 #### MCP AutoML Server Variables
 
-If you plan to deploy the MCP AutoML server to OpenShift (`make deploy-mcp`) with tools that call an ML model serving endpoint (e.g. churn prediction via KServe/AutoML), set these in your `.env`:
+If the MCP AutoML server's tools should call an ML model serving endpoint (e.g. the AutoML churn model on KServe), set these in your `.env`. `make run-mcp` and `make deploy-mcp` both read them:
 
 ```ini
 DEPLOYMENT_URL=https://your-model-serving-endpoint.com/v1/models/your-model:predict
-DEPLOYMENT_TOKEN=your-model-serving-bearer-token
+# DEPLOYMENT_TOKEN=your-model-serving-bearer-token
+# DEPLOYMENT_CA_BUNDLE=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
 ```
 
-- `DEPLOYMENT_URL` — URL of the ML model serving endpoint called by MCP tools at runtime
-- `DEPLOYMENT_TOKEN` — Bearer token for authenticating with the model serving endpoint
+- `DEPLOYMENT_URL` — the model's v1 predict URL. Use the deployment's internal (`*.svc.cluster.local`) endpoint when the MCP server runs in the same cluster, and the external route for local runs.
+- `DEPLOYMENT_TOKEN` — (optional) Bearer token, only needed when the deployment has token authentication enabled
+- `DEPLOYMENT_CA_BUNDLE` — (optional) CA bundle for verifying the endpoint's TLS certificate, e.g. the OpenShift service CA for internal `https://` endpoints
+
+Without `DEPLOYMENT_URL`, `invoke_churn` returns the validated input instead of a prediction. See [`mcp_automl_template/AUTOML_DEPLOYMENT.md`](mcp_automl_template/AUTOML_DEPLOYMENT.md) to train and deploy the churn model with AutoML on RHOAI 3.6.
 
 ### Tracing (optional)
 
@@ -246,8 +250,8 @@ make interact-mcp
 
 ### Step 1: Deploy the MCP server
 
-The MCP AutoML server must be deployed before the agent. Make sure `DEPLOYMENT_URL` and
-`DEPLOYMENT_TOKEN` are set in your `.env`, then run:
+The MCP AutoML server must be deployed before the agent. If `invoke_churn` should call a model, set `DEPLOYMENT_URL`
+(and `DEPLOYMENT_TOKEN` / `DEPLOYMENT_CA_BUNDLE` if needed) in your `.env`, then run:
 
 ```bash
 make deploy-mcp

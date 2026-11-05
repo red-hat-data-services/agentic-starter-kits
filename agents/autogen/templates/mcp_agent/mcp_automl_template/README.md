@@ -7,7 +7,7 @@ Use it with LangChain/LangGraph and an LLM to turn natural language into structu
 
 ## How to use the MCP server
 
-1. **Start the MCP server** (e.g. `python mcp_automl/mcp_server.py`). It exposes tools over SSE at `http://127.0.0.1:8000/sse`.
+1. **Start the MCP server** (`make run-mcp` from the parent `mcp_agent/` directory). It exposes tools over SSE at `http://127.0.0.1:8080/sse`.
 2. **Connect a client** — Cursor, the demo script (`interact_with_mcp.py`), or an Ollama MCP client — to that URL.
 3. **Ask questions or run actions**; the client sends your request to the LLM, which can call the server’s tools (e.g. `add`, `invoke_churn`). If a tool is configured with a deployment, the server calls your AutoML deployment and returns the result.
 
@@ -31,7 +31,7 @@ For quick tests or custom pipelines, raw requests are fine (see the notebook). F
 
 - **Schema-driven tools**: Define tools by name, description, and path to a JSON Schema; the server builds Pydantic models and flat tool parameters from the schema.
 - **Required vs optional**: The JSON Schema `required` array controls which parameters are required; omitted optional parameters are set to `None`.
-- **Deployment integration**: Optionally POST validated input to an HTTP endpoint (e.g. AutoML deployment) using env-based URL and Bearer token.
+- **Deployment integration**: Optionally POST validated input to an HTTP endpoint (e.g. AutoML deployment) using an env-based URL and an optional Bearer token.
 - **SSE transport**: Server runs over SSE for use with MCP clients (e.g. `interact_with_mcp.py` with LangGraph).
 
 ## Directory structure
@@ -50,8 +50,8 @@ mcp_automl_template/
 
 ## Prerequisites
 
-- Python 3.10+
-- For deployment tools: an HTTP endpoint (e.g. AutoML deployment) and its URL + Bearer token
+- Python 3.12+
+- For deployment tools: an HTTP endpoint (e.g. AutoML deployment) and its URL (plus a Bearer token if the endpoint requires one)
 - For the demo client: an LLM (Ollama, OpenAI, or OGX)
 
 ## Setup
@@ -61,26 +61,28 @@ mcp_automl_template/
    With [uv](https://docs.astral.sh/uv/):
 
    ```bash
-   uv pip install .
+   uv sync
    ```
 
 2. **Environment**
 
-   Copy `template.env` from the parent folder to `.env` and set real values for every variable:
+   The `make` targets in the parent `mcp_agent/` directory read `../.env`. Create it from `.env.example`:
 
    ```bash
-   mv ../template.env .env
+   cd ..
+   make init
    ```
 
-   Your `.env` file must include **all** variables defined in `template.env`:
+   Variables used by this server and the demo client:
 
-   - `DEPLOYMENT_URL` – prediction endpoint URL (e.g. AutoML deployment)
-   - `DEPLOYMENT_TOKEN` – Bearer token for that endpoint
+   - `DEPLOYMENT_URL` – prediction endpoint URL (`<inference endpoint>/v1/models/<deployment-name>:predict`)
+   - `DEPLOYMENT_TOKEN` – (optional) Bearer token for that endpoint; leave empty if token auth is off
+   - `DEPLOYMENT_CA_BUNDLE` – (optional) additional CA bundle used to verify the endpoint's TLS certificate; HTTPX's default trust store (including `SSL_CERT_FILE` / `SSL_CERT_DIR` overrides) is preserved (see [AUTOML_DEPLOYMENT.md](AUTOML_DEPLOYMENT.md#53-tls-for-in-cluster-https-endpoints))
    - `BASE_URL` – LLM base URL (for `interact_with_mcp.py` via `get_chat_from_env()`)
    - `API_KEY` – LLM API key
    - `MODEL_ID` – model identifier (e.g. `llama-3.1-8b-instruct`)
 
-   Replace the placeholders with your actual values. For local LLM testing with Ollama only, the deployment vars can stay as placeholders if you do not use those features.
+   Without `DEPLOYMENT_URL`, `invoke_churn` returns the validated input instead of a prediction, which is enough to test tool calling.
 
 ## Configuration
 
@@ -96,7 +98,7 @@ Each entry under `tools` defines one MCP tool:
 | `deployment_url_env` | No | Env var name for the deployment URL |
 | `deployment_token_env` | No | Env var name for the Bearer token |
 
-If both deployment env vars are set, the tool will POST the validated input (as `instances`) to that URL with the given token. Otherwise the tool returns the validated payload as a dict.
+If the URL env var is set, the tool POSTs the validated input (as `instances`) to that URL, adding an `Authorization: Bearer` header when the token env var is also set. Otherwise the tool returns the validated payload as a dict.
 
 Example:
 
@@ -121,12 +123,12 @@ The MCP AutoML server deploys to OpenShift using the shared Helm chart. From the
 
 - `oc` CLI installed and logged in to your OpenShift cluster
 - [Helm 3](https://helm.sh/docs/intro/install/) installed
-- `DEPLOYMENT_URL` and `DEPLOYMENT_TOKEN` set in `.env` (see `.env.example`)
+- `DEPLOYMENT_URL` (and `DEPLOYMENT_TOKEN` if token auth is on) set in `.env` (see `.env.example`)
 
 ### Deploy
 
 ```bash
-cd agents/autogen/mcp_agent
+cd agents/autogen/templates/mcp_agent
 make deploy-mcp
 ```
 
@@ -146,32 +148,32 @@ make undeploy-mcp
 
 ## Running the MCP server
 
-From the project root (or the directory containing `mcp_server.py`):
+From the parent `mcp_agent/` directory:
 
 ```bash
-python mcp_automl_template/mcp_server.py
+make run-mcp
 ```
 
-This starts the FastMCP server (e.g. SSE on `http://127.0.0.1:8000/sse`). Built-in tools (`add`, `sub`) and all tools from `tools_config.yaml` are registered.
+This starts the FastMCP server with SSE on `http://127.0.0.1:8080/sse`. Built-in tools (`add`, `sub`) and all tools from `tools_config.yaml` are registered.
 
 ## Testing with the demo client
 
-With the MCP server running, in another terminal:
+With the MCP server running, in another terminal (from `mcp_agent/`):
 
 ```bash
-python mcp_automl_template/interact_with_mcp.py
+make interact-mcp
 ```
 
 This connects to the server via SSE, loads MCP tools, and runs a LangGraph ReAct agent with the configured LLM. You can type questions or use predefined prompts. The agent will call tools (e.g. `invoke_churn`) when appropriate.
 
 ## Attaching to Cursor and Ollama
 
-The server exposes MCP over **SSE** at `http://127.0.0.1:8000/sse` (or `http://localhost:8000/sse`). You must **start the server first**, then attach it from Cursor or an Ollama-capable client.
+The server exposes MCP over **SSE** at `http://127.0.0.1:8080/sse` (or `http://localhost:8080/sse`). You must **start the server first**, then attach it from Cursor or an Ollama-capable client.
 
-**Start the server** (from repo root or from this directory):
+**Start the server** (from the parent `mcp_agent/` directory):
 
 ```bash
-python mcp_automl/mcp_server.py
+make run-mcp
 ```
 
 Keep this process running while using Cursor or Ollama.
@@ -180,14 +182,14 @@ Keep this process running while using Cursor or Ollama.
 
 1. **Start the MCP server** (see above).
 2. **Add the server in Cursor:**
-   - **UI:** **Settings** (`Cmd + ,` / `Ctrl + ,`) → **Tools & MCP** → **Add new MCP server** → choose **streamable HTTP** (SSE) and set **URL** to `http://127.0.0.1:8000/sse` (name e.g. `automl`).
+   - **UI:** **Settings** (`Cmd + ,` / `Ctrl + ,`) → **Tools & MCP** → **Add new MCP server** → choose **streamable HTTP** (SSE) and set **URL** to `http://127.0.0.1:8080/sse` (name e.g. `automl`).
    - **Config file:** Create or edit `.cursor/mcp.json` in your project (or `~/.cursor/mcp.json` for all projects):
 
    ```json
    {
      "mcpServers": {
        "automl-churn": {
-         "url": "http://127.0.0.1:8000/sse"
+         "url": "http://127.0.0.1:8080/sse"
        }
      }
    }
@@ -201,10 +203,58 @@ Keep this process running while using Cursor or Ollama.
 
 Ollama’s CLI does not run MCP clients. To use this MCP server with Ollama you need an app or client that supports both Ollama and MCP:
 
-- **Ollamac** (macOS): In MCP settings, add a **remote** server with URL `http://127.0.0.1:8000/sse` (with this MCP server already running). Use a tool-capable model (e.g. Llama 3.1+, Mistral).
-- **Other MCP clients:** Any client that supports SSE can use `http://127.0.0.1:8000/sse` once this server is running.
+- **Ollamac** (macOS): In MCP settings, add a **remote** server with URL `http://127.0.0.1:8080/sse` (with this MCP server already running). Use a tool-capable model (e.g. Llama 3.1+, Mistral).
+- **Other MCP clients:** Any client that supports SSE can use `http://127.0.0.1:8080/sse` once this server is running.
 
-**Alternative:** Use the included demo client: run `interact_with_mcp.py`. It uses `get_chat_from_env()` (same `BASE_URL` / `MODEL_ID` / `API_KEY` as the main agent). For local Ollama, set those in `.env` (see root `template.env` example). The agent will call this MCP server’s tools using that LLM.
+**Alternative:** Use the included demo client (`make interact-mcp`). It uses `get_chat_from_env()` (same `BASE_URL` / `MODEL_ID` / `API_KEY` as the main agent). For local Ollama, set those in `.env` (see the parent `.env.example`). The agent will call this MCP server’s tools using that LLM.
+
+## Expected output
+
+Calling `invoke_churn` over MCP with `{"tenure": 2, "Contract": "Month-to-month", "MonthlyCharges": 95.0, "InternetService": "Fiber optic"}`:
+
+- **Without `DEPLOYMENT_URL`**, the tool returns the validated input. Every schema field is present, and omitted optional fields are `null`. This is the exact payload that would be sent to the model as `instances`:
+
+  ```json
+  {
+    "gender": null,
+    "SeniorCitizen": null,
+    "Partner": null,
+    "Dependents": null,
+    "tenure": 2,
+    "PhoneService": null,
+    "MultipleLines": null,
+    "InternetService": "Fiber optic",
+    "OnlineSecurity": null,
+    "OnlineBackup": null,
+    "DeviceProtection": null,
+    "TechSupport": null,
+    "StreamingTV": null,
+    "StreamingMovies": null,
+    "Contract": "Month-to-month",
+    "PaperlessBilling": null,
+    "PaymentMethod": null,
+    "MonthlyCharges": 95.0,
+    "TotalCharges": null
+  }
+  ```
+
+- **With `DEPLOYMENT_URL`** pointing at the deployed churn model, the tool returns the predicted `Churn` label — the first element of the response's `predictions` array. Captured from a live run on RHOAI 3.6 (AutoML-trained churn model, tool call made through the AutoGen agent):
+
+  ```json
+  {
+    "name": "invoke_churn",
+    "arguments": {
+      "tenure": 2,
+      "Contract": "Month-to-month",
+      "MonthlyCharges": 95.0,
+      "InternetService": "Fiber optic"
+    },
+    "result": "[{\"type\": \"text\", \"text\": \"Yes\", \"annotations\": null}]",
+    "is_error": false
+  }
+  ```
+
+  The model answers `{"predictions":["Yes"]}` and the tool surfaces the first prediction. If the response has no `predictions`, the tool returns the full response body.
 
 ## Adding a new tool
 
@@ -216,12 +266,12 @@ No code changes are required; tools are created from the YAML and schema at star
 
 ## AutoML experiment and deployment
 
-For a full walkthrough of creating an AutoML experiment on Red Hat OpenShift AI, deploying the best model, and using it with this MCP server, see **[AUTOML_DEPLOYMENT.md](AUTOML_DEPLOYMENT.md)**. It is based on the [Red Hat AI examples – Predict Customer Churn tutorial](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md) and covers:
+For a full walkthrough of training a churn model with AutoML on Red Hat OpenShift AI 3.6, deploying it, and using it with this MCP server, see **[AUTOML_DEPLOYMENT.md](AUTOML_DEPLOYMENT.md)**. It is based on the [Red Hat AI examples – Predict Customer Churn tutorial](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md) and covers:
 
-1. Creating a project, S3 connections, Pipeline Server, and workbench.
-2. Running the AutoML pipeline and viewing the leaderboard.
-3. Registering the model, preparing the AutoGluon ServingRuntime (KServe), and deploying the model.
-4. Setting `DEPLOYMENT_URL` and `DEPLOYMENT_TOKEN` in `.env` and using the deployment with the MCP server.
+1. Creating a project, S3 connections, and a pipeline server with the AutoML managed pipelines.
+2. Running AutoML from **Develop & train → AutoML** and reviewing the leaderboard.
+3. Registering the model (Model Registry) and deploying it with the built-in AutoGluon ServingRuntime for KServe.
+4. Setting `DEPLOYMENT_URL` (plus optional `DEPLOYMENT_TOKEN` / `DEPLOYMENT_CA_BUNDLE`) and using the deployment with the MCP server.
 
 ## License
 

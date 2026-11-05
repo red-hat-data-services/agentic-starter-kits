@@ -181,7 +181,9 @@ deploy-mcp: ## Build MCP AutoML server in-cluster and deploy via Helm
 	    -f .helm-secrets-mcp.yaml \
 	    --set image.repository="$${MCP_IMAGE%:*}" \
 	    --set image.tag="latest" \
-	    $${DEPLOYMENT_URL:+--set env.DEPLOYMENT_URL="$${DEPLOYMENT_URL}"} && \
+	    $${DEPLOYMENT_URL:+--set env.DEPLOYMENT_URL="$${DEPLOYMENT_URL}"} \
+	    $${DEPLOYMENT_CA_BUNDLE:+--set env.DEPLOYMENT_CA_BUNDLE="$${DEPLOYMENT_CA_BUNDLE}"} && \
+	  oc rollout restart deployment/mcp-automl && \
 	  echo "" && echo "Waiting for rollout..." && \
 	  if oc rollout status deployment/mcp-automl --timeout=120s; then \
 	    ROUTE=$$(oc get route mcp-automl -o jsonpath='{.spec.host}' 2>/dev/null || true); \

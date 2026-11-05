@@ -1,8 +1,10 @@
-# AutoML Experiment, Deployment, and MCP Server
+# AutoML Experiment, Deployment, and MCP Server (RHOAI 3.6)
 
-This guide walks through: **(1)** creating an AutoML experiment on Red Hat OpenShift AI, **(2)** deploying the best model, and **(3)** using that deployment with this MCP server so tools (e.g. `invoke_churn`) call your live model.
+This guide walks through: **(1)** training a churn model with **AutoML** in Red Hat OpenShift AI 3.6, **(2)** deploying the best model with the built-in **AutoGluon ServingRuntime for KServe**, and **(3)** pointing this MCP server at the deployment so the `invoke_churn` tool returns live predictions.
 
-It is based on the [Red Hat AI examples – Predict Customer Churn tutorial](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md). You can follow the same pattern for other datasets (e.g. credit risk) by swapping the pipeline inputs and schema.
+It follows the [Red Hat AI examples – Predict Customer Churn tutorial](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md) and uses its Telco churn dataset. The same pattern works for other tabular datasets: swap the CSV, label column, and JSON Schema.
+
+> **What changed in 3.6:** AutoML is now a dashboard feature (**Develop & train → AutoML**, Technology Preview) and RHOAI ships an **AutoGluon ServingRuntime for KServe**. You no longer build a custom serving image, upload a ServingRuntime YAML, or import the pipeline definition by hand.
 
 ---
 
@@ -10,198 +12,217 @@ It is based on the [Red Hat AI examples – Predict Customer Churn tutorial](htt
 
 | Phase | What you do |
 |-------|-------------|
-| **1. AutoML experiment** | Create a project, S3 connections, run the AutoML pipeline (e.g. Telco Churn), view the leaderboard. |
-| **2. Deploy best model** | Register the chosen model, set up the AutoGluon ServingRuntime (KServe), deploy the model, get the inference URL and token. |
-| **3. Use with MCP server** | Set `DEPLOYMENT_URL` and `DEPLOYMENT_TOKEN` in `.env`; run the MCP server; tools will POST to your deployment. |
+| **1. Prepare the project** | Project, S3 connections, pipeline server with the AutoML managed pipelines enabled. |
+| **2. Run AutoML** | Start an optimization run from the AutoML UI and review the leaderboard. |
+| **3. Register the model** | **⋮ → Register model** from the leaderboard (needs a Model Registry instance), or deploy straight from S3. |
+| **4. Deploy the model** | Deploy with the built-in **AutoGluon ServingRuntime for KServe**. |
+| **5. Point the MCP server at it** | Set `DEPLOYMENT_URL` (and optionally `DEPLOYMENT_TOKEN` / `DEPLOYMENT_CA_BUNDLE`), then run the MCP server and agent. |
 
 ---
 
 ## Prerequisites
 
-- Access to **Red Hat OpenShift AI** (self-managed or cloud).
-- Permissions to create projects, connections, pipelines, workbenches, and deployments.
-- This repo with the MCP AutoML server (see main [README](README.md) for Python/setup).
+- **Red Hat OpenShift AI 3.6** with the AutoML (Technology Preview) feature enabled in the dashboard.
+- Permissions to create projects, connections, pipeline servers, and model deployments.
+- **Cluster capacity:** AutoML training steps request up to **4 vCPU and 16 GiB memory** per pod (limits go much higher). At least one worker needs that much *unrequested* capacity, or the run sits in `Pending`. Two m5.2xlarge workers that also host RHOAI itself aren't enough; add a node first.
+- An S3-compatible object store (AWS S3, ODF/NooBaa, Ceph RGW, or similar) with two buckets: one for pipeline results and one for training data.
+- This repo with the MCP AutoML server (see the main [README](README.md) for setup).
 
 ---
 
-## Phase 1: Create and run the AutoML experiment
-
-Follow the [churn prediction tutorial](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md) up to and including **View the leaderboard**. Summary:
+## 1. Prepare the project
 
 ### 1.1 Create a project
 
-- In OpenShift AI, go to **Projects** and create a new project (e.g. `customer-churn-ml` or `credit-risk-ml`).
+In OpenShift AI, go to **Projects** and create a project (e.g. `customer-churn-ml`).
 
 ### 1.2 Create S3 connections
 
-Create two S3-compatible connections in the project:
+In the project, create two **S3 compatible object storage** connections:
 
-1. **Results storage** – for pipeline artifacts and leaderboard (e.g. `automl-results-s3`). You will use this when configuring the Pipeline Server.
-2. **Training data** – for the dataset (e.g. `customer-churn-data-s3`). Note the **connection name**; you will use it as `train_data_secret_name` in the pipeline run.
+1. **Results storage** (e.g. `automl-results-s3`) – the pipeline server stores run artifacts, the leaderboard, and trained models here.
+2. **Training data** (e.g. `churn-data-s3`) – AutoML reads the CSV from here.
 
-See: [Create the S3 connections](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md#-create-the-s3-connections).
+### 1.3 Configure the pipeline server with the AutoML pipelines
 
-### 1.3 Configure the Pipeline Server
+1. Open the project's **Pipelines** tab and choose **Configure pipeline server**.
+2. Select the **results** connection for object storage, and choose the default or an external database.
+3. Enable the AutoML managed pipelines (the form sets `managedPipelines.enabled: true` on the pipeline server). The AutoML UI refuses to start runs without them ("required managed pipelines not found in namespace").
 
-- In your project, open **Pipelines** (or project details) and **Configure pipeline server**.
-- Set the **Object storage connection** to the same bucket/credentials as your **results** S3 connection so runs and artifacts (leaderboard, models) are stored there.
-- Choose **Default database** or **External MySQL** as needed. Create/Save and wait until the Pipeline Server is ready.
+Creating the pipeline server from YAML only needs the same flag:
 
-See: [Configure the Pipeline Server](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md#-configure-the-pipeline-server).
+```yaml
+spec:
+  apiServer:
+    managedPipelines:
+      enabled: true
+```
 
-### 1.4 Create a workbench with connections
-
-- In **Workbenches**, create a workbench and **attach** both the results and training-data S3 connections so you can access artifacts and data without a restart.
-
-See: [Create workbench with connections attached](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md#-create-workbench-with-connections-attached).
-
-### 1.5 Upload the dataset to S3
-
-- Download the dataset (e.g. [WA_FnUseC_TelcoCustomerChurn.csv](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/data/churn/input_data/WA_FnUseC_TelcoCustomerChurn.csv) for churn).
-- Upload it to the bucket used by the **training data** connection. Note the **bucket name** and **object key** (path) for the pipeline run.
-
-See: [Upload the training dataset to S3](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md#upload-the-training-dataset-to-s3).
-
-### 1.6 Add the AutoML pipeline and run it
-
-- Get the AutoML pipeline from the repo: [autogluon_tabular_training_pipeline](https://github.com/opendatahub-io/pipelines-components/tree/main/pipelines/training/automl/autogluon_tabular_training_pipeline), e.g. [pipeline.py](https://github.com/opendatahub-io/pipelines-components/blob/main/pipelines/training/automl/autogluon_tabular_training_pipeline/pipeline.py).
-- In OpenShift AI **Pipelines**, add it as a new **Pipeline Definition** (upload/create from YAML).
-- Create a **pipeline run** with at least:
-  - **train_data_secret_name** – name of the training-data S3 connection
-  - **train_data_bucket_name** – bucket name
-  - **train_data_file_key** – object key of the CSV (e.g. `data/WA_FnUseC_TelcoCustomerChurn.csv`)
-  - **label_column** – e.g. `Churn`
-  - **task_type** – e.g. `binary`
-  - **top_n** – e.g. `3`
-- Start the run and wait for completion.
-
-See: [Add the AutoML pipeline](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md#-add-the-automl-pipeline-as-a-pipeline-definition), [Run AutoML with the required inputs](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md#-run-automl-with-the-required-inputs).
-
-### 1.7 View the leaderboard
-
-- Open the run **Artifacts** and locate the **leaderboard** (e.g. HTML). Download or open it and pick the **best model** (e.g. top-ranked) to deploy.
-
-See: [View the leaderboard](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md#-view-the-leaderboard).
+> On 3.6 GA the operator defaults the managed-pipelines image. On early-access (EA) builds it pointed at an upstream image instead — there, set `managedPipelines.image` to the DSPO's `RELATED_IMAGE_ODH_PIPELINES_COMPONENTS_IMAGE` and list the pipelines explicitly (`autogluon-tabular-training-pipeline`, `autogluon-timeseries-training-pipeline`).
+>
+> The pipeline server can report `ManagedPipelineValid=False` ("Managed pipelines not configured or no explicit pipeline list") even when the pipelines are loaded and the AutoML UI works. If the AutoML page lists runs without an error, the pipelines are available.
 
 ---
 
-## Phase 2: Deploy the best model
+## 2. Run AutoML
 
-Follow the tutorial from **Model Registry** through **Deployment Scoring**.
-
-### 2.1 Register the model (optional but recommended)
-
-- Create a **Model registry** (one-time, if not already done) under **Settings** → **Model resources and operations** → **AI registry settings**.
-- In **Registry** → **Model registry**, **Register model**:
-  - **Model location**: Object storage (S3), using the same artifact store as your pipeline.
-  - **Path**: root folder of one refitted predictor (e.g. under `.../autogluon-models-full-refit/<task_id>/model_artifact/<ModelName>_FULL/`).
-  - Set **Model name**, **Version**, and **Source model format** (e.g. custom / AutoGluon), then **Register**.
-
-See: [Model Registry](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md#-model-registry).
-
-### 2.2 Prepare the AutoGluon ServingRuntime (KServe)
-
-- **Build the serving image** on the cluster (ImageStream + BuildConfig) using the [tutorial’s YAML](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md#-prepare-the-servingruntime-for-autogluon-with-kserve) (Git source, Dockerfile, output to ImageStream).
-- **Create the ServingRuntime** from the tutorial’s ServingRuntime YAML:
-  - Set `metadata.namespace` to your project.
-  - Set `spec.containers[0].image` to the built image (e.g. `image-registry.openshift-image-registry.svc:5000/<namespace>/autogluonkserveimagev1:latest`).
-- In OpenShift AI: **Settings** → **Serving runtimes** → **Add serving runtime** → upload the YAML, select **REST** and **Predictive model**, then **Create**.
-
-See: [Prepare the ServingRuntime for AutoGluon with KServe](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md#-prepare-the-servingruntime-for-autogluon-with-kserve).
-
-### 2.3 Deploy the model
-
-- **Projects** → *your project* → **Deployments** → **Deploy model**.
-- **Model location**: S3; use the path to the refitted model (same as registry or from run artifacts).
-- **Model type**: Predictive model.
-- **Model framework**: e.g. **autogluon - 1**.
-- **Serving runtime**: **AutoGluon ServingRuntime for KServe**.
-- In **Advanced settings**:
-  - **Require token authentication** – enable if you want to use a Bearer token (recommended for the MCP server).
-  - **Make model deployment available through an external route** – enable so you can call the endpoint from your machine (for the MCP server).
-- **Deploy model** and wait until the deployment is running.
-
-See: [Model Deployment](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md#-model-deployment).
-
-### 2.4 Get the inference URL and token
-
-- Open the **deployment details**. Under **Inference endpoint**, copy the **external** URL (only if you enabled the external route).
-- **Deployment URL** for the MCP server is the **predict** endpoint, for example:
-  - `<EXTERNAL_BASE_URL>/v1/models/<MODEL_NAME>:predict`
-  where `<MODEL_NAME>` is the deployment’s **Resource name** (lowercase, no spaces). Example: `https://my-model-myproject.apps.example.com/v1/models/my-churn-model:predict`
-- **Token** (if you enabled token auth): **Projects** → *your project* → **Deployments** → expand the deployment → use the **Token secret** value as `DEPLOYMENT_TOKEN`.
-
-See: [Deployment Scoring](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md#-deployment-scoring) for the exact request format (e.g. `instances` with per-field arrays). The MCP server sends payloads in that same shape.
+1. Go to **Develop & train → AutoML** and select your project.
+2. Create an optimization run:
+   - **Training data:** select the training-data connection and **Upload file** with [WA_FnUseC_TelcoCustomerChurn.csv](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/data/churn/input_data/WA_FnUseC_TelcoCustomerChurn.csv), or pick the object if it is already in the bucket.
+   - **Task type:** **Binary classification**.
+   - **Label column:** `Churn`.
+   - **Top N** models to refit: e.g. `3`.
+3. Start the run and wait for it to succeed. Training takes several minutes.
+4. Open the run's **leaderboard** to compare the models.
 
 ---
 
-## Phase 3: Use the deployment with the MCP server
+## 3. Register the model
 
-### 3.1 Match the tool schema to the deployment
+From the leaderboard, open the **⋮** menu on the model you want and choose **Register model**.
 
-The MCP server sends a JSON body like:
+**Register model** requires a **Model Registry instance**. In 3.6 the model registry component can be `Managed` while no registry exists yet, and then registering doesn't work. A cluster admin can create one under **Settings → Model registries** (see [Managing model registries](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest/html/managing_model_registries/index)). For a scratch environment, this CR is enough:
+
+```yaml
+apiVersion: modelregistry.opendatahub.io/v1beta1
+kind: ModelRegistry
+metadata:
+  name: churn-registry
+  namespace: rhoai-model-registries
+spec:
+  rest: {}
+  kubeRBACProxy: {}
+  postgres:
+    generateDeployment: true   # operator provisions a PostgreSQL instance; use an external DB in production
+```
+
+**Alternative without a registry:** skip registration and deploy straight from the **results** S3 connection, using the model artifact path that the AutoML run wrote to the results bucket.
+
+The leaderboard's **⋮ → Save notebook** generates a notebook that loads the predictor, which is handy for checking predictions offline.
+
+---
+
+## 4. Deploy the model
+
+Deploy from the registered model version (**Deploy**) or from **Projects → *your project* → Deployments → Deploy model**:
+
+- **Model location:** the registered version, or the results S3 connection plus the model artifact path.
+- **Serving runtime:** **AutoGluon ServingRuntime for KServe** (built in; no custom runtime needed).
+- **Model framework:** `autogluon - 1`.
+- **Deployment resource name:** e.g. `churn-model`. It appears in the inference URL.
+- **Require token authentication:** recommended. Enabling it creates a service account token secret for the deployment.
+- **Make deployed models available through an external route:** enable it only if you will call the model from outside the cluster (e.g. running the MCP server locally).
+
+Wait until the deployment shows **Started**/**Ready**.
+
+---
+
+## 5. Point the MCP server at the model
+
+The MCP server POSTs the validated tool input to `DEPLOYMENT_URL` in the KServe v1 format:
 
 ```json
 {
   "instances": [
-    { "feature1": [value1], "feature2": [value2], ... }
+    { "tenure": [12], "Contract": ["Month-to-month"], "MonthlyCharges": [70.5], "gender": [null], "...": [null] }
   ]
 }
 ```
 
-Your deployment (e.g. AutoGluon churn) expects one object per instance with the **same feature names** as in training. This repo provides `churn_schema.json` and the tool `invoke_churn` in `tools_config.yaml`. The schema properties match the churn model’s inputs (e.g. `gender`, `tenure`, `Contract`, `Churn`, etc. as in the [tutorial’s curl example](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md#-deployment-scoring)).
+Every property in `churn_schema.json` is sent, and that matters: **the AutoGluon server requires all 19 training columns** and rejects partial rows with a "required columns are missing" error. Optional properties the caller omits go as `null`, which the server accepts as missing values. The response's `predictions` array contains the predicted label only (e.g. `{"predictions":["Yes"]}`); the tool returns the first entry, or the whole response body if there is no `predictions`. (The serving runtime also accepts a `PREDICT_PROBA=true` model environment variable that returns per-class probabilities instead of labels — e.g. `{"predictions":[{"No":0.36,"Yes":0.64}]}` — but the tool's label parsing expects the default.)
 
-Set `DEPLOYMENT_URL` (and `DEPLOYMENT_TOKEN` if used) to your churn predict endpoint. To add another tool, add a new JSON Schema and entry in `tools_config.yaml` with its own `schema_path` and the same `deployment_url_env` / `deployment_token_env` if needed.
+### 5.1 Choose the URL
 
-### 3.2 Set environment variables
+The deployment's **Inference endpoints** (deployment details) list an internal URL and, if you enabled it, an external one. Append the v1 predict path to whichever you use:
 
-In the MCP server directory, ensure `.env` exists and contains the deployment values from Phase 2:
-
-```bash
-mv template.env .env
+```text
+<endpoint>/v1/models/<deployment-resource-name>:predict
 ```
 
-Edit `.env`:
+- **MCP server in the same cluster** (`make deploy-mcp`): use the **internal** endpoint. With token authentication on, it is `https://<name>-predictor.<project>.svc.cluster.local:8443` (plain `http://…:8080` when auth is off). Get it from the deployment's **Inference endpoints** or with `oc get isvc <name> -o jsonpath='{.status.address.url}'`.
+- **MCP server on your laptop** (`make run-mcp`): use the **external** route URL.
 
-- **DEPLOYMENT_URL** = full predict URL, e.g. `https://my-model-myproject.apps.example.com/v1/models/my-churn-model:predict`
-- **DEPLOYMENT_TOKEN** = token from the deployment’s Token secret (leave empty or omit if you did not enable token auth)
+### 5.2 Token (only if token authentication is on)
 
-Keep `BASE_URL`/`API_KEY`/`MODEL_ID` (LLM vars) if you use the demo client; see main [README](README.md).
+`DEPLOYMENT_TOKEN` is optional. Leave it empty for deployments without token authentication, and the server then sends no `Authorization` header.
 
-### 3.3 Run the MCP server and call the tool
+To get the token:
 
-1. Start the server:
+- **Dashboard:** **Projects → *your project* → Deployments**, expand the deployment, and copy the token under **Token authentication**.
+- **CLI:** the token lives in a service-account token secret named after the deployment:
 
-   ```bash
-   python mcp_automl/mcp_server.py
-   ```
+  ```bash
+  oc get secrets -n <project> | grep <deployment-resource-name>
+  oc get secret <token-secret-name> -n <project> -o jsonpath='{.data.token}' | base64 -d
+  ```
 
-2. Use the deployment via MCP:
-   - **Demo client:** run `python mcp_automl/interact_with_mcp.py` and ask a question that triggers the tool (e.g. churn).
-   - **Cursor:** add the MCP server with URL `http://127.0.0.1:8000/sse` (see [README – Attaching to Cursor and Ollama](README.md#attaching-to-cursor-and-ollama)).
-   - **Ollama:** use an MCP-capable client with the same URL, or use the demo client with Ollama as the LLM.
+In-cluster callers need one extra thing: the auth proxy in front of the model checks that the token's service account can `get` the InferenceService in the project. Bind a Role granting it (`apiGroups: ["serving.kserve.io"], resources: ["inferenceservices"], verbs: ["get"]`, optionally restricted to the deployment's resource name) to the service account the MCP server runs as, and create a token secret for that service account.
 
-The tool will POST to `DEPLOYMENT_URL` with `Authorization: Bearer <DEPLOYMENT_TOKEN>` and the validated input as `instances`; the response (e.g. `predictions`) is returned to the caller.
+### 5.3 TLS for in-cluster HTTPS endpoints
+
+Internal KServe endpoints are typically served with certificates signed by the OpenShift **service CA**, which isn't in the default trust store. When `DEPLOYMENT_URL` is an internal `https://` URL, point `DEPLOYMENT_CA_BUNDLE` at the service CA. It's mounted in every pod:
+
+```bash
+DEPLOYMENT_CA_BUNDLE=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+```
+
+`make deploy-mcp` passes it from `.env` to the MCP server deployment. External routes use the cluster's ingress certificate and normally need no CA setting.
+
+### 5.4 Set the variables and run
+
+In the parent `mcp_agent/` directory's `.env`:
+
+```bash
+DEPLOYMENT_URL=https://churn-model-customer-churn-ml.apps.example.com/v1/models/churn-model:predict
+DEPLOYMENT_TOKEN=<token, or leave empty>
+# DEPLOYMENT_CA_BUNDLE=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt   # in-cluster https only
+```
+
+Then, from `mcp_agent/`:
+
+- **Local:** `make run-mcp`, then `make run-app` (AutoGen agent) or `make interact-mcp` (LangGraph demo client). Ask something like *"Will a customer with 2 months tenure, a month-to-month contract and $95 monthly charges churn?"*
+- **OpenShift:** `make deploy-mcp` (reads `DEPLOYMENT_URL`, `DEPLOYMENT_TOKEN`, and `DEPLOYMENT_CA_BUNDLE` from `.env`), then deploy the agent with `make deploy`.
+
+To add another model, add a JSON Schema and a `tools_config.yaml` entry with its own `schema_path` and `deployment_url_env`/`deployment_token_env`.
 
 ---
 
 ## Quick reference
 
 | Step | Where | What to set / do |
-|------|--------|-------------------|
-| AutoML run | OpenShift AI Pipelines | Pipeline definition, run params (train_data_*, label_column, task_type, top_n) |
-| Leaderboard | Run Artifacts | Pick best model for deployment |
-| Deploy model | Project → Deployments | S3 path, AutoGluon runtime, external route, token auth |
-| Inference URL | Deployment details | `<base>/v1/models/<resource-name>:predict` |
-| Token | Deployment → Token secret | `DEPLOYMENT_TOKEN` in `.env` |
-| MCP server | `.env` | `DEPLOYMENT_URL`, `DEPLOYMENT_TOKEN` |
-| Tool schema | `tools_config.yaml` + `churn_schema.json` | Match deployment input features |
+|------|-------|------------------|
+| Pipeline server | Project → Pipelines | Results S3 connection; AutoML managed pipelines enabled |
+| AutoML run | Develop & train → AutoML | CSV, **Binary classification**, label `Churn`, top N |
+| Register | Leaderboard → ⋮ → Register model | Requires a Model Registry instance |
+| Deploy | Model registry / Project → Deployments | **AutoGluon ServingRuntime for KServe**, framework `autogluon - 1` |
+| URL | Deployment details → Inference endpoints | `<endpoint>/v1/models/<resource-name>:predict` |
+| Token | Deployment → Token authentication | `DEPLOYMENT_TOKEN` (optional) |
+| CA | In-cluster https only | `DEPLOYMENT_CA_BUNDLE=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt` |
+
+---
+
+## Appendix: running the AutoML pipeline directly
+
+You can still run the AutoML pipeline from **Pipelines** instead of the AutoML UI, e.g. for automation. With the managed pipelines enabled (1.3), `autogluon-tabular-training-pipeline` is already in the project. Otherwise import it from [pipelines-components](https://github.com/opendatahub-io/pipelines-components/tree/main/pipelines/training/automl/autogluon_tabular_training_pipeline). Create a run with:
+
+- `train_data_secret_name` – training-data connection name
+- `train_data_bucket_name` – bucket
+- `train_data_file_key` – object key of the CSV (e.g. `data/WA_FnUseC_TelcoCustomerChurn.csv`)
+- `label_column` – `Churn`
+- `task_type` – `binary`
+- `top_n` – e.g. `3`
+
+---
+
+## Looking ahead (RHOAI 3.7)
+
+[RHAISTRAT-1967](https://redhat.atlassian.net/browse/RHAISTRAT-1967) plans an `automl` plugin for rhoai-mcp that exposes AutoGluon deployments natively as MCP tools (list, get, and predict). This template shows the same pattern today with a schema-driven tool you control.
 
 ---
 
 ## References
 
-- [Red Hat AI examples – Predict Customer Churn (AutoML)](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md) – full tutorial (project, S3, pipeline, leaderboard, predictor notebook, model registry, ServingRuntime, deployment, scoring).
-- [autogluon_tabular_training_pipeline](https://github.com/opendatahub-io/pipelines-components/tree/main/pipelines/training/automl/autogluon_tabular_training_pipeline) – pipeline source.
-- [KServe V1 Protocol](https://kserve.github.io/website/docs/concepts/architecture/data-plane/v1-protocol) – inference request/response format.
-- This repo’s [README](README.md) – MCP server setup, tools, Cursor/Ollama, and `.env`.
+- [Red Hat AI examples – Predict Customer Churn (AutoML)](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/automl/churn_prediction_tutorial.md)
+- [autogluon_tabular_training_pipeline](https://github.com/opendatahub-io/pipelines-components/tree/main/pipelines/training/automl/autogluon_tabular_training_pipeline) – pipeline source
+- [KServe V1 Protocol](https://kserve.github.io/website/docs/concepts/architecture/data-plane/v1-protocol) – inference request/response format
+- This repo's [README](README.md) – MCP server setup, tools, Cursor/Ollama, and `.env`

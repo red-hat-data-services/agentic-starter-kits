@@ -4,14 +4,11 @@ import json
 from os import getenv
 from typing import TYPE_CHECKING, Any, Literal
 
-import pandas as pd
-from dotenv import load_dotenv
 from pydantic import BaseModel, create_model
 
 if TYPE_CHECKING:
+    import pandas as pd
     from langchain_openai import ChatOpenAI
-
-load_dotenv()
 
 
 def dataframe_to_json_schema(
@@ -27,6 +24,8 @@ def dataframe_to_json_schema(
     - Numeric columns → "integer" (if all ints) or "number"
     - Object/category columns → "string" with "enum" of unique values (if count <= max_enum_size)
     """
+    import pandas as pd
+
     exclude_columns = exclude_columns or []
     properties: dict = {}
     required: list[str] = required_columns or []
