@@ -275,7 +275,8 @@ Support is Anthropic-first but improving:
   Completions format**, so the backend can be any vLLM; with `remote::vllm` it passes through to the backend's
   native `/v1/messages` (and fails if the backend lacks it — there is no automatic fallback) — see
   [agents/claude-code/ogx](../agents/claude-code/ogx/README.md). Your agent speaks Messages; the wire behind the
-  gateway may not be.
+  gateway may not be. The tested translation provider rejects extended thinking and does not implement token
+  counting; use native passthrough with a backend that supports those features when needed.
 
 ### MCP tracing and guardrails in Messages
 
