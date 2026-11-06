@@ -1,4 +1,4 @@
-# OGX Deployment for Claude Code Passthrough
+# OGX Deployment for Claude Code
 #
 # Deploys OGX as a standalone pod that provides the Anthropic Messages API
 # (/v1/messages) in front of a vLLM backend, either by translating to OpenAI

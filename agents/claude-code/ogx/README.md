@@ -133,7 +133,7 @@ providers:
     # provider_type: remote::vllm   # passthrough mode (needs vLLM v0.13.0+); rename api_key to api_token
     config:
       base_url: http://<VLLM_SERVICE>.<NAMESPACE>.svc.cluster.local:<VLLM_PORT>/v1
-      api_key: fake         # vLLM does not validate API keys
+      api_key: fake         # Demo only: unauthenticated vLLM. Real keys belong in a Secret, not committed YAML
       max_tokens: 4096      # Default max tokens per request
       refresh_models: true  # Refresh the OGX model registry from vLLM
 
@@ -154,6 +154,10 @@ The inference provider connects to your vLLM backend and discovers models from `
 - `remote::vllm` — **passthrough mode**. OGX forwards `/v1/messages` verbatim. Requires vLLM with native
   Anthropic Messages support (v0.13.0+ / current RHOAI images); a backend without it returns 404 and OGX
   surfaces a 500 — there is no fallback to translation. The auth config field is `api_token`.
+
+`fake` works only against an unauthenticated vLLM (its default). If vLLM runs with `--api-key`, model discovery
+and requests fail with 401 until the real key is configured — keep it in a Kubernetes Secret and inject it into
+the OGX config at deploy time rather than committing it to the ConfigMap.
 
 The `inline::builtin` messages provider enables the `/v1/messages` endpoint and requires a `kvstore` backend for message-batch state.
 

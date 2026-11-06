@@ -62,7 +62,12 @@ data:
         provider_type: remote::openai
         config:
           base_url: http://<VLLM_SERVICE>.<NAMESPACE>.svc.cluster.local:<VLLM_PORT>/v1
-          api_key: fake        # vLLM default: no auth. Replace if vLLM is configured with --api-key
+          # Auth for the vLLM backend. `fake` works only for unauthenticated
+          # demo backends (vLLM's default). If vLLM runs with --api-key, use
+          # the real key — but keep it out of committed YAML: inject it from a
+          # Kubernetes Secret (e.g. env expansion in the deployment) rather
+          # than storing it in this ConfigMap.
+          api_key: fake
           max_tokens: 4096
           refresh_models: true # Keep the OGX model registry in sync with vLLM
 
