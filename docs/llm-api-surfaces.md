@@ -1,6 +1,7 @@
 # LLM API Surfaces: Chat Completions vs Responses vs Messages
 
-Red Hat OpenShift AI (RHOAI) 3.6 lets an agent talk to its model over any of the three public LLM API surfaces: the
+Red Hat OpenShift AI (RHOAI) 3.6 lets an agent talk to its model over the three LLM API surfaces used in this
+repo: the
 OpenAI **Chat Completions** API, the OpenAI **Responses** API, and the Anthropic **Messages** API. Every agent builder
 has to pick one, and the choice shapes how you manage conversation state, invoke tools, stream output, and — most of
 all — how portable your agent is across model servers.
@@ -48,7 +49,7 @@ form. It also covers how each surface interacts with MCP, MLflow tracing, and gu
 | System prompt | A `system` message in the `messages` array | A top-level `instructions` field | A top-level `system` parameter |
 | Tool calling | `tools` array; model returns `tool_calls`; results posted back as `role: "tool"` messages | Item-based — function calls and outputs are typed items in the `input`/`output` arrays | Content blocks — `tool_use` blocks from the model, `tool_result` blocks from the client |
 | Streaming | SSE `chat.completion.chunk` deltas | SSE typed events (`response.output_text.delta`, ...) | SSE typed events (`content_block_delta`, ...) |
-| Served by | vLLM, OGX, llm-d, Ollama — effectively everyone | OpenAI; recent vLLM releases ([compatibility](#portability-in-responses)); llm-d with a compatible backend | Anthropic; vLLM (native `/v1/messages` in recent releases, v0.13.0+); OGX (passthrough or translation) |
+| Served by | vLLM, OGX, llm-d, Ollama — effectively everyone | OpenAI; recent vLLM releases ([compatibility](#portability-in-responses)); llm-d with a compatible backend | Anthropic; vLLM (native `/v1/messages` in recent releases, RHOAI image 0.13.0+); OGX (passthrough or translation) |
 | Framework support in this repo | All of them — LangChain, CrewAI, LlamaIndex, AutoGen, ADK | Raw OpenAI SDK only | Claude Code binary only |
 | Kit examples | 10 standard kits (LangGraph, CrewAI, LlamaIndex, ADK, AutoGen) | [vanilla_python](#openai-responses-api), [codex](#openai-responses-api) | [claude-code](#anthropic-messages-api) |
 
@@ -58,7 +59,7 @@ form. It also covers how each surface interacts with MCP, MLflow tracing, and gu
   in this repo speaks it, and tool-calling works on all mainstream open-source models. If you have no reason to pick
   otherwise, pick this — start from [agents/langgraph/templates/react_agent](../agents/langgraph/templates/react_agent/README.md).
 - **Pick Responses** when your endpoint serves `/v1/responses`, you want a structured item-based protocol, or you
-  are embedding a tool that requires it (Codex CLI does — see
+  are embedding a client that requires it (Codex CLI does — see
   [agents/codex](../agents/codex/README.md)). Basic Responses support and Codex compatibility have different
   requirements — see [Portability in Responses](#portability-in-responses). Budget for a Chat Completions fallback
   if your endpoint may not serve
@@ -71,7 +72,7 @@ form. It also covers how each surface interacts with MCP, MLflow tracing, and gu
 
 The OpenAI Chat Completions API is the lingua franca of LLM serving. Ten of the standard kits in this repo use it —
 every LangGraph template and example, CrewAI, LlamaIndex, Google ADK, and AutoGen — each through a different client
-library that all ends up at the same `POST /v1/chat/completions` endpoint.
+library that all end up at the same `POST /v1/chat/completions` endpoint.
 
 ### State management
 
@@ -80,7 +81,7 @@ every turn:
 
 ```json
 {
-  "model": "vllm/qwen2-5-7b-instruct",
+  "model": "qwen2-5-7b-instruct",
   "messages": [
     { "role": "system", "content": "You are a helpful assistant." },
     { "role": "user", "content": "What is the weather in Boston?" },
@@ -188,8 +189,8 @@ Two things to know from this repo:
   model/parser combinations (e.g. Qwen3-Coder with `qwen3_coder`).
 - [vanilla_python](../agents/vanilla_python/templates/openai_responses_agent/README.md) deliberately does **not** use
   native tool calling — it embeds tool source code in the system prompt and parses `Action:` lines with a regex. That
-  keeps the example framework-free, at the cost of a hand-rolled ReAct loop. It is the only kit in the repo without
-  native tool calling.
+  keeps the example framework-free, at the cost of a hand-rolled ReAct loop. It is the only kit that never uses
+  native tool calling regardless of model.
 
 ### Streaming in Responses
 
@@ -228,7 +229,9 @@ agent that must run against unknown endpoints, copy this pattern.
 - **MLflow tracing**: `mlflow.openai.autolog()` captures raw `responses.create()` calls — this is what
   [vanilla_python's tracing.py](../agents/vanilla_python/templates/openai_responses_agent/src/openai_responses_agent/tracing.py)
   uses (a Level C integration in [tracing.md](../tracing.md) terms: LLM autolog plus manual wrapping of tools and the
-  agent entry point). Codex traces through a separate `@mlflow/codex` hook overlay rather than the Python SDK.
+  agent entry point). Codex traces through a separate
+  [`@mlflow/codex` hook overlay](../agents/codex/deployment/build-mlflow/mlflow-tracing.md) rather than the Python
+  SDK.
 - **Guardrails**: no kit in this repo combines guardrails with Responses. NeMo Guardrails' LLM adapters target Chat
   Completions, so expect custom integration work if you need rails on this surface.
 
@@ -288,7 +291,8 @@ Support is Anthropic-first but improving:
 - **MLflow tracing**: kit-level tracing exists via `mlflow autolog claude` — the entrypoint configures it
   automatically when `MLFLOW_TRACKING_URI` is set (see "MLflow Tracing (Optional)" in
   [agents/claude-code/README.md](../agents/claude-code/README.md)). It is the same hook pattern the codex kit uses
-  with `@mlflow/codex`, rather than the Python SDK pattern the standard kits use.
+  with [`@mlflow/codex`](../agents/codex/deployment/build-mlflow/mlflow-tracing.md), rather than the Python SDK
+  pattern the standard kits use.
 - **Guardrails**: no kit example. As with Responses, expect custom integration work.
 
 ## Kit Example Matrix
@@ -303,10 +307,10 @@ Support is Anthropic-first but improving:
 | [langgraph/guardrailed_agent](../agents/langgraph/examples/guardrailed_agent/README.md) | Chat Completions | `langchain-openai` via NeMo Guardrails | — | autolog | yes (LLM calls non-streaming) | native |
 | [crewai/websearch_agent](../agents/crewai/templates/websearch_agent/README.md) | Chat Completions | CrewAI `LLM` (litellm) | — | autolog | yes | model-dependent (native with function-calling models, ReAct otherwise) |
 | [llamaindex/websearch_agent](../agents/llamaindex/templates/websearch_agent/README.md) | Chat Completions | LlamaIndex `OpenAILike` | — | autolog | yes | native |
-| [google/adk](../agents/google/templates/adk/README.md) | Chat Completions | ADK `LiteLlm` (litellm) | — | autolog (OTel) | yes | native |
+| [google/adk](../agents/google/templates/adk/README.md) | Chat Completions | ADK `LiteLlm` (litellm) | — | autolog (litellm) | yes | native |
 | [autogen/mcp_agent](../agents/autogen/templates/mcp_agent/README.md) | Chat Completions | AutoGen `OpenAIChatCompletionClient` | consumes | autolog | yes (`+mcp.tool_usage`; disabled when MLflow tracing is on) | native (MCP tools) |
 | [a2a/langgraph_crewai_agent](../agents/a2a/templates/langgraph_crewai_agent/README.md) | Chat Completions | `langchain-openai` + CrewAI `LLM` | — | autolog | A2A protocol | native |
-| [vanilla_python/openai_responses_agent](../agents/vanilla_python/templates/openai_responses_agent/README.md) | Responses (+ Chat Completions fallback) | `openai` SDK | — | autolog (Level C) | tool events only | prompt-based ReAct |
+| [vanilla_python/openai_responses_agent](../agents/vanilla_python/templates/openai_responses_agent/README.md) | Responses (+ Chat Completions fallback) | `openai` SDK | — | autolog (Level C) | tool events + final answer (not token-streamed) | prompt-based ReAct |
 | [codex](../agents/codex/README.md) | Responses (exclusive) | Codex CLI binary | consumes | `@mlflow/codex` hook | — (CLI) | native (namespace tools) |
 | [claude-code](../agents/claude-code/README.md) | Messages | Claude Code binary | config (`MCP_CONFIG_FILE`/`MCP_CONFIG_JSON`) | `mlflow autolog claude` hook | — (CLI) | native |
 | [openclaw](../agents/openclaw/deployment/README.md) | Chat Completions (config) | OpenClaw image | — | OTel overlay | — (web UI) | native (required) |
