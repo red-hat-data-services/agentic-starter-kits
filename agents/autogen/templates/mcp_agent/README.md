@@ -12,7 +12,9 @@
 
 An AutoGen-based agent with MCP (Model Context Protocol) tools over SSE. It connects to an MCP server, loads tools
 dynamically (e.g. churn prediction, deployment), and answers user questions via an OpenAI-compatible
-`POST /chat/completions` API. Built with AutoGen `AssistantAgent` and `autogen_ext.tools.mcp`.
+`POST /chat/completions` API. Built with AutoGen `AssistantAgent` and `autogen_ext.tools.mcp`. For how the Chat
+Completions surface it uses compares to the Responses and Messages APIs — and how MCP fits in — see
+[LLM API Surfaces](../../../../docs/llm-api-surfaces.md).
 
 **Key features:**
 

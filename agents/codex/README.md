@@ -1,6 +1,6 @@
 # Codex on OpenShift
 
-A guide to deploying [OpenAI Codex CLI](https://github.com/openai/codex) as a containerized coding agent on Red Hat OpenShift. Connects to a vLLM inference endpoint via the OpenAI Responses API (`/v1/responses`).
+A guide to deploying [OpenAI Codex CLI](https://github.com/openai/codex) as a containerized coding agent on Red Hat OpenShift. Connects to a vLLM inference endpoint via the OpenAI Responses API (`/v1/responses`). For how the Responses API compares to the Chat Completions and Messages APIs, see [LLM API Surfaces](../../docs/llm-api-surfaces.md).
 
 ## Table of Contents
 
