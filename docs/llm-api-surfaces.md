@@ -64,7 +64,7 @@ form. It also covers how each surface interacts with MCP, MLflow tracing, and gu
   requirements — see [Portability in Responses](#portability-in-responses). Budget for a Chat Completions fallback
   if your endpoint may not serve
   `/v1/responses` — [vanilla_python](../agents/vanilla_python/templates/openai_responses_agent/README.md) shows the
-  pattern.
+  pattern (mind its blanket-404 caveat in [Portability in Responses](#portability-in-responses)).
 - **Pick Messages** when you are running Claude Code or another Anthropic-native client, or your model server serves
   `/v1/messages` natively — see [agents/claude-code](../agents/claude-code/README.md).
 
@@ -85,11 +85,16 @@ every turn:
   "messages": [
     { "role": "system", "content": "You are a helpful assistant." },
     { "role": "user", "content": "What is the weather in Boston?" },
-    { "role": "assistant", "content": null, "tool_calls": [ ... ] },
-    { "role": "tool", "content": "{\"temp_f\": 58}" }
+    { "role": "assistant", "content": null, "tool_calls": [
+      { "id": "call_1", "type": "function", "function": { "name": "get_weather", "arguments": "{ \"location\": \"Boston\" }" } }
+    ] },
+    { "role": "tool", "tool_call_id": "call_1", "content": "{\"temp_f\": 58}" }
   ]
 }
 ```
+
+The `tool_call_id` on each tool result must match the `id` of the assistant's tool call it answers —
+schema-enforcing servers reject the request otherwise.
 
 Conversation state is therefore the agent's responsibility. That is a feature for agents: LangGraph checkpoints state
 in its graph, and [react_with_database_memory](../agents/langgraph/templates/react_with_database_memory/README.md)
@@ -219,7 +224,10 @@ Because an arbitrary OpenAI-compatible endpoint may not serve `/v1/responses`, v
 fallback**: a 404 from `responses.create` permanently flips the agent to `chat.completions.create`; a 400 falls back
 for that call only (a 400 may be a legitimate request error, so the result is not cached). The behavior is covered by
 [tests](../agents/vanilla_python/templates/openai_responses_agent/tests/test_agent.py) — if you pick Responses for an
-agent that must run against unknown endpoints, copy this pattern.
+agent that must run against unknown endpoints, copy this pattern. One caveat before copying it verbatim: the example
+treats **any** 404 as a missing endpoint, and servers also return 404 for an unknown model — a typo'd model name
+permanently flips the agent to Chat Completions even though `/v1/responses` works. If that distinction matters, probe
+the endpoint explicitly instead of keying off the status code alone.
 
 ### MCP tracing and guardrails in Responses
 
@@ -308,7 +316,7 @@ Support is Anthropic-first but improving:
 | [crewai/websearch_agent](../agents/crewai/templates/websearch_agent/README.md) | Chat Completions | CrewAI `LLM` (litellm) | — | autolog | yes | model-dependent (native with function-calling models, ReAct otherwise) |
 | [llamaindex/websearch_agent](../agents/llamaindex/templates/websearch_agent/README.md) | Chat Completions | LlamaIndex `OpenAILike` | — | autolog | yes | native |
 | [google/adk](../agents/google/templates/adk/README.md) | Chat Completions | ADK `LiteLlm` (litellm) | — | autolog (litellm) | yes | native |
-| [autogen/mcp_agent](../agents/autogen/templates/mcp_agent/README.md) | Chat Completions | AutoGen `OpenAIChatCompletionClient` | consumes | autolog | yes (`+mcp.tool_usage`; disabled when MLflow tracing is on) | native (MCP tools) |
+| [autogen/mcp_agent](../agents/autogen/templates/mcp_agent/README.md) | Chat Completions | AutoGen `OpenAIChatCompletionClient` | consumes | autolog | yes (`+mcp.tool_usage`; token streaming defaults off when MLflow tracing is on) | native (MCP tools) |
 | [a2a/langgraph_crewai_agent](../agents/a2a/templates/langgraph_crewai_agent/README.md) | Chat Completions | `langchain-openai` + CrewAI `LLM` | — | autolog | A2A protocol | native |
 | [vanilla_python/openai_responses_agent](../agents/vanilla_python/templates/openai_responses_agent/README.md) | Responses (+ Chat Completions fallback) | `openai` SDK | — | autolog (Level C) | tool events + final answer (not token-streamed) | prompt-based ReAct |
 | [codex](../agents/codex/README.md) | Responses (exclusive) | Codex CLI binary | consumes | `@mlflow/codex` hook | — (CLI) | native (namespace tools) |
@@ -328,8 +336,10 @@ Two distinct streaming decisions get conflated easily:
 2. **How your agent's LLM calls stream.** Token streaming from the model server.
 
 The guardrailed agent disables LLM streaming (NeMo Guardrails accepts tools only on non-streaming calls) while still
-serving SSE to its clients; vanilla_python streams tool events and the final answer, but not LLM tokens. Both are
-legitimate points in the design space — decide each independently.
+serving SSE to its clients; vanilla_python streams tool events and the final answer, but not LLM tokens; and the
+autogen MCP agent defaults token streaming off when `MLFLOW_TRACKING_URI` is set (`mlflow.autogen.autolog()` does not
+support streaming) — its SSE endpoint keeps serving, but responses arrive as complete chunks and its playground cannot
+display them live. These are all legitimate points in the design space — decide each independently.
 
 ### Where the surfaces meet
 
