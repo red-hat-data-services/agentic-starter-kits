@@ -48,7 +48,7 @@ form. It also covers how each surface interacts with MCP, MLflow tracing, and gu
 | System prompt | A `system` message in the `messages` array | A top-level `instructions` field | A top-level `system` parameter |
 | Tool calling | `tools` array; model returns `tool_calls`; results posted back as `role: "tool"` messages | Item-based — function calls and outputs are typed items in the `input`/`output` arrays | Content blocks — `tool_use` blocks from the model, `tool_result` blocks from the client |
 | Streaming | SSE `chat.completion.chunk` deltas | SSE typed events (`response.output_text.delta`, ...) | SSE typed events (`content_block_delta`, ...) |
-| Served by | vLLM, OGX, llm-d, Ollama — effectively everyone | OpenAI; vLLM v0.25.1+; llm-d | Anthropic; vLLM (native `/v1/messages` in recent releases, v0.13.0+); OGX (passthrough or translation) |
+| Served by | vLLM, OGX, llm-d, Ollama — effectively everyone | OpenAI; recent vLLM releases ([compatibility](#portability-in-responses)); llm-d with a compatible backend | Anthropic; vLLM (native `/v1/messages` in recent releases, v0.13.0+); OGX (passthrough or translation) |
 | Framework support in this repo | All of them — LangChain, CrewAI, LlamaIndex, AutoGen, ADK | Raw OpenAI SDK only | Claude Code binary only |
 | Kit examples | 10 standard kits (LangGraph, CrewAI, LlamaIndex, ADK, AutoGen) | [vanilla_python](#openai-responses-api), [codex](#openai-responses-api) | [claude-code](#anthropic-messages-api) |
 
@@ -57,9 +57,11 @@ form. It also covers how each surface interacts with MCP, MLflow tracing, and gu
 - **Default to Chat Completions.** It is the de facto industry standard: every model server and every agent framework
   in this repo speaks it, and tool-calling works on all mainstream open-source models. If you have no reason to pick
   otherwise, pick this — start from [agents/langgraph/templates/react_agent](../agents/langgraph/templates/react_agent/README.md).
-- **Pick Responses** when you are targeting OpenAI or vLLM v0.25.1+ with tool calling, want a structured item-based
-  protocol, or are embedding a tool that requires it (Codex CLI does — see
-  [agents/codex](../agents/codex/README.md)). Budget for a Chat Completions fallback if your endpoint may not serve
+- **Pick Responses** when your endpoint serves `/v1/responses`, you want a structured item-based protocol, or you
+  are embedding a tool that requires it (Codex CLI does — see
+  [agents/codex](../agents/codex/README.md)). Basic Responses support and Codex compatibility have different
+  requirements — see [Portability in Responses](#portability-in-responses). Budget for a Chat Completions fallback
+  if your endpoint may not serve
   `/v1/responses` — [vanilla_python](../agents/vanilla_python/templates/openai_responses_agent/README.md) shows the
   pattern.
 - **Pick Messages** when you are running Claude Code or another Anthropic-native client, or your model server serves
@@ -90,7 +92,8 @@ every turn:
 
 Conversation state is therefore the agent's responsibility. That is a feature for agents: LangGraph checkpoints state
 in its graph, and [react_with_database_memory](../agents/langgraph/templates/react_with_database_memory/README.md)
-persists it to a database — neither would be possible if the model server owned the conversation.
+persists it to a database. Agent checkpointing can also coexist with server-side conversation history; the agent
+still needs to checkpoint its orchestration state and any response IDs it uses.
 
 ### Tool-calling model
 
@@ -160,13 +163,16 @@ automatic fallback, and [codex](../agents/codex/README.md) as its exclusive surf
 
 Requests carry a top-level `instructions` field (the system prompt) plus an `input` array of typed items. The API can
 also hold conversation state **server-side**: pass `previous_response_id` and the server stitches the conversation
-together, so the client does not resend history.
+together, so the client does not resend history. **Top-level `instructions` are not carried forward** by
+`previous_response_id`: resend any required instructions on every request, including tool-result continuations
+(see the [OpenAI migration guide](https://developers.openai.com/api/docs/guides/migrate-to-responses)).
 
 The repo's example uses it statelessly —
 [vanilla_python's `_messages_to_responses_input()`](../agents/vanilla_python/templates/openai_responses_agent/src/openai_responses_agent/agent.py)
 converts chat-style messages into `instructions` plus `input_text`/`output_text` items and resends them each turn.
-Server-side state is convenient for chat applications but usually wrong for agents, which need to own, checkpoint, and
-inspect their own state (and point it at a model server that may not store anything).
+This keeps conversation history under the agent's control and works with model servers that do not retain
+responses. Agents can also checkpoint their own state and response IDs while the server retains conversation
+history; choose based on the backend's storage support and your recovery requirements.
 
 ### Tool-calling model in Responses
 
@@ -198,7 +204,12 @@ flag (or the raw SDK's `stream=True`) rather than writing a streaming layer from
 
 This is the weakest dimension. Support is OpenAI-first:
 
-- **Served by**: OpenAI; vLLM v0.25.1+; llm-d (see [llm-d-deployment.md](llm-d-deployment.md)). OGX can front it.
+- **Served by**: OpenAI; recent vLLM releases; llm-d with a backend that serves Responses (see
+  [llm-d-deployment.md](llm-d-deployment.md)). OGX can front it. Basic generation and native function calling were
+  verified on RHOAI 3.6's vLLM `0.24.0+rhaiv.16`; v0.6.4 returned 404. Support depends on the backend build.
+  The repo's **Codex setup has additional compatibility requirements**: upstream vLLM v0.25.1+,
+  support for `developer` messages and namespace tools, and the correct model/parser combination — see
+  [Codex compatibility](../agents/codex/README.md#responses-api-compatibility).
 - **Framework clients**: no kit in this repo uses a framework client on the Responses surface — the frameworks
   themselves do support it (e.g. `langchain-openai`'s `ChatOpenAI(use_responses_api=True)`), but the repo's example
   uses the raw `openai` Python SDK, which is the practical answer for framework-free agents.

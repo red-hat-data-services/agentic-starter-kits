@@ -15,7 +15,8 @@ OGX serves `/v1/messages` in two modes, selected by the inference `provider_type
 - **Translation** (`provider_type: remote::openai`, the default in these manifests): OGX converts Anthropic
   Messages requests to OpenAI Chat Completions on the way in and converts responses — including SSE streams —
   back to Anthropic format on the way out. This works with any OpenAI-compatible backend, including vLLM
-  versions without native `/v1/messages` support (v0.6.x and other older releases).
+  versions without native `/v1/messages` support (v0.6.x and other older releases), with the
+  [translation limitations](#translation-limitations) described below.
 - **Passthrough** (`provider_type: remote::vllm`): OGX forwards `/v1/messages` requests verbatim to the backend.
   This requires vLLM with native Anthropic Messages support (v0.13.0+ or the current RHOAI images).
 
@@ -72,10 +73,17 @@ Set the following env vars on your Claude Code deployment:
 ```bash
 oc set env deployment/claude-code \
   ANTHROPIC_BASE_URL=http://ogx-service.<NAMESPACE>.svc.cluster.local:8321 \
-  CLAUDE_MODEL=vllm/<MODEL_ID>
+  CLAUDE_MODEL=vllm/<MODEL_ID> \
+  MAX_THINKING_TOKENS=0
 ```
 
 OGX prefixes discovered vLLM model IDs with the provider name (`vllm/`), so use the exact `vllm/<MODEL_ID>` value returned by `/v1/models` when configuring Claude Code.
+
+`MAX_THINKING_TOKENS=0` disables Claude Code's extended-thinking requests, which OGX's translation provider
+rejects. The supplied [Claude Code OGX deployment](../deployment/deployment-ogx-vllm.yaml) sets this by default.
+See the [Claude Code environment-variable reference](https://code.claude.com/docs/en/env-vars) and
+[translation limitations](#translation-limitations). Enable thinking only with a native backend and passthrough
+provider that support it.
 
 For the full Claude Code deployment guide, see [`../README.md`](../README.md) (Option D covers OGX).
 
@@ -122,7 +130,7 @@ providers:
   inference:
   - provider_id: vllm
     provider_type: remote::openai   # translation mode (any vLLM backend)
-    # provider_type: remote::vllm   # passthrough mode (needs vLLM v0.13.0+)
+    # provider_type: remote::vllm   # passthrough mode (needs vLLM v0.13.0+); rename api_key to api_token
     config:
       base_url: http://<VLLM_SERVICE>.<NAMESPACE>.svc.cluster.local:<VLLM_PORT>/v1
       api_key: fake         # vLLM does not validate API keys
@@ -184,6 +192,18 @@ Red Hat rotates `registry.redhat.io` image digests, and previously-published dig
 ### fsGroup Rejected by SCC
 
 Some namespaces (notably `redhat-ods-applications`) reject the pod-level `fsGroup: 1001` with `Invalid value: [1001]: 1001 is not an allowed group` because the namespace's SecurityContextConstraints assign a different supplemental-group range. If the OGX pod fails to create with this error, remove the `fsGroup` entry from the pod `securityContext` — the emptyDir volumes work without it.
+
+### Translation Limitations
+
+With the pinned OGX image (`1.2.5.1+rhaiv.0`), translation supports text and native tool calls, including SSE,
+but does not implement every Messages feature:
+
+- Requests with `thinking.type: enabled` return HTTP 400 before reaching the backend. Set
+  `MAX_THINKING_TOKENS=0` on Claude Code when using `remote::openai`, as shown above.
+- `POST /v1/messages/count_tokens` returns HTTP 501 because token counting is not implemented in translation mode.
+
+For these features, use `remote::vllm` with a native backend that implements the feature you need; see
+[Providers](#providers). A successful text or tool-call request does not establish full Claude Code compatibility.
 
 ### No Automatic Mode Fallback
 
