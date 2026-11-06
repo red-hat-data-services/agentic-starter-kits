@@ -1,40 +1,61 @@
 # Deploying llm-d on OpenShift AI
 
-Deploy multiple vLLM instances across separate GPU nodes with llm-d orchestrating intelligent request routing (prefix-cache-aware, queue-based, active-request scoring). Optionally integrate with OGX for the Responses API.
+Deploy multiple vLLM instances across separate GPU nodes with llm-d orchestrating intelligent request routing (prefix-cache-aware, queue-based, active-request scoring). As of RHOAI 3.6, llm-d deployments additionally serve the Anthropic-compatible Messages API, support OpenAI-compatible batch inference, and expose multi-tenant model paths.
+
+Everything in this guide was verified on RHOAI 3.6.0 (OpenShift 4.22, ROSA).
 
 ## Architecture
 
 ```text
-Client → OGX (optional) → Gateway → llm-d scheduler → vLLM pods (N x GPU nodes)
+Online:   Client → Gateway (maas-default-gateway) → llm-d scheduler → vLLM pods (N x GPU nodes)
+Batch:    Client → Gateway → batch apiserver (/v1/batches, /v1/files) → Redis/PostgreSQL
+          → async processor → internal gateway → llm-d scheduler → vLLM pods
 ```
 
 llm-d is a **routing and orchestration layer**, not a model-sharding tool. Each vLLM instance holds a complete copy of the model. llm-d intelligently routes requests across replicas to maximize KV cache hits and balance load.
+
+## What's new in RHOAI 3.6
+
+| Capability | Details |
+|------------|---------|
+| **v1alpha2 CRD + presets** | `LLMInferenceService` uses `baseRefs` to reference versioned `LLMInferenceServiceConfig` presets that supply the vLLM launch command, probes, and security context. No more hand-written liveness probes or launch scripts. |
+| **Messages API** | The gateway routes `/v1/messages` — vLLM's Anthropic-compatible API — alongside the OpenAI-compatible endpoints. Works with Anthropic SDK clients. |
+| **Batch inference (GA)** | The llm-d batch gateway provides OpenAI-compatible `/v1/batches` and `/v1/files` for asynchronous, fire-and-forget workloads, enabled via the `aigateway` DSC component. |
+| **Tool-calling model validation** | Red Hat validates tool-calling models (e.g., GLM, Kimi, Inkling-Small families via BFCL v4). Serving a tool-calling model requires the right vLLM `--tool-call-parser` — see [tool calling](#tool-calling). |
+| **MaaS multi-tenancy** | Models are additionally served under tenant-scoped paths: `/publishers/<namespace>/models/<model>/v1/...`. MaaS configuration moved from `kserve.modelsAsService` to the `aigateway.modelsAsService` DSC component. |
+| **GatewayConfig CRD** | Gateways are managed declaratively via the `GatewayConfig` custom resource (`services.platform.opendatahub.io/v1alpha1`). |
 
 ## Prerequisites
 
 | Requirement | Description |
 |-------------|-------------|
-| **OpenShift cluster** | 4.19+ with ROSA HCP or self-managed |
-| **RHOAI 3.4+** | Red Hat OpenShift AI operator (fast-3.x channel) |
+| **OpenShift cluster** | 4.19+ with ROSA HCP or self-managed (verified on 4.22) |
+| **RHOAI 3.6+** | Red Hat OpenShift AI operator (fast-3.x channel) |
 | **NFD Operator** | Node Feature Discovery — detects GPU hardware. Create a `NodeFeatureDiscovery` instance after installing. |
-| **NVIDIA GPU Operator** | Installs drivers and device plugins. Create a `ClusterPolicy` after installing. |
-| **Red Hat Connectivity Link** | Provides Kuadrant/Authorino for auth — required by RHOAI 3.4 MaaS. Install from OperatorHub. |
-| **Authorino TLS configured** | Authorino must have TLS enabled with a valid certificate. See [RHOAI documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4). |
-| **PostgreSQL database** | MaaS controller requires a `maas-db-config` secret in `redhat-ods-applications` with a `DB_CONNECTION_URL` key pointing to a PostgreSQL instance. See [RHOAI documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4). |
-| **User Workload Monitoring** | Must be enabled on the cluster for MaaS metrics. See [OpenShift monitoring documentation](https://docs.redhat.com/en/documentation/monitoring_stack_for_red_hat_openshift/latest/html/configuring_user_workload_monitoring/preparing-to-configure-the-monitoring-stack-uwm#enabling-monitoring-for-user-defined-projects_preparing-to-configure-the-monitoring-stack-uwm). |
-| **Models-as-a-Service enabled** | Must be enabled in the DataScienceCluster (see below) |
+| **NVIDIA GPU Operator** | Installs drivers and device plugins. Create a `ClusterPolicy` after installing. Note: it taints GPU nodes with `nvidia.com/gpu=true:NoSchedule` — your workload needs a matching toleration (included in the template). |
+| **AI Gateway component** | MaaS gateway and (optionally) batch gateway, enabled in the DataScienceCluster (see below) |
+| **Red Hat Connectivity Link** | *Optional* — provides Kuadrant/Authorino auth. Without it, gateway auth is disabled via the `security.opendatahub.io/enable-auth: 'false'` annotation (as in this guide). Install it and drop the annotation for production. |
 | **Red Hat registry pull secret** | Access to `registry.redhat.io` for vLLM images |
 
-> **Note:** The MaaS controller will fail to start if Authorino TLS, the PostgreSQL
-> database secret, or User Workload Monitoring are not configured. Check the
-> `maas-controller` pod logs for specific error messages if provisioning fails.
+### Enable the AI Gateway component
 
-### Enable Models-as-a-Service
+In RHOAI 3.6, Models-as-a-Service and the batch gateway live under the
+`aigateway` DSC component (they moved from `kserve` in 3.4). The parent
+component must be `Managed` for its submodules to activate:
 
 ```bash
+# MaaS gateway (required for the maas-default-gateway used in this guide)
 oc patch dsc default-dsc --type merge \
-  -p '{"spec":{"components":{"kserve":{"modelsAsService":{"managementState":"Managed"}}}}}'
+  -p '{"spec":{"components":{"aigateway":{"managementState":"Managed","modelsAsAService":{"managementState":"Managed"}}}}}'
+
+# Batch gateway (optional — see "Batch inference" below)
+oc patch dsc default-dsc --type merge \
+  -p '{"spec":{"components":{"aigateway":{"batchGateway":{"managementState":"Managed"}}}}}'
 ```
+
+> **Note:** enabling only `batchGateway` while `aigateway.managementState` is
+> `Removed` has no effect — submodules require the parent module to be
+> `Managed`.
 
 ## Configuration Reference
 
@@ -51,9 +72,10 @@ The following values are specific to your environment. Replace all `<PLACEHOLDER
 | `<NODE_POOL_NAME>` | Label for GPU node pool scheduling | `gpu-llmd-nodes` |
 | `<PULL_SECRET_FILE>` | Path to your Red Hat registry pull secret YAML | `my-pull-secret.yaml` |
 | `<PULL_SECRET_NAME>` | Name of the pull secret in the cluster | `my-pull-secret` |
-| `<VLLM_IMAGE>` | vLLM container image — get the latest digest from the [Red Hat Ecosystem Catalog](https://catalog.redhat.com/en/software/containers/rhaiis/vllm-cuda-rhel9/6825c6b827e18fe3162148a9) | `registry.redhat.io/rhaiis/vllm-cuda-rhel9@sha256:...` |
+| `<VLLM_IMAGE>` | vLLM container image — see the [vLLM image note](#vllm-image-requirements) below | `registry.redhat.io/rhaiis/vllm-cuda-rhel9@sha256:...` |
 | `<GATEWAY_HOST>` | The maas-default-gateway external hostname (auto-assigned ELB or manually configured) | `a1b2c3.us-east-2.elb.amazonaws.com` |
 | `<OGX_ROUTE>` | OGX external route hostname (if using OGX) | `ogx-route-redhat-ods-applications.apps.example.com` |
+| `<SERVICE_NAME>` | LLMInferenceService name | `my-model-llmd` |
 
 ## Recommended Models
 
@@ -63,8 +85,22 @@ Choose a model that fits entirely on a single GPU — llm-d does not shard model
 |-------|------|-------------|-------|
 | `openai/gpt-oss-20b` | ~20B params | ~16 GB (quantized) | Tested with this guide on L4 (23GB) nodes |
 | `meta-llama/Llama-3.1-8B-Instruct` | 8B params | ~8 GB (FP8) | Smaller model, works on most GPU types |
+| `Qwen/Qwen2.5-0.5B-Instruct` | 0.5B params | any GPU / CPU | Used to verify this guide's batch and API examples; use the `-cpu` preset for CPU-only testing |
 
 Set `<MODEL_URI>` to `hf://<model_name>` (e.g., `hf://openai/gpt-oss-20b`) and `<MODEL_NAME>` to the model identifier used in API requests (e.g., `openai/gpt-oss-20b`).
+
+### vLLM image requirements
+
+The `v1alpha2` presets pin a vLLM image digest, but published digests are
+periodically removed from `registry.redhat.io`. If the workload pod reports
+`ErrImagePull` ("manifest unknown"), override the image in `spec.template`
+with the current digest from the [Red Hat Ecosystem Catalog](https://catalog.redhat.com/en/software/containers/rhaiis/vllm-cuda-rhel9/6825c6b827e18fe3162148a9).
+
+Version floor: the Anthropic-compatible `/v1/messages` endpoint and current
+tool-call parsers require a recent vLLM (verified with
+`vllm-0.24.0+rhaiv.16` from the `rhais/vllm-cuda-rhel9` image). For CPU-only
+testing, use the `rhais/vllm-cpu-rhel9` image with the
+`v3-6-0-kserve-config-llm-template-cpu` preset.
 
 ## Step 1: Create GPU Node Pool
 
@@ -97,7 +133,7 @@ oc secrets link default <PULL_SECRET_NAME> --for=pull -n redhat-ods-applications
 
 ## Step 3: Deploy LLMInferenceService
 
-Deploy the LLMInferenceService in the `redhat-ods-applications` namespace. This is required because the `data-science-gateway` only allows routes from this namespace.
+Deploy the LLMInferenceService in the `redhat-ods-applications` namespace. This is required because the gateways only allow routes from this namespace.
 
 A ready-to-use YAML template is at [`infrastructure/llm-d/llminferenceservice.yaml`](../infrastructure/llm-d/llminferenceservice.yaml). Edit the placeholders and apply:
 
@@ -105,9 +141,20 @@ A ready-to-use YAML template is at [`infrastructure/llm-d/llminferenceservice.ya
 oc apply -f infrastructure/llm-d/llminferenceservice.yaml
 ```
 
-**Important:** `spec.router.scheduler: {}` must be explicitly set. Without it, the controller skips scheduler/router creation and you get vLLM pods but no intelligent routing.
+The template uses the **v1alpha2 API with `baseRefs`** — the preset supplies
+the vLLM launch command (including TLS and the multi-tenant
+`publishers/...` model names), health probes, and security context. Discover
+the presets available on your cluster (names are version-prefixed):
 
-**Gateway choice:** The YAML uses `maas-default-gateway` instead of `data-science-gateway`. The `data-science-gateway` has an OAuth proxy designed for browser access, which blocks programmatic API calls. The `maas-default-gateway` has no OAuth proxy and is suitable for API clients like OGX.
+```bash
+oc get llminferenceserviceconfigs -n redhat-ods-applications
+```
+
+Key points:
+
+- **`spec.router.scheduler: {}` must be explicitly set.** Without it, the controller skips scheduler/router creation and you get vLLM pods but no intelligent routing.
+- **Gateway choice:** The template uses `maas-default-gateway` instead of `data-science-gateway`. The `data-science-gateway` has an OAuth proxy designed for browser access, which blocks programmatic API calls. The `maas-default-gateway` has no OAuth proxy and is suitable for API clients like OGX.
+- **GPU taint:** The template includes a toleration for the `nvidia.com/gpu=true:NoSchedule` taint applied by the NVIDIA GPU Operator.
 
 ## Step 4: Create Network Policies
 
@@ -137,6 +184,231 @@ oc get llminferenceservice <SERVICE_NAME> -n redhat-ods-applications -o jsonpath
 
 If deploying OGX in the same namespace with an external route, apply the OGX network policy from `network-policies.yaml` to allow ingress from the OpenShift router.
 
+## API Surfaces
+
+Each LLMInferenceService is reachable through the auto-created HTTPRoute on
+four API surfaces, plus multi-tenant publisher paths. All examples below use:
+
+```bash
+GW=https://<GATEWAY_HOST>/redhat-ods-applications/<SERVICE_NAME>
+```
+
+### Chat completions (OpenAI-compatible)
+
+```bash
+curl -s $GW/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"<MODEL_NAME>","messages":[{"role":"user","content":"Hello"}],"max_tokens":10}'
+```
+
+### Completions and Responses API
+
+`/v1/completions` (legacy) and `/v1/responses` (the newer Responses API used
+by OpenAI SDKs and OGX) are routed the same way:
+
+```bash
+curl -s $GW/v1/responses \
+  -H "Content-Type: application/json" \
+  -d '{"model":"<MODEL_NAME>","input":"Who wrote Moby Dick?"}'
+```
+
+### Messages API (Anthropic-compatible)
+
+New in RHOAI 3.6: the gateway routes `/v1/messages`, vLLM's
+Anthropic-compatible API, so Anthropic SDK clients work directly:
+
+```bash
+curl -s $GW/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{"model":"<MODEL_NAME>","max_tokens":20,"messages":[{"role":"user","content":"Say hello in one word"}]}'
+```
+
+The response is Anthropic-format (`{"type":"message","role":"assistant","content":[{"type":"text",...}]}`).
+
+### Tool calling
+
+Tool calling must be enabled at serve time via vLLM flags in
+`VLLM_ADDITIONAL_ARGS` (see the template):
+
+```text
+--tool-call-parser=<parser> --enable-auto-tool-choice
+```
+
+The parser must match the model family:
+
+| Parser | Model families |
+|--------|----------------|
+| `hermes` | Qwen 2.5/3, Hermes-function-calling models |
+| `llama3_json` | Llama 3.1/3.3 |
+| `mistral` | Mistral (7B instruct v0.2+, Small, Large) |
+| `granite` | IBM Granite 3.x |
+| `pythonic` | Models emitting native Python tool calls (some GLM/Kimi variants) |
+
+Red Hat validates tool-calling capability for select models (GLM, Kimi, and
+Inkling-Small families were validated with BFCL v4 for RHOAI 3.6). For models
+without a validated parser, expect degraded or non-functional tool calls —
+test with a simple two-tool request before building on it:
+
+```bash
+curl -s $GW/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "<MODEL_NAME>",
+    "max_tokens": 100,
+    "tools": [{
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather for a city",
+        "parameters": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
+      }
+    }],
+    "messages": [{"role": "user", "content": "What is the weather in Boston?"}]
+  }'
+```
+
+A working response contains `choices[0].message.tool_calls` with
+`finish_reason: "tool_calls"`.
+
+### Multi-tenant model paths
+
+Every model is also served under publisher (tenant) paths, which is how the
+MaaS multi-tenancy model addresses models across namespaces:
+
+```text
+https://<GATEWAY_HOST>/publishers/<namespace>/models/<MODEL_NAME>/v1/chat/completions
+```
+
+For example:
+
+```bash
+curl -s https://<GATEWAY_HOST>/publishers/redhat-ods-applications/models/qwen/Qwen2.5-0.5B-Instruct/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"qwen/Qwen2.5-0.5B-Instruct","messages":[{"role":"user","content":"hi"}],"max_tokens":5}'
+```
+
+The model also appears under this publisher name in `/v1/models` output.
+
+## Batch Inference
+
+New in RHOAI 3.6: the llm-d batch gateway provides OpenAI-compatible
+`/v1/batches` and `/v1/files` endpoints for high-volume, latency-agnostic
+workloads (bulk classification, RAG corpus ingestion, nightly summarization).
+Clients upload a JSONL file of requests, create a batch, disconnect, and
+retrieve results when processing completes.
+
+Everything below was verified end-to-end on RHOAI 3.6. Manifests are in
+[`infrastructure/llm-d/`](../infrastructure/llm-d/):
+
+| File | Purpose |
+|------|---------|
+| [`batch-deps.yaml`](../infrastructure/llm-d/batch-deps.yaml) | Dev-grade Redis + PostgreSQL backing services |
+| [`batch-internal-gateway.yaml`](../infrastructure/llm-d/batch-internal-gateway.yaml) | Cluster-internal Gateway for processor → model traffic |
+| [`batch-llm-route.yaml`](../infrastructure/llm-d/batch-llm-route.yaml) | HTTPRoute from the internal gateway to the InferencePool |
+| [`llmbatchgateway.yaml`](../infrastructure/llm-d/llmbatchgateway.yaml) | PVC, credentials Secret, and the LLMBatchGateway CR |
+
+### Step 1: Enable the batch gateway component
+
+```bash
+oc patch dsc default-dsc --type merge \
+  -p '{"spec":{"components":{"aigateway":{"managementState":"Managed","batchGateway":{"managementState":"Managed"}}}}}'
+```
+
+Wait for the `llm-d-batch-gateway-operator` pod in `redhat-ods-applications`
+and the `llmbatchgateways.batch.llm-d.ai` CRD. The operator deploys the
+apiserver, processor, and garbage collector only after you create an
+`LLMBatchGateway` CR — and it does **not** provision Redis or PostgreSQL;
+bring your own.
+
+### Step 2: Deploy backing services
+
+The batch gateway needs Redis (request/result queues) and PostgreSQL (job
+metadata). A dev-grade pair is in `batch-deps.yaml`:
+
+```bash
+oc apply -f infrastructure/llm-d/batch-deps.yaml
+```
+
+For production, use a managed or highly available Redis/Valkey and PostgreSQL.
+
+### Step 3: Create the internal gateway and route
+
+The async processor dispatches inference requests through a Gateway API
+HTTPRoute to your service's InferencePool. Create a cluster-internal
+(HTTP, ClusterIP) gateway and a route:
+
+```bash
+oc apply -f infrastructure/llm-d/batch-internal-gateway.yaml
+oc apply -f infrastructure/llm-d/batch-llm-route.yaml   # edit <SERVICE_NAME> first
+```
+
+> **Important:** the route must match the **bare** API path
+> (`/v1/chat/completions`). The dispatcher joins the per-request `url` field
+> from the batch input JSONL with the gateway base URL, and the per-request
+> endpoint takes precedence over the queue's configured path — a route that
+> only matches `/<namespace>/<service>/v1/...` makes every batch request fail
+> with 404.
+
+### Step 4: Create the LLMBatchGateway
+
+Edit `<MODEL_NAME>` and `<SERVICE_NAME>` in `llmbatchgateway.yaml`, then:
+
+```bash
+oc apply -f infrastructure/llm-d/llmbatchgateway.yaml
+```
+
+Wait until the gateway is ready:
+
+```bash
+oc get llmbatchgateway batch-gateway -n redhat-ods-applications
+# Expected: READY True — apiserver, processor, GC, and async processor pods running
+```
+
+Notes on the CR:
+
+- `processor.asyncConfig.resultPollTimeout` is **required** — the operator rejects the CR without it.
+- `fileStorage.fs` with an RWO PVC is dev-grade: the apiserver and processor pods must land on the same node. Use an RWX PVC or the `s3` fileStorage backend for production.
+- The operator creates an HTTPRoute exposing `/v1/batches` and `/v1/files` on the external gateway you specify in `spec.httpRoute.parentRefs`.
+
+### Step 5: Run a batch
+
+Create a JSONL input file — each line is one request, with `url` set to the
+API path (bare path; the model goes in `body.model`):
+
+```bash
+cat > input.jsonl <<'EOF'
+{"custom_id": "req-1", "method": "POST", "url": "/v1/chat/completions", "body": {"model": "<MODEL_NAME>", "messages": [{"role": "user", "content": "What is Kubernetes?"}], "max_tokens": 30}}
+{"custom_id": "req-2", "method": "POST", "url": "/v1/chat/completions", "body": {"model": "<MODEL_NAME>", "messages": [{"role": "user", "content": "Explain KV cache."}], "max_tokens": 30}}
+EOF
+```
+
+Upload the file, create the batch, poll, and download results:
+
+```bash
+GW=https://<GATEWAY_HOST>
+
+# 1. Upload the input file
+FILE_ID=$(curl -s $GW/v1/files -F "purpose=batch" -F "file=@input.jsonl" \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+
+# 2. Create the batch
+BATCH_ID=$(curl -s $GW/v1/batches -H "Content-Type: application/json" \
+  -d "{\"input_file_id\": \"$FILE_ID\", \"endpoint\": \"/v1/chat/completions\", \"completion_window\": \"24h\"}" \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+
+# 3. Poll until status is "completed" (or "failed"/"expired")
+watch curl -s $GW/v1/batches/$BATCH_ID
+
+# 4. Download the results (JSONL: one response object per input line)
+curl -sL $GW/v1/files/$(curl -s $GW/v1/batches/$BATCH_ID \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['output_file_id'])")/content
+```
+
+Each output line contains `custom_id`, `response.status_code`, and the full
+response `body` (including `usage`). Batches can also be cancelled
+(`POST /v1/batches/{id}/cancel`) before completion.
+
 ## Verification
 
 ### Check deployment status
@@ -145,7 +417,7 @@ If deploying OGX in the same namespace with an external route, apply the OGX net
 # LLMInferenceService should show Ready: True
 oc get llminferenceservice -n redhat-ods-applications
 
-# Expected: N vLLM pods (1/1 Running) + 1 router-scheduler pod (2/2 Running)
+# Expected: N vLLM pods (1/1 Running) + 1 router-scheduler pod (1/1 Running)
 oc get pods -n redhat-ods-applications | grep <SERVICE_NAME>
 
 # InferencePool should exist
@@ -156,7 +428,7 @@ oc get inferencepool -n redhat-ods-applications
 
 ```bash
 # Direct to llm-d gateway
-curl -s http://<GATEWAY_HOST>/redhat-ods-applications/<SERVICE_NAME>/v1/chat/completions \
+curl -s https://<GATEWAY_HOST>/redhat-ods-applications/<SERVICE_NAME>/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"<MODEL_NAME>","messages":[{"role":"user","content":"Hello"}],"max_tokens":10}'
 
@@ -172,7 +444,7 @@ Use the included test script to validate llm-d's intelligent routing:
 
 ```bash
 uv run --with aiohttp python infrastructure/llm-d/test_distribution.py \
-  --url http://<GATEWAY_HOST>/redhat-ods-applications/<SERVICE_NAME>/v1 \
+  --url https://<GATEWAY_HOST>/redhat-ods-applications/<SERVICE_NAME>/v1 \
   --model <MODEL_NAME>
 ```
 
@@ -181,8 +453,11 @@ See [`infrastructure/llm-d/test_distribution.py`](../infrastructure/llm-d/test_d
 ## Key Notes
 
 - **llm-d is a routing/orchestration layer.** Each vLLM instance holds a complete copy of the model. llm-d routes requests intelligently (prefix-cache-aware, queue-based, active-request scoring) rather than round-robin.
-- **LLMInferenceService** is the RHOAI-native way to deploy llm-d. It manages vLLM pods, the scheduler, InferencePool, and HTTPRoute automatically.
-- **RHOAI 3.4+ MaaS** requires Red Hat Connectivity Link (Kuadrant/Authorino) for auth and rate limiting.
+- **LLMInferenceService** is the RHOAI-native way to deploy llm-d. It manages vLLM pods, the scheduler, InferencePool, and HTTPRoutes automatically. In 3.6, use the `v1alpha2` API and `baseRefs` presets instead of hand-writing the vLLM launch command and probes.
+- **`router.scheduler: {}` is still required** in 3.6 — without it you get vLLM pods but no intelligent routing.
 - **Use `maas-default-gateway`** for programmatic/API access. The `data-science-gateway` has an OAuth proxy meant for browser access.
 - **Custom NetworkPolicies are required.** The default RHOAI network policy blocks port 8000, which vLLM uses for serving.
-- **Choose a model that fits on a single GPU.** llm-d does not shard models across GPUs — each replica needs the full model in VRAM.
+- **Choose a model that fits on a single GPU.** llm-d does not shard models across GPUs — each replica needs the full model in VRAM. (Disaggregated prefill/decode presets exist in 3.6 for advanced setups.)
+- **Tool calling needs the right parser.** Serve with `--tool-call-parser=<family parser> --enable-auto-tool-choice`; see the [parser table](#tool-calling).
+- **Batch gateway does not provision its dependencies.** Bring your own Redis, PostgreSQL, and file storage (RWX PVC or S3 for production). The batch HTTPRoute must match bare API paths (`/v1/chat/completions`) — the per-request `url` in the input JSONL overrides the queue's configured path.
+- **MaaS multi-tenancy** addresses every model under `/publishers/<namespace>/models/<model>/v1/...` in addition to the service path.
