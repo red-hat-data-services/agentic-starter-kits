@@ -12,6 +12,10 @@
 #   <MODEL_NAME>  - Model identifier served by your LLMInferenceService
 #                   (e.g., qwen/Qwen2.5-0.5B-Instruct)
 #   <SERVICE_NAME> - LLMInferenceService name (e.g., my-model-llmd)
+#   <POSTGRESQL_USER> / <POSTGRESQL_PASSWORD> / <POSTGRESQL_DATABASE>
+#                  - Must match the PostgreSQL deployment from batch-deps.yaml.
+#                    Generate unique credentials per deployment; do not reuse
+#                    shared values.
 #
 # The file storage here uses an RWO PVC — dev-grade only, because the
 # apiserver, processor, and GC pods must all mount it on the same node and the
@@ -47,7 +51,7 @@ stringData:
   # Must match the Redis deployment from batch-deps.yaml
   redis-url: "redis://batch-redis.redhat-ods-applications.svc.cluster.local:6379/0"
   # Must match the PostgreSQL deployment from batch-deps.yaml
-  postgresql-url: "postgresql://batchgw:batchgwpass@batch-postgres.redhat-ods-applications.svc.cluster.local:5432/batchgateway?sslmode=disable"
+  postgresql-url: "postgresql://<POSTGRESQL_USER>:<POSTGRESQL_PASSWORD>@batch-postgres.redhat-ods-applications.svc.cluster.local:5432/<POSTGRESQL_DATABASE>?sslmode=disable"
 ---
 apiVersion: batch.llm-d.ai/v1alpha1
 kind: LLMBatchGateway

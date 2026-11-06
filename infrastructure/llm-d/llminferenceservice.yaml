@@ -36,9 +36,11 @@ metadata:
   annotations:
     opendatahub.io/model-type: generative
     openshift.io/display-name: <SERVICE_NAME>
-    # Auth is disabled because maas-default-gateway has no OAuth proxy and no
-    # Red Hat Connectivity Link is installed. For production, install
-    # Connectivity Link and remove this annotation to enforce auth.
+    # WARNING: auth is disabled because maas-default-gateway has no OAuth
+    # proxy and no Red Hat Connectivity Link is installed. Any client that
+    # can reach the gateway host can invoke this model and consume GPU
+    # capacity. For production, install Connectivity Link and REMOVE this
+    # annotation to enforce authentication.
     security.opendatahub.io/enable-auth: 'false'
     prometheus.io/path: /metrics
     prometheus.io/port: "8000"
@@ -82,10 +84,10 @@ spec:
         image: <VLLM_IMAGE>
         env:
           # Tool calling requires the parser matching your model family
-          # (hermes for Qwen, llama3_json for Llama, mistral for Mistral)
-          # and --enable-auto-tool-choice.
+          # (openai for gpt-oss, hermes for Qwen, llama3_json for Llama,
+          # mistral for Mistral) and --enable-auto-tool-choice.
           - name: VLLM_ADDITIONAL_ARGS
-            value: "--max-model-len=16000 --tool-call-parser=hermes --enable-auto-tool-choice"
+            value: "--max-model-len=16000 --tool-call-parser=openai --enable-auto-tool-choice"
           - name: HF_HOME
             value: /tmp/huggingface
           - name: HOME

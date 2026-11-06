@@ -8,12 +8,32 @@
 #   - Redis    as the async request/result queue transport
 #   - PostgreSQL for batch job metadata (dbBackend: postgresql)
 #
-# Credentials here (batchgw/batchgwpass) are examples — replace them and match
-# the postgresql-url in llmbatchgateway.yaml's Secret.
+# Before applying, replace the following placeholders with your values
+# (they must match the postgresql-url in llmbatchgateway.yaml):
+#
+#   <POSTGRESQL_USER>     - PostgreSQL user for the batch gateway (e.g., batchgw)
+#   <POSTGRESQL_PASSWORD> - PostgreSQL password (generate a unique value per
+#                           deployment; do not reuse shared credentials)
+#   <POSTGRESQL_DATABASE> - PostgreSQL database name (e.g., batchgateway)
+#
+# Job metadata is persisted in the batch-postgres-pvc claim so it survives
+# container restarts.
 #
 # Usage:
 #   oc apply -f batch-deps.yaml
 
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: batch-postgres-pvc
+  namespace: redhat-ods-applications
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -36,6 +56,11 @@ spec:
           image: registry.redhat.io/rhel9/redis-7
           ports:
             - containerPort: 6379
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            runAsNonRoot: true
           readinessProbe:
             tcpSocket:
               port: 6379
@@ -76,27 +101,27 @@ spec:
           image: registry.redhat.io/rhel9/postgresql-15
           env:
             - name: POSTGRESQL_USER
-              value: batchgw
+              value: <POSTGRESQL_USER>
             - name: POSTGRESQL_PASSWORD
-              value: batchgwpass
+              value: <POSTGRESQL_PASSWORD>
             - name: POSTGRESQL_DATABASE
-              value: batchgateway
+              value: <POSTGRESQL_DATABASE>
           ports:
             - containerPort: 5432
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            runAsNonRoot: true
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/pgsql/data
           readinessProbe:
             exec:
-              command: ["/usr/bin/pg_isready", "-U", "batchgw", "-d", "batchgateway"]
+              command: ["/usr/bin/pg_isready", "-U", "<POSTGRESQL_USER>", "-d", "<POSTGRESQL_DATABASE>"]
             initialDelaySeconds: 10
             periodSeconds: 5
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: batch-postgres
-  namespace: redhat-ods-applications
-spec:
-  selector:
-    app: batch-postgres
-  ports:
-    - port: 5432
-      targetPort: 5432
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: batch-postgres-pvc

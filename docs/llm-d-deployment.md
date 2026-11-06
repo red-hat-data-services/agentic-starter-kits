@@ -34,7 +34,7 @@ llm-d is a **routing and orchestration layer**, not a model-sharding tool. Each 
 | **NFD Operator** | Node Feature Discovery — detects GPU hardware. Create a `NodeFeatureDiscovery` instance after installing. |
 | **NVIDIA GPU Operator** | Installs drivers and device plugins. Create a `ClusterPolicy` after installing. Note: it taints GPU nodes with `nvidia.com/gpu=true:NoSchedule` — your workload needs a matching toleration (included in the template). |
 | **AI Gateway component** | MaaS gateway and (optionally) batch gateway, enabled in the DataScienceCluster (see below) |
-| **Red Hat Connectivity Link** | *Optional* — provides Kuadrant/Authorino auth. Without it, gateway auth is disabled via the `security.opendatahub.io/enable-auth: 'false'` annotation (as in this guide). Install it and drop the annotation for production. |
+| **Red Hat Connectivity Link** | *Optional* — provides Kuadrant/Authorino auth. Without it, gateway auth is disabled via the `security.opendatahub.io/enable-auth: 'false'` annotation (as in this guide). **Warning:** in that configuration, any client that can reach the gateway host can invoke the model and consume GPU capacity — fine for isolated development clusters only. Install Connectivity Link and drop the annotation for production. |
 | **Red Hat registry pull secret** | Access to `registry.redhat.io` for vLLM images |
 
 ### Enable the AI Gateway component
@@ -256,6 +256,7 @@ The parser must match the model family:
 
 | Parser | Model families |
 |--------|----------------|
+| `openai` | GPT-OSS and other OpenAI-native tool-call formats |
 | `hermes` | Qwen 2.5/3, Hermes-function-calling models |
 | `llama3_json` | Llama 3.1/3.3 |
 | `mistral` | Mistral (7B instruct v0.2+, Small, Large) |
@@ -390,17 +391,30 @@ Notes on the CR:
   ```bash
   VOLUME_NODE=$(oc get pod batch-gateway-processor-0 -n redhat-ods-applications \
     -o jsonpath='{.spec.nodeName}')
+  if [ -z "$VOLUME_NODE" ]; then
+    echo "ERROR: batch-gateway-processor-0 not found or not scheduled — aborting" >&2
+    exit 1
+  fi
+  # Cordon every schedulable node except the volume node, labeling the ones
+  # this procedure cordons so already-cordoned nodes are left untouched.
   for n in $(oc get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
-    [ "$n" != "$VOLUME_NODE" ] && oc adm cordon "$n"
+    if [ "$n" != "$VOLUME_NODE" ] && \
+       [ "$(oc get node "$n" -o jsonpath='{.spec.unschedulable}')" != "true" ]; then
+      oc label node "$n" batch-recovery-cordoned=true --overwrite
+      oc adm cordon "$n"
+    fi
   done
   oc delete pod -n redhat-ods-applications -l app.kubernetes.io/instance=batch-gateway \
     --field-selector=status.phase!=Running
-  for n in $(oc get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
-    [ "$n" != "$VOLUME_NODE" ] && oc adm uncordon "$n"
+  # Uncordon only the nodes this procedure cordoned.
+  for n in $(oc get nodes -l batch-recovery-cordoned=true \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
+    oc adm uncordon "$n"
+    oc label node "$n" batch-recovery-cordoned-
   done
   ```
 
-  For production, avoid the issue entirely: use an RWX PVC or the `s3` fileStorage backend.
+  For production, avoid the issue entirely: use an RWX PVC or the `s3` fileStorage backend. The example uses RWO because default storage classes on ROSA and self-managed AWS clusters (`gp2`/`gp3`) are RWO-only — RWX requires an additional storage layer such as OpenShift Data Foundation. If your cluster already has an RWX storage class, prefer it: change the PVC's `accessModes` to `ReadWriteMany` and skip the co-location recovery entirely.
 - The operator creates an HTTPRoute exposing `/v1/batches` and `/v1/files` on the external gateway you specify in `spec.httpRoute.parentRefs`.
 
 ### Step 5: Run a batch
