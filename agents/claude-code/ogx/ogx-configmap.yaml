@@ -1,10 +1,26 @@
-# OGX Configuration for Claude Code Passthrough
+# OGX Configuration for Claude Code
 #
 # This ConfigMap provides the OGX runtime configuration that enables
-# the Anthropic Messages API (/v1/messages) passthrough to a vLLM backend.
+# the Anthropic Messages API (/v1/messages) in front of a vLLM backend.
 #
-# When vLLM supports /v1/messages natively, OGX uses passthrough mode —
-# requests are forwarded directly without API format translation.
+# OGX serves /v1/messages in two modes, selected by the inference
+# provider_type below:
+#
+#   remote::openai  - translation mode (default). OGX translates Anthropic
+#                     Messages requests to OpenAI Chat Completions and back,
+#                     including SSE streams. Works with any OpenAI-compatible
+#                     backend, including vLLM versions without native
+#                     /v1/messages support (e.g., v0.6.x). Extended thinking
+#                     is unsupported: set MAX_THINKING_TOKENS=0 on Claude Code.
+#                     /v1/messages/count_tokens is also not implemented (501).
+#   remote::vllm    - passthrough mode. OGX forwards /v1/messages verbatim to
+#                     the backend. Requires vLLM with native Anthropic Messages
+#                     support (v0.13.0+ / current RHOAI images). There is NO
+#                     automatic fallback to translation — a backend without
+#                     /v1/messages returns 404 and OGX surfaces a 500.
+#
+# Auth fields differ by provider type: remote::openai reads `api_key`,
+# remote::vllm reads `api_token`.
 #
 # Before applying, replace the following placeholders with your values:
 #
@@ -39,16 +55,20 @@ data:
     providers:
       inference:
       - provider_id: vllm
-        provider_type: remote::vllm
+        # remote::openai = translation mode (any vLLM backend).
+        # Switch to remote::vllm for passthrough mode (requires
+        # vLLM v0.13.0+ with native /v1/messages), and rename
+        # api_key below to api_token when switching providers.
+        provider_type: remote::openai
         config:
           base_url: http://<VLLM_SERVICE>.<NAMESPACE>.svc.cluster.local:<VLLM_PORT>/v1
-          api_token: fake        # vLLM default: no auth. Replace if vLLM is configured with --api-key
+          api_key: fake        # vLLM default: no auth. Replace if vLLM is configured with --api-key
           max_tokens: 4096
-          refresh_models: true   # Keep the OGX model registry in sync with vLLM
+          refresh_models: true # Keep the OGX model registry in sync with vLLM
 
       messages:
       - provider_id: builtin
-        provider_type: inline::builtin
+        provider_type: inline::builtin   # Enables /v1/messages; delegates to the inference provider
         config:
           kvstore:
             namespace: message_batches

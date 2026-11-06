@@ -1,16 +1,27 @@
 # OGX Gateway for Claude Code
 
-Deploy OGX as an API gateway between Claude Code and vLLM on OpenShift. OGX provides the Anthropic Messages API (`/v1/messages`) passthrough to vLLM.
+Deploy OGX as an API gateway between Claude Code and vLLM on OpenShift. OGX provides the Anthropic Messages API (`/v1/messages`) in front of a vLLM backend, either by translating requests to OpenAI Chat Completions or by passing them through to a backend that serves `/v1/messages` natively.
 
 ## Architecture
 
 ```text
 Claude Code  ──HTTP──▶  OGX (:8321)  ──HTTP──▶  vLLM (:8000)
-                        /v1/messages              /v1/messages
-                        (passthrough)             (Anthropic API)
+                        /v1/messages            /v1/chat/completions  (translation mode)
+                                                /v1/messages          (passthrough mode)
 ```
 
-When vLLM supports `/v1/messages` natively, OGX uses passthrough mode — requests are forwarded directly to vLLM without API format translation. If vLLM does not support `/v1/messages`, OGX falls back to translating Anthropic requests into OpenAI format via `/v1/chat/completions`.
+OGX serves `/v1/messages` in two modes, selected by the inference `provider_type` in `ogx-configmap.yaml`:
+
+- **Translation** (`provider_type: remote::openai`, the default in these manifests): OGX converts Anthropic
+  Messages requests to OpenAI Chat Completions on the way in and converts responses — including SSE streams —
+  back to Anthropic format on the way out. This works with any OpenAI-compatible backend, including vLLM
+  versions without native `/v1/messages` support (v0.6.x and other older releases), with the
+  [translation limitations](#translation-limitations) described below.
+- **Passthrough** (`provider_type: remote::vllm`): OGX forwards `/v1/messages` requests verbatim to the backend.
+  This requires vLLM with native Anthropic Messages support (v0.13.0+ or the current RHOAI images).
+
+There is **no automatic fallback** between the modes: with `remote::vllm`, a backend that lacks `/v1/messages`
+returns 404 and OGX surfaces a 500 to the client. Pick the provider type that matches your backend.
 
 ## Prerequisites
 
@@ -62,14 +73,23 @@ Set the following env vars on your Claude Code deployment:
 ```bash
 oc set env deployment/claude-code \
   ANTHROPIC_BASE_URL=http://ogx-service.<NAMESPACE>.svc.cluster.local:8321 \
-  CLAUDE_MODEL=vllm/<MODEL_ID>
+  CLAUDE_MODEL=vllm/<MODEL_ID> \
+  MAX_THINKING_TOKENS=0
 ```
 
 OGX prefixes discovered vLLM model IDs with the provider name (`vllm/`), so use the exact `vllm/<MODEL_ID>` value returned by `/v1/models` when configuring Claude Code.
 
+`MAX_THINKING_TOKENS=0` disables Claude Code's extended-thinking requests, which OGX's translation provider
+rejects. The supplied [Claude Code OGX deployment](../deployment/deployment-ogx-vllm.yaml) sets this by default.
+See the [Claude Code environment-variable reference](https://code.claude.com/docs/en/env-vars) and
+[translation limitations](#translation-limitations). Enable thinking only with a native backend and passthrough
+provider that support it.
+
 For the full Claude Code deployment guide, see [`../README.md`](../README.md) (Option D covers OGX).
 
-## Verifying the Passthrough
+## Verifying the Messages API
+
+These checks exercise the full path — in translation mode, Anthropic requests go in and OpenAI Chat Completions go to the backend; in passthrough mode, requests reach the backend's `/v1/messages` directly:
 
 ```bash
 # Non-streaming
@@ -85,7 +105,9 @@ oc exec deployment/ogx -- curl -s http://localhost:8321/v1/messages \
   -d '{"model":"vllm/<MODEL_ID>","max_tokens":50,"stream":true,"messages":[{"role":"user","content":"Hello"}]}'
 ```
 
-The streaming response should include all SSE event types: `message_start`, `content_block_start`, `content_block_delta`, `content_block_stop`, `message_delta`, `message_stop`.
+A successful non-streaming call returns an Anthropic Messages response (`content` blocks, `stop_reason`). The streaming response should include all SSE event types: `message_start`, `content_block_start`, `content_block_delta`, `content_block_stop`, `message_delta`, `message_stop` — both event sequences are produced correctly in translation mode too.
+
+To confirm which mode is active, watch the vLLM backend logs while sending requests: translation mode logs `POST /v1/chat/completions`, passthrough mode logs `POST /v1/messages`.
 
 ## OGX Configuration Details
 
@@ -107,23 +129,33 @@ Both APIs are required. The `messages` API provides the Anthropic Messages API t
 providers:
   inference:
   - provider_id: vllm
-    provider_type: remote::vllm
+    provider_type: remote::openai   # translation mode (any vLLM backend)
+    # provider_type: remote::vllm   # passthrough mode (needs vLLM v0.13.0+); rename api_key to api_token
     config:
       base_url: http://<VLLM_SERVICE>.<NAMESPACE>.svc.cluster.local:<VLLM_PORT>/v1
-      api_token: fake        # vLLM does not validate API tokens
-      max_tokens: 4096       # Default max tokens per request
-      refresh_models: true   # Refresh the OGX model registry from vLLM
+      api_key: fake         # vLLM does not validate API keys
+      max_tokens: 4096      # Default max tokens per request
+      refresh_models: true  # Refresh the OGX model registry from vLLM
 
   messages:
   - provider_id: builtin
-    provider_type: inline::builtin   # Translates Anthropic ↔ OpenAI
+    provider_type: inline::builtin   # Enables /v1/messages; delegates to the inference provider
     config:
       kvstore:
         namespace: message_batches
         backend: kv_default
 ```
 
-The `remote::vllm` provider connects to your vLLM backend and automatically discovers models from `/v1/models`. The `inline::builtin` messages provider enables the `/v1/messages` endpoint and requires a `kvstore` backend for message-batch state.
+The inference provider connects to your vLLM backend and discovers models from `/v1/models`. Two provider types are supported:
+
+- `remote::openai` — **translation mode** (the default in these manifests). OGX translates Anthropic Messages
+  to OpenAI Chat Completions — requests, responses, and SSE streams — so any vLLM backend works, including
+  ones without native `/v1/messages`. The auth config field is `api_key`.
+- `remote::vllm` — **passthrough mode**. OGX forwards `/v1/messages` verbatim. Requires vLLM with native
+  Anthropic Messages support (v0.13.0+ / current RHOAI images); a backend without it returns 404 and OGX
+  surfaces a 500 — there is no fallback to translation. The auth config field is `api_token`.
+
+The `inline::builtin` messages provider enables the `/v1/messages` endpoint and requires a `kvstore` backend for message-batch state.
 
 ### Model Discovery
 
@@ -137,7 +169,7 @@ registered_resources:
     model_type: llm
 ```
 
-For the common single-vLLM setup, you do not need an explicit registration block. OGX auto-discovers remote vLLM models and exposes them with the `vllm/` prefix, for example `vllm/qwen2-5-7b-instruct`. Use the exact value returned by `/v1/models` when configuring Claude Code. If you need a custom alias, register it under `registered_resources.models`.
+For the common single-vLLM setup, you do not need an explicit registration block. OGX auto-discovers remote vLLM models and exposes them with the `vllm/` prefix, for example `vllm/qwen2-5-7b-instruct`. Use the exact value returned by `/v1/models` when configuring Claude Code. If you need a custom alias, register it under `registered_resources.models`. Note that discovery only works when the provider's auth field is set correctly (`api_key` for `remote::openai`, `api_token` for `remote::vllm`) — an empty `/v1/models` list usually means the wrong field name.
 
 ## Known Issues
 
@@ -152,6 +184,30 @@ A network policy is required to allow traffic to reach OGX on port 8321 from Cla
 ### Storage Backend
 
 These manifests use SQLite (`/tmp/ogx.db`) for OGX's internal storage, which is suitable for single-replica deployments. For multi-replica or production setups, configure PostgreSQL as the storage backend in `ogx-configmap.yaml`.
+
+### Image Digest Rotation
+
+Red Hat rotates `registry.redhat.io` image digests, and previously-published digests start returning `manifest unknown`, surfacing as `ErrImagePull` on the OGX pod. If this happens, look up the current digest for `rhoai/odh-ogx-core-rhel9` in the Red Hat Ecosystem Catalog and update the image reference in `ogx-deployment.yaml`.
+
+### fsGroup Rejected by SCC
+
+Some namespaces (notably `redhat-ods-applications`) reject the pod-level `fsGroup: 1001` with `Invalid value: [1001]: 1001 is not an allowed group` because the namespace's SecurityContextConstraints assign a different supplemental-group range. If the OGX pod fails to create with this error, remove the `fsGroup` entry from the pod `securityContext` — the emptyDir volumes work without it.
+
+### Translation Limitations
+
+With the pinned OGX image (`1.2.5.1+rhaiv.0`), translation supports text and native tool calls, including SSE,
+but does not implement every Messages feature:
+
+- Requests with `thinking.type: enabled` return HTTP 400 before reaching the backend. Set
+  `MAX_THINKING_TOKENS=0` on Claude Code when using `remote::openai`, as shown above.
+- `POST /v1/messages/count_tokens` returns HTTP 501 because token counting is not implemented in translation mode.
+
+For these features, use `remote::vllm` with a native backend that implements the feature you need; see
+[Providers](#providers). A successful text or tool-call request does not establish full Claude Code compatibility.
+
+### No Automatic Mode Fallback
+
+The `remote::vllm` provider is passthrough-only: if the backing vLLM lacks native `/v1/messages`, requests fail with 500 (the backend's 404 propagated) rather than falling back to Chat Completions translation. Switch the provider type to `remote::openai` for translation mode — see [Providers](#providers) above.
 
 ## Cleanup
 
