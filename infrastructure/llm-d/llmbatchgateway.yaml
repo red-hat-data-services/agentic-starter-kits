@@ -1,0 +1,101 @@
+# LLMBatchGateway custom resource for batch inference on OpenShift AI 3.6+.
+#
+# Requires:
+#   - aigateway.batchGateway enabled in the DataScienceCluster (see
+#     docs/llm-d-deployment.md)
+#   - Redis + PostgreSQL reachable (see batch-deps.yaml)
+#   - an internal gateway + HTTPRoute for processor -> model traffic
+#     (see batch-internal-gateway.yaml, batch-llm-route.yaml)
+#
+# Before applying, replace the following placeholders with your values:
+#
+#   <MODEL_NAME>  - Model identifier served by your LLMInferenceService
+#                   (e.g., qwen/Qwen2.5-0.5B-Instruct)
+#   <SERVICE_NAME> - LLMInferenceService name (e.g., my-model-llmd)
+#   <POSTGRESQL_USER> / <POSTGRESQL_PASSWORD> / <POSTGRESQL_DATABASE>
+#                  - Must match the PostgreSQL deployment from batch-deps.yaml.
+#                    Generate unique credentials per deployment; do not reuse
+#                    shared values.
+#
+# The file storage here uses an RWO PVC — dev-grade only, because the
+# apiserver, processor, and GC pods must all mount it on the same node and the
+# scheduler does not guarantee co-location. Pods that lose the volume race
+# stay in ContainerCreating with Multi-Attach errors; recover by cordoning
+# all nodes except the one running batch-gateway-processor-0, deleting the
+# stuck pods, and uncordoning (see docs/llm-d-deployment.md, batch section).
+# For production use an RWX PVC or the s3 fileStorage backend (S3-compatible
+# object storage with credentials in the referenced Secret).
+#
+# Usage:
+#   oc apply -f llmbatchgateway.yaml
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: batch-gateway-pvc
+  namespace: redhat-ods-applications
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: batch-gateway-secrets
+  namespace: redhat-ods-applications
+type: Opaque
+stringData:
+  # Must match the Redis deployment from batch-deps.yaml
+  redis-url: "redis://batch-redis.redhat-ods-applications.svc.cluster.local:6379/0"
+  # Must match the PostgreSQL deployment from batch-deps.yaml
+  postgresql-url: "postgresql://<POSTGRESQL_USER>:<POSTGRESQL_PASSWORD>@batch-postgres.redhat-ods-applications.svc.cluster.local:5432/<POSTGRESQL_DATABASE>?sslmode=disable"
+---
+apiVersion: batch.llm-d.ai/v1alpha1
+kind: LLMBatchGateway
+metadata:
+  name: batch-gateway
+  namespace: redhat-ods-applications
+spec:
+  # References the Secret above (immutable after creation).
+  secretRef:
+    name: batch-gateway-secrets
+  dbBackend: postgresql
+  fileStorage:
+    fs:
+      basePath: /tmp/batch-gateway
+      claimName: batch-gateway-pvc
+  apiServer:
+    replicas: 1
+  processor:
+    replicas: 1
+    # Map each served model to its InferencePool. The key must match the
+    # model name used in batch request bodies.
+    modelGateways:
+      <MODEL_NAME>:
+        inferencePoolName: <SERVICE_NAME>-inference-pool
+    asyncConfig:
+      # Required — validation fails without it.
+      resultPollTimeout: 60s
+      # Base URL of the internal gateway from batch-internal-gateway.yaml.
+      inferenceGateway:
+        url: http://batch-internal-gateway-data-science-gateway-class.openshift-ingress.svc.cluster.local
+      redis:
+        # Default request path (the per-request `url` field in the batch
+        # input JSONL takes precedence over this at dispatch time).
+        requestPathURL: /redhat-ods-applications/<SERVICE_NAME>/v1/chat/completions
+        queuesConfig:
+          - name: llm-d-async:requests:<SERVICE_NAME>-inference-pool
+            igwBaseURL: http://batch-internal-gateway-data-science-gateway-class.openshift-ingress.svc.cluster.local
+            requestPathURL: /redhat-ods-applications/<SERVICE_NAME>/v1/chat/completions
+  gc:
+    interval: 30m
+    replicas: 1
+  # Exposes /v1/batches and /v1/files on the external maas-default-gateway.
+  httpRoute:
+    enabled: true
+    parentRefs:
+      - name: maas-default-gateway
+        namespace: openshift-ingress
