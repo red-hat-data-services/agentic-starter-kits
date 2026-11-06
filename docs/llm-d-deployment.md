@@ -57,6 +57,23 @@ oc patch dsc default-dsc --type merge \
 > `Removed` has no effect — submodules require the parent module to be
 > `Managed`.
 
+### Create the MaaS gateway
+
+The `maas-default-gateway` Gateway **must already exist** before the MaaS
+controller can reconcile — the component does not create it. On clusters where
+a model was deployed through the OpenShift AI dashboard, the gateway already
+exists and this step is a no-op. On CLI-only clusters, create it:
+
+```bash
+oc apply -f infrastructure/llm-d/maas-gateway.yaml
+```
+
+See [`infrastructure/llm-d/maas-gateway.yaml`](../infrastructure/llm-d/maas-gateway.yaml).
+Without it, `maas-controller` logs repeat
+`gateway openshift-ingress/maas-default-gateway not found: the specified
+Gateway must exist before enabling MaaS platform reconcile` and any
+`LLMInferenceService` referencing the gateway stays unready.
+
 ## Configuration Reference
 
 The following values are specific to your environment. Replace all `<PLACEHOLDER>` values in the commands and YAML files below with your own.
@@ -368,7 +385,22 @@ oc get llmbatchgateway batch-gateway -n redhat-ods-applications
 Notes on the CR:
 
 - `processor.asyncConfig.resultPollTimeout` is **required** — the operator rejects the CR without it.
-- `fileStorage.fs` with an RWO PVC is dev-grade: the apiserver and processor pods must land on the same node. Use an RWX PVC or the `s3` fileStorage backend for production.
+- `fileStorage.fs` with an RWO PVC is dev-grade: the apiserver, processor, and GC pods all mount the PVC, and with an RWO volume they must land on the **same node**. The scheduler does not guarantee this — pods that lose the volume race stay in `ContainerCreating` with `Multi-Attach error` events. If that happens, recover by pinning scheduling to the node that holds the volume (the node of the running `batch-gateway-processor-0` pod) and deleting the stuck pods:
+
+  ```bash
+  VOLUME_NODE=$(oc get pod batch-gateway-processor-0 -n redhat-ods-applications \
+    -o jsonpath='{.spec.nodeName}')
+  for n in $(oc get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
+    [ "$n" != "$VOLUME_NODE" ] && oc adm cordon "$n"
+  done
+  oc delete pod -n redhat-ods-applications -l app.kubernetes.io/instance=batch-gateway \
+    --field-selector=status.phase!=Running
+  for n in $(oc get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
+    [ "$n" != "$VOLUME_NODE" ] && oc adm uncordon "$n"
+  done
+  ```
+
+  For production, avoid the issue entirely: use an RWX PVC or the `s3` fileStorage backend.
 - The operator creates an HTTPRoute exposing `/v1/batches` and `/v1/files` on the external gateway you specify in `spec.httpRoute.parentRefs`.
 
 ### Step 5: Run a batch
@@ -459,5 +491,6 @@ See [`infrastructure/llm-d/test_distribution.py`](../infrastructure/llm-d/test_d
 - **Custom NetworkPolicies are required.** The default RHOAI network policy blocks port 8000, which vLLM uses for serving.
 - **Choose a model that fits on a single GPU.** llm-d does not shard models across GPUs — each replica needs the full model in VRAM. (Disaggregated prefill/decode presets exist in 3.6 for advanced setups.)
 - **Tool calling needs the right parser.** Serve with `--tool-call-parser=<family parser> --enable-auto-tool-choice`; see the [parser table](#tool-calling).
-- **Batch gateway does not provision its dependencies.** Bring your own Redis, PostgreSQL, and file storage (RWX PVC or S3 for production). The batch HTTPRoute must match bare API paths (`/v1/chat/completions`) — the per-request `url` in the input JSONL overrides the queue's configured path.
+- **Batch gateway does not provision its dependencies.** Bring your own Redis, PostgreSQL, and file storage (RWX PVC or S3 for production — with a dev RWO PVC, the mounting pods must co-locate on one node; see the recovery procedure in the batch section). The batch HTTPRoute must match bare API paths (`/v1/chat/completions`) — the per-request `url` in the input JSONL overrides the queue's configured path.
+- **The `maas-default-gateway` must exist before MaaS reconciles.** The `aigateway` DSC component does not create it — apply [`infrastructure/llm-d/maas-gateway.yaml`](../infrastructure/llm-d/maas-gateway.yaml) on clusters where no model was deployed through the dashboard.
 - **MaaS multi-tenancy** addresses every model under `/publishers/<namespace>/models/<model>/v1/...` in addition to the service path.

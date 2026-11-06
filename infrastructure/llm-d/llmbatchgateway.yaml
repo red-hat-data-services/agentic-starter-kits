@@ -14,8 +14,12 @@
 #   <SERVICE_NAME> - LLMInferenceService name (e.g., my-model-llmd)
 #
 # The file storage here uses an RWO PVC — dev-grade only, because the
-# apiserver and processor pods must all mount it on the same node. For
-# production use an RWX PVC or the s3 fileStorage backend (S3-compatible
+# apiserver, processor, and GC pods must all mount it on the same node and the
+# scheduler does not guarantee co-location. Pods that lose the volume race
+# stay in ContainerCreating with Multi-Attach errors; recover by cordoning
+# all nodes except the one running batch-gateway-processor-0, deleting the
+# stuck pods, and uncordoning (see docs/llm-d-deployment.md, batch section).
+# For production use an RWX PVC or the s3 fileStorage backend (S3-compatible
 # object storage with credentials in the referenced Secret).
 #
 # Usage:
