@@ -30,7 +30,9 @@ endpoint that supports the Responses API.
 ## Local Development
 
 > **Note:** This agent uses the [OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create),
-> which is specific to OpenAI. It does not use Ollama or OGX for local model serving.
+> which is specific to OpenAI. It does not use Ollama or OGX for local model serving. See
+> [LLM API Surfaces](../../../../docs/llm-api-surfaces.md) for how the Responses API compares to Chat Completions and
+> Messages, including this agent's automatic fallback to Chat Completions.
 
 ### Initiating base
 
