@@ -1,7 +1,8 @@
 # Claude Code Deployment for OpenShift - OGX Gateway to vLLM
 #
 # This deployment connects Claude Code to a vLLM server through OGX (from RHOAI).
-# OGX provides the Anthropic Messages API (/v1/messages) with native passthrough to vLLM.
+# OGX provides the Anthropic Messages API (/v1/messages) via Chat Completions
+# translation (the standalone gateway default) or native passthrough to vLLM.
 #
 # Architecture:
 #   Claude Code → OGX (API Gateway) → vLLM (Model Server)
@@ -166,6 +167,11 @@ spec:
             # Set to "fake" if no auth is required, or a real token if it is.
             - name: ANTHROPIC_AUTH_TOKEN
               value: "fake"
+            # OGX remote::openai translation rejects extended-thinking requests.
+            # Enable thinking only with a native backend and passthrough provider
+            # that support it. See ../ogx/README.md#translation-limitations.
+            - name: MAX_THINKING_TOKENS
+              value: "0"
             # Adds model to the Claude Code model picker menu
             # Use "vllm/<model-id>" format for OGX routing
             # Model to use for Claude Code sessions
