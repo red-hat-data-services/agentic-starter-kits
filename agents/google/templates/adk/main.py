@@ -138,7 +138,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     if base_url:
         base_url = base_url.rstrip("/")
-        if not base_url.endswith("/v1"):
+        if not base_url.endswith(("/v1", "/v1beta/openai")):
             base_url += "/v1"
 
     runner = get_runner(model_id=model_id, base_url=base_url)
