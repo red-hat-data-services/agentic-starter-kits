@@ -34,7 +34,7 @@ llm-d is a **routing and orchestration layer**, not a model-sharding tool. Each 
 | **NFD Operator** | Node Feature Discovery — detects GPU hardware. Create a `NodeFeatureDiscovery` instance after installing. |
 | **NVIDIA GPU Operator** | Installs drivers and device plugins. Create a `ClusterPolicy` after installing. Note: it taints GPU nodes with `nvidia.com/gpu=true:NoSchedule` — your workload needs a matching toleration (included in the template). |
 | **AI Gateway component** | MaaS gateway and (optionally) batch gateway, enabled in the DataScienceCluster (see below) |
-| **Red Hat Connectivity Link** | *Optional* — provides Kuadrant/Authorino auth. Without it, gateway auth is disabled via the `security.opendatahub.io/enable-auth: 'false'` annotation (as in this guide). **Warning:** in that configuration, any client that can reach the gateway host can invoke the model and consume GPU capacity — fine for isolated development clusters only. Install Connectivity Link and drop the annotation for production. |
+| **Red Hat Connectivity Link** | *Optional* — provides Kuadrant/Authorino auth. Without it, gateway auth is disabled via the `security.opendatahub.io/enable-auth: 'false'` annotation (as in this guide). **Warning:** in that configuration, any client that can reach the gateway host can invoke the model and consume GPU capacity — fine for isolated development clusters only. Install Connectivity Link and drop the annotation for production — and verify that Connectivity Link rejects unauthenticated requests before exposing the gateway. |
 | **Red Hat registry pull secret** | Access to `registry.redhat.io` for vLLM images |
 
 ### Enable the AI Gateway component
