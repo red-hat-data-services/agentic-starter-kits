@@ -14,7 +14,7 @@
 #   <NODE_POOL_NAME>  - Label on GPU nodes for scheduling (e.g., gpu-llmd-nodes)
 #   <VLLM_IMAGE>      - Current vLLM image from the Red Hat Ecosystem Catalog
 #                       (e.g., registry.redhat.io/rhaii/vllm-cuda-rhel9@sha256:...)
-#                       Find the latest at: https://catalog.redhat.com/en/software/containers/rhaiis/vllm-cuda-rhel9/6825c6b827e18fe3162148a9
+#                       Find the latest at: https://catalog.redhat.com/en/software/containers/rhaii/vllm-cuda-rhel9/69a57f8e94c1b4cc1eca015b
 #
 # Discover the presets available on your cluster (names are version-prefixed):
 #   oc get llminferenceserviceconfigs -n redhat-ods-applications

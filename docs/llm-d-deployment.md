@@ -110,7 +110,7 @@ The following values are specific to your environment. Replace all `<PLACEHOLDER
 | `<NODE_POOL_NAME>` | Label for GPU node pool scheduling | `gpu-llmd-nodes` |
 | `<PULL_SECRET_FILE>` | Path to your Red Hat registry pull secret YAML | `my-pull-secret.yaml` |
 | `<PULL_SECRET_NAME>` | Name of the pull secret in the cluster | `my-pull-secret` |
-| `<VLLM_IMAGE>` | vLLM container image — see the [vLLM image note](#vllm-image-requirements) below | `registry.redhat.io/rhaiis/vllm-cuda-rhel9@sha256:...` |
+| `<VLLM_IMAGE>` | vLLM container image — see the [vLLM image note](#vllm-image-requirements) below | `registry.redhat.io/rhaii/vllm-cuda-rhel9@sha256:...` |
 | `<GATEWAY_HOST>` | The external Route hostname from [Create the MaaS gateway](#create-the-maas-gateway), or your existing gateway endpoint | `maas-default-gateway-openshift-ingress.apps.example.com` |
 | `<OGX_ROUTE>` | OGX external route hostname (if using OGX) | `ogx-route-redhat-ods-applications.apps.example.com` |
 | `<SERVICE_NAME>` | LLMInferenceService name | `my-model-llmd` |
@@ -132,12 +132,12 @@ Set `<MODEL_URI>` to `hf://<model_name>` (e.g., `hf://openai/gpt-oss-20b`) and `
 The `v1alpha2` presets pin a vLLM image digest, but published digests are
 periodically removed from `registry.redhat.io`. If the workload pod reports
 `ErrImagePull` ("manifest unknown"), override the image in `spec.template`
-with the current digest from the [Red Hat Ecosystem Catalog](https://catalog.redhat.com/en/software/containers/rhaiis/vllm-cuda-rhel9/6825c6b827e18fe3162148a9).
+with the current digest from the [Red Hat Ecosystem Catalog](https://catalog.redhat.com/en/software/containers/rhaii/vllm-cuda-rhel9/69a57f8e94c1b4cc1eca015b) (the `rhaii` namespace — the same one the 3.6 presets pin their digests from).
 
 Version floor: the Anthropic-compatible `/v1/messages` endpoint and current
 tool-call parsers require a recent vLLM (verified with
-`vllm-0.24.0+rhaiv.16` from the `rhais/vllm-cuda-rhel9` image). For CPU-only
-testing, use the `rhais/vllm-cpu-rhel9` image with the
+`vllm-0.24.0+rhaiv.16` from the `rhaii/vllm-cuda-rhel9` image). For CPU-only
+testing, use the `rhaii/vllm-cpu-rhel9` image with the
 `v3-6-0-kserve-config-llm-template-cpu` preset.
 
 ## Step 1: Create GPU Node Pool
@@ -330,6 +330,10 @@ curl -s https://<GATEWAY_HOST>/publishers/redhat-ods-applications/models/qwen/Qw
 ```
 
 The model also appears under this publisher name in `/v1/models` output.
+The model name in the path must match `spec.model.name` exactly
+(case-sensitive) — the examples use `qwen/Qwen2.5-0.5B-Instruct` because
+that is the name the verified deployment sets, while the HuggingFace URI
+is `Qwen/Qwen2.5-0.5B-Instruct`.
 
 ## Batch Inference
 
@@ -338,6 +342,14 @@ New in RHOAI 3.6: the llm-d batch gateway provides OpenAI-compatible
 workloads (bulk classification, RAG corpus ingestion, nightly summarization).
 Clients upload a JSONL file of requests, create a batch, disconnect, and
 retrieve results when processing completes.
+
+> **Warning:** under the auth-off configuration used in this guide (no
+> Connectivity Link, `security.opendatahub.io/enable-auth: 'false'`), the
+> batch endpoints — file upload (`/v1/files`), job submission
+> (`/v1/batches`), and result download — are reachable by any client that
+> can resolve the gateway host, not just model inference. Treat the
+> gateway host as privileged and move to Connectivity Link auth (remove
+> the annotation) before handling sensitive data or sharing the cluster.
 
 Everything below was verified end-to-end on RHOAI 3.6. Manifests are in
 [`infrastructure/llm-d/`](../infrastructure/llm-d/):
@@ -365,13 +377,26 @@ bring your own.
 ### Step 2: Deploy backing services
 
 The batch gateway needs Redis (request/result queues) and PostgreSQL (job
-metadata). A dev-grade pair is in `batch-deps.yaml`:
+metadata). A dev-grade pair is in `batch-deps.yaml`.
+
+Generate unique PostgreSQL credentials and substitute them in **both**
+`batch-deps.yaml` and `llmbatchgateway.yaml` (Step 4) — the URL in the
+batch gateway's Secret must match the deployment:
+
+```bash
+openssl rand -hex 24   # use as <POSTGRESQL_PASSWORD>
+```
+
+Then apply:
 
 ```bash
 oc apply -f infrastructure/llm-d/batch-deps.yaml
 ```
 
-For production, use a managed or highly available Redis/Valkey and PostgreSQL.
+For production, use a managed or highly available Redis/Valkey and
+PostgreSQL. The dev pair runs without Redis AUTH or network policies and
+is reachable from any pod in the namespace — restrict both to the batch
+gateway pods (NetworkPolicies, AUTH/credentials) outside isolated labs.
 
 ### Step 3: Create the internal gateway and route
 
@@ -393,7 +418,8 @@ oc apply -f infrastructure/llm-d/batch-llm-route.yaml   # edit <SERVICE_NAME> fi
 
 ### Step 4: Create the LLMBatchGateway
 
-Edit `<MODEL_NAME>` and `<SERVICE_NAME>` in `llmbatchgateway.yaml`, then:
+Edit `<MODEL_NAME>`, `<SERVICE_NAME>`, and the same PostgreSQL credentials
+you set in Step 2 in `llmbatchgateway.yaml`, then:
 
 ```bash
 oc apply -f infrastructure/llm-d/llmbatchgateway.yaml
