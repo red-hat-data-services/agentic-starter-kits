@@ -10,9 +10,11 @@
 
 ## What this agent does
 
-Minimal agent with no framework: only the OpenAI Python client and an Action/Observation loop with tools. Requires the
+Minimal agent with no framework: only the OpenAI Python client and an Action/Observation loop with tools. Targets the
 [OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create) — works with OpenAI or any
-endpoint that supports the Responses API.
+endpoint that serves it. Chat Completions-only endpoints also work: when `/v1/responses` returns HTTP 400 or 404, the
+agent automatically retries over `POST /v1/chat/completions` (see the fallback notes in
+[LLM API Surfaces](../../../../docs/llm-api-surfaces.md)).
 
 ---
 
@@ -30,7 +32,9 @@ endpoint that supports the Responses API.
 ## Local Development
 
 > **Note:** This agent uses the [OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create),
-> which is specific to OpenAI. It does not use Ollama or OGX for local model serving.
+> which is specific to OpenAI. It does not use Ollama or OGX for local model serving. See
+> [LLM API Surfaces](../../../../docs/llm-api-surfaces.md) for how the Responses API compares to Chat Completions and
+> Messages, including this agent's automatic fallback to Chat Completions.
 
 ### Initiating base
 
