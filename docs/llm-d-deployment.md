@@ -60,15 +60,36 @@ oc patch dsc default-dsc --type merge \
 ### Create the MaaS gateway
 
 The `maas-default-gateway` Gateway **must already exist** before the MaaS
-controller can reconcile — the component does not create it. On clusters where
-a model was deployed through the OpenShift AI dashboard, the gateway already
-exists and this step is a no-op. On CLI-only clusters, create it:
+controller can reconcile — the component does not create it. Check for an
+existing gateway first:
+
+```bash
+oc get gateway maas-default-gateway -n openshift-ingress
+```
+
+If it exists, preserve its configuration and use its existing external
+endpoint. If it is absent on a CLI-only cluster, create it:
 
 ```bash
 oc apply -f infrastructure/llm-d/maas-gateway.yaml
 ```
 
 See [`infrastructure/llm-d/maas-gateway.yaml`](../infrastructure/llm-d/maas-gateway.yaml).
+The manifest creates a ClusterIP gateway and a **re-encrypt OpenShift Route**
+for external access. The router presents its default ingress certificate to
+clients and uses the service CA to verify the gateway's serving certificate.
+Use the Route hostname as `<GATEWAY_HOST>`:
+
+```bash
+oc wait --for=condition=Programmed gateway/maas-default-gateway \
+  -n openshift-ingress --timeout=120s
+oc get route maas-default-gateway -n openshift-ingress -o jsonpath='{.spec.host}{"\n"}'
+```
+
+If your cluster's ingress certificate is not trusted locally, configure your
+client's CA trust with the ingress CA before running the HTTPS examples.
+The service-serving certificate remains internal to the router → gateway hop.
+
 Without it, `maas-controller` logs repeat
 `gateway openshift-ingress/maas-default-gateway not found: the specified
 Gateway must exist before enabling MaaS platform reconcile` and any
@@ -90,7 +111,7 @@ The following values are specific to your environment. Replace all `<PLACEHOLDER
 | `<PULL_SECRET_FILE>` | Path to your Red Hat registry pull secret YAML | `my-pull-secret.yaml` |
 | `<PULL_SECRET_NAME>` | Name of the pull secret in the cluster | `my-pull-secret` |
 | `<VLLM_IMAGE>` | vLLM container image — see the [vLLM image note](#vllm-image-requirements) below | `registry.redhat.io/rhaiis/vllm-cuda-rhel9@sha256:...` |
-| `<GATEWAY_HOST>` | The maas-default-gateway external hostname (auto-assigned ELB or manually configured) | `a1b2c3.us-east-2.elb.amazonaws.com` |
+| `<GATEWAY_HOST>` | The external Route hostname from [Create the MaaS gateway](#create-the-maas-gateway), or your existing gateway endpoint | `maas-default-gateway-openshift-ingress.apps.example.com` |
 | `<OGX_ROUTE>` | OGX external route hostname (if using OGX) | `ogx-route-redhat-ods-applications.apps.example.com` |
 | `<SERVICE_NAME>` | LLMInferenceService name | `my-model-llmd` |
 
@@ -189,15 +210,17 @@ If integrating with OGX, set these environment variables in your OGX deployment:
 
 | Variable | Value | Notes |
 |----------|-------|-------|
-| `VLLM_URL` | `http://<GATEWAY_HOST>/redhat-ods-applications/<SERVICE_NAME>/v1` | Must end with `/v1` — the OpenAI SDK appends `/models`, `/chat/completions`, etc. to this base URL |
+| `VLLM_URL` | `https://<GATEWAY_HOST>/redhat-ods-applications/<SERVICE_NAME>/v1` | Must end with `/v1` — the OpenAI SDK appends `/models`, `/chat/completions`, etc. to this base URL |
 | `VLLM_TLS_VERIFY` | `false` | Required when using self-signed certs |
 | `VLLM_API_KEY` | *(leave empty)* | Not needed — the maas-default-gateway has no auth |
 
 To find your `<GATEWAY_HOST>`:
 
 ```bash
-oc get llminferenceservice <SERVICE_NAME> -n redhat-ods-applications -o jsonpath='{.status.url}'
+oc get route maas-default-gateway -n openshift-ingress -o jsonpath='{.spec.host}{"\n"}'
 ```
+
+For an existing gateway, use its external endpoint instead.
 
 If deploying OGX in the same namespace with an external route, apply the OGX network policy from `network-policies.yaml` to allow ingress from the OpenShift router.
 
@@ -395,6 +418,14 @@ Notes on the CR:
     echo "ERROR: batch-gateway-processor-0 not found or not scheduled — aborting" >&2
     exit 1
   fi
+  # Count all current batch pods before deleting any, so the readiness check
+  # cannot pass while replacement pods have yet to be created.
+  EXPECTED_PODS=$(oc get pods -n redhat-ods-applications \
+    -l app.kubernetes.io/instance=batch-gateway -o name | wc -l | tr -d ' ')
+  if [ "$EXPECTED_PODS" -eq 0 ]; then
+    echo "ERROR: no batch pods found — aborting" >&2
+    exit 1
+  fi
   # Cordon every schedulable node except the volume node, labeling the ones
   # this procedure cordons so already-cordoned nodes are left untouched.
   for n in $(oc get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
@@ -406,13 +437,35 @@ Notes on the CR:
   done
   oc delete pod -n redhat-ods-applications -l app.kubernetes.io/instance=batch-gateway \
     --field-selector=status.phase!=Running
+  # Deletion waits for old pods to disappear, not for replacements to be
+  # scheduled. Keep nodes cordoned until every batch pod is Ready.
+  RECOVERY_READY=false
+  for attempt in $(seq 1 60); do
+    READY_PODS=$(oc get pods -n redhat-ods-applications \
+      -l app.kubernetes.io/instance=batch-gateway --field-selector=status.phase=Running \
+      -o jsonpath='{range .items[*]}{range .status.conditions[?(@.type=="Ready")]}{.status}{"\n"}{end}{end}' \
+      | { grep -c '^True$' || true; })
+    if [ "$READY_PODS" -ge "$EXPECTED_PODS" ]; then
+      RECOVERY_READY=true
+      break
+    fi
+    sleep 5
+  done
+  if [ "$RECOVERY_READY" != true ]; then
+    echo "ERROR: recovery timed out; inspect batch pods. Restoring node scheduling." >&2
+  fi
   # Uncordon only the nodes this procedure cordoned.
   for n in $(oc get nodes -l batch-recovery-cordoned=true \
     -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
     oc adm uncordon "$n"
     oc label node "$n" batch-recovery-cordoned-
   done
+  test "$RECOVERY_READY" = true
   ```
+
+  The procedure waits up to five minutes for all batch pods to be Ready. On
+  timeout it restores node scheduling and returns failure; inspect the pod
+  events before retrying. Keep replica counts unchanged during recovery.
 
   For production, avoid the issue entirely: use an RWX PVC or the `s3` fileStorage backend. The example uses RWO because default storage classes on ROSA and self-managed AWS clusters (`gp2`/`gp3`) are RWO-only — RWX requires an additional storage layer such as OpenShift Data Foundation. If your cluster already has an RWX storage class, prefer it: change the PVC's `accessModes` to `ReadWriteMany` and skip the co-location recovery entirely.
 - The operator creates an HTTPRoute exposing `/v1/batches` and `/v1/files` on the external gateway you specify in `spec.httpRoute.parentRefs`.

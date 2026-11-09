@@ -3,13 +3,15 @@
 # The aigateway/modelsAsAService DSC component REQUIRES this Gateway to
 # already exist — the maas-controller fails to reconcile without it
 # ("gateway openshift-ingress/maas-default-gateway not found"). On clusters
-# where a model was deployed through the OpenShift AI dashboard, the gateway
-# already exists and this manifest is a no-op.
+# where the gateway already exists, preserve its configuration and external
+# endpoint instead of applying this manifest over it.
 #
 # The ConfigMap is referenced by the Gateway's infrastructure.parametersRef and
 # makes the generated Service a ClusterIP with an OpenShift serving certificate
 # (auto-issued into the maas-default-gateway-service-tls Secret referenced by
-# the HTTPS listener).
+# the HTTPS listener). The re-encrypt Route exposes it externally using the
+# OpenShift router's default certificate for clients and the service CA for
+# the connection to the gateway. OpenShift assigns the Route hostname.
 #
 # Usage:
 #   oc apply -f maas-gateway.yaml
@@ -59,3 +61,21 @@ data:
         service.beta.openshift.io/serving-cert-secret-name: "maas-default-gateway-service-tls"
     spec:
       type: ClusterIP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: maas-default-gateway
+  namespace: openshift-ingress
+spec:
+  to:
+    kind: Service
+    name: maas-default-gateway-data-science-gateway-class
+  port:
+    targetPort: https
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+    # The backend uses an OpenShift service-serving certificate. Omitting
+    # destinationCACertificate lets the router use the service CA and
+    # validate the backend's service DNS name.

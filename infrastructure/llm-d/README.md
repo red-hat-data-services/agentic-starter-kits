@@ -9,7 +9,7 @@ llm-d is a Kubernetes-native routing and orchestration layer that sits in front 
 | File | Description |
 |------|-------------|
 | [`llminferenceservice.yaml`](llminferenceservice.yaml) | LLMInferenceService template (v1alpha2 with `baseRefs` presets) |
-| [`maas-gateway.yaml`](maas-gateway.yaml) | The `maas-default-gateway` Gateway (required before MaaS reconciles; no-op if it already exists) |
+| [`maas-gateway.yaml`](maas-gateway.yaml) | The `maas-default-gateway` Gateway, serving-certificate ConfigMap, and external HTTPS Route (preserve existing gateways) |
 | [`network-policies.yaml`](network-policies.yaml) | Required NetworkPolicies (RHOAI defaults block port 8000) |
 | [`batch-deps.yaml`](batch-deps.yaml) | Dev-grade Redis + PostgreSQL backing services for the batch gateway |
 | [`batch-internal-gateway.yaml`](batch-internal-gateway.yaml) | Cluster-internal Gateway for batch processor → model traffic |
