@@ -313,8 +313,9 @@ Replace model IDs in the **ConfigMap** and the **Deployment** env vars. OGX uses
 | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | What the `haiku` alias resolves to (used for background tasks like summarization) | `vllm/gpt-oss-120b` |
 | `ANTHROPIC_DEFAULT_SONNET_MODEL` | What the `sonnet` alias resolves to (selectable via `/model sonnet`) | `vllm/gpt-oss-120b` |
 | `ANTHROPIC_DEFAULT_OPUS_MODEL` | What the `opus` alias resolves to (selectable via `/model opus`, used for plan mode) | `vllm/gpt-oss-120b` |
+| `MAX_THINKING_TOKENS` | Disables extended thinking (`"0"`). **Required in translation mode** — OGX's `remote::openai` provider rejects thinking requests with HTTP 400. Only change it with a passthrough provider and a backend that support thinking | `"0"` |
 
-The three alias overrides are required. Without them, Claude Code tries to resolve haiku, sonnet, and opus to Anthropic model names, causing 404 errors.
+The three alias overrides are required. Without them, Claude Code tries to resolve haiku, sonnet, and opus to Anthropic model names, causing 404 errors. The manifest sets `MAX_THINKING_TOKENS="0"` by default; see [ogx/README.md](ogx/README.md#translation-limitations) for when thinking can be re-enabled.
 
 #### Deploy
 
@@ -853,10 +854,20 @@ oc logs deployment/ogx --tail=50
 ```text
 HEAD / 404        # Claude Code HTTP client probing
 POST /v1/messages 404  # Initial probes (2x)
-POST /v1/messages 200  # Successful request with "Using native /v1/messages passthrough"
+POST /v1/messages 200  # Successful request
 ```
 
-The 404s are caused by Claude Code's HTTP client probing behavior and do not indicate errors. The key indicator of success is seeing `Using native /v1/messages passthrough` followed by a 200 response.
+The 404s are caused by Claude Code's HTTP client probing behavior and do not indicate errors. The key indicator of
+success is a `200` on `POST /v1/messages`. What the surrounding logs show depends on the OGX provider mode
+(see [ogx/README.md](ogx/README.md#providers)):
+
+- **Translation mode** (`remote::openai`, the default in these manifests): no passthrough log line appears — OGX
+  translates the request internally. The 200 is accompanied by backend `POST /v1/chat/completions` traffic toward
+  the vLLM service.
+- **Passthrough mode** (`remote::vllm`): the 200 is accompanied by the
+  `Using native /v1/messages passthrough` log line and backend `POST /v1/messages` traffic.
+
+A 200 without the passthrough log line is **not** a failure — it usually means OGX is translating.
 
 ### Testing Endpoints Directly
 
