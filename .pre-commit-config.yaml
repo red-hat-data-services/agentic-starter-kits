@@ -67,8 +67,8 @@ repos:
     hooks:
       - id: lychee
         name: lychee link checker
-        entry: lychee
-        args: ['--config', 'lychee.toml', '--no-progress']
+        entry: python3 .github/scripts/check_links.py
+        args: ['--']
         language: system
         types_or: [markdown]
         pass_filenames: true

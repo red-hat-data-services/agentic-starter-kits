@@ -60,52 +60,29 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Determine files to check
-        id: files
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install lychee
+        env:
+          LYCHEE_VERSION: v0.24.2
+          LYCHEE_SHA256: 1f4e0ef7f6554a6ed33dd7ac144fb2e1bbed98598e7af973042fc5cd43951c9a
+        run: |
+          bash .github/scripts/install_lychee.sh "$LYCHEE_VERSION" "$LYCHEE_SHA256" "$RUNNER_TEMP/lychee/bin"
+
+      - name: Link check (lychee with availability policy)
         env:
           GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # `gh pr diff --name-only` also lists files the PR deletes, so lychee used to be
-          # handed markdown paths that no longer exist on disk and the job failed. The
-          # `[ -f "$f" ]` test below filters those out.
-          # The `gh pr diff` failure is fatal on purpose: the previous pipeline-wide
-          # `|| true` swallowed errors, leaving `changed` empty so the link check silently
-          # skipped and the job went green without checking anything.
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            if ! diff_files=$(gh pr diff ${{ github.event.pull_request.number }} --name-only); then
-              echo "::error::Unable to determine changed files for link check"
-              exit 1
-            fi
-            changed=$(
-              while IFS= read -r f; do
-                case "$f" in
-                  *.md)
-                    if [ -f "$f" ]; then
-                      printf '%s ' "$f"
-                    fi
-                    ;;
-                esac
-              done <<< "$diff_files"
-            )
-            if [ -z "${changed// /}" ]; then
-              echo "No markdown files changed — skipping link check"
-              echo "targets=" >> "$GITHUB_OUTPUT"
-            else
-              echo "Checking changed markdown files: $changed"
-              echo "targets=$changed" >> "$GITHUB_OUTPUT"
-            fi
+          if [ -n "$PR_NUMBER" ]; then
+            python3 .github/scripts/check_links.py --report-dir "$RUNNER_TEMP/link-check" --pr "$PR_NUMBER"
           else
-            echo "targets='./**/*.md'" >> "$GITHUB_OUTPUT"
+            python3 .github/scripts/check_links.py --report-dir "$RUNNER_TEMP/link-check" --all
           fi
-
-      - name: Link check (lychee)
-        if: steps.files.outputs.targets != ''
-        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8  # v2
-        with:
-          args: "--config lychee.toml --no-progress ${{ steps.files.outputs.targets }}"
-          token: ${{ github.token }}
-          fail: true
-          jobSummary: true
 
   lockfile-check:
     runs-on: ubuntu-latest
