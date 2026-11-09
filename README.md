@@ -151,6 +151,7 @@ See `tests/behavioral/` for full details.
 - [Adding Behavioral Tests](./docs/adding-behavioral-tests.md) — How to add test coverage for an agent
 - [Guardrails](./docs/guardrails.md) — Adding safety rails to agents with NeMo Guardrails
 - [llm-d Deployment](./docs/llm-d-deployment.md) — Deploy llm-d for intelligent LLM inference routing on OpenShift AI
+- [LLM API Surfaces](./docs/llm-api-surfaces.md) — Comparison of the Chat Completions, Responses, and Messages APIs with kit examples
 
 ## Claude Code Skills
 

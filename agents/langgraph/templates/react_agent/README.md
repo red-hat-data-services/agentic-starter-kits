@@ -11,7 +11,8 @@
 ## What this agent does
 
 General-purpose agent using a ReAct loop: it reasons and calls tools (e.g. search, math) step by step. Built with
-LangGraph and LangChain.
+LangGraph and LangChain. It talks to its model over the OpenAI Chat Completions API — see
+[LLM API Surfaces](../../../../docs/llm-api-surfaces.md) for how that compares to the Responses and Messages APIs.
 
 ---
 
