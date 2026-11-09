@@ -1,6 +1,6 @@
 # Claude Code on OpenShift
 
-A guide to deploying Claude Code as a containerized agent on Red Hat OpenShift. Supports four backend configurations: Anthropic API, Google Vertex AI, vLLM direct, and vLLM via OGX gateway.
+A guide to deploying Claude Code as a containerized agent on Red Hat OpenShift. Supports four backend configurations: Anthropic API, Google Vertex AI, vLLM direct, and vLLM via OGX gateway. Claude Code talks to its model over the Anthropic Messages API — see [LLM API Surfaces](../../docs/llm-api-surfaces.md) for how that compares to the OpenAI Chat Completions and Responses APIs.
 
 ## Table of Contents
 
