@@ -1,0 +1,61 @@
+# HTTPRoute for batch processor inference requests through the internal
+# gateway to the LLMInferenceService's InferencePool.
+#
+# Before applying, replace the following placeholders with your values:
+#
+#   <SERVICE_NAME>  - LLMInferenceService name (e.g., my-model-llmd)
+#
+# The InferencePool is named <SERVICE_NAME>-inference-pool (created by the
+# LLMInferenceService controller).
+#
+# IMPORTANT — the route must match the BARE API path (/v1/chat/completions),
+# not only the prefixed path. The async dispatcher joins the per-request
+# `url` field from the batch input JSONL (e.g. "/v1/chat/completions") with
+# the inference gateway base URL, and the per-request endpoint takes
+# precedence over the queue's requestPathURL. A route that only matches
+# /<namespace>/<service>/v1/... results in 404s for every batch request.
+#
+# Usage:
+#   oc apply -f batch-llm-route.yaml
+
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: batch-llm-route
+  namespace: redhat-ods-applications
+spec:
+  parentRefs:
+    - name: batch-internal-gateway
+      namespace: openshift-ingress
+  rules:
+    # Bare API path — used by the batch async dispatcher
+    # (per-request endpoint from the JSONL input file).
+    - name: bare-chat-completions
+      matches:
+        - path:
+            type: PathPrefix
+            value: /v1/chat/completions
+      backendRefs:
+        - group: inference.networking.k8s.io
+          kind: InferencePool
+          name: <SERVICE_NAME>-inference-pool
+          port: 8000
+          weight: 1
+    # Prefixed path (namespace/service) — useful for direct testing.
+    - name: prefixed-chat-completions
+      matches:
+        - path:
+            type: PathPrefix
+            value: /redhat-ods-applications/<SERVICE_NAME>/v1/chat/completions
+      backendRefs:
+        - group: inference.networking.k8s.io
+          kind: InferencePool
+          name: <SERVICE_NAME>-inference-pool
+          port: 8000
+          weight: 1
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              replacePrefixMatch: /v1/chat/completions
+              type: ReplacePrefixMatch

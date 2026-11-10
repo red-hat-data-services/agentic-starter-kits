@@ -1,0 +1,50 @@
+# Internal (cluster-only) Gateway for batch processor -> model traffic.
+#
+# The batch gateway's async processor dispatches inference requests through a
+# Gateway API HTTPRoute to the LLMInferenceService's InferencePool. This
+# internal gateway is HTTP-only, ClusterIP (no external exposure), and only
+# accepts routes from redhat-ods-applications.
+#
+# Modeled on the RHOAI-managed maas-default-gateway (same
+# data-science-gateway-class, infrastructure.parametersRef ConfigMap forces
+# ClusterIP service type).
+#
+# Usage:
+#   oc apply -f batch-internal-gateway.yaml
+
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: batch-internal-gateway
+  namespace: openshift-ingress
+  labels:
+    istio.io/rev: openshift-gateway
+spec:
+  gatewayClassName: data-science-gateway-class
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: batch-internal-gateway-config
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values: [redhat-ods-applications]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: batch-internal-gateway-config
+  namespace: openshift-ingress
+data:
+  service: |
+    spec:
+      type: ClusterIP
