@@ -86,7 +86,7 @@ LLM response
 
 **Use a different model per layer** — each of the 3 model roles (`main`, `content_safety`, `topic_control`) can be pointed at its own model/endpoint/key/engine via `.env` overrides: `MAIN_MODEL_ID`/`MAIN_LLM_BASE_URL`/`MAIN_API_KEY`/`MAIN_MODEL_ENGINE`, `CONTENT_SAFETY_MODEL_ID`/`CONTENT_SAFETY_LLM_BASE_URL`/`CONTENT_SAFETY_API_KEY`/`CONTENT_SAFETY_MODEL_ENGINE`, and the `TOPIC_CONTROL_*` equivalents (see `.env.example`). Any override left unset falls back to the shared `MODEL_ID`/`LLM_BASE_URL`/`API_KEY`, so single-model setups need no changes. This lets you use a small, fast model for classification while keeping a larger model for responses — or a purpose-built safety classifier for the rail layers only.
 
-> **Note:** `MAIN_MODEL_ID` has no effect once real traffic flows through the proxy. NeMo Guardrails' own server always overrides the `main` model's id from the client's OpenAI `model` field on every request — and this agent always sends `model=MODEL_ID`. `MAIN_LLM_BASE_URL`/`MAIN_API_KEY` still take effect. See `guardrails/generate_config.py`'s docstring for the full explanation (verified against `nemoguardrails==0.24.0`).
+> **Note:** `MAIN_MODEL_ID` has no effect once real traffic flows through the proxy. NeMo Guardrails' own server always overrides the `main` model's id from the client's OpenAI `model` field on every request — and this agent always sends `model=MODEL_ID`. `MAIN_LLM_BASE_URL`/`MAIN_API_KEY` still take effect. See `guardrails/generate_config.py`'s docstring for the full explanation (verified against `nemoguardrails==0.24.1`).
 
 **Using NVIDIA's dedicated NemoGuard NIM models** — set a role's `_MODEL_ENGINE` to `nim` to route it through NeMo Guardrails' NIM/`ChatNVIDIA` integration (requires the `langchain-nvidia-ai-endpoints` package, included in the `guardrails` extra) instead of the generic OpenAI-compatible client:
 
@@ -111,7 +111,7 @@ TOPIC_CONTROL_LLM_BASE_URL=http://nemotron-3-5-content-safety-svc.llama-serving.
 
 Verified end-to-end: against NVIDIA's hosted NIM on 2026-07-30 (before its removal), and self-hosted on in-cluster vLLM on 2026-11-02 — verdict matrix 15/15 ×3 (fp16 on a T4) and the full cluster integration suite 8/8. Correctly passes banking questions and blocks off-topic ones (e.g. recipe requests) using the default policy text baked into `generate_config.py`. Override the policy text with `TOPIC_CONTROL_CUSTOM_POLICY` in `.env`.
 
-> **Note:** if you edit `guardrails/config/nemoguard/actions.py`, verify it on the cluster, not just locally. If the file fails to import, the NeMo Guardrails server logs `Failed to register actions.py`, skips the whole file, and keeps serving without the custom topic-policy rail and the account-id PII carve-out. No request fails, so it's easy to miss. Local runs use the public `nemoguardrails==0.24.0` package, while RHOAI 3.6 runs its own `0.24.0.dev0` build, and some APIs differ (for example, `RailOutcome.failure()` exists only in the public package). After deploying, run the registration check in [Verify](#verify).
+> **Note:** if you edit `guardrails/config/nemoguard/actions.py`, verify it on the cluster, not just locally. If the file fails to import, the NeMo Guardrails server logs `Failed to register actions.py`, skips the whole file, and keeps serving without the custom topic-policy rail and the account-id PII carve-out. No request fails, so it's easy to miss. Local runs use the public `nemoguardrails==0.24.1` package, while RHOAI 3.6 runs its own `0.24.0.dev0` build, and some APIs differ (for example, `RailOutcome.failure()` exists only in the public package). After deploying, run the registration check in [Verify](#verify).
 
 ### Adapting to a different domain
 
@@ -483,7 +483,7 @@ curl http://localhost:8000/health
 
 - Config file must be `config.yaml` (not `.yml`) — RHOAI container entrypoint requirement (undocumented)
 - `rails.co` must exist — RHOAI container entrypoint validates this file on startup
-- NeMo Guardrails pinned to `0.24.0`, the closest public release to the RHOAI 3.6 container's build (`0.24.0.dev0`). The two are not API-identical, so passing local tests doesn't prove custom actions load on the cluster (see [Customizing the rails](#customizing-the-rails)). Custom actions return the 0.24 `RailOutcome` type
+- NeMo Guardrails pinned to `0.24.1`, the closest public release to the RHOAI 3.6 container's build (`0.24.0.dev0`). The two are not API-identical, so passing local tests doesn't prove custom actions load on the cluster (see [Customizing the rails](#customizing-the-rails)). Custom actions return the 0.24 `RailOutcome` type
 
 ## Known Limitations
 
