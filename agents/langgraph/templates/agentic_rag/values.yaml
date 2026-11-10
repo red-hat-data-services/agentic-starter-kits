@@ -16,3 +16,7 @@ volumes:
 volumeMounts:
   - name: vector-store
     mountPath: /opt/app-root/src/data/vector_store
+
+secrets:
+  maas_secret_name: ""
+  vector_db_secret_name: ""
