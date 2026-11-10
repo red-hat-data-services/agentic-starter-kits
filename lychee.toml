@@ -25,8 +25,8 @@ retry_wait_time = 2
 # Do not check email addresses
 include_mail = false
 
-# Use curl-style user agent — docs.redhat.com and docs.openshift.com block
-# non-curl UAs (403), but allow curl/X.Y.Z through
+# Use curl-style user agent — many sites block unknown bot UAs with 403.
+# Red Hat docs also return 403 with this UA; see the exclusions below.
 user_agent = "curl/8.7.1"
 
 # Skip virtual environments and vendored dependencies
@@ -48,4 +48,10 @@ exclude = [
 
     # milvus.io/docs — returns 403 to all automated requests
     "^https://milvus\\.io/docs",
+
+    # Red Hat docs return 403 to automated clients, even for valid pages.
+    # These links are not checked; verify them manually in a browser.
+    # Remove these exclusions when automated access recovers.
+    "^https://docs\\.redhat\\.com(?:/|$)",
+    "^https://docs\\.openshift\\.com(?:/|$)",
 ]
