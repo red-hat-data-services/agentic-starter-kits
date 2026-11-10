@@ -86,7 +86,7 @@ def test_pyproject_pins_nemoguardrails_version() -> None:
     # README's Verify section after deploying.
     guardrails_deps = PYPROJECT["project"]["optional-dependencies"]["guardrails"]
     assert any(
-        "nemoguardrails[server]" in d and "==0.24.0" in d for d in guardrails_deps
+        "nemoguardrails[server]" in d and "==0.24.1" in d for d in guardrails_deps
     )
 
 
