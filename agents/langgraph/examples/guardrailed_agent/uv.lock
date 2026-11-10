@@ -795,7 +795,7 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=1.1.10" },
     { name = "langgraph-prebuilt", specifier = ">=1.0.8" },
     { name = "mlflow", extras = ["kubernetes"], marker = "extra == 'tracing'", specifier = ">=3.11.0" },
-    { name = "nemoguardrails", extras = ["server"], marker = "extra == 'guardrails'", specifier = "==0.24.0" },
+    { name = "nemoguardrails", extras = ["server"], marker = "extra == 'guardrails'", specifier = "==0.24.1" },
     { name = "openai", specifier = ">=2.24.0" },
     { name = "opentelemetry-distro", marker = "extra == 'guardrails'", specifier = ">=0.65b0" },
     { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'guardrails'", specifier = ">=1.44.0" },
@@ -1703,7 +1703,7 @@ wheels = [
 
 [[package]]
 name = "nemoguardrails"
-version = "0.24.0"
+version = "0.24.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1726,7 +1726,7 @@ dependencies = [
     { name = "typer" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b2/06/72899405aa42f6b63e7678c0e5c5db7b1f55d2c8ed13fed3f625ff2086b8/nemoguardrails-0.24.0-py3-none-any.whl", hash = "sha256:85361c8d3e5f828502578da6e762822c17f2e6a08098cfa0e97aeaf8d94bbf8d", size = 1057917, upload-time = "2026-08-26T19:29:26.152Z" },
+    { url = "https://files.pythonhosted.org/packages/59/5c/e44694350e4867436bc897365b8e0d6383b9e990fa18b56fb4bf9fe35939/nemoguardrails-0.24.1-py3-none-any.whl", hash = "sha256:4fcfc9d9456cdcbcc939fbd4ba884e9fc89b7f200bd9d8ed77836298bf31680f", size = 1060573, upload-time = "2026-09-16T17:17:10.794Z" },
 ]
 
 [package.optional-dependencies]
