@@ -23,9 +23,11 @@ class SimpleContext:
 base_url = getenv("BASE_URL")
 model_id = getenv("MODEL_ID")
 
-# Ensure base_url ends with /v1 if provided
-if base_url and not base_url.endswith("/v1"):
-    base_url = base_url.rstrip("/") + "/v1"
+# Ensure base_url ends with /v1 if provided (preserve /v1beta/openai for Gemini)
+if base_url:
+    base_url = base_url.rstrip("/")
+    if not base_url.endswith(("/v1", "/v1beta/openai")):
+        base_url += "/v1"
 
 stream = True
 context = SimpleContext()

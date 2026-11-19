@@ -1,0 +1,41 @@
+# OpenShell provider profile for the ADK agent's LLM endpoint.
+#
+# This profile tells OpenShell how to manage the API key credential.
+# The agent reads the API_KEY env var; OpenShell injects it at runtime
+# so the agent never sees the raw key value.
+#
+# Import:
+#   openshell profile import -f openshell-provider.yaml --global
+#
+# Create provider:
+#   export API_KEY='your-gemini-key'
+#   openshell provider create --name gemini --type adk-gemini \
+#     --global-profile --credential API_KEY
+
+id: adk-gemini
+display_name: LLM for ADK Agent
+description: LLM inference endpoint for the Google ADK agent (Gemini, vLLM, OGX)
+category: inference
+inference_capable: true
+
+credentials:
+  - name: api_key
+    description: LLM API key (injected as API_KEY env var)
+    env_vars:
+      - API_KEY
+    required: true
+    auth_style: bearer
+    header_name: authorization
+
+# Replace with your model endpoint
+endpoints:
+  - host: generativelanguage.googleapis.com
+    port: 443
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+
+binaries:
+  - /opt/app-root/bin/python3.12
+  - /opt/app-root/bin/python3
+  - /usr/bin/python3.12

@@ -30,7 +30,7 @@ WORKDIR /sandbox
 # Install Python dependencies using the image's Python 3.12
 COPY --chown=1001:0 pyproject.toml .
 COPY --chown=1001:0 src/ ./src/
-RUN uv pip install --python /opt/app-root/bin/python3 --no-cache ".[tracing]"
+RUN uv pip install --python /opt/app-root/bin/python3 --no-cache ".[tracing]" mcp mcp
 
 # Application code and assets
 COPY --chown=1001:0 main.py .

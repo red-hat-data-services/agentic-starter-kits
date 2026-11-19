@@ -1,0 +1,52 @@
+# OpenShell 0.1.3 sandbox policy for the Google ADK Agent.
+#
+# CRITICAL: /opt MUST be in read_only. The UBI9 Python venv lives at
+# /opt/app-root. Without /opt readable, Python fails with:
+#   PermissionError: [Errno 13] Permission denied: '/opt/app-root/pyvenv.cfg'
+#
+# This applies to ALL UBI9 Python-based images on OpenShell 0.1.3+.
+#
+# The agent only needs outbound access to the configured LLM endpoint.
+# Replace the Gemini endpoint with your model's endpoint if using a
+# different provider (vLLM, Ollama, etc.).
+
+version: 1
+
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /usr
+    - /lib
+    - /lib64
+    - /etc
+    - /var/log
+    - /dev/urandom
+    - /opt
+    - /proc
+  read_write:
+    - /sandbox
+    - /tmp
+    - /dev/null
+    - /run
+    - /home
+
+landlock:
+  compatibility: best_effort
+
+network_policies:
+  # LLM inference endpoint — replace with your model's endpoint
+  # Examples:
+  #   Gemini:        generativelanguage.googleapis.com:443
+  #   In-cluster:    vllm-svc.my-ns.svc.cluster.local:8000
+  #   OGX:           ogx.my-ns.svc.cluster.local:8321
+  llm_endpoint:
+    name: llm_endpoint
+    endpoints:
+      - host: generativelanguage.googleapis.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: read-write
+    binaries:
+      - path: /opt/app-root/bin/python3.12
+      - path: /usr/bin/python3.12
